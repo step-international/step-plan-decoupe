@@ -460,10 +460,14 @@ button{cursor:pointer;font-family:inherit}
     <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
+    <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
   </div>
 
   <!-- ONGLET SAUVEGARDES -->
   <div id="tabContentSaves">
+    <div id="backupBtnZone" class="flex-wrap" style="margin-bottom:12px;display:none">
+      <button class="btn btn-orange btn-sm" onclick="downloadFullBackup()">📦 Sauvegarde complète JSON</button>
+    </div>
     <div id="savesList"></div>
     <div id="savesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune sauvegarde.</div>
   </div>
@@ -472,7 +476,7 @@ button{cursor:pointer;font-family:inherit}
   <div id="tabContentFiches" class="hidden">
     <div class="flex-wrap" style="margin-bottom:12px" id="fichesManageBtns">
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
-      <button class="btn btn-red btn-sm" onclick="clearFiches()">🗑️ Tout effacer</button>
+      <button class="btn btn-red btn-sm" onclick="clearFiches()">📦 Tout archiver</button>
     </div>
     <div id="fichesList"></div>
     <div id="fichesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune fiche enregistrée.</div>
@@ -504,7 +508,7 @@ button{cursor:pointer;font-family:inherit}
     </div>
     <div class="flex-wrap" style="margin-bottom:12px" id="tempsManageBtns">
       <button class="btn btn-ghost btn-sm" onclick="exportTemps()">⬇️ Exporter CSV</button>
-      <button class="btn btn-red btn-sm" onclick="clearTemps()">🗑️ Tout effacer</button>
+      <button class="btn btn-red btn-sm" onclick="clearTemps()">📦 Tout archiver</button>
     </div>
     <div id="tempsList"></div>
     <div id="tempsEmpty" class="text-muted hidden" style="padding:8px 0">Aucune donnée de temps enregistrée.</div>
@@ -513,6 +517,13 @@ button{cursor:pointer;font-family:inherit}
   <!-- ONGLET ANALYSE -->
   <div id="tabContentAnalyse" class="hidden">
     <div id="analyseContent"></div>
+  </div>
+
+  <!-- ONGLET CORBEILLE -->
+  <div id="tabContentCorbeille" class="hidden">
+    <div style="padding:10px 0 14px;font-size:13px;color:var(--muted)">Éléments archivés — récupérables pendant 30 jours. Passé ce délai, supprimés définitivement.</div>
+    <div id="corbeilleList"></div>
+    <div id="corbeilleEmpty" class="text-muted" style="padding:8px 0">Corbeille vide.</div>
   </div>
 </div>
 
@@ -659,10 +670,12 @@ function applyRole(){
   if(currentRole==='admin'){
     tag.textContent='ADMIN'+(nom?' · '+nom:'');tag.className='role-admin';
     document.getElementById('tabAnalyse').style.display='';
+    document.getElementById('tabCorbeille').style.display='';
   } else {
     tag.textContent='OPÉRATEUR'+(nom?' · '+nom:'');tag.className='role-op';
     document.getElementById('tabAnalyse').style.display='none';
-    if(document.getElementById('tabAnalyse').classList.contains('active')) switchTab('saves');
+    document.getElementById('tabCorbeille').style.display='none';
+    if(document.getElementById('tabAnalyse').classList.contains('active')||document.getElementById('tabCorbeille').classList.contains('active')) switchTab('saves');
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){
@@ -674,6 +687,7 @@ function applyRole(){
   var canManage=canManageData();
   var fmb=document.getElementById('fichesManageBtns');if(fmb)fmb.style.display=canManage?'':'none';
   var tmb=document.getElementById('tempsManageBtns');if(tmb)tmb.style.display=canManage?'':'none';
+  var bbz=document.getElementById('backupBtnZone');if(bbz)bbz.style.display=canManage?'flex':'none';
 }
 
 (function initAuth(){
@@ -1226,13 +1240,14 @@ function showPage(i){
 }
 
 function switchTab(tab){
-  ['saves','temps','fiches','analyse'].forEach(t=>{
+  ['saves','temps','fiches','analyse','corbeille'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
   if(tab==='saves') renderSaves();
   else if(tab==='temps') renderTemps();
   else if(tab==='analyse') renderAnalyse();
+  else if(tab==='corbeille') renderCorbeille();
   else renderFiches();
 }
 
@@ -1630,7 +1645,7 @@ async function doSave(){
   closeSaveModal();showPage(2);
 }
 function renderSaves(){
-  const saves=savesCache;
+  const saves=savesCache.filter(s=>!s.deleted);
   const list=document.getElementById('savesList');
   const empty=document.getElementById('savesEmpty');
   if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');return;}
@@ -1700,11 +1715,12 @@ function doLoad(){
   recalcPlan();closeLoadModal();showPage(0);
 }
 async function deleteSave(id){
-  if(!confirm('Supprimer cette sauvegarde ?')) return;
+  if(!confirm('Archiver cette sauvegarde ? (récupérable 30 jours)')) return;
   try{
-    await db.collection('saves').doc(id).delete();
-    savesCache=savesCache.filter(x=>x._id!==id);
-  }catch(e){alert('Erreur suppression : '+e.message);}
+    await db.collection('saves').doc(id).update({deleted:true,deletedAt:isoNow()});
+    const item=savesCache.find(x=>x._id===id);
+    if(item){item.deleted=true;item.deletedAt=isoNow();}
+  }catch(e){alert('Erreur : '+e.message);}
   renderSaves();
 }
 
@@ -2018,7 +2034,7 @@ function resetTempsFilters(){
   renderTemps();
 }
 function renderTemps(){
-  const allTemps=tempsCache;
+  const allTemps=tempsCache.filter(t=>!t.deleted);
   const list=document.getElementById('tempsList');
   const empty=document.getElementById('tempsEmpty');
   const summary=document.getElementById('statsSummary');
@@ -2070,16 +2086,18 @@ function renderTemps(){
 }
 async function deleteTempo(id){
   try{
-    await db.collection('temps').doc(id).delete();
-    tempsCache=tempsCache.filter(x=>x._id!==id);
-  }catch(e){alert('Erreur suppression : '+e.message);}
+    await db.collection('temps').doc(id).update({deleted:true,deletedAt:isoNow()});
+    const item=tempsCache.find(x=>x._id===id);
+    if(item){item.deleted=true;item.deletedAt=isoNow();}
+  }catch(e){alert('Erreur : '+e.message);}
   renderTemps();
 }
 async function clearTemps(){
-  if(!confirm('Effacer TOUTES les données de temps ?')) return;
+  if(!confirm('Archiver TOUTES les données de temps ? (récupérable 30 jours)')) return;
   try{
-    await Promise.all(tempsCache.map(t=>db.collection('temps').doc(t._id).delete()));
-    tempsCache=[];
+    const active=tempsCache.filter(t=>!t.deleted);
+    await Promise.all(active.map(t=>db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()})));
+    active.forEach(t=>{t.deleted=true;t.deletedAt=isoNow();});
   }catch(e){alert('Erreur : '+e.message);}
   renderTemps();
 }
@@ -2193,7 +2211,7 @@ function svgLineChart(series,weeks,W,H,padL,padB){
 }
 
 function renderAnalyse(){
-  const allTemps=tempsCache;
+  const allTemps=tempsCache.filter(t=>!t.deleted);
   const ac=document.getElementById('analyseContent');
   const valid=allTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
 
@@ -2378,7 +2396,7 @@ function renderAnalyse(){
 }
 
 function renderFiches(){
-  const fiches=fichesCache;
+  const fiches=fichesCache.filter(f=>!f.deleted);
   const list=document.getElementById('fichesList');
   const empty=document.getElementById('fichesEmpty');
   if(!fiches.length){list.innerHTML='';empty.classList.remove('hidden');return;}
@@ -2517,25 +2535,104 @@ function showFicheDetail(id){
 }
 
 async function deleteFiche(id){
-  if(!confirm('Supprimer cette fiche ?')) return;
+  if(!confirm('Archiver cette fiche ? (récupérable 30 jours)')) return;
   try{
-    await db.collection('fiches').doc(id).delete();
-    fichesCache=fichesCache.filter(x=>x._id!==id);
-  }catch(e){alert('Erreur suppression : '+e.message);}
-  renderFiches();
-}
-
-async function clearFiches(){
-  if(!confirm('Effacer TOUTES les fiches ?')) return;
-  try{
-    await Promise.all(fichesCache.map(f=>db.collection('fiches').doc(f._id).delete()));
-    fichesCache=[];
+    await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
+    const item=fichesCache.find(x=>x._id===id);
+    if(item){item.deleted=true;item.deletedAt=isoNow();}
   }catch(e){alert('Erreur : '+e.message);}
   renderFiches();
 }
 
+async function clearFiches(){
+  if(!confirm('Archiver TOUTES les fiches ? (récupérable 30 jours)')) return;
+  try{
+    const active=fichesCache.filter(f=>!f.deleted);
+    await Promise.all(active.map(f=>db.collection('fiches').doc(f._id).update({deleted:true,deletedAt:isoNow()})));
+    active.forEach(f=>{f.deleted=true;f.deletedAt=isoNow();});
+  }catch(e){alert('Erreur : '+e.message);}
+  renderFiches();
+}
+
+function downloadFullBackup(){
+  if(!savesCache.length&&!tempsCache.length&&!fichesCache.length){alert('Aucune donnée à sauvegarder.');return;}
+  const backup={
+    exportDate:new Date().toISOString(),
+    exportBy:currentUser?currentUser.nom:'inconnu',
+    saves:savesCache,
+    temps:tempsCache,
+    fiches:fichesCache
+  };
+  const json=JSON.stringify(backup,null,2);
+  const b=new Blob([json],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='step_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+}
+
+// ============================================================
+// CORBEILLE — éléments archivés (soft delete)
+// ============================================================
+function renderCorbeille(){
+  const now=Date.now();
+  const _30days=30*24*60*60*1000;
+  const deleted=[];
+  savesCache.filter(s=>s.deleted).forEach(s=>deleted.push({type:'save',collection:'saves',id:s._id,label:s.client+' — '+s.ref,date:s.deletedAt||s.date,item:s}));
+  tempsCache.filter(t=>t.deleted).forEach(t=>deleted.push({type:'temps',collection:'temps',id:t._id,label:t.client+' — '+t.ref+' ('+fmtTimeFr(t.duree)+')',date:t.deletedAt||t.date,item:t}));
+  fichesCache.filter(f=>f.deleted).forEach(f=>deleted.push({type:'fiche',collection:'fiches',id:f._id,label:f.name||f.client+' — '+f.ref,date:f.deletedAt||f.date,item:f}));
+  deleted.sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  const list=document.getElementById('corbeilleList');
+  const empty=document.getElementById('corbeilleEmpty');
+  if(!deleted.length){list.innerHTML='';empty.style.display='';return;}
+  empty.style.display='none';
+
+  list.innerHTML=deleted.map(d=>{
+    const delDate=new Date(d.date);
+    const ds=delDate.toLocaleDateString('fr-FR')+' '+delDate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    const remaining=Math.max(0,Math.ceil((_30days-(now-delDate.getTime()))/(24*60*60*1000)));
+    const typeLabel={save:'Plan',temps:'Temps',fiche:'Fiche'}[d.type]||d.type;
+    const expiredClass=remaining<=0?' style="opacity:.5"':'';
+    return `<div class="save-card"${expiredClass}>
+      <div class="save-info">
+        <div class="save-title">${typeLabel} — ${d.label}</div>
+        <div class="save-meta">Archivé le ${ds} · ${remaining>0?remaining+' jours restants':'Expiré'}</div>
+      </div>
+      <div class="save-actions">
+        ${remaining>0?`<button class="btn btn-green btn-sm" onclick="restoreItem('${d.collection}','${d.id}')">↩ Restaurer</button>`:''}
+        <button class="btn btn-red btn-sm" onclick="permanentDelete('${d.collection}','${d.id}')">✕ Supprimer</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function restoreItem(collection,id){
+  try{
+    await db.collection(collection).doc(id).update({deleted:false,deletedAt:''});
+    const caches={saves:savesCache,temps:tempsCache,fiches:fichesCache};
+    const item=(caches[collection]||[]).find(x=>x._id===id);
+    if(item){item.deleted=false;item.deletedAt='';}
+  }catch(e){alert('Erreur restauration : '+e.message);}
+  renderCorbeille();
+}
+
+async function permanentDelete(collection,id){
+  if(!confirm('Supprimer définitivement ? Cette action est irréversible.')) return;
+  try{
+    await db.collection(collection).doc(id).delete();
+    const caches={saves:savesCache,temps:tempsCache,fiches:fichesCache};
+    const cache=caches[collection];
+    if(cache){
+      const idx=cache.findIndex(x=>x._id===id);
+      if(idx!==-1) cache.splice(idx,1);
+    }
+  }catch(e){alert('Erreur : '+e.message);}
+  renderCorbeille();
+}
+
 function exportFiches(){
-  const fiches=fichesCache;
+  const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length){alert('Aucune donnée.');return;}
   const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;Perte %;Temps';
   const rows=fiches.map(f=>[
