@@ -265,35 +265,56 @@ button{cursor:pointer;font-family:inherit}
   </div>
 
   <div class="section">
-    <div class="section-title">📦 Packaging</div>
-    <div class="row3">
-      <div class="field">
-        <label>Carton</label>
-        <select id="planCarton">
-          <option value="">—</option>
-          <option value="Petit carton">Petit carton</option>
-          <option value="Grand carton">Grand carton</option>
-        </select>
-      </div>
+    <div class="section-title">📦 Conditionnement &amp; Packaging</div>
+    <div class="row2">
       <div class="field">
         <label>Palette</label>
         <select id="planPalette">
           <option value="">—</option>
-          <option value="Europe 1200×800">Europe 1200×800</option>
-          <option value="Palette perdue">Palette perdue</option>
-          <option value="Sans palette">Sans palette</option>
+          <option value="80×120">80×120</option>
+          <option value="100×120">100×120</option>
+          <option value="1/2 palette">1/2 palette</option>
         </select>
       </div>
       <div class="field">
-        <label>Étiquette</label>
-        <select id="planEtiquette">
+        <label>Type conditionnement</label>
+        <select id="planType">
           <option value="">—</option>
-          <option value="Imprimée">Imprimée</option>
-          <option value="Papier">Papier</option>
+          <option value="Caisse">Caisse</option>
+          <option value="Pyramide">Pyramide</option>
+          <option value="Carton">Carton</option>
+          <option value="Palette nue + réhausses">Palette nue + réhausses</option>
+          <option value="Vrac">Vrac</option>
         </select>
       </div>
     </div>
-    <div class="text-muted" style="font-size:11px">Ces infos sont sauvegardées avec le plan et réappliquées au chargement.</div>
+    <div class="row2">
+      <div class="field">
+        <label>Étiquetage</label>
+        <select id="planEtiquetage">
+          <option value="">—</option>
+          <option value="Standard">Standard</option>
+          <option value="Spécifique">Spécifique</option>
+          <option value="Standard + spécifique">Standard + spécifique</option>
+          <option value="Standard + étiquette mandrin">Standard + étiquette mandrin</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Cerclage</label>
+        <select id="planCerclage">
+          <option value="">—</option>
+          <option value="Standard (≤39mm)">Standard (≤39mm)</option>
+          <option value="Aucun">Aucun</option>
+          <option value="Élargi (≤40mm)">Élargi (≤40mm)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes emballage <span style="color:var(--orange);font-size:11px">auto selon client</span></label>
+      <textarea id="planNotesEmballage" placeholder="Instructions spécifiques client…" style="min-height:50px;font-size:13px"></textarea>
+    </div>
+    <div id="packagingAlert" class="hidden" style="margin-top:8px;padding:10px 14px;border-radius:8px;background:#3d2a00;border:1px solid #7a5200;font-size:12px;color:var(--orange);line-height:1.6"></div>
+    <div class="text-muted" style="font-size:11px;margin-top:6px">Auto-rempli quand tu choisis un client. Modifiable manuellement. Sauvegardé avec le plan.</div>
   </div>
 
   <div class="section">
@@ -448,7 +469,7 @@ button{cursor:pointer;font-family:inherit}
 
   <!-- ONGLET FICHES -->
   <div id="tabContentFiches" class="hidden">
-    <div class="flex-wrap" style="margin-bottom:12px">
+    <div class="flex-wrap" style="margin-bottom:12px" id="fichesManageBtns">
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
       <button class="btn btn-red btn-sm" onclick="clearFiches()">🗑️ Tout effacer</button>
     </div>
@@ -480,7 +501,7 @@ button{cursor:pointer;font-family:inherit}
       </select>
       <button class="btn btn-ghost btn-sm" onclick="resetTempsFilters()">✕ Reset</button>
     </div>
-    <div class="flex-wrap" style="margin-bottom:12px">
+    <div class="flex-wrap" style="margin-bottom:12px" id="tempsManageBtns">
       <button class="btn btn-ghost btn-sm" onclick="exportTemps()">⬇️ Exporter CSV</button>
       <button class="btn btn-red btn-sm" onclick="clearTemps()">🗑️ Tout effacer</button>
     </div>
@@ -500,7 +521,6 @@ button{cursor:pointer;font-family:inherit}
     <h3>💾 Sauvegarder le plan</h3>
     <div class="field"><label>Client</label><input type="text" id="saveClient" inputmode="text"></div>
     <div class="field"><label>Référence produit</label><input type="text" id="saveRef" inputmode="text"></div>
-    <div class="field"><label>Taille de la laize (mm)</label><input type="text" id="saveLaize" placeholder="ex : 50" inputmode="decimal"></div>
     <div class="modal-btns">
       <button class="btn btn-ghost btn-sm" onclick="closeSaveModal()">Annuler</button>
       <button class="btn btn-blue btn-sm" onclick="doSave()">Sauvegarder</button>
@@ -646,6 +666,10 @@ function applyRole(){
     const h=document.getElementById('fInitiales');if(h)h.value=currentUser.ini;
     document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===currentUser.ini));
   }
+  // Boutons export/suppression : uniquement ER, CH, DC
+  var canManage=canManageData();
+  var fmb=document.getElementById('fichesManageBtns');if(fmb)fmb.style.display=canManage?'':'none';
+  var tmb=document.getElementById('tempsManageBtns');if(tmb)tmb.style.display=canManage?'':'none';
 }
 
 (function initAuth(){
@@ -916,6 +940,50 @@ const CLIENT_DATA = {
 };
 
 // ============================================================
+// MATRICE PACKAGING / CONDITIONNEMENT PAR CLIENT
+// ============================================================
+var PKG_DEFAULT={palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'Cerclage ≤39mm + tous KX et DQ1000-1. Pile max 25cm. Largeur sur planchette.'};
+
+var PKG_CLIENTS={
+  'EPCO':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'Bobines piquées debout dans caisse palette, montage sur 2 étages. Ajouter 1-2 bobines pour éviter chutes à stocker.\nPlans autorisés : 3×502+1×612 | 4×502 | 2×502+2×557 | 3×612 | 3×502+1×557'},
+  'Alphacan':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Élargi (≤40mm)',notes:'Commande par multiple de 15 (15 bob. au sol, couches de 15, planche carton entre chaque couche). Éviter palettes mixées. Cerclage jusqu\'à 40mm inclus.'},
+  'Gravic Group':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'⚠ GRAVIC HONGRIE : plan au plus juste, chute dans la palette (facturée).\n⚠ GRAVIC TUNISIE : idem + étiquette dans mandrins (réf + n° commande + n° lot BK).'},
+  'Legrand':{palette:'100×120',type:'Carton',etiquetage:'Spécifique',cerclage:'Standard (≤39mm)',notes:'⚠ LEGRAND FRANCE : palette 100×120 + cartons. Impression mandrin : réf (4 derniers chiffres code Legrand) + date + n° lot + n° bob. mère. Palette divers pour petites qté. Fiche détails palette.\n⚠ LEGRAND POLSKA : palette 80×120 + caisse. Bobines en vrac. Pas de cerclage. Étiquetage standard.\n⚠ LEGRAND SPAIN : palette 100×120 + cartons. Étiquette standard sur bobines + spécifique Legrand Spain sur carton.'},
+  'BOUVET':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'20 bobines au sol pour les 40-55-70mm.'},
+  'Cougnaud':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'⚠ Mandrins PARFAITS exigés.'},
+  'CS/Wattom/Kanda':{palette:'100×120',type:'Pyramide',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'2 palettes × 20 bobines sur palette. Palette 100×120 + pyramide.'},
+  'Les Zelles':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'Plans spécifiques : 2×930+300 | 4×540 | 2×540+930 | 7×300 | 5×300+540 | 3×730.\n⚠ Largeur 930mm → PYRAMIDE (pas caisse). Casser les palettes.'},
+  'PRIMA - LIMA':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'Papier vert entre les bobines.\nBob/pile : 20mm=11 | 30mm=7 | 40mm=6 | 50mm=4 | 60mm=4 | 70mm=3 | 80mm=2 | 100mm=2'},
+  'VEKA':{palette:'80×120',type:'Palette nue + réhausses',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:'⚠ Alterner bobines pile & face. Réhausses obligatoires. NE PAS filmer les palettes. Palettes solides. Gerbage autorisé par référence uniquement. Tolérance télescopage 10mm.\nBob/pile cerclée (KX) : 15mm=11 | 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4 — DQ1009 : 20mm=10'},
+  'Bouyer Leroux - groupe Maine':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:''},
+  'CARRETIER ROBIN':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm)',notes:''}
+};
+
+function applyPackagingRules(clientName){
+  var rules=PKG_CLIENTS[clientName]||PKG_DEFAULT;
+  document.getElementById('planPalette').value=rules.palette||'';
+  document.getElementById('planType').value=rules.type||'';
+  document.getElementById('planEtiquetage').value=rules.etiquetage||'';
+  document.getElementById('planCerclage').value=rules.cerclage||'';
+  document.getElementById('planNotesEmballage').value=rules.notes||'';
+  var alert=document.getElementById('packagingAlert');
+  if(PKG_CLIENTS[clientName]){
+    alert.classList.remove('hidden');
+    alert.innerHTML='⚡ Règles spécifiques <strong>'+clientName+'</strong> appliquées automatiquement. Vérifie et adapte si besoin.';
+  } else {
+    alert.classList.add('hidden');
+  }
+}
+
+// ============================================================
+// PERMISSIONS — Suppression/export uniquement pour certains
+// ============================================================
+function canManageData(){
+  if(!currentUser) return false;
+  return ['ER','CH','DC'].indexOf(currentUser.ini)!==-1;
+}
+
+// ============================================================
 // STATE
 // ============================================================
 let currentMachine = 'feba';
@@ -1091,6 +1159,7 @@ function onClientChange(){
     refs.map(r=>`<option value="${r.ref}">${r.ref}</option>`).join('');
   document.getElementById('planLargeur').value='';
   document.getElementById('planLongueur').value='';
+  if(client) applyPackagingRules(client);
 }
 
 function onRefChange(){
@@ -1313,9 +1382,12 @@ function resetPlan(){
   document.getElementById('planRef').innerHTML='<option value="">— Référence —</option>';
   document.getElementById('planLargeur').value='';
   document.getElementById('planLongueur').value='';
-  document.getElementById('planCarton').value='';
+  document.getElementById('planType').value='';
   document.getElementById('planPalette').value='';
-  document.getElementById('planEtiquette').value='';
+  document.getElementById('planEtiquetage').value='';
+  document.getElementById('planCerclage').value='';
+  document.getElementById('planNotesEmballage').value='';
+  document.getElementById('packagingAlert').classList.add('hidden');
   selectMachine('feba');
   initDefaultRows();
   recalcPlan();
@@ -1337,9 +1409,11 @@ function getPlanHTML(){
   const mother=parseNum(document.getElementById('motherWidth').value);
   const client=document.getElementById('planClient').value||'—';
   const ref=document.getElementById('planRef').value||'—';
-  const carton=document.getElementById('planCarton').value||'—';
+  const typeCond=document.getElementById('planType').value||'—';
   const palette=document.getElementById('planPalette').value||'—';
-  const etiq=document.getElementById('planEtiquette').value||'—';
+  const etiquetage=document.getElementById('planEtiquetage').value||'—';
+  const cerclage=document.getElementById('planCerclage').value||'—';
+  const notesEmb=document.getElementById('planNotesEmballage').value||'';
   let tRows='',bNum=1;
   groups.forEach((g,gi)=>{
     const st=calcStats(g.pattern,blade),waste=useful-st.total,isLast=gi===groups.length-1;
@@ -1359,7 +1433,7 @@ function getPlanHTML(){
   <h2>Plan de découpe — STEP International</h2>
   <div class="meta">Client : <b>${client}</b> · Réf : <b>${ref}</b><br>
   Machine : ${mn} · Bobine mère : ${fmt(mother)} mm · Utile : ${fmt(useful)} mm · Lame : ${fmt(blade)} mm · Date : ${today()}<br>
-  Packaging : Carton <b>${carton}</b> · Palette <b>${palette}</b> · Étiquette <b>${etiq}</b></div>
+  Packaging : Palette <b>${palette}</b> · Type <b>${typeCond}</b> · Étiquetage <b>${etiquetage}</b> · Cerclage <b>${cerclage}</b>${notesEmb?'<br><em style="font-size:10px;color:#666">'+notesEmb.replace(/\n/g,' | ')+'</em>':''}</div>
   <table><tr><th>Bobines</th><th>Configuration</th><th>Laizes</th><th>Utilisé / Utile</th><th>Chute</th></tr>${tRows}</table></body></html>`;
 }
 function printEtiquette(d){
@@ -1410,24 +1484,26 @@ function downloadPlan(){
 function openSaveModal(){
   document.getElementById('saveClient').value=document.getElementById('planClient').value;
   document.getElementById('saveRef').value=document.getElementById('planRef').value;
-  document.getElementById('saveLaize').value='';
   document.getElementById('saveModal').classList.add('open');
 }
 function closeSaveModal(){document.getElementById('saveModal').classList.remove('open');}
 async function doSave(){
+  var rows=getOrderRows();
   const entry={
-    rows:getOrderRows(),machine:currentMachine,
+    rows:rows,machine:currentMachine,
     mother:document.getElementById('motherWidth').value,
     blade:document.getElementById('bladeWidth').value,
     edgeLoss:document.getElementById('edgeLoss').value,
     client:document.getElementById('saveClient').value||'—',
     ref:document.getElementById('saveRef').value||'—',
-    laize:document.getElementById('saveLaize').value||'',
+    commandeDetail:rows.map(function(r){return r.qty+'×'+r.width+'mm';}).join(' + '),
     largeur:document.getElementById('planLargeur').value,
     longueur:document.getElementById('planLongueur').value,
-    carton:document.getElementById('planCarton').value||'',
     palette:document.getElementById('planPalette').value||'',
-    etiquette:document.getElementById('planEtiquette').value||'',
+    typeCond:document.getElementById('planType').value||'',
+    etiquetage:document.getElementById('planEtiquetage').value||'',
+    cerclage:document.getElementById('planCerclage').value||'',
+    notesEmballage:document.getElementById('planNotesEmballage').value||'',
     date:isoNow()
   };
   try{
@@ -1447,13 +1523,14 @@ function renderSaves(){
     const d=new Date(s.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const mn=getMachineLabel(s.machine);
-    const laizeInfo=s.laize?` · Laize ${s.laize} mm`:'';
-    const pkg=[s.carton,s.palette,s.etiquette].filter(Boolean).join(' · ');
+    const cmdDetail=s.commandeDetail||(s.rows||[]).map(function(r){return r.qty+'×'+r.width+'mm';}).join(' + ')||'';
+    const pkg=[s.typeCond||s.carton,s.palette,s.etiquetage||s.etiquette,s.cerclage].filter(Boolean).join(' · ');
     const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
     return `<div class="save-card">
       <div class="save-info">
         <div class="save-title">${s.client} — ${s.ref}</div>
-        <div class="save-meta">${ds} · ${mn} · Bobine ${s.mother} mm${laizeInfo}</div>
+        <div class="save-meta">${ds} · ${mn} · Bobine ${s.mother} mm</div>
+        ${cmdDetail?'<div class="save-meta" style="color:var(--blue)">📋 '+cmdDetail+'</div>':''}
         ${pkgLine}
       </div>
       <div class="save-actions">
@@ -1481,9 +1558,11 @@ function doLoad(){
   document.getElementById('edgeLoss').value=s.edgeLoss;
   document.getElementById('planLargeur').value=s.largeur||'';
   document.getElementById('planLongueur').value=s.longueur||'';
-  document.getElementById('planCarton').value=s.carton||'';
+  document.getElementById('planType').value=s.typeCond||s.carton||'';
   document.getElementById('planPalette').value=s.palette||'';
-  document.getElementById('planEtiquette').value=s.etiquette||'';
+  document.getElementById('planEtiquetage').value=s.etiquetage||s.etiquette||'';
+  document.getElementById('planCerclage').value=s.cerclage||'';
+  document.getElementById('planNotesEmballage').value=s.notesEmballage||'';
   if(s.client&&s.client!=='—'){
     const selClient=document.getElementById('planClient');
     selClient.value=s.client;
@@ -1491,10 +1570,13 @@ function doLoad(){
     setTimeout(()=>{
       document.getElementById('planRef').value=s.ref||'';
       onRefChange();
-      // ré-appliquer packaging après onRefChange (qui ne touche pas au packaging)
-      document.getElementById('planCarton').value=s.carton||'';
+      // ré-appliquer packaging sauvegardé (pas les règles auto du client)
+      document.getElementById('planType').value=s.typeCond||s.carton||'';
       document.getElementById('planPalette').value=s.palette||'';
-      document.getElementById('planEtiquette').value=s.etiquette||'';
+      document.getElementById('planEtiquetage').value=s.etiquetage||s.etiquette||'';
+      document.getElementById('planCerclage').value=s.cerclage||'';
+      document.getElementById('planNotesEmballage').value=s.notesEmballage||'';
+      document.getElementById('packagingAlert').classList.add('hidden');
     },50);
   }
   document.querySelectorAll('.order-row').forEach(r=>r.remove());
@@ -1586,9 +1668,11 @@ function sendEmailPlan(){
   const numJour=document.getElementById('fNumJour').value||'—';
   const longueur=document.getElementById('fLongueur').value||document.getElementById('planLongueur').value||'—';
   const mother=fmt(parseNum(document.getElementById('motherWidth').value));
-  const carton=document.getElementById('planCarton').value||'—';
+  const typeCond=document.getElementById('planType').value||'—';
   const palette=document.getElementById('planPalette').value||'—';
-  const etiqType=document.getElementById('planEtiquette').value||'—';
+  const etiquetage=document.getElementById('planEtiquetage').value||'—';
+  const cerclage=document.getElementById('planCerclage').value||'—';
+  const notesEmb=document.getElementById('planNotesEmballage').value||'';
   const totalMat=bobines.length*useful;
   const totalUsed=bobines.reduce((s,p)=>s+calcStats(p,blade).total,0);
   const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
@@ -1606,7 +1690,8 @@ function sendEmailPlan(){
   body+=`Longueur réf. : ${longueur} m\n`;
   body+=`Machine : ${machine} | Bobine mère : ${mother} mm | Utile : ${fmt(useful)} mm | Lame : ${fmt(blade)} mm\n`;
   body+=`Lame N° : ${lame} | N° Jour : ${numJour}\n`;
-  body+=`Packaging : Carton ${carton} | Palette ${palette} | Étiquette ${etiqType}\n`;
+  body+=`Packaging : Palette ${palette} | Type ${typeCond} | Étiquetage ${etiquetage} | Cerclage ${cerclage}\n`;
+  if(notesEmb) body+=`Notes emballage : ${notesEmb.replace(/\n/g,' | ')}\n`;
   body+=`Temps commande : ${tempsStr}\n\n`;
   body+=`-- COMMANDE INITIALE --\n`;
   rows.forEach(r=>{body+=`  ${r.qty} × ${r.width} mm\n`;});
@@ -1628,7 +1713,7 @@ function sendEmailPlan(){
   doChronoSaveAuto(client,ref,ini,rows,ini2,op2Bob);
   saveFicheRecord({
     name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,lame,numJour,longueur,mother,rows,
-    carton,palette,etiquette:etiqType,
+    palette,typeCond,etiquetage,cerclage,notesEmballage:notesEmb,
     groups:groups.map(g=>({label:makeLabel(g.pattern),count:g.count,total:fmt(calcStats(g.pattern,blade).total),waste:fmt(useful-calcStats(g.pattern,blade).total),isLast:false})),
     useful:fmt(useful),blade:fmt(blade),pct:pct.toFixed(1),tempsStr,totalBobines:bobines.length,
     ficheDetail:getFicheLinesData()
@@ -1646,9 +1731,12 @@ function resetAll(){
   document.getElementById('planRef').innerHTML='<option value="">— Référence —</option>';
   document.getElementById('planLargeur').value='';
   document.getElementById('planLongueur').value='';
-  document.getElementById('planCarton').value='';
+  document.getElementById('planType').value='';
   document.getElementById('planPalette').value='';
-  document.getElementById('planEtiquette').value='';
+  document.getElementById('planEtiquetage').value='';
+  document.getElementById('planCerclage').value='';
+  document.getElementById('planNotesEmballage').value='';
+  document.getElementById('packagingAlert').classList.add('hidden');
   document.querySelectorAll('.order-row').forEach(function(r){r.remove();});
   selectMachine('feba');
   initDefaultRows();
@@ -2184,7 +2272,7 @@ function renderFiches(){
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const cmd=(f.rows||[]).map(r=>`${r.qty}×${r.width}`).join(' + ');
     const op2=f.ini2?` + ${f.ini2}${f.op2Bob?` (bob.${f.op2Bob})`:''}`:'';
-    const pkg=[f.carton,f.palette,f.etiquette].filter(Boolean).join(' · ');
+    const pkg=[f.typeCond||f.carton,f.palette,f.etiquetage||f.etiquette,f.cerclage].filter(Boolean).join(' · ');
     const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
     return `<div class="save-card" style="flex-direction:column;align-items:flex-start;gap:6px">
       <div style="display:flex;width:100%;align-items:center;gap:10px">
@@ -2246,7 +2334,7 @@ function showFicheDetail(id){
   }).join('');
 
   const op2Line=f.ini2?`<span>Opérateur 2</span><span>${f.ini2}${f.op2Bob?` — repris dès la bobine ${f.op2Bob}`:''}</span>`:'';
-  const pkgLine=`<span>Packaging</span><span>Carton ${f.carton||'—'} · Palette ${f.palette||'—'} · Étiquette ${f.etiquette||'—'}</span>`;
+  const pkgLine=`<span>Packaging</span><span>Palette ${f.palette||'—'} · Type ${f.typeCond||f.carton||'—'} · Étiquetage ${f.etiquetage||f.etiquette||'—'} · Cerclage ${f.cerclage||'—'}</span>`;
 
   const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <title>${f.name}</title>
@@ -2333,10 +2421,11 @@ async function clearFiches(){
 function exportFiches(){
   const fiches=fichesCache;
   if(!fiches.length){alert('Aucune donnée.');return;}
-  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;N°Jour;Carton;Palette;Étiquette;Commande;Total bobines;Perte %;Temps';
+  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;Perte %;Temps';
   const rows=fiches.map(f=>[
     f.name,new Date(f.date).toLocaleDateString('fr-FR'),f.ini,f.ini2||'',f.op2Bob||'',f.client,f.ref,f.machine,
-    f.mother,f.useful,f.blade,f.longueur,f.lame,f.numJour,f.carton||'',f.palette||'',f.etiquette||'',
+    f.mother,f.useful,f.blade,f.longueur,f.lame,f.numJour,
+    f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
     (f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'),
     f.totalBobines,f.pct,f.tempsStr
   ].join(';')).join('\n');
