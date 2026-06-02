@@ -524,7 +524,7 @@ button{cursor:pointer;font-family:inherit}
 
   <!-- ONGLET CORBEILLE -->
   <div id="tabContentCorbeille" class="hidden">
-    <div style="padding:10px 0 14px;font-size:13px;color:var(--muted)">Éléments archivés — récupérables pendant 30 jours. Passé ce délai, supprimés définitivement.</div>
+    <div style="padding:10px 0 14px;font-size:13px;color:var(--muted)">Éléments archivés — récupérables pendant 45 jours. Passé ce délai, supprimés définitivement.</div>
     <div id="corbeilleList"></div>
     <div id="corbeilleEmpty" class="text-muted" style="padding:8px 0">Corbeille vide.</div>
   </div>
@@ -626,13 +626,14 @@ async function loadFirestoreData(){
   if(errEl) errEl.style.display='none';
   try{
     var results=await Promise.all([
-      db.collection('saves').orderBy('date','desc').limit(30).get(),
-      db.collection('temps').orderBy('date','desc').limit(500).get(),
-      db.collection('fiches').orderBy('date','desc').limit(200).get()
+      db.collection('saves').orderBy('date','desc').limit(1000).get(),
+      db.collection('temps').orderBy('date','desc').limit(2000).get(),
+      db.collection('fiches').orderBy('date','desc').limit(1000).get()
     ]);
     savesCache=results[0].docs.map(function(d){return Object.assign({_id:d.id},d.data());});
     tempsCache=results[1].docs.map(function(d){return Object.assign({_id:d.id},d.data());});
     fichesCache=results[2].docs.map(function(d){return Object.assign({_id:d.id},d.data());});
+    purgeExpiredItems();
     if(document.getElementById('page2')&&document.getElementById('page2').classList.contains('active')) renderDataPage();
   }catch(e){
     console.error('Firestore chargement:',e);
@@ -640,6 +641,29 @@ async function loadFirestoreData(){
   }finally{
     if(spin) spin.style.display='none';
   }
+}
+
+// Purge automatique des items archivés depuis plus de 45 jours
+async function purgeExpiredItems(){
+  if(!db) return;
+  const now=Date.now();
+  const _45days=45*24*60*60*1000;
+  const isExpired=item=>item.deleted&&item.deletedAt&&(now-new Date(item.deletedAt).getTime())>_45days;
+  const expiredSaves=savesCache.filter(isExpired);
+  const expiredTemps=tempsCache.filter(isExpired);
+  const expiredFiches=fichesCache.filter(isExpired);
+  if(!expiredSaves.length&&!expiredTemps.length&&!expiredFiches.length) return;
+  try{
+    await Promise.all([
+      ...expiredSaves.map(s=>db.collection('saves').doc(s._id).delete()),
+      ...expiredTemps.map(t=>db.collection('temps').doc(t._id).delete()),
+      ...expiredFiches.map(f=>db.collection('fiches').doc(f._id).delete())
+    ]);
+    savesCache=savesCache.filter(s=>!isExpired(s));
+    tempsCache=tempsCache.filter(t=>!isExpired(t));
+    fichesCache=fichesCache.filter(f=>!isExpired(f));
+    console.log('Purge 45j :',expiredSaves.length+expiredTemps.length+expiredFiches.length,'élément(s) supprimé(s) définitivement.');
+  }catch(e){console.error('Erreur purge auto :',e);}
 }
 
 async function showForgotPassword(){
@@ -1702,7 +1726,7 @@ async function doSave(){
   try{
     const docRef=await db.collection('saves').add(entry);
     savesCache.unshift({_id:docRef.id,...entry});
-    if(savesCache.length>30) savesCache=savesCache.slice(0,30);
+    if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
   }catch(e){alert('Erreur sauvegarde : '+e.message);return;}
   closeSaveModal();showPage(2);
 }
@@ -1777,7 +1801,7 @@ function doLoad(){
   recalcPlan();closeLoadModal();showPage(0);
 }
 async function deleteSave(id){
-  if(!confirm('Archiver cette sauvegarde ? (récupérable 30 jours)')) return;
+  if(!confirm('Archiver cette sauvegarde ? (récupérable 45 jours)')) return;
   try{
     await db.collection('saves').doc(id).update({deleted:true,deletedAt:isoNow()});
     const item=savesCache.find(x=>x._id===id);
@@ -1841,23 +1865,34 @@ function buildPlanName(){
 function sendEmailPlan(){
   const rows=getOrderRows();
   if(!rows.length){alert('Aucune commande à envoyer.');return;}
-  if(ficheLines.length>0){
-    const total=ficheLines.length;
-    const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
-    if(done<total){
-      alert(`⚠ ${total-done} bobine(s) non coupée(s) sur ${total}.\n\nMarque toutes les bobines comme "✓ Coupée" dans la fiche avant d'envoyer.`);
-      return;
-    }
+  if(ficheLines.length===0){
+    alert('⚠ La fiche est obligatoire avant d\'envoyer.\n\nClique sur "Importer du plan" dans la fiche, puis valide les bobines coupées.');
+    return;
   }
   const useful=getUseful(),blade=getBlade();
   const bobines=pack(expandDemand(rows),useful,blade);
   const groups=groupBobines(bobines,blade);
+  const total=ficheLines.length;
+  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  if(done<total){
+    alert(`⚠ ${total-done} bobine(s) non coupée(s) sur ${total}.\n\nMarque toutes les bobines comme "✓ Coupée" dans la fiche avant d'envoyer.`);
+    return;
+  }
+  const nbPlan=bobines.length;
+  const nbFiche=ficheLines.length;
+  const hasEcart=nbFiche!==nbPlan;
+  const ecartMsg=nbFiche>nbPlan
+    ? `+${nbFiche-nbPlan} bobine(s) coupée(s) en plus du plan`
+    : nbFiche<nbPlan
+      ? `-${nbPlan-nbFiche} bobine(s) coupée(s) en moins que le plan`
+      : '';
+
   const client=document.getElementById('planClient').value||document.getElementById('fClient').value||'—';
   const ref=document.getElementById('planRef').value||document.getElementById('fRef').value||'—';
   const ini=document.getElementById('fInitiales').value||'—';
   const ini2=document.getElementById('fOp2Active').checked?(document.getElementById('fInitiales2').value||'—'):'';
   const op2Bob=document.getElementById('fOp2Active').checked?(document.getElementById('fOp2Bobine').value||''):'';
-  const machine=getMachineLabel(currentMachine);
+  const machine=getMachineLabel(ficheMachine);
   const lame=document.getElementById('fNumLame').value||'—';
   const numJour=document.getElementById('fNumJour').value||'—';
   const longueur=document.getElementById('fLongueur').value||document.getElementById('planLongueur').value||'—';
@@ -1872,25 +1907,49 @@ function sendEmailPlan(){
   const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
   const tempsStr=chronoSec>0
     ?`${fmtTimeFr(chronoSec)} (${ini} — ${today()})`
-    :(()=>{const m=tempsCache.find(t=>t.client===client||t.operateur===ini);return m?`${fmtTimeFr(m.duree)} (${m.operateur} — ${new Date(m.date).toLocaleDateString('fr-FR')})`:'non enregistré';})();
+    :(()=>{const m=tempsCache.find(t=>t.client===client && t.ref===ref);return m?`${fmtTimeFr(m.duree)} (${m.operateur} — ${new Date(m.date).toLocaleDateString('fr-FR')})`:'non enregistré';})();
+
+  // Récupération données fiche
+  const ficheData=getFicheLinesData();
+
   const planName=buildPlanName();
+  const sep='═══════════════════════════════════════════════════════════\n';
+  const sepLight='───────────────────────────────────────────────────────────\n';
+
   let body=`PLAN DE DÉCOUPE — STEP International\n`;
-  body+=`Plan : ${planName}\n\n`;
-  body+=`-- EN-TÊTE --\n`;
-  body+=`Opérateur 1 : ${ini}\n`;
-  if(ini2){body+=`Opérateur 2 : ${ini2}${op2Bob?` (repris à partir de la bobine ${op2Bob})`:''}\n`;}
-  body+=`Client : ${client}\n`;
-  body+=`Référence : ${ref}\n`;
-  body+=`Longueur réf. : ${longueur} m\n`;
-  body+=`Machine : ${machine} | Bobine mère : ${mother} mm | Utile : ${fmt(useful)} mm | Lame : ${fmt(blade)} mm\n`;
-  body+=`Lame N° : ${lame} | N° Jour : ${numJour}\n`;
-  body+=`Packaging : Palette ${palette} | Type ${typeCond} | Étiquetage ${etiquetage} | Cerclage ${cerclage}\n`;
-  if(notesEmb) body+=`Notes emballage : ${notesEmb.replace(/\n/g,' | ')}\n`;
-  body+=`Temps commande : ${tempsStr}\n\n`;
-  body+=`-- COMMANDE INITIALE --\n`;
-  rows.forEach(r=>{body+=`  ${r.qty} × ${r.width} mm\n`;});
-  body+=`\n-- PLAN (${bobines.length} bobines — perte ${pct.toFixed(1)}%) --\n`;
-  let bobNum=0;
+  body+=`Plan : ${planName}\n`;
+  body+=`Date : ${today()}\n\n`;
+
+  body+=sep;
+  body+=`  EN-TÊTE\n`;
+  body+=sep;
+  body+=`  Opérateur 1     : ${ini}\n`;
+  if(ini2) body+=`  Opérateur 2     : ${ini2}${op2Bob?` (repris bobine ${op2Bob})`:''}\n`;
+  body+=`  Client          : ${client}\n`;
+  body+=`  Référence       : ${ref}\n`;
+  body+=`  Longueur réf.   : ${longueur} m\n`;
+  body+=`  Machine         : ${machine}\n`;
+  body+=`  Bobine mère     : ${mother} mm\n`;
+  body+=`  Utile / Lame    : ${fmt(useful)} mm  /  ${fmt(blade)} mm\n`;
+  body+=`  Lame N°         : ${lame}\n`;
+  body+=`  N° Jour         : ${numJour}\n`;
+  body+=`  Palette         : ${palette}\n`;
+  body+=`  Type cond.      : ${typeCond}\n`;
+  body+=`  Étiquetage      : ${etiquetage}\n`;
+  body+=`  Cerclage        : ${cerclage}\n`;
+  if(notesEmb) body+=`  Notes emballage : ${notesEmb.replace(/\n/g,' | ')}\n`;
+  body+=`  Temps commande  : ${tempsStr}\n\n`;
+
+  body+=sep;
+  body+=`  COMMANDE INITIALE\n`;
+  body+=sep;
+  rows.forEach(r=>{body+=`  • ${r.qty} × ${r.width} mm\n`;});
+  body+=`\n`;
+
+  body+=sep;
+  body+=`  PLAN THÉORIQUE — ${nbPlan} bobine(s)  |  perte ${pct.toFixed(1)}%\n`;
+  body+=sep;
+  let bobNumPlan=0;
   groups.forEach((g,gi)=>{
     const st=calcStats(g.pattern,blade);
     const waste=useful-st.total;
@@ -1898,19 +1957,60 @@ function sendEmailPlan(){
     const label=makeLabel(g.pattern);
     const totalMm=fmt(st.total);
     for(let k=0;k<g.count;k++){
-      bobNum++;
-      const hasPhoto=Object.keys(ficholinePhotos).length&&ficheLines[bobNum-1]&&ficholinePhotos[ficheLines[bobNum-1].id]?' [PHOTO]':'';
-      body+=`  Bobine ${bobNum} : ${label} | total ${totalMm} mm | chute ${fmt(waste)} mm${(isLast&&k===g.count-1)?' [SOLDE]':''}${hasPhoto}\n`;
+      bobNumPlan++;
+      body+=`  Bobine ${String(bobNumPlan).padStart(2,'0')} : ${label}\n`;
+      body+=`             total ${totalMm} mm | chute ${fmt(waste)} mm${(isLast&&k===g.count-1)?' [SOLDE]':''}\n`;
     }
   });
-  body+=`\n-- Date : ${today()} --`;
+  body+=`\n`;
+
+  body+=sep;
+  body+=`  FICHE TERRAIN — ${nbFiche} bobine(s) réellement coupée(s)\n`;
+  body+=sep;
+  if(hasEcart){
+    body+=`\n  ⚠⚠⚠  ÉCART AVEC LE PLAN  ⚠⚠⚠\n`;
+    body+=`  ${ecartMsg}\n\n`;
+  }
+  ficheData.forEach((fd,i)=>{
+    const bobNum=i+1;
+    const horsPlan=bobNum>nbPlan;
+    const marker=horsPlan?'⚠ HORS PLAN':'';
+    const photoTag=fd.photo?' [PHOTO]':'';
+    body+=sepLight;
+    body+=`  Bobine ${String(bobNum).padStart(2,'0')}  ${fd.label?`[${fd.label}]`:''}  ${marker}${photoTag}\n`;
+    body+=`     Configuration : ${fd.conf||'—'}\n`;
+    body+=`     Statut        : ${fd.coupee?'✓ Coupée':'✗ Non coupée'}\n`;
+    const ncs=[];
+    if(fd.ncLarg) ncs.push('Largeur');
+    if(fd.ncQty) ncs.push('Quantité');
+    if(fd.ncCasse) ncs.push('Casse');
+    if(fd.ncAng) ncs.push('Angle');
+    body+=`     Conformité    : ${ncs.length?'⚠ '+ncs.join(', '):'✓ RAS'}\n`;
+    if(fd.ncDetail) body+=`     Détail NC     : ${fd.ncDetail}\n`;
+    if(fd.actDechet) body+=`     Action        : 🗑 Déchet\n`;
+    if(fd.actChutes) body+=`     Action        : ✂ Chutes\n`;
+    if(fd.devi||fd.droit){
+      const tests=[];
+      if(fd.devi) tests.push('Déviation');
+      if(fd.droit) tests.push('Droiture');
+      body+=`     Tests 2 mains : ${tests.join(', ')}\n`;
+    }
+  });
+  body+=sepLight;
+  body+=`\n-- Fin du plan -- ${today()} --\n`;
+
   doChronoSaveAuto(client,ref,ini,rows,ini2,op2Bob);
+
+  // Marquer chaque ligne fiche avec horsPlan
+  const ficheDetailTagged=ficheData.map((fd,i)=>({...fd,horsPlan:(i+1)>nbPlan}));
+
   saveFicheRecord({
     name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,lame,numJour,longueur,mother,rows,
     palette,typeCond,etiquetage,cerclage,notesEmballage:notesEmb,
     groups:groups.map(g=>({label:makeLabel(g.pattern),count:g.count,total:fmt(calcStats(g.pattern,blade).total),waste:fmt(useful-calcStats(g.pattern,blade).total),isLast:false})),
     useful:fmt(useful),blade:fmt(blade),pct:pct.toFixed(1),tempsStr,totalBobines:bobines.length,
-    ficheDetail:getFicheLinesData()
+    ficheDetail:ficheDetailTagged,
+    nbPlan,nbFiche,hasEcart,ecartMsg
   });
   const gmailUrl=`https://mail.google.com/mail/?view=cm&to=esterozier42480%40gmail.com&su=${encodeURIComponent(planName)}&body=${encodeURIComponent(body)}`;
   window.open(gmailUrl,'_blank');
@@ -2001,7 +2101,7 @@ async function doChronoSaveAuto(client,ref,ini,rows,ini2,op2Bob){
   const entry={
     date:chronoStartTs||isoNow(),dateEnd:isoNow(),duree:chronoSec,
     operateur:ini,operateur2:ini2||'',op2Bobine:op2Bob||'',
-    machine:getMachineLabel(currentMachine),
+    machine:getMachineLabel(ficheMachine),
     client,ref,rows,
     commandeDetail:rows.map(r=>`${r.qty}×${r.width}mm`).join(' + '),
     totalLaizes,nbBobines,
@@ -2013,7 +2113,7 @@ async function doChronoSaveAuto(client,ref,ini,rows,ini2,op2Bob){
   try{
     const docRef=await db.collection('temps').add(entry);
     tempsCache.unshift({_id:docRef.id,...entry});
-    if(tempsCache.length>500) tempsCache=tempsCache.slice(0,500);
+    if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);
   }catch(e){console.error('Auto-save temps:',e);}
   chronoReset();
 }
@@ -2021,7 +2121,7 @@ async function saveFicheRecord(entry){
   try{
     const docRef=await db.collection('fiches').add(entry);
     fichesCache.unshift({_id:docRef.id,...entry});
-    if(fichesCache.length>200) fichesCache=fichesCache.slice(0,200);
+    if(fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);
   }catch(e){console.error('saveFicheRecord:',e);alert('Erreur enregistrement fiche : '+e.message);}
 }
 
@@ -2076,7 +2176,7 @@ async function doChronoSave(){
   try{
     const docRef=await db.collection('temps').add(entry);
     tempsCache.unshift({_id:docRef.id,...entry});
-    if(tempsCache.length>500) tempsCache=tempsCache.slice(0,500);
+    if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);
   }catch(e){alert('Erreur enregistrement : '+e.message);return;}
   closeChronoSaveModal();
   chronoReset();
@@ -2155,7 +2255,7 @@ async function deleteTempo(id){
   renderTemps();
 }
 async function clearTemps(){
-  if(!confirm('Archiver TOUTES les données de temps ? (récupérable 30 jours)')) return;
+  if(!confirm('Archiver TOUTES les données de temps ? (récupérable 45 jours)')) return;
   try{
     const active=tempsCache.filter(t=>!t.deleted);
     await Promise.all(active.map(t=>db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()})));
@@ -2529,6 +2629,44 @@ function showFicheDetail(id){
     return rows.join('');
   }).join('');
 
+  // Bobines hors plan (au-delà du plan théorique)
+  const ficheDetail=f.ficheDetail||[];
+  const nbPlan=bobNum;
+  const horsPlanRows=ficheDetail.slice(nbPlan).map((fd,idx)=>{
+    const bn=nbPlan+idx+1;
+    const ncs=[];
+    if(fd.ncLarg) ncs.push('Largeur');
+    if(fd.ncQty) ncs.push('Quantité');
+    if(fd.ncCasse) ncs.push('Casse');
+    if(fd.ncAng) ncs.push('Angle');
+    const ncBadge=ncs.length
+      ?`<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;background:#3d1414;color:#f87171">⚠ ${ncs.join(', ')}</span>`
+      :'<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;background:#14371f;color:#4ade80">✓ RAS</span>';
+    const coupeeTag=fd.coupee?'<span style="color:#4ade80;font-weight:700">✓ Coupée</span>':'<span style="color:#888">— À couper</span>';
+    const actionTag=fd.actDechet?'<span style="color:#f87171">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':'';
+    const test2=fd.devi&&fd.droit?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>';
+    const ncDetail=fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${fd.ncDetail}</div>`:'';
+    const photoCell=fd.photo?`<a href="${fd.photo}" target="_blank"><img src="${fd.photo}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
+    const etiq=fd.label?`<span style="color:#f59e0b">${fd.label}</span>`:'';
+    return `<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
+        <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:10px;background:#3d2a00;color:#f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
+        <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${fd.conf||'—'}</td>
+        <td style="padding:10px 12px;text-align:right;color:#888">—</td>
+        <td style="padding:10px 12px;text-align:right;color:#888">—</td>
+        <td style="padding:10px 12px">${etiq}</td>
+        <td style="padding:10px 12px">${photoCell}</td>
+        <td style="padding:10px 12px">${test2}</td>
+        <td style="padding:10px 12px">${ncBadge}${ncDetail}</td>
+        <td style="padding:10px 12px">${coupeeTag} ${actionTag}</td>
+      </tr>`;
+  }).join('');
+
+  const ecartBanner=f.hasEcart?`
+    <div style="background:#3d2a00;border:2px solid #f59e0b;color:#f59e0b;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-weight:700">
+      ⚠ ÉCART AVEC LE PLAN — ${f.ecartMsg||''}
+      <div style="font-weight:400;font-size:12px;color:#fbbf24;margin-top:4px">Plan théorique : ${f.nbPlan||f.totalBobines} bobines · Fiche terrain : ${f.nbFiche||(f.ficheDetail||[]).length} bobines</div>
+    </div>`:'';
+
   const op2Line=f.ini2?`<span>Opérateur 2</span><span>${f.ini2}${f.op2Bob?` — repris dès la bobine ${f.op2Bob}`:''}</span>`:'';
   const pkgLine=`<span>Packaging</span><span>Palette ${f.palette||'—'} · Type ${f.typeCond||f.carton||'—'} · Étiquetage ${f.etiquetage||f.etiquette||'—'} · Cerclage ${f.cerclage||'—'}</span>`;
 
@@ -2559,6 +2697,7 @@ function showFicheDetail(id){
     </div>
     <button onclick="window.print()" style="padding:8px 16px;border-radius:8px;border:1px solid #444;background:#222;color:#e5e5e3;font-size:13px;cursor:pointer">🖨 Imprimer</button>
   </div>
+  ${ecartBanner}
   <div class="card">
     <div class="card-title">En-tête</div>
     <div class="grid2">
@@ -2586,7 +2725,7 @@ function showFicheDetail(id){
         <th>N°</th><th>Découpe</th><th>Total</th><th>Chute</th>
         <th>Étiquette</th><th>Photo</th><th>Test 2ème bob.</th><th>Non-conformité</th><th>État</th>
       </tr></thead>
-      <tbody>${planRows}</tbody>
+      <tbody>${planRows}${horsPlanRows}</tbody>
     </table>
   </div>
   </body></html>`;
@@ -2597,7 +2736,7 @@ function showFicheDetail(id){
 }
 
 async function deleteFiche(id){
-  if(!confirm('Archiver cette fiche ? (récupérable 30 jours)')) return;
+  if(!confirm('Archiver cette fiche ? (récupérable 45 jours)')) return;
   try{
     await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
     const item=fichesCache.find(x=>x._id===id);
@@ -2607,7 +2746,7 @@ async function deleteFiche(id){
 }
 
 async function clearFiches(){
-  if(!confirm('Archiver TOUTES les fiches ? (récupérable 30 jours)')) return;
+  if(!confirm('Archiver TOUTES les fiches ? (récupérable 45 jours)')) return;
   try{
     const active=fichesCache.filter(f=>!f.deleted);
     await Promise.all(active.map(f=>db.collection('fiches').doc(f._id).update({deleted:true,deletedAt:isoNow()})));
@@ -2638,7 +2777,7 @@ function downloadFullBackup(){
 // ============================================================
 function renderCorbeille(){
   const now=Date.now();
-  const _30days=30*24*60*60*1000;
+  const _30days=45*24*60*60*1000;
   const deleted=[];
   savesCache.filter(s=>s.deleted).forEach(s=>deleted.push({type:'save',collection:'saves',id:s._id,label:s.client+' — '+s.ref,date:s.deletedAt||s.date,item:s}));
   tempsCache.filter(t=>t.deleted).forEach(t=>deleted.push({type:'temps',collection:'temps',id:t._id,label:t.client+' — '+t.ref+' ('+fmtTimeFr(t.duree)+')',date:t.deletedAt||t.date,item:t}));
@@ -2830,6 +2969,10 @@ function toggleCoupee(id){
   const line=document.getElementById(id);
   const btn=document.getElementById('coupeeBtn_'+id);
   if(!line||!btn) return;
+  if(!chronoRunning){
+    alert('⏱ Le chronomètre doit être en marche pour marquer une bobine comme coupée.');
+    return;
+  }
   const isCoupee=line.classList.toggle('coupee');
   btn.style.borderColor=isCoupee?'var(--green)':'var(--border2)';
   btn.style.color=isCoupee?'var(--green)':'var(--muted)';
