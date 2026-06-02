@@ -1913,8 +1913,8 @@ function sendEmailPlan(){
   const ficheData=getFicheLinesData();
 
   const planName=buildPlanName();
-  const sep='═══════════════════════════════════════════════════════════\n';
-  const sepLight='───────────────────────────────────────────────────────────\n';
+  const sep='===========================================================\n';
+  const sepLight='-----------------------------------------------------------\n';
 
   let body=`PLAN DE DÉCOUPE — STEP International\n`;
   body+=`Plan : ${planName}\n`;
@@ -2012,12 +2012,44 @@ function sendEmailPlan(){
     ficheDetail:ficheDetailTagged,
     nbPlan,nbFiche,hasEcart,ecartMsg
   });
-  const gmailUrl=`https://mail.google.com/mail/?view=cm&to=esterozier42480%40gmail.com&su=${encodeURIComponent(planName)}&body=${encodeURIComponent(body)}`;
-  window.open(gmailUrl,'_blank');
+  // Copier le body dans le presse-papier puis ouvrir Gmail (vide)
+  // Évite l'erreur 400 Gmail (URL trop longue)
+  const gmailUrl=`https://mail.google.com/mail/?view=cm&to=esterozier42480%40gmail.com&su=${encodeURIComponent(planName)}`;
+  const openGmail=()=>window.open(gmailUrl,'_blank');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(body).then(()=>{
+      alert('✓ Plan copié dans le presse-papier.\n\nGmail va s\'ouvrir : colle le plan dans le corps du mail (Cmd+V ou Ctrl+V).');
+      openGmail();
+    }).catch(()=>{
+      // Fallback si clipboard refuse
+      promptCopy(body);
+      openGmail();
+    });
+  } else {
+    promptCopy(body);
+    openGmail();
+  }
 
   // Reset complet après envoi — prêt pour la commande suivante
   setTimeout(function(){ resetAll(); }, 500);
 }
+
+function promptCopy(text){
+  // Fallback : ouvrir une fenêtre avec le texte sélectionnable
+  const w=window.open('','_blank','width=600,height=500');
+  if(!w){alert('Autorise les pop-ups pour récupérer le plan.');return;}
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plan à copier</title>
+    <style>body{font-family:-apple-system,sans-serif;padding:20px;background:#111;color:#eee}
+    h2{margin-bottom:10px}p{margin-bottom:14px;color:#aaa;font-size:14px}
+    textarea{width:100%;height:380px;padding:12px;font-family:monospace;font-size:12px;background:#1a1a18;color:#eee;border:1px solid #333;border-radius:6px}
+    button{margin-top:10px;padding:10px 18px;background:#4ade80;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px}</style>
+    </head><body>
+    <h2>Plan de découpe</h2>
+    <p>Sélectionne tout (Cmd+A ou Ctrl+A) puis copie (Cmd+C ou Ctrl+C), et colle dans Gmail.</p>
+    <textarea id="ta" readonly>${text.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
+    <button onclick="document.getElementById('ta').select();document.execCommand('copy');this.textContent='✓ Copié !'">Copier le plan</button>
+    </body></html>`);
+  w.document.close();
 
 function resetAll(){
   // Reset Plan
