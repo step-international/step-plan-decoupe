@@ -159,8 +159,8 @@ button{cursor:pointer;font-family:inherit}
 .login-box{background:var(--card);border:1px solid var(--border2);border-radius:16px;padding:36px 28px;width:100%;max-width:360px;text-align:center}
 .login-logo{font-size:32px;font-weight:900;color:var(--text);letter-spacing:-1px;margin-bottom:4px}
 .login-sub{font-size:13px;color:var(--muted);margin-bottom:28px}
-.login-box input[type=password]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border2);background:#111;color:var(--text);font-size:16px;letter-spacing:3px;text-align:center;margin-bottom:14px;outline:none}
-.login-box input[type=password]:focus{border-color:var(--blue)}
+.login-box input[type=password],.login-box input[type=email]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border2);background:#111;color:var(--text);font-size:16px;text-align:left;margin-bottom:14px;outline:none}
+.login-box input[type=password]:focus,.login-box input[type=email]:focus{border-color:var(--blue)}
 .login-err{color:var(--red);font-size:13px;min-height:18px;margin-bottom:10px}
 .login-role{font-size:12px;color:var(--muted);margin-top:18px}
 /* LOGOUT badge */
@@ -185,10 +185,13 @@ button{cursor:pointer;font-family:inherit}
   <div class="login-box">
     <div class="login-logo">✂ STEP</div>
     <div class="login-sub">Plan de découpe — STEP International</div>
-    <input type="password" id="loginInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    <input type="email" id="loginInput" placeholder="Adresse e-mail" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+    <input type="password" id="loginPassword" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')doLogin()">
     <div class="login-err" id="loginErr"></div>
     <button class="btn btn-blue" style="width:100%;justify-content:center;font-size:15px" onclick="doLogin()">Connexion</button>
-    <div class="login-role">Entrez votre code d'accès</div>
+    <div class="login-role" style="margin-top:20px;font-size:12px;color:var(--muted)">
+      <a href="#" onclick="event.preventDefault();showForgotPassword()" style="color:var(--blue);text-decoration:none">Mot de passe oublié ?</a>
+    </div>
   </div>
 </div>
 
@@ -569,22 +572,25 @@ button{cursor:pointer;font-family:inherit}
 <input type="file" id="photoFileInput" accept="image/*" capture="environment" style="display:none">
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script>
 // ============================================================
-// AUTHENTIFICATION — un code par opérateur (DÉCLARÉ EN PREMIER)
+// AUTHENTIFICATION — Firebase Auth (email/password)
+// Mapping UID → {role, ini, nom}
 // ============================================================
-var USERS={
-  'este42':     {role:'admin',     ini:'ER', nom:'Esté'},
-  'christian42':{role:'admin',     ini:'CH', nom:'Christian'},
-  'dominique42':{role:'operateur', ini:'DC', nom:'Dominique'},
-  'jordan42':   {role:'operateur', ini:'JF', nom:'Jordan'},
-  'taieb42':    {role:'operateur', ini:'TB', nom:'Taïeb'},
-  'marouane42': {role:'operateur', ini:'MT', nom:'Marouane'}
+const USER_PROFILES={
+  'ydobUl1wpNesqnlmNFroyoQL6zFQu73nk6d8P1': {role:'admin',     ini:'ER', nom:'Esté',      email:'sales@step-international.com'},
+  'GBGiA5k1hFZgwhHOg1y03wIKmPqJhx8VV9vR1': {role:'admin',     ini:'CH', nom:'Christian',  email:'c.rozier@step-international.com'},
+  '4vlmpeBW9pUFQP59eCkU51VJHYNpLvU8dUX1': {role:'operateur', ini:'DC', nom:'Dominique',  email:'d.cotte@step-international.com'},
+  'smiBhboxTZZKpmJWiRapTxs1BoFRjS32IQp1': {role:'operateur', ini:'JF', nom:'Jordan',     email:'jordan.franchini4342@icloud.com'},
+  'qlVoly7PsyMndWMnimTY9mKCvZuX8EZmLJh1': {role:'operateur', ini:'TB', nom:'Taïeb',      email:'tayodu42@hotmail.fr'},
+  'z1e9TGOTUDZ9KYtGll2i6HnISxT6BQPpVJA1': {role:'operateur', ini:'MT', nom:'Marouane',   email:'marouane.tuibi@hotmail.com'}
 };
 var currentRole=null;
 var currentUser=null;
+var currentAuth=null;
 
 // ============================================================
 // FIREBASE — BASE DE DONNÉES CENTRALISÉE
@@ -634,32 +640,62 @@ async function loadFirestoreData(){
   }
 }
 
-function doLogin(){
-  const code=document.getElementById('loginInput').value.trim().toLowerCase();
-  const err=document.getElementById('loginErr');
-  const u=USERS[code];
-  if(!u){
-    err.textContent='Code incorrect — réessaie.';
-    document.getElementById('loginInput').value='';
-    document.getElementById('loginInput').focus();
+async function showForgotPassword(){
+  const email=document.getElementById('loginInput').value.trim();
+  if(!email){
+    document.getElementById('loginErr').textContent='Entrez d\'abord votre adresse e-mail.';
     return;
   }
-  currentRole=u.role;
-  currentUser=u;
-  sessionStorage.setItem('stepRole',currentRole);
-  sessionStorage.setItem('stepUser',JSON.stringify(u));
-  applyRole();
+  try{
+    await firebase.auth().sendPasswordResetEmail(email);
+    document.getElementById('loginErr').textContent='✓ Lien de réinitialisation envoyé à '+email+'. Vérifie tes e-mails.';
+    document.getElementById('loginErr').style.color='var(--green)';
+    setTimeout(()=>{
+      document.getElementById('loginErr').style.color='var(--red)';
+      document.getElementById('loginErr').textContent='';
+    },5000);
+  }catch(e){
+    if(e.code==='auth/user-not-found'){
+      document.getElementById('loginErr').textContent='Cet e-mail n\'existe pas.';
+    }else{
+      document.getElementById('loginErr').textContent='Erreur : '+e.message;
+    }
+  }
 }
 
-function doLogout(){
-  sessionStorage.removeItem('stepRole');
-  sessionStorage.removeItem('stepUser');
-  currentRole=null;currentUser=null;
-  document.getElementById('loginInput').value='';
-  document.getElementById('loginErr').textContent='';
-  document.getElementById('loginOverlay').classList.remove('hidden');
-  document.getElementById('logoutBtn').style.display='none';
-  document.getElementById('roleTag').textContent='';
+async function doLogin(){
+  const email=document.getElementById('loginInput').value.trim();
+  const password=document.getElementById('loginPassword').value.trim();
+  const err=document.getElementById('loginErr');
+  
+  if(!email||!password){
+    err.textContent='E-mail et mot de passe requis.';
+    return;
+  }
+  
+  try{
+    err.textContent='Connexion en cours...';
+    const result=await firebase.auth().signInWithEmailAndPassword(email, password);
+    // L'état sera hydraté par onAuthStateChanged
+  }catch(e){
+    if(e.code==='auth/user-not-found'||e.code==='auth/wrong-password'){
+      err.textContent='E-mail ou mot de passe incorrect.';
+    }else if(e.code==='auth/too-many-requests'){
+      err.textContent='Trop de tentatives. Réessaie dans quelques minutes.';
+    }else{
+      err.textContent='Erreur : '+e.message;
+    }
+    document.getElementById('loginPassword').value='';
+  }
+}
+
+async function doLogout(){
+  try{
+    await firebase.auth().signOut();
+    // L'état sera nettoyé par onAuthStateChanged
+  }catch(e){
+    console.error('Logout error:',e);
+  }
 }
 
 function applyRole(){
@@ -691,13 +727,36 @@ function applyRole(){
 }
 
 (function initAuth(){
-  const saved=sessionStorage.getItem('stepRole');
-  const savedUser=sessionStorage.getItem('stepUser');
-  if(saved&&savedUser){
-    currentRole=saved;
-    try{currentUser=JSON.parse(savedUser);}catch(e){currentUser=null;}
-    window.addEventListener('DOMContentLoaded',applyRole);
-  }
+  // Écouter les changements d'état Firebase Auth
+  if(!firebase.auth) return; // Fallback si Firebase non dispo
+  
+  firebase.auth().onAuthStateChanged(async function(user){
+    if(user){
+      // Utilisateur authentifié
+      const profile=USER_PROFILES[user.uid];
+      if(profile){
+        currentRole=profile.role;
+        currentUser=Object.assign({}, profile);
+        currentAuth=user;
+        applyRole();
+      }else{
+        // UID non reconnu — déconnecter
+        console.warn('UID non reconnu:',user.uid);
+        firebase.auth().signOut();
+      }
+    }else{
+      // Utilisateur déconnecté
+      currentRole=null;
+      currentUser=null;
+      currentAuth=null;
+      document.getElementById('loginInput').value='';
+      document.getElementById('loginPassword').value='';
+      document.getElementById('loginErr').textContent='';
+      document.getElementById('loginOverlay').classList.remove('hidden');
+      document.getElementById('logoutBtn').style.display='none';
+      document.getElementById('roleTag').textContent='';
+    }
+  });
 })();
 
 // ============================================================
