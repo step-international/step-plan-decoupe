@@ -1754,7 +1754,6 @@ function recalcPlan(){
     bStart=bEnd+1;
     html+=`<div class="${cls}" data-gi="${gi}">
       <div class="card-header">
-        <div style="background:var(--blue);color:#fff;font-weight:800;font-size:12px;padding:3px 8px;border-radius:6px;flex-shrink:0;white-space:nowrap;margin-top:1px">${numLabel}</div>
         <div>
           <div class="card-config">${g.count>1?g.count+' bobines':'1 bobine'} — ${makeLabel(g.pattern)}</div>
           <div class="card-sub flex-wrap" style="margin-top:5px">
@@ -2351,6 +2350,7 @@ async function doChronoSaveAuto(client,ref,ini,rows,ini2,op2Bob){
     operateur:ini,operateur2:ini2||'',op2Bobine:op2Bob||'',
     machine:getMachineLabel(ficheMachine),
     client,ref,rows,
+    numCmd:document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'',
     commandeDetail:rows.map(r=>`${r.qty}×${r.width}mm`).join(' + '),
     totalLaizes,nbBobines,
     largeur:document.getElementById('planLargeur')?.value||'',
@@ -2415,6 +2415,7 @@ async function doChronoSave(){
     date:chronoStartTs||isoNow(),dateEnd:isoNow(),duree:chronoSec,
     operateur:ini,operateur2:ini2,op2Bobine:op2Bob,
     machine:getMachineLabel(ficheMachine),client,ref,rows,
+    numCmd:document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'',
     commandeDetail:rows.map(r=>`${r.qty}×${r.width}mm`).join(' + '),
     totalLaizes,nbBobines,
     largeur:document.getElementById('planLargeur').value||'',
@@ -2487,7 +2488,7 @@ function renderTemps(){
       <div class="cr-time">${fmtTime(t.duree)}</div>
       <div class="cr-info">
         <div class="cr-title">${t.client} — ${t.ref}</div>
-        <div class="cr-meta">${ds} · <strong>${t.operateur}</strong>${op2} · ${t.machine}</div>
+        <div class="cr-meta">${ds} · <strong>${t.operateur}</strong>${op2} · ${t.machine}${t.numCmd?` · <span style="color:var(--blue);font-weight:700">N° ${t.numCmd}</span>`:''}</div>
         <div class="cr-meta">${t.commandeDetail||''} · ${t.totalLaizes} laizes · ${t.nbBobines} bob. mères</div>
         <div class="cr-meta" style="color:var(--blue)">${secPerLaize}s / laize${t.commentaire?' · <em>'+t.commentaire+'</em>':''}</div>
       </div>
@@ -2560,6 +2561,115 @@ function parseWidthsFromEntry(t){
 function avgArr(arr){return arr.length?arr.reduce((s,v)=>s+v,0)/arr.length:0;}
 function push(obj,key,val){if(!obj[key])obj[key]=[];obj[key].push(val);}
 
+function svgPie(slices,size){
+  const total=slices.reduce((s,x)=>s+x.value,0);
+  if(total<=0) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Aucune donnée</text>';
+  const cx=size/2,cy=size/2,r=size/2-4;
+  let a0=-Math.PI/2,out='';
+  slices.forEach(s=>{
+    if(s.value<=0) return;
+    const frac=s.value/total;
+    if(frac>=0.9999){out+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${s.color}"/>`;return;}
+    const a1=a0+frac*2*Math.PI;
+    const x0=(cx+r*Math.cos(a0)).toFixed(2),y0=(cy+r*Math.sin(a0)).toFixed(2);
+    const x1=(cx+r*Math.cos(a1)).toFixed(2),y1=(cy+r*Math.sin(a1)).toFixed(2);
+    const large=(a1-a0)>Math.PI?1:0;
+    out+=`<path d="M${cx},${cy} L${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} Z" fill="${s.color}"/>`;
+    a0=a1;
+  });
+  return out;
+}
+function svgHBars(items,unit,W,padL){
+  // items: [{label,value,color,sub}]  (valeurs déjà calculées)
+  if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas de données</text>';
+  const n=items.length,barH=20,gap=30,padT=8;
+  const maxV=Math.max(...items.map(x=>x.value),0.0001);
+  let out='';
+  items.forEach((it,i)=>{
+    const y=padT+i*gap;
+    const bw=Math.max(3,(it.value/maxV)*(W-padL-70));
+    out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#aaa" font-size="11" font-weight="600">${it.label}</text>`;
+    out+=`<rect x="${padL}" y="${y}" width="${bw}" height="${barH}" rx="3" fill="${it.color}" opacity="0.85"/>`;
+    out+=`<text x="${padL+bw+6}" y="${y+barH/2+4}" fill="#e5e5e3" font-size="11" font-weight="700">${it.disp!==undefined?it.disp:(Math.round(it.value*10)/10)}${unit}${it.sub?` <tspan fill="#777" font-weight="400">${it.sub}</tspan>`:''}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${padT+n*gap}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
+}
+function buildFicheAnalytics(){
+  const fiches=fichesCache.filter(f=>!f.deleted);
+  if(!fiches.length) return '';
+  let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,totBob=0,ncBob=0;
+  const opStat={},machStat={},clientPct={};
+  fiches.forEach(f=>{
+    const det=f.ficheDetail||[];
+    let fNc=0;
+    det.forEach(d=>{
+      totBob++;let isNc=false;
+      if(d.ncLarg){ncLarg++;isNc=true;}
+      if(d.ncQty){ncQty++;isNc=true;}
+      if(d.ncCasse){ncCasse++;isNc=true;}
+      if(d.ncAng){ncAng++;isNc=true;}
+      if(isNc){ncBob++;fNc++;}
+    });
+    const op=f.ini||'?';if(!opStat[op])opStat[op]={nc:0,tot:0};opStat[op].nc+=fNc;opStat[op].tot+=det.length;
+    const m=f.machine||'?';if(!machStat[m])machStat[m]={nc:0,tot:0};machStat[m].nc+=fNc;machStat[m].tot+=det.length;
+    const pct=parseFloat(f.pct);if(!isNaN(pct)){const c=f.client||'?';if(!clientPct[c])clientPct[c]=[];clientPct[c].push(pct);}
+  });
+  const ncTotal=ncLarg+ncQty+ncCasse+ncAng;
+  const ncSlices=[
+    {label:'Largeur',value:ncLarg,color:'#f87171'},
+    {label:'Quantité',value:ncQty,color:'#f59e0b'},
+    {label:'Casse',value:ncCasse,color:'#a78bfa'},
+    {label:'Angle',value:ncAng,color:'#60a5fa'}
+  ].filter(s=>s.value>0);
+  const ncLegend=ncSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">
+    <span style="width:12px;height:12px;border-radius:2px;background:${s.color};flex-shrink:0"></span>
+    <span style="color:#ccc">${s.label}</span>
+    <span style="color:#fff;font-weight:700;margin-left:auto">${s.value}</span>
+    <span style="color:#777;width:42px;text-align:right">${Math.round(s.value/ncTotal*100)}%</span>
+  </div>`).join('');
+  const opColors={'TB':'#60a5fa','JF':'#4ade80','MT':'#f59e0b','DC':'#a78bfa','ER':'#f87171','CH':'#34d399','?':'#888'};
+  const opItems=Object.entries(opStat).filter(([,d])=>d.tot>0).map(([op,d])=>({label:op,value:d.tot?d.nc/d.tot*100:0,color:opColors[op]||'#60a5fa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
+  const machColors={'FEBA':'#60a5fa','MAVEG':'#4ade80','CEVENINI':'#a78bfa','?':'#888'};
+  const machItems=Object.entries(machStat).filter(([,d])=>d.tot>0).map(([m,d])=>({label:m,value:d.tot?d.nc/d.tot*100:0,color:machColors[m]||'#a78bfa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
+  const clientItems=Object.entries(clientPct).map(([c,arr])=>({label:c,value:avgArr(arr),color:'#34d399',sub:`(${arr.length} cmd)`})).sort((a,b)=>b.value-a.value);
+  const globalNcRate=totBob?Math.round(ncBob/totBob*1000)/10:0;
+
+  const ncBlock=ncTotal===0
+    ?`<div style="text-align:center;padding:24px;color:var(--green);font-weight:700">✓ Aucune non-conformité enregistrée sur ${totBob} bobines</div>`
+    :`<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <svg viewBox="0 0 120 120" style="width:120px;height:120px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">${svgPie(ncSlices,120)}</svg>
+        <div style="flex:1;min-width:160px">${ncLegend}
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a28;font-size:12px;color:#888">Total NC : <strong style="color:#f87171">${ncTotal}</strong> sur ${totBob} bobines · taux ${globalNcRate}%</div>
+        </div>
+      </div>`;
+
+  return `
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">🥧 Répartition des non-conformités par type</div>
+      ${ncBlock}
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Source : fiches de découpe (hors corbeille). Identifie le défaut récurrent à traiter en priorité (ISO 9001).</div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">📉 % de chute moyen par client</div>
+      <div style="overflow-x:auto">${svgHBars(clientItems,'%',520,90)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Plus le % est élevé, plus tu perds de matière sur ce client → levier de marge / pricing.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚠ Taux de NC par opérateur</div>
+        <div style="overflow-x:auto">${svgHBars(opItems,'%',420,46)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">NC ÷ bobines contrôlées. À lire comme un indicateur de formation, pas de sanction.</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚙️ Taux de NC par machine</div>
+        <div style="overflow-x:auto">${svgHBars(machItems,'%',420,80)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">Une machine qui sort plus de NC = réglage ou maintenance à prévoir.</div>
+      </div>
+    </div>`;
+}
+
 function svgBarChart(items,color,maxVal,W,H,padL,padB){
   if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
   const n=items.length;
@@ -2627,11 +2737,13 @@ function renderAnalyse(){
   const valid=allTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
 
   if(valid.length<2){
-    ac.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--muted)">
+    const fa=buildFicheAnalytics();
+    ac.innerHTML=`<div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
+      <div style="text-align:center;padding:30px 20px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">
       <div style="font-size:40px;margin-bottom:12px">📈</div>
-      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Données insuffisantes</div>
-      <div style="font-size:13px">Les graphiques apparaîtront dès que vous aurez enregistré plusieurs commandes.<br>Actuellement : <strong>${valid.length}</strong> entrée(s) valide(s).</div>
-    </div>`;
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Graphiques de productivité en attente</div>
+      <div style="font-size:13px">Les courbes temps/laize apparaîtront dès plusieurs commandes chronométrées.<br>Actuellement : <strong>${valid.length}</strong> entrée(s) valide(s).</div>
+    </div>${fa}</div>`;
     return;
   }
 
@@ -2697,6 +2809,20 @@ function renderAnalyse(){
 
   const W=560,H=200,padL=36,padB=20;
   const W2=560,H2=220;
+
+  // Volume de découpes par semaine (charge atelier)
+  const volMap={};
+  valid.forEach(t=>{push(volMap,getWeekKey(t.date),1);});
+  const volItems=Object.keys(volMap).sort().map(wk=>({label:(wk.split('·')[1]||wk),value:volMap[wk].length}));
+  const maxVol=Math.max(...volItems.map(x=>x.value),1);
+  const volSvg=(()=>{
+    if(!volItems.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas de données</text>';
+    const n=volItems.length,gap=(W-padL-10)/n,barW=Math.max(14,gap*0.6),scaleY=(H-padB-16)/maxVol;
+    let out='';
+    for(let i=0;i<=4;i++){const y=H-padB-i*(H-padB-16)/4;out+=`<line x1="${padL}" x2="${W-4}" y1="${y}" y2="${y}" stroke="#2a2a28" stroke-width="1"/><text x="${padL-4}" y="${y+4}" text-anchor="end" fill="#666" font-size="10">${Math.round(maxVol*i/4)}</text>`;}
+    volItems.forEach((it,i)=>{const x=padL+i*gap+gap/2-barW/2,bh=Math.max(2,it.value*scaleY),y=H-padB-bh;out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#34d399" opacity="0.85"/><text x="${x+barW/2}" y="${y-4}" text-anchor="middle" fill="#e5e5e3" font-size="10" font-weight="600">${it.value}</text><text x="${x+barW/2}" y="${H-padB+13}" text-anchor="middle" fill="#888" font-size="9">${it.label}</text>`;});
+    return out;
+  })();
 
   ac.innerHTML=`
   <div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
@@ -2803,6 +2929,16 @@ function renderAnalyse(){
       </div>
     </div>
 
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">📦 Volume de découpes par semaine</div>
+      <div style="overflow-x:auto">
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${volSvg}</svg>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Nombre de commandes coupées par semaine — base pour estimer la charge atelier (roadmap étape 4).</div>
+    </div>
+
+    ${buildFicheAnalytics()}
+
   </div>`;
 }
 
@@ -2848,6 +2984,7 @@ function renderFiches(){
         <div class="save-actions" style="flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}')">👁</button>
           <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}',true)" title="Exporter en PDF">📄</button>
+          ${(f.numCmd&&f.numCmd!=='—')?`<button class="btn btn-ghost btn-sm" onclick="showCommandeRecap('${String(f.numCmd).replace(/'/g,"\\'")}')" title="Vue commande consolidée">📦 Cmd</button>`:''}
           ${validBtns}
           <button class="btn btn-red btn-sm" onclick="deleteFiche('${f._id}')">🗑️</button>
         </div>
@@ -3224,6 +3361,117 @@ function showFicheDetail(id,autoPrint){
   else alert('Autorise les pop-ups pour voir la fiche.');
 }
 
+function showCommandeRecap(numCmd){
+  if(!numCmd||numCmd==='—'){alert('Cette fiche n\'a pas de n° commande.');return;}
+  const match=v=>String(v||'').trim()===String(numCmd).trim();
+  const fiches=fichesCache.filter(f=>!f.deleted&&match(f.numCmd));
+  const temps=tempsCache.filter(t=>!t.deleted&&match(t.numCmd));
+  const plans=savesCache.filter(s=>!s.deleted&&match(s.numCmd));
+  if(!fiches.length&&!temps.length&&!plans.length){alert('Aucune donnée pour la commande '+numCmd);return;}
+
+  const clients=[...new Set([...fiches,...temps,...plans].map(x=>x.client).filter(Boolean))];
+  const refs=[...new Set([...fiches,...temps,...plans].map(x=>x.ref).filter(Boolean))];
+  const dateLiv=(fiches.find(f=>f.dateLiv&&f.dateLiv!=='—')||{}).dateLiv||(plans.find(p=>p.dateLiv)||{}).dateLiv||'';
+
+  // Agrégats bobines / NC / chute
+  let totBob=0,ncBob=0,coupBob=0;const ncCount={Largeur:0,'Quantité':0,Casse:0,Angle:0};
+  fiches.forEach(f=>{(f.ficheDetail||[]).forEach(d=>{
+    totBob++;let isNc=false;
+    if(d.ncLarg){ncCount.Largeur++;isNc=true;}
+    if(d.ncQty){ncCount['Quantité']++;isNc=true;}
+    if(d.ncCasse){ncCount.Casse++;isNc=true;}
+    if(d.ncAng){ncCount.Angle++;isNc=true;}
+    if(isNc)ncBob++;
+    if(d.coupee)coupBob++;
+  });});
+  const pcts=fiches.map(f=>parseFloat(f.pct)).filter(v=>!isNaN(v));
+  const pctMoy=pcts.length?(pcts.reduce((s,v)=>s+v,0)/pcts.length):null;
+  const totalSec=temps.reduce((s,t)=>s+(t.duree||0),0);
+  const valides=fiches.filter(f=>f.valide===true).length;
+  const refuses=fiches.filter(f=>f.valide===false).length;
+  const attente=fiches.filter(f=>f.valide!==true&&f.valide!==false).length;
+  let valBadge;
+  if(fiches.length&&valides===fiches.length) valBadge='<span class="b b-green">✓ Toutes validées</span>';
+  else if(refuses>0) valBadge=`<span class="b b-red">✗ ${refuses} refusée(s)</span>`;
+  else valBadge=`<span class="b b-orange">⏳ ${attente} en attente</span>`;
+
+  const kpi=(v,l,c)=>`<div class="kpi"><div class="kv" style="color:${c}">${v}</div><div class="kl">${l}</div></div>`;
+  const fmtH=s=>{const h=Math.floor(s/3600),m=Math.round((s%3600)/60);return h>0?`${h}h${String(m).padStart(2,'0')}`:`${m}min`;};
+
+  const ncRows=Object.entries(ncCount).filter(([,n])=>n>0).map(([k,n])=>`<span class="cmd-row" style="background:#3d1414;color:#f87171">${k} : ${n}</span>`).join('')||'<span style="color:#4ade80;font-weight:700">✓ Aucune non-conformité</span>';
+
+  const fichesRows=fiches.map(f=>{
+    const d=new Date(f.date);const ds=d.toLocaleDateString('fr-FR');
+    const st=f.valide===true?'<span class="b b-green">✓ Validée</span>':f.valide===false?'<span class="b b-red">✗ Refusée</span>':'<span class="b b-orange">⏳ Attente</span>';
+    return `<tr><td>${f.name||'—'}</td><td>${ds}</td><td>${f.ini||'—'}</td><td>${f.machine||'—'}</td><td style="text-align:right">${f.totalBobines||(f.ficheDetail||[]).length}</td><td style="text-align:right">${f.pct||'—'}%</td><td>${st}</td></tr>`;
+  }).join('');
+
+  const tempsRows=temps.map(t=>{
+    const d=new Date(t.date);const ds=d.toLocaleDateString('fr-FR');
+    const spl=t.totalLaizes>0?Math.round(t.duree/t.totalLaizes)+'s':'—';
+    return `<tr><td>${ds}</td><td>${t.operateur||'—'}${t.operateur2?' + '+t.operateur2:''}</td><td>${t.machine||'—'}</td><td>${t.commandeDetail||'—'}</td><td style="text-align:right">${fmtH(t.duree||0)}</td><td style="text-align:right">${spl}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" style="color:#777">Aucun temps enregistré pour cette commande.</td></tr>';
+
+  const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Commande ${numCmd}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#111;color:#e5e5e3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;font-size:14px}
+    h1{font-size:20px;font-weight:800;color:#fff}
+    .num{display:inline-block;background:#2563eb;color:#fff;font-weight:800;padding:4px 12px;border-radius:8px;font-size:16px;letter-spacing:.02em}
+    .sub{color:#888;font-size:13px;margin:8px 0 20px}
+    .card{background:#1a1a18;border:1px solid #2a2a28;border-radius:10px;padding:16px;margin-bottom:16px}
+    .card-title{font-size:11px;font-weight:700;color:#888;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+    .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:16px}
+    .kpi{background:#1a1a18;border:1px solid #2a2a28;border-radius:10px;padding:14px;text-align:center}
+    .kv{font-size:24px;font-weight:800}.kl{font-size:11px;color:#888;margin-top:2px}
+    .cmd-row{display:inline-block;background:#222;border-radius:6px;padding:3px 10px;font-size:13px;margin:2px}
+    .b{display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700}
+    .b-green{background:#14371f;color:#4ade80}.b-orange{background:#3d2a00;color:#f59e0b}.b-red{background:#3d1414;color:#f87171}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{padding:8px 10px;text-align:left;font-size:11px;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #333}
+    td{padding:9px 10px;border-bottom:1px solid #222}
+    @media print{body{padding:12px}button{display:none}}
+  </style></head><body>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div><h1>Dossier commande</h1><div style="margin-top:8px"><span class="num">N° ${numCmd}</span></div></div>
+      <button onclick="window.print()" style="padding:8px 16px;background:#f59e0b;color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer">🖨️ Imprimer / PDF</button>
+    </div>
+    <div class="sub">Client : <strong>${clients.join(', ')||'—'}</strong> · Réf : ${refs.join(', ')||'—'}${dateLiv?` · Livraison : ${dateLiv}`:''} · ${valBadge}</div>
+
+    <div class="kpis">
+      ${kpi(fiches.length,'Fiches','#60a5fa')}
+      ${kpi(totBob,'Bobines','#a78bfa')}
+      ${kpi(coupBob+'/'+totBob,'Coupées','#4ade80')}
+      ${kpi(pctMoy!==null?pctMoy.toFixed(1)+'%':'—','Chute moy.',pctMoy===null?'#888':pctMoy<3?'#4ade80':pctMoy<8?'#f59e0b':'#f87171')}
+      ${kpi(ncBob,'NC',ncBob>0?'#f87171':'#4ade80')}
+      ${kpi(fmtH(totalSec),'Temps total','#f59e0b')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Non-conformités de la commande</div>
+      <div>${ncRows}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fiches de découpe (${fiches.length})</div>
+      <table><thead><tr><th>Fiche</th><th>Date</th><th>Opér.</th><th>Machine</th><th style="text-align:right">Bob.</th><th style="text-align:right">Chute</th><th>Validation</th></tr></thead>
+      <tbody>${fichesRows||'<tr><td colspan="7" style="color:#777">Aucune fiche.</td></tr>'}</tbody></table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Temps de production (${temps.length})</div>
+      <table><thead><tr><th>Date</th><th>Opérateur</th><th>Machine</th><th>Commande</th><th style="text-align:right">Durée</th><th style="text-align:right">Sec/laize</th></tr></thead>
+      <tbody>${tempsRows}</tbody></table>
+    </div>
+
+    <div style="color:#555;font-size:11px;margin-top:8px">Dossier consolidé — relie plan, fiche, temps et NC par n° commande. Conforme à l'exigence ISO 9001 de traçabilité par commande.</div>
+  </body></html>`;
+
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
+  else alert('Autorise les pop-ups pour voir le dossier commande.');
+}
+
 async function deleteFiche(id){
   if(!confirm('Archiver cette fiche ? (récupérable 45 jours)')) return;
   try{
@@ -3389,7 +3637,7 @@ function addFicheLine(data){
         style="padding:8px 14px;border-radius:8px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap">
         ✂ Coupée
       </button>
-      <span class="fiche-line-title" style="flex:1;text-align:center">Bobine <span id="badge_${id}" class="fl-badge badge-green">RAS</span></span>
+      <span class="fiche-line-title" style="flex:1;text-align:center">Bobine <span id="badge_${id}" class="fl-badge badge-green">RAS</span> <span id="pos_${id}" style="color:var(--blue);font-weight:800">—</span></span>
       <button class="btn btn-red btn-sm" onclick="removeFicheLine('${id}')">✕</button>
     </div>
     <div class="fiche-grid">
@@ -3448,6 +3696,14 @@ function addFicheLine(data){
   updateAllCumuls();
   updateCoupeeStatus();
   refreshOp2BobineList();
+  renumberFicheLines();
+}
+function renumberFicheLines(){
+  const total=ficheLines.length;
+  ficheLines.forEach((l,i)=>{
+    const el=document.getElementById('pos_'+l.id);
+    if(el) el.textContent=(i+1)+'/'+total;
+  });
 }
 function removeFicheLine(id){
   document.getElementById(id)?.remove();
@@ -3456,6 +3712,7 @@ function removeFicheLine(id){
   updateAllCumuls();
   updateCoupeeStatus();
   refreshOp2BobineList();
+  renumberFicheLines();
 }
 function resetFicheBobines(){
   if(!ficheLines.length){alert('Aucune bobine à réinitialiser.');return;}
