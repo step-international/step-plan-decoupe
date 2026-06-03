@@ -166,6 +166,21 @@ button{cursor:pointer;font-family:inherit}
 /* LOGOUT badge */
 #logoutBtn{display:none;padding:4px 10px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid #444;background:#1a1a18;color:var(--muted);cursor:pointer;white-space:nowrap}
 #logoutBtn:hover{color:var(--red);border-color:var(--red)}
+#atelierBtn{display:none;padding:4px 10px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid #444;background:#1a1a18;color:var(--muted);cursor:pointer;white-space:nowrap}
+#atelierBtn.on{color:var(--orange);border-color:var(--orange);background:#3d2a00}
+
+/* === MODE ATELIER : gros boutons, police agrandie, contraste renforcé === */
+body.atelier{font-size:18px}
+body.atelier .btn{font-size:17px;padding:14px 20px;min-height:52px}
+body.atelier .btn-sm{font-size:15px;padding:11px 16px;min-height:44px}
+body.atelier label{font-size:15px;color:#fff}
+body.atelier input,body.atelier select,body.atelier textarea{font-size:18px;padding:14px;min-height:52px}
+body.atelier .section-title{font-size:18px}
+body.atelier .ini-btn{font-size:18px;padding:14px 18px;min-width:64px}
+body.atelier .coupee-btn,body.atelier [id^="coupeeBtn_"]{font-size:18px;padding:16px;min-height:60px}
+body.atelier #nav button{font-size:16px;padding:14px 12px}
+body.atelier #coupeeBanner{font-size:18px;padding:16px}
+body.atelier .machine-btn{font-size:17px;padding:16px}
 #roleTag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:4px}
 .role-admin{background:#3a2400;color:#f59e0b}
 .role-op{background:#142a1a;color:#4ade80}
@@ -207,6 +222,7 @@ button{cursor:pointer;font-family:inherit}
   <button onclick="showPage(2)">📊 Données</button>
   <div style="display:flex;align-items:center;padding:0 8px;gap:4px;flex-shrink:0">
     <span id="roleTag"></span>
+    <button id="atelierBtn" onclick="toggleAtelier()" title="Mode atelier : gros boutons et police agrandie">🔍 Atelier</button>
     <button id="logoutBtn" onclick="doLogout()">↩ Quitter</button>
   </div>
 </nav>
@@ -253,6 +269,16 @@ button{cursor:pointer;font-family:inherit}
         <select id="planRef" onchange="onRefChange()">
           <option value="">— Référence —</option>
         </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>N° de commande</label>
+        <input type="text" id="planNumCmd" placeholder="ex : CMD-2026-0142" inputmode="text">
+      </div>
+      <div class="field">
+        <label>Date de livraison client</label>
+        <input type="date" id="planDateLiv">
       </div>
     </div>
     <div class="row2">
@@ -434,12 +460,59 @@ button{cursor:pointer;font-family:inherit}
         <select id="fOp2Bobine">
           <option value="">— Choisir une bobine —</option>
         </select>
-        <div class="text-muted" style="font-size:11px;margin-top:6px">La liste se remplit après « Importer du plan ».</div>
+        <div class="text-muted" style="font-size:11px;margin-top:6px">La liste se remplit automatiquement depuis le plan.</div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:14px">
+      <div class="section-title" style="font-size:14px;margin-bottom:10px">📦 Conditionnement &amp; Packaging <span style="color:var(--green);font-size:11px;font-weight:400">auto depuis plan</span></div>
+      <div class="row2">
+        <div class="field">
+          <label>Palette</label>
+          <select id="fPalette">
+            <option value="">—</option>
+            <option value="80×120">80×120</option>
+            <option value="100×120">100×120</option>
+            <option value="1/2 palette">1/2 palette</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Type conditionnement</label>
+          <select id="fType">
+            <option value="">—</option>
+            <option value="Caisse">Caisse</option>
+            <option value="Pyramide">Pyramide</option>
+            <option value="Carton">Carton</option>
+            <option value="Palette nue + réhausses">Palette nue + réhausses</option>
+            <option value="Vrac">Vrac</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Étiquetage</label>
+          <select id="fEtiquetage">
+            <option value="">—</option>
+            <option value="Standard">Standard</option>
+            <option value="Spécifique">Spécifique</option>
+            <option value="Standard bobines + spécifique carton">Standard bobines + spécifique carton</option>
+            <option value="Standard + étiquette mandrin">Standard + étiquette mandrin</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Cerclage</label>
+          <select id="fCerclage">
+            <option value="">—</option>
+            <option value="Standard (≤39mm + tous KX)">Standard (≤39mm + tous KX)</option>
+            <option value="Aucun">Aucun</option>
+            <option value="Élargi (≤40mm)">Élargi (≤40mm)</option>
+            <option value="Par piles cerclées (ratio fourni)">Par piles cerclées (ratio fourni)</option>
+          </select>
+        </div>
       </div>
     </div>
 
     <div class="flex-wrap mt12">
-      <button class="btn btn-blue btn-sm" onclick="importFromPlan()">📥 Importer du plan</button>
       <button class="btn btn-ghost btn-sm" onclick="addFicheLine()">+ Ligne manuelle</button>
       <button class="btn btn-ghost btn-sm" onclick="printFiche()">🖨️ Imprimer fiche</button>
     </div>
@@ -448,7 +521,7 @@ button{cursor:pointer;font-family:inherit}
   <div id="ficheLines"></div>
 
   <div style="padding:16px 0 8px">
-    <div id="coupeeBanner" style="display:none;margin-bottom:10px;padding:10px 14px;border-radius:10px;background:#1a1a18;border:1px solid var(--border2);font-size:13px;text-align:center"></div>
+    <div id="coupeeBanner" style="display:none;position:sticky;top:8px;z-index:50;margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#1a1a18;border:1px solid var(--border2);font-size:14px;font-weight:600;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
     <button id="sendPlanBtn" class="btn btn-green" style="width:100%;justify-content:center;font-size:15px;opacity:.4;cursor:not-allowed" onclick="sendEmailPlan()">
       📧 Envoyer le plan par mail &amp; enregistrer
     </button>
@@ -462,6 +535,7 @@ button{cursor:pointer;font-family:inherit}
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
     <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
+    <button class="tab-btn" id="tabNc" onclick="switchTab('nc')">⚠ Registre NC</button>
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
   </div>
@@ -470,6 +544,16 @@ button{cursor:pointer;font-family:inherit}
   <div id="tabContentSaves">
     <div id="backupBtnZone" class="flex-wrap" style="margin-bottom:12px;display:none">
       <button class="btn btn-orange btn-sm" onclick="downloadFullBackup()">📦 Sauvegarde complète JSON</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <select id="saveFilterClient" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+        <option value="">Tous clients</option>
+      </select>
+      <select id="saveFilterRef" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+        <option value="">Toutes matières / réf.</option>
+      </select>
+      <input type="text" id="saveFilterCmd" oninput="renderSaves()" placeholder="N° commande…" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <button class="btn btn-ghost btn-sm" onclick="resetSaveFilters()">✕ Reset</button>
     </div>
     <div id="savesList"></div>
     <div id="savesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune sauvegarde.</div>
@@ -520,6 +604,27 @@ button{cursor:pointer;font-family:inherit}
   <!-- ONGLET ANALYSE -->
   <div id="tabContentAnalyse" class="hidden">
     <div id="analyseContent"></div>
+  </div>
+
+  <!-- ONGLET REGISTRE NC -->
+  <div id="tabContentNc" class="hidden">
+    <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Registre consolidé des non-conformités — toutes les fiches confondues. Exploitable pour les actions correctives ISO 9001.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <select id="ncFilterType" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+        <option value="">Tous types NC</option>
+        <option value="larg">Largeur</option>
+        <option value="qty">Quantité</option>
+        <option value="casse">Casse</option>
+        <option value="ang">Angle</option>
+      </select>
+      <select id="ncFilterClient" onchange="renderNc()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+        <option value="">Tous clients</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="exportNc()">⬇️ Exporter CSV</button>
+    </div>
+    <div id="ncSummary"></div>
+    <div id="ncList"></div>
+    <div id="ncEmpty" class="text-muted hidden" style="padding:8px 0">Aucune non-conformité enregistrée. 👍</div>
   </div>
 
   <!-- ONGLET CORBEILLE -->
@@ -666,6 +771,25 @@ async function purgeExpiredItems(){
   }catch(e){console.error('Erreur purge auto :',e);}
 }
 
+// === PISTE D'AUDIT — enregistre qui/quand/quoi dans Firestore (collection 'audit') ===
+// Ne bloque jamais l'application (best-effort). Sert de preuve pour l'ISO 9001.
+function logAudit(action,collection,docId,details){
+  if(!db) return;
+  try{
+    db.collection('audit').add({
+      action:action,                         // 'create' | 'delete' | 'restore' | 'permanent_delete' | 'validate' | 'reject' | 'edit'
+      collection:collection,
+      docId:docId||'',
+      details:details||'',
+      user:currentUser?(currentUser.nom||currentUser.ini||currentUser.email||'?'):'?',
+      userIni:currentUser?currentUser.ini||'':'',
+      role:currentRole||'',
+      at:isoNow(),
+      ts:Date.now()
+    });
+  }catch(e){console.warn('Audit non enregistré :',e);}
+}
+
 async function showForgotPassword(){
   const email=document.getElementById('loginInput').value.trim();
   if(!email){
@@ -727,17 +851,21 @@ async function doLogout(){
 function applyRole(){
   document.getElementById('loginOverlay').classList.add('hidden');
   document.getElementById('logoutBtn').style.display='flex';
+  document.getElementById('atelierBtn').style.display='flex';
+  initAtelier();
   const tag=document.getElementById('roleTag');
   const nom=currentUser?currentUser.nom:'';
   if(currentRole==='admin'){
     tag.textContent='ADMIN'+(nom?' · '+nom:'');tag.className='role-admin';
     document.getElementById('tabAnalyse').style.display='';
     document.getElementById('tabCorbeille').style.display='';
+    document.getElementById('tabNc').style.display='';
   } else {
     tag.textContent='OPÉRATEUR'+(nom?' · '+nom:'');tag.className='role-op';
     document.getElementById('tabAnalyse').style.display='none';
     document.getElementById('tabCorbeille').style.display='none';
-    if(document.getElementById('tabAnalyse').classList.contains('active')||document.getElementById('tabCorbeille').classList.contains('active')) switchTab('saves');
+    document.getElementById('tabNc').style.display='none';
+    if(document.getElementById('tabAnalyse').classList.contains('active')||document.getElementById('tabCorbeille').classList.contains('active')||document.getElementById('tabNc').classList.contains('active')) switchTab('saves');
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){
@@ -1148,6 +1276,12 @@ function canManageData(){
   return ['ER','CH','DC'].indexOf(currentUser.ini)!==-1;
 }
 
+// Validation hiérarchique : réservée à Dominique (DC) et aux admins
+function canValidate(){
+  if(!currentUser) return false;
+  return currentUser.ini==='DC' || currentRole==='admin';
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -1322,11 +1456,60 @@ function closePhotoViewer(){
 function showPage(i){
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
+  if(i===1) syncFicheFromPlan();
   if(i===2) renderDataPage();
 }
 
+// Mode atelier : gros boutons / police agrandie. Réglage mémorisé par appareil.
+function toggleAtelier(){
+  const on=document.body.classList.toggle('atelier');
+  document.getElementById('atelierBtn').classList.toggle('on',on);
+  try{localStorage.setItem('step_atelier',on?'1':'0');}catch(e){}
+}
+function initAtelier(){
+  let on=false;
+  try{on=localStorage.getItem('step_atelier')==='1';}catch(e){}
+  if(on){document.body.classList.add('atelier');document.getElementById('atelierBtn').classList.add('on');}
+}
+
+// Synchronise la fiche depuis le plan (client, réf, longueur + lignes bobines)
+// Ne touche PAS la fiche si l'opérateur a déjà commencé (lignes présentes) — protège le travail terrain
+function syncFicheFromPlan(){
+  // Toujours propager les en-têtes (sans écraser une saisie manuelle existante)
+  const client=document.getElementById('planClient').value;
+  const ref=document.getElementById('planRef').value;
+  const longueur=document.getElementById('planLongueur').value;
+  if(client&&!document.getElementById('fClient').value) document.getElementById('fClient').value=client;
+  if(ref&&!document.getElementById('fRef').value) document.getElementById('fRef').value=ref;
+  if(longueur&&!document.getElementById('fLongueur').value) document.getElementById('fLongueur').value=longueur;
+  // Packaging : propager depuis le plan si la fiche n'a rien de saisi
+  ['Palette','Type','Etiquetage','Cerclage'].forEach(k=>{
+    const planEl=document.getElementById('plan'+k);
+    const ficheEl=document.getElementById('f'+k);
+    if(planEl&&ficheEl&&planEl.value&&!ficheEl.value) ficheEl.value=planEl.value;
+  });
+  // Importer les lignes bobines seulement si la fiche est encore vide
+  if(ficheLines.length===0){
+    const rows=getOrderRows();
+    if(rows.length){
+      const useful=getUseful(),blade=getBlade();
+      commandTotals={};
+      rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;});
+      const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
+      let bi=1;
+      groups.forEach(g=>{
+        for(let ci=0;ci<g.count;ci++){
+          addFicheLine({label:'BOB-'+String(bi).padStart(3,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + ')});
+          bi++;
+        }
+      });
+      refreshOp2BobineList();
+    }
+  }
+}
+
 function switchTab(tab){
-  ['saves','temps','fiches','analyse','corbeille'].forEach(t=>{
+  ['saves','temps','fiches','nc','analyse','corbeille'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
@@ -1334,6 +1517,7 @@ function switchTab(tab){
   else if(tab==='temps') renderTemps();
   else if(tab==='analyse') renderAnalyse();
   else if(tab==='corbeille') renderCorbeille();
+  else if(tab==='nc') renderNc();
   else renderFiches();
 }
 
@@ -1713,6 +1897,8 @@ async function doSave(){
     edgeLoss:document.getElementById('edgeLoss').value,
     client:document.getElementById('saveClient').value||'—',
     ref:document.getElementById('saveRef').value||'—',
+    numCmd:document.getElementById('planNumCmd').value||'',
+    dateLiv:document.getElementById('planDateLiv').value||'',
     commandeDetail:rows.map(function(r){return r.qty+'×'+r.width+'mm';}).join(' + '),
     largeur:document.getElementById('planLargeur').value,
     longueur:document.getElementById('planLongueur').value,
@@ -1731,10 +1917,32 @@ async function doSave(){
   closeSaveModal();showPage(2);
 }
 function renderSaves(){
-  const saves=savesCache.filter(s=>!s.deleted);
+  let saves=savesCache.filter(s=>!s.deleted);
+  // Remplir les filtres
+  const selC=document.getElementById('saveFilterClient');
+  const selR=document.getElementById('saveFilterRef');
+  if(selC){
+    const cur=selC.value;
+    const clients=[...new Set(saves.map(s=>s.client).filter(c=>c&&c!=='—'))].sort();
+    selC.innerHTML='<option value="">Tous clients</option>'+clients.map(c=>`<option value="${c}">${c}</option>`).join('');
+    selC.value=cur;
+  }
+  if(selR){
+    const cur=selR.value;
+    const refs=[...new Set(saves.map(s=>s.ref).filter(r=>r&&r!=='—'))].sort();
+    selR.innerHTML='<option value="">Toutes matières / réf.</option>'+refs.map(r=>`<option value="${r}">${r}</option>`).join('');
+    selR.value=cur;
+  }
+  const fC=document.getElementById('saveFilterClient')?.value||'';
+  const fR=document.getElementById('saveFilterRef')?.value||'';
+  const fCmd=(document.getElementById('saveFilterCmd')?.value||'').trim().toLowerCase();
+  if(fC) saves=saves.filter(s=>s.client===fC);
+  if(fR) saves=saves.filter(s=>s.ref===fR);
+  if(fCmd) saves=saves.filter(s=>(s.numCmd||'').toLowerCase().includes(fCmd));
+
   const list=document.getElementById('savesList');
   const empty=document.getElementById('savesEmpty');
-  if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');return;}
+  if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');empty.textContent=(fC||fR||fCmd)?'Aucun résultat pour ces filtres.':'Aucune sauvegarde.';return;}
   empty.classList.add('hidden');
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
@@ -1743,10 +1951,12 @@ function renderSaves(){
     const cmdDetail=s.commandeDetail||(s.rows||[]).map(function(r){return r.qty+'×'+r.width+'mm';}).join(' + ')||'';
     const pkg=[s.typeCond||s.carton,s.palette,s.etiquetage||s.etiquette,s.cerclage].filter(Boolean).join(' · ');
     const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
+    const cmdLine=(s.numCmd)?`<div class="save-meta">N° Cmd : ${s.numCmd}${s.dateLiv?` · Livraison ${new Date(s.dateLiv).toLocaleDateString('fr-FR')}`:''}</div>`:'';
     return `<div class="save-card">
       <div class="save-info">
         <div class="save-title">${s.client} — ${s.ref}</div>
         <div class="save-meta">${ds} · ${mn} · Bobine ${s.mother} mm</div>
+        ${cmdLine}
         ${cmdDetail?'<div class="save-meta" style="color:var(--blue)">📋 '+cmdDetail+'</div>':''}
         ${pkgLine}
       </div>
@@ -1756,6 +1966,11 @@ function renderSaves(){
       </div>
     </div>`;
   }).join('');
+}
+function resetSaveFilters(){
+  ['saveFilterClient','saveFilterRef'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const c=document.getElementById('saveFilterCmd');if(c)c.value='';
+  renderSaves();
 }
 function openLoadModal(id){
   loadTargetIdx=id;
@@ -1866,7 +2081,7 @@ function sendEmailPlan(){
   const rows=getOrderRows();
   if(!rows.length){alert('Aucune commande à envoyer.');return;}
   if(ficheLines.length===0){
-    alert('⚠ La fiche est obligatoire avant d\'envoyer.\n\nClique sur "Importer du plan" dans la fiche, puis valide les bobines coupées.');
+    alert('⚠ La fiche est obligatoire avant d\'envoyer.\n\nVa dans l\'onglet Fiche : les bobines se chargent automatiquement depuis le plan. Coche-les "coupées" au fur et à mesure.');
     return;
   }
   const useful=getUseful(),blade=getBlade();
@@ -1877,6 +2092,16 @@ function sendEmailPlan(){
   if(done<total){
     alert(`⚠ ${total-done} bobine(s) non coupée(s) sur ${total}.\n\nMarque toutes les bobines comme "✓ Coupée" dans la fiche avant d'envoyer.`);
     return;
+  }
+  // Garde-fou : NC cochée sans commentaire => bloquer
+  const ficheCheck=getFicheLinesData();
+  for(let i=0;i<ficheCheck.length;i++){
+    const fd=ficheCheck[i];
+    const hasNC=fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng;
+    if(hasNC && !fd.ncDetail.trim()){
+      alert(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : une non-conformité est cochée sans explication.\n\nRenseigne le détail de la non-conformité avant d'envoyer (obligatoire pour la traçabilité qualité).`);
+      return;
+    }
   }
   const nbPlan=bobines.length;
   const nbFiche=ficheLines.length;
@@ -1897,11 +2122,13 @@ function sendEmailPlan(){
   const numJour=document.getElementById('fNumJour').value||'—';
   const longueur=document.getElementById('fLongueur').value||document.getElementById('planLongueur').value||'—';
   const mother=fmt(parseNum(document.getElementById('motherWidth').value));
-  const typeCond=document.getElementById('planType').value||'—';
-  const palette=document.getElementById('planPalette').value||'—';
-  const etiquetage=document.getElementById('planEtiquetage').value||'—';
-  const cerclage=document.getElementById('planCerclage').value||'—';
+  const typeCond=document.getElementById('fType').value||document.getElementById('planType').value||'—';
+  const palette=document.getElementById('fPalette').value||document.getElementById('planPalette').value||'—';
+  const etiquetage=document.getElementById('fEtiquetage').value||document.getElementById('planEtiquetage').value||'—';
+  const cerclage=document.getElementById('fCerclage').value||document.getElementById('planCerclage').value||'—';
   const notesEmb=document.getElementById('planNotesEmballage').value||'';
+  const numCmd=document.getElementById('planNumCmd').value||'—';
+  const dateLiv=document.getElementById('planDateLiv').value?new Date(document.getElementById('planDateLiv').value).toLocaleDateString('fr-FR'):'—';
   const totalMat=bobines.length*useful;
   const totalUsed=bobines.reduce((s,p)=>s+calcStats(p,blade).total,0);
   const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
@@ -1920,6 +2147,7 @@ function sendEmailPlan(){
   body+=`== EN-TÊTE ==\n`;
   body+=`Op1: ${ini}${ini2?` / Op2: ${ini2}${op2Bob?` (dès B${op2Bob})`:''}`:''}\n`;
   body+=`Client: ${client} | Ref: ${ref} | Long: ${longueur} m\n`;
+  body+=`N° Commande: ${numCmd} | Livraison client: ${dateLiv}\n`;
   body+=`Machine: ${machine} | Mere: ${mother} mm | Utile: ${fmt(useful)} | Lame: ${fmt(blade)} (N°${lame}) | J${numJour}\n`;
   body+=`Emballage: Palette ${palette} | ${typeCond} | Etiq ${etiquetage} | Cerc ${cerclage}\n`;
   if(notesEmb) body+=`Notes: ${notesEmb.replace(/\n/g,' | ')}\n`;
@@ -1967,11 +2195,13 @@ function sendEmailPlan(){
 
   saveFicheRecord({
     name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,lame,numJour,longueur,mother,rows,
+    numCmd,dateLiv,
     palette,typeCond,etiquetage,cerclage,notesEmballage:notesEmb,
     groups:groups.map(g=>({label:makeLabel(g.pattern),count:g.count,total:fmt(calcStats(g.pattern,blade).total),waste:fmt(useful-calcStats(g.pattern,blade).total),isLast:false})),
     useful:fmt(useful),blade:fmt(blade),pct:pct.toFixed(1),tempsStr,totalBobines:bobines.length,
     ficheDetail:ficheDetailTagged,
-    nbPlan,nbFiche,hasEcart,ecartMsg
+    nbPlan,nbFiche,hasEcart,ecartMsg,
+    valide:null,valideBy:null,valideAt:null
   });
 
   // === ENVOI : tente URL Gmail directe, fallback presse-papier si trop long ===
@@ -2031,6 +2261,8 @@ function resetAll(){
   document.getElementById('planEtiquetage').value='';
   document.getElementById('planCerclage').value='';
   document.getElementById('planNotesEmballage').value='';
+  document.getElementById('planNumCmd').value='';
+  document.getElementById('planDateLiv').value='';
   document.getElementById('packagingAlert').classList.add('hidden');
   document.querySelectorAll('.order-row').forEach(function(r){r.remove();});
   selectMachine('feba');
@@ -2048,6 +2280,7 @@ function resetAll(){
   document.getElementById('fNumLame').value='';
   document.getElementById('fNumJour').value=getDayOfYear();
   document.getElementById('fLongueur').value='';
+  ['fPalette','fType','fEtiquetage','fCerclage'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('fOp2Active').checked=false;
   document.getElementById('op2Zone').classList.add('hidden');
   document.getElementById('fInitiales2').value='';
@@ -2123,6 +2356,7 @@ async function saveFicheRecord(entry){
     const docRef=await db.collection('fiches').add(entry);
     fichesCache.unshift({_id:docRef.id,...entry});
     if(fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);
+    logAudit('create','fiches',docRef.id,`${entry.client||''} / ${entry.ref||''}${entry.numCmd&&entry.numCmd!=='—'?' / Cmd '+entry.numCmd:''}`);
   }catch(e){console.error('saveFicheRecord:',e);alert('Erreur enregistrement fiche : '+e.message);}
 }
 
@@ -2571,18 +2805,36 @@ function renderFiches(){
     const op2=f.ini2?` + ${f.ini2}${f.op2Bob?` (bob.${f.op2Bob})`:''}`:'';
     const pkg=[f.typeCond||f.carton,f.palette,f.etiquetage||f.etiquette,f.cerclage].filter(Boolean).join(' · ');
     const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
+    const cmdLine=(f.numCmd&&f.numCmd!=='—')?`<div class="save-meta">N° Cmd : ${f.numCmd}${f.dateLiv&&f.dateLiv!=='—'?` · Livraison ${f.dateLiv}`:''}</div>`:'';
+    // Badge statut de validation
+    let statusBadge='';
+    if(f.valide===true) statusBadge=`<span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:#14371f;color:#4ade80">✓ Validée${f.valideBy?' · '+f.valideBy:''}</span>`;
+    else if(f.valide===false) statusBadge=`<span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:#3d1414;color:#f87171">✗ Refusée${f.valideBy?' · '+f.valideBy:''}</span>`;
+    else statusBadge=`<span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:#3d2a00;color:#f59e0b">⏳ En attente de validation</span>`;
+    // Boutons validation pour Dominique
+    let validBtns='';
+    if(canValidate()){
+      validBtns=`
+        <button class="btn btn-ghost btn-sm" onclick="editFicheConfigs('${f._id}')" title="Modifier le plan de découpe">✏</button>
+        <button class="btn btn-green btn-sm" onclick="validateFiche('${f._id}')" title="Valider la fiche">✓</button>
+        <button class="btn btn-red btn-sm" onclick="rejectFiche('${f._id}')" title="Refuser la fiche">✗</button>`;
+    }
     return `<div class="save-card" style="flex-direction:column;align-items:flex-start;gap:6px">
       <div style="display:flex;width:100%;align-items:center;gap:10px">
         <div class="save-info">
           <div class="save-title">${f.name}</div>
+          <div style="margin:4px 0 6px">${statusBadge}</div>
           <div class="save-meta">${ds} · ${f.machine} · ${f.totalBobines} bobines · perte ${f.pct}%</div>
           <div class="save-meta">Opérateur : ${f.ini}${op2}</div>
+          ${cmdLine}
           <div class="save-meta">Commande : ${cmd}</div>
           ${pkgLine}
           <div class="save-meta">Temps : ${f.tempsStr}</div>
         </div>
-        <div class="save-actions" style="flex-shrink:0">
+        <div class="save-actions" style="flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}')">👁</button>
+          <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}',true)" title="Exporter en PDF">📄</button>
+          ${validBtns}
           <button class="btn btn-red btn-sm" onclick="deleteFiche('${f._id}')">🗑️</button>
         </div>
       </div>
@@ -2590,7 +2842,190 @@ function renderFiches(){
   }).join('');
 }
 
-function showFicheDetail(id){
+async function validateFiche(id){
+  const f=fichesCache.find(x=>x._id===id);
+  if(!f) return;
+  const by=currentUser?(currentUser.nom||currentUser.ini):'?';
+  try{
+    const at=isoNow();
+    await db.collection('fiches').doc(id).update({valide:true,valideBy:by,valideAt:at});
+    f.valide=true;f.valideBy=by;f.valideAt=at;
+    logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`);
+  }catch(e){alert('Erreur validation : '+e.message);}
+  renderFiches();
+}
+
+async function rejectFiche(id){
+  const f=fichesCache.find(x=>x._id===id);
+  if(!f) return;
+  if(!confirm('Refuser cette fiche ? Elle sera marquée comme non conforme.')) return;
+  const by=currentUser?(currentUser.nom||currentUser.ini):'?';
+  try{
+    const at=isoNow();
+    await db.collection('fiches').doc(id).update({valide:false,valideBy:by,valideAt:at});
+    f.valide=false;f.valideBy=by;f.valideAt=at;
+    logAudit('reject','fiches',id,`${f.client||''} / ${f.ref||''}`);
+  }catch(e){alert('Erreur : '+e.message);}
+  renderFiches();
+}
+
+// Édition du plan de découpe par Dominique : modifie en-tête + configuration des bobines
+function editFicheConfigs(id){
+  const f=fichesCache.find(x=>x._id===id);
+  if(!f) return;
+  if(!canValidate()){alert('Modification réservée au valideur.');return;}
+  const detail=(f.ficheDetail||[]).map((fd,i)=>({i,label:fd.label||'',conf:fd.conf||''}));
+  const old=document.getElementById('editFicheOverlay');
+  if(old) old.remove();
+  const ov=document.createElement('div');
+  ov.id='editFicheOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px';
+  ov.innerHTML=`
+    <div style="background:#1a1a18;border:1px solid #333;border-radius:14px;max-width:640px;width:100%;margin:auto;padding:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-family:sans-serif;font-size:17px;font-weight:800;color:#fff">✏ Modifier le plan — ${f.name||''}</div>
+        <button onclick="document.getElementById('editFicheOverlay').remove()" style="background:#222;border:1px solid #444;color:#ccc;border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Client</label><input id="ef_client" value="${(f.client||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px;background:#111;border:1px solid #333;border-radius:8px;color:#eee"></div>
+        <div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Référence</label><input id="ef_ref" value="${(f.ref||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px;background:#111;border:1px solid #333;border-radius:8px;color:#eee"></div>
+        <div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">N° Commande</label><input id="ef_numcmd" value="${(f.numCmd||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px;background:#111;border:1px solid #333;border-radius:8px;color:#eee"></div>
+        <div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Lame N°</label><input id="ef_lame" value="${(f.lame||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px;background:#111;border:1px solid #333;border-radius:8px;color:#eee"></div>
+      </div>
+      <div style="font-size:12px;color:#888;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Configuration des bobines</div>
+      <div style="max-height:340px;overflow-y:auto">
+        ${detail.map(d=>`
+          <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+            <span style="color:#a78bfa;font-weight:700;font-size:13px;width:70px;flex-shrink:0">Bob ${d.i+1}</span>
+            <input id="ef_label_${d.i}" value="${d.label.replace(/"/g,'&quot;')}" placeholder="Étiquette" style="width:110px;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-size:13px">
+            <input id="ef_conf_${d.i}" value="${d.conf.replace(/"/g,'&quot;')}" placeholder="ex : 5×80 + 3×50" style="flex:1;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-family:monospace;font-size:13px">
+          </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end">
+        <button onclick="document.getElementById('editFicheOverlay').remove()" style="background:#222;border:1px solid #444;color:#ccc;border-radius:8px;padding:11px 18px;cursor:pointer">Annuler</button>
+        <button onclick="saveFicheConfigs('${id}',${detail.length})" style="background:#2f7d4f;border:none;color:#fff;font-weight:700;border-radius:8px;padding:11px 20px;cursor:pointer">💾 Enregistrer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+async function saveFicheConfigs(id,n){
+  const f=fichesCache.find(x=>x._id===id);
+  if(!f) return;
+  const client=document.getElementById('ef_client').value;
+  const ref=document.getElementById('ef_ref').value;
+  const numCmd=document.getElementById('ef_numcmd').value;
+  const lame=document.getElementById('ef_lame').value;
+  const newDetail=(f.ficheDetail||[]).map((fd,i)=>{
+    const lbl=document.getElementById('ef_label_'+i);
+    const cf=document.getElementById('ef_conf_'+i);
+    return {...fd,label:lbl?lbl.value:fd.label,conf:cf?cf.value:fd.conf};
+  });
+  try{
+    await db.collection('fiches').doc(id).update({client,ref,numCmd,lame,ficheDetail:newDetail});
+    f.client=client;f.ref=ref;f.numCmd=numCmd;f.lame=lame;f.ficheDetail=newDetail;
+    logAudit('edit','fiches',id,`Plan modifié par valideur — ${client} / ${ref}`);
+    document.getElementById('editFicheOverlay')?.remove();
+    renderFiches();
+    alert('✓ Plan modifié et enregistré.');
+  }catch(e){alert('Erreur enregistrement : '+e.message);}
+}
+
+// === REGISTRE DES NON-CONFORMITÉS (consolidé toutes fiches) ===
+function buildNcRows(){
+  const rows=[];
+  fichesCache.filter(f=>!f.deleted).forEach(f=>{
+    (f.ficheDetail||[]).forEach((fd,i)=>{
+      const types=[];
+      if(fd.ncLarg) types.push('larg');
+      if(fd.ncQty) types.push('qty');
+      if(fd.ncCasse) types.push('casse');
+      if(fd.ncAng) types.push('ang');
+      if(types.length){
+        rows.push({
+          ficheId:f._id,date:f.date,client:f.client||'—',ref:f.ref||'—',numCmd:f.numCmd||'',
+          bobine:i+1,label:fd.label||'',types,detail:fd.ncDetail||'',ini:f.ini||'',
+          action:fd.actDechet?'Déchet':fd.actChutes?'Chutes':''
+        });
+      }
+    });
+  });
+  rows.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  return rows;
+}
+const NC_LABELS={larg:'Largeur',qty:'Quantité',casse:'Casse',ang:'Angle'};
+function renderNc(){
+  let rows=buildNcRows();
+  // Remplir le filtre client
+  const sel=document.getElementById('ncFilterClient');
+  if(sel){
+    const cur=sel.value;
+    const clients=[...new Set(rows.map(r=>r.client))].sort();
+    sel.innerHTML='<option value="">Tous clients</option>'+clients.map(c=>`<option value="${c}">${c}</option>`).join('');
+    sel.value=cur;
+  }
+  const fType=document.getElementById('ncFilterType')?.value||'';
+  const fClient=document.getElementById('ncFilterClient')?.value||'';
+  if(fType) rows=rows.filter(r=>r.types.includes(fType));
+  if(fClient) rows=rows.filter(r=>r.client===fClient);
+
+  const summary=document.getElementById('ncSummary');
+  const list=document.getElementById('ncList');
+  const empty=document.getElementById('ncEmpty');
+  if(!rows.length){list.innerHTML='';summary.innerHTML='';empty.classList.remove('hidden');return;}
+  empty.classList.add('hidden');
+
+  // Résumé par type
+  const counts={larg:0,qty:0,casse:0,ang:0};
+  rows.forEach(r=>r.types.forEach(t=>counts[t]++));
+  summary.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    <div style="flex:1;min-width:90px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:var(--orange)">${rows.length}</div><div style="font-size:11px;color:var(--muted)">NC totales</div></div>
+    <div style="flex:1;min-width:90px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.larg}</div><div style="font-size:11px;color:var(--muted)">Largeur</div></div>
+    <div style="flex:1;min-width:90px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.qty}</div><div style="font-size:11px;color:var(--muted)">Quantité</div></div>
+    <div style="flex:1;min-width:90px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.casse}</div><div style="font-size:11px;color:var(--muted)">Casse</div></div>
+    <div style="flex:1;min-width:90px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.ang}</div><div style="font-size:11px;color:var(--muted)">Angle</div></div>
+  </div>`;
+
+  list.innerHTML=rows.map(r=>{
+    const d=new Date(r.date);
+    const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    const typeBadges=r.types.map(t=>`<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;background:#3d1414;color:#f87171;margin-right:4px">${NC_LABELS[t]}</span>`).join('');
+    return `<div class="save-card" style="flex-direction:column;align-items:flex-start;gap:4px;border-left:3px solid var(--red)">
+      <div style="display:flex;width:100%;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div class="save-info">
+          <div class="save-title">${r.client} — ${r.ref}${r.numCmd&&r.numCmd!=='—'?` · Cmd ${r.numCmd}`:''}</div>
+          <div style="margin:4px 0">${typeBadges}</div>
+          <div class="save-meta">Bobine ${r.bobine}${r.label?` (${r.label})`:''} · Opérateur ${r.ini} · ${ds}</div>
+          ${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${r.detail}</div>`:'<div class="save-meta" style="color:#f87171">⚠ Aucun détail renseigné</div>'}
+          ${r.action?`<div class="save-meta">Action : ${r.action}</div>`:''}
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${r.ficheId}')" style="flex-shrink:0">👁</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function exportNc(){
+  const rows=buildNcRows();
+  if(!rows.length){alert('Aucune non-conformité à exporter.');return;}
+  const head=['Date','Client','Référence','N° Commande','Bobine','Étiquette','Opérateur','Types NC','Détail','Action'];
+  const lines=rows.map(r=>[
+    new Date(r.date).toLocaleString('fr-FR'),r.client,r.ref,r.numCmd,'B'+r.bobine,r.label,r.ini,
+    r.types.map(t=>NC_LABELS[t]).join(' / '),r.detail.replace(/[\n;]/g,' '),r.action
+  ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';'));
+  const csv='\uFEFF'+head.join(';')+'\n'+lines.join('\n');
+  const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='registre_NC_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function showFicheDetail(id,autoPrint){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
   let bobNum=0;
@@ -2706,6 +3141,8 @@ function showFicheDetail(id){
       ${op2Line}
       <span>Client</span><span>${f.client}</span>
       <span>Référence</span><span>${f.ref}</span>
+      ${(f.numCmd&&f.numCmd!=='—')?`<span>N° Commande</span><span>${f.numCmd}</span>`:''}
+      ${(f.dateLiv&&f.dateLiv!=='—')?`<span>Livraison client</span><span>${f.dateLiv}</span>`:''}
       <span>Machine</span><span>${f.machine}</span>
       <span>Bobine mère</span><span>${f.mother} mm · utile ${f.useful} mm · lame ${f.blade} mm</span>
       <span>Longueur réf.</span><span>${f.longueur} m</span>
@@ -2713,6 +3150,7 @@ function showFicheDetail(id){
       <span>N° Jour</span><span>${f.numJour}</span>
       ${pkgLine}
       <span>Temps</span><span style="color:${f.tempsStr==='non enregistré'?'#888':'#4ade80'}">${f.tempsStr}</span>
+      <span>Validation</span><span>${f.valide===true?'✓ Validée'+(f.valideBy?' par '+f.valideBy:'')+(f.valideAt?' le '+new Date(f.valideAt).toLocaleDateString('fr-FR'):''):f.valide===false?'✗ Refusée'+(f.valideBy?' par '+f.valideBy:''):'⏳ En attente'}</span>
     </div>
   </div>
   <div class="card">
@@ -2732,7 +3170,7 @@ function showFicheDetail(id){
   </body></html>`;
 
   const w=window.open('','_blank');
-  if(w){w.document.write(html);w.document.close();}
+  if(w){w.document.write(html);w.document.close();if(autoPrint){setTimeout(()=>{try{w.print();}catch(e){}},500);}}
   else alert('Autorise les pop-ups pour voir la fiche.');
 }
 
@@ -2742,6 +3180,7 @@ async function deleteFiche(id){
     await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
     const item=fichesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
+    logAudit('delete','fiches',id,item?`${item.client||''} / ${item.ref||''}`:'');
   }catch(e){alert('Erreur : '+e.message);}
   renderFiches();
 }
@@ -2815,6 +3254,7 @@ async function restoreItem(collection,id){
     const caches={saves:savesCache,temps:tempsCache,fiches:fichesCache};
     const item=(caches[collection]||[]).find(x=>x._id===id);
     if(item){item.deleted=false;item.deletedAt='';}
+    logAudit('restore',collection,id,'');
   }catch(e){alert('Erreur restauration : '+e.message);}
   renderCorbeille();
 }
@@ -2829,6 +3269,7 @@ async function permanentDelete(collection,id){
       const idx=cache.findIndex(x=>x._id===id);
       if(idx!==-1) cache.splice(idx,1);
     }
+    logAudit('permanent_delete',collection,id,'');
   }catch(e){alert('Erreur : '+e.message);}
   renderCorbeille();
 }
