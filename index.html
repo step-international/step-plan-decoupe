@@ -1693,14 +1693,22 @@ function syncFicheFromPlan(){
     ['Palette','Type','Etiquetage','Cerclage'].forEach(k=>setField('plan'+k,'f'+k));
     setField('planNotesEmballage','fNotesEmballage');
 
-    // Bobines : import auto depuis le plan tant que l'opérateur n'a rien saisi
+    // Garde de cohérence DOM/tableau : si désynchro (ex. tableau dit N bobines mais DOM en a 0),
+    // on force la régénération depuis zéro pour récupérer un état propre.
+    const ficheLinesDiv=document.getElementById('ficheLines');
+    const domCount=ficheLinesDiv ? ficheLinesDiv.querySelectorAll('.fiche-line').length : 0;
+    const desync=ficheLines.length!==domCount;
+    if(desync){
+      console.warn('Désynchro détectée ficheLines['+ficheLines.length+'] vs DOM['+domCount+'] — régénération forcée.');
+    }
+
+    // Bobines : import auto depuis le plan tant que l'opérateur n'a rien saisi,
+    // OU forcé si désynchro DOM/tableau.
     const rows=getOrderRows();
-    if(rows.length && untouched){
-      if(ficheLines.length>0){
-        document.getElementById('ficheLines').innerHTML='';
-        ficheLines=[];
-        ficholinePhotos={};
-      }
+    if(rows.length && (untouched || desync)){
+      if(ficheLinesDiv) ficheLinesDiv.innerHTML='';
+      ficheLines=[];
+      ficholinePhotos={};
       const useful=getUseful(),blade=getBlade();
       commandTotals={};
       rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;});
