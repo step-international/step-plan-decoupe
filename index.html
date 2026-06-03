@@ -574,11 +574,11 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
 <div class="page" id="page2">
   <div class="tab-bar">
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
-    <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
-    <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
     <button class="tab-btn" id="tabNc" onclick="switchTab('nc')">⚠ Registre NC</button>
+    <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
+    <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
   </div>
 
@@ -1674,47 +1674,53 @@ function isFicheUntouched(){
 }
 
 function syncFicheFromPlan(){
-  // Toujours propager les en-têtes (sans écraser une saisie manuelle existante)
-  const client=document.getElementById('planClient').value;
-  const ref=document.getElementById('planRef').value;
-  const longueur=document.getElementById('planLongueur').value;
-  if(client&&!document.getElementById('fClient').value) document.getElementById('fClient').value=client;
-  if(ref&&!document.getElementById('fRef').value) document.getElementById('fRef').value=ref;
-  if(longueur&&!document.getElementById('fLongueur').value) document.getElementById('fLongueur').value=longueur;
-  const pNum=document.getElementById('planNumCmd'),fNum=document.getElementById('fNumCmd');
-  if(pNum&&fNum&&pNum.value&&!fNum.value) fNum.value=pNum.value;
-  const pLiv=document.getElementById('planDateLiv'),fLiv=document.getElementById('fDateLiv');
-  if(pLiv&&fLiv&&pLiv.value&&!fLiv.value) fLiv.value=pLiv.value;
-  // Packaging : propager depuis le plan si la fiche n'a rien de saisi
-  ['Palette','Type','Etiquetage','Cerclage'].forEach(k=>{
-    const planEl=document.getElementById('plan'+k);
-    const ficheEl=document.getElementById('f'+k);
-    if(planEl&&ficheEl&&planEl.value&&!ficheEl.value) ficheEl.value=planEl.value;
-  });
-  const planNotes=document.getElementById('planNotesEmballage');
-  const ficheNotes=document.getElementById('fNotesEmballage');
-  if(planNotes&&ficheNotes&&planNotes.value&&!ficheNotes.value) ficheNotes.value=planNotes.value;
-  // Bobines : import auto depuis le plan, refait à chaque venue sur la Fiche
-  // tant que l'opérateur n'a rien saisi (photo, NC, coupée, etc.)
-  const rows=getOrderRows();
-  if(rows.length && isFicheUntouched()){
-    if(ficheLines.length>0){
-      document.getElementById('ficheLines').innerHTML='';
-      ficheLines=[];
-      ficholinePhotos={};
-    }
-    const useful=getUseful(),blade=getBlade();
-    commandTotals={};
-    rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;});
-    const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
-    let bi=1;
-    groups.forEach(g=>{
-      for(let ci=0;ci<g.count;ci++){
-        addFicheLine({label:'BOB-'+String(bi).padStart(3,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + ')});
-        bi++;
+  try{
+    // Propager systématiquement les en-têtes depuis le Plan (le Plan est la source de vérité
+    // tant que l'opérateur n'a pas commencé à travailler sur les bobines).
+    // Si la fiche est "untouched", on écrase tout depuis le plan.
+    // Sinon (l'opérateur a déjà coché/photographié), on ne touche QUE les champs vides.
+    const untouched=isFicheUntouched();
+    const setField=(planId,ficheId)=>{
+      const p=document.getElementById(planId), f=document.getElementById(ficheId);
+      if(!p||!f) return;
+      if(untouched || !f.value) f.value=p.value||'';
+    };
+    setField('planClient','fClient');
+    setField('planRef','fRef');
+    setField('planLongueur','fLongueur');
+    setField('planNumCmd','fNumCmd');
+    setField('planDateLiv','fDateLiv');
+    ['Palette','Type','Etiquetage','Cerclage'].forEach(k=>setField('plan'+k,'f'+k));
+    setField('planNotesEmballage','fNotesEmballage');
+
+    // Bobines : import auto depuis le plan tant que l'opérateur n'a rien saisi
+    const rows=getOrderRows();
+    if(rows.length && untouched){
+      if(ficheLines.length>0){
+        document.getElementById('ficheLines').innerHTML='';
+        ficheLines=[];
+        ficholinePhotos={};
       }
-    });
-    refreshOp2BobineList();
+      const useful=getUseful(),blade=getBlade();
+      commandTotals={};
+      rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;});
+      // Garde-fou : si une largeur > largeur utile, on n'essaie même pas de packer (évite crash)
+      const tooWide=rows.some(r=>r.width>useful);
+      if(!tooWide){
+        const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
+        let bi=1;
+        groups.forEach(g=>{
+          for(let ci=0;ci<g.count;ci++){
+            addFicheLine({label:'BOB-'+String(bi).padStart(3,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + ')});
+            bi++;
+          }
+        });
+      }
+      refreshOp2BobineList();
+    }
+  }catch(e){
+    console.error('syncFicheFromPlan a échoué :',e);
+    // On ne propage pas : un échec de synchro ne doit pas afficher le toast d'erreur rouge global.
   }
 }
 
