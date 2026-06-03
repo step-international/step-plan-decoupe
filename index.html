@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STEP International — Plan de découpe</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -190,6 +190,34 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
 .role-admin{background:#3a2400;color:#f59e0b}
 .role-op{background:#142a1a;color:#4ade80}
 @keyframes dbspin{to{transform:rotate(360deg)}}
+
+/* ===== CARTE FICHE DÉCOUPE (Données > Fiches) — optimisée mobile ===== */
+.fiche-card{background:var(--card);border:1px solid var(--border2);border-left:4px solid var(--blue);border-radius:12px;padding:14px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px}
+.fc-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.fc-title{font-size:15px;font-weight:800;color:var(--text);line-height:1.3;flex:1;min-width:0;word-break:break-word}
+.fc-status{display:inline-block;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0}
+.fc-cmd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0}
+.fc-cmd-badge{display:inline-block;background:var(--blue);color:#fff;font-weight:800;font-size:14px;padding:5px 12px;border-radius:7px;letter-spacing:.02em}
+.fc-cmd-liv{font-size:12px;color:var(--muted);font-weight:600}
+.fc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;padding:10px 12px;background:rgba(0,0,0,.18);border-radius:8px}
+.fc-cell{display:flex;flex-direction:column;gap:2px;min-width:0}
+.fc-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.fc-val{font-size:14px;color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fc-cmdline{padding:8px 12px;background:#1c2e44;border-radius:8px;font-family:monospace;font-size:13px;color:var(--blue);font-weight:700;word-break:break-all}
+.fc-pkg{font-size:12px;color:var(--muted);padding:4px 0}
+.fc-foot{font-size:11px;color:var(--muted);padding-top:4px;border-top:1px dashed #333}
+.fc-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+.fc-actions .fc-btn{width:100%}
+.fc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 12px;border-radius:9px;font-size:13px;font-weight:700;border:1px solid transparent;cursor:pointer;font-family:inherit;min-height:42px;transition:all .15s;text-align:center}
+.fc-btn-ghost{background:#222;color:var(--text);border-color:#3a3a38}
+.fc-btn-ghost:active{background:#2a2a28}
+.fc-btn-blue{background:#1e3a5f;color:var(--blue);border-color:#2d5a9e}
+.fc-btn-green{background:#14371f;color:var(--green);border-color:#1e5c30}
+.fc-btn-red{background:#3d1414;color:var(--red);border-color:#7a2222}
+.fc-btn-red-ghost{background:#1a0e0e;color:var(--red);border-color:#5a2020}
+.fc-btn-violet{background:#2a1f3d;color:var(--violet);border-color:#4a3a70}
+@media(min-width:560px){.fc-actions{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:380px){.fc-grid{grid-template-columns:1fr}.fc-title{font-size:14px}.fc-actions{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -526,6 +554,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <div class="flex-wrap mt12">
       <button class="btn btn-ghost btn-sm" onclick="addFicheLine()">+ Ligne manuelle</button>
       <button class="btn btn-ghost btn-sm" onclick="resetFicheBobines()">↺ Reset bobines</button>
+      <button class="btn btn-ghost btn-sm" onclick="saveDraftManual()">💾 Brouillon</button>
       <button class="btn btn-ghost btn-sm" onclick="printFiche()">🖨️ Imprimer fiche</button>
     </div>
   </div>
@@ -547,6 +576,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
     <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
+    <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
     <button class="tab-btn" id="tabNc" onclick="switchTab('nc')">⚠ Registre NC</button>
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
@@ -617,6 +647,13 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
   <!-- ONGLET ANALYSE -->
   <div id="tabContentAnalyse" class="hidden">
     <div id="analyseContent"></div>
+  </div>
+
+  <!-- ONGLET BROUILLONS -->
+  <div id="tabContentBrouillons" class="hidden">
+    <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Fiches parquées ou non envoyées (réseau coupé). Stockées sur cet appareil. « Reprendre » recharge la fiche pour la compléter et l'envoyer.</div>
+    <div id="draftsList"></div>
+    <div id="draftsEmpty" class="text-muted" style="padding:8px 0">Aucun brouillon.</div>
   </div>
 
   <!-- ONGLET REGISTRE NC -->
@@ -699,14 +736,18 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
 // AUTHENTIFICATION — Firebase Auth (email/password)
 // Mapping UID → {role, ini, nom}
 // ============================================================
+// Rôles : 'admin' (ER, CH) = accès total · 'pilotage' (DC) = tout sauf Analyse
+//         'operateur' (TB, JF, MT) = pas de suppression définitive (archive uniquement)
 const USER_PROFILES={
   'ydobUI1wpNesqnlmNFroyoQLGHm1': {role:'admin',     ini:'ER', nom:'Esté',      email:'sales@step-international.com'},
   'GBGiA5k1hFZgwhHOg1y03wBr7M33': {role:'admin',     ini:'CH', nom:'Christian',  email:'c.rozier@step-international.com'},
-  '4vlmpeBW9pUFQP59eCkU51bdVZs2': {role:'operateur', ini:'DC', nom:'Dominique',  email:'d.cotte@step-international.com'},
+  '4vlmpeBW9pUFQP59eCkU51bdVZs2': {role:'pilotage',  ini:'DC', nom:'Dominique',  email:'d.cotte@step-international.com'},
   'smiBhboxTZZKpmJWiRapTxs1P323': {role:'operateur', ini:'JF', nom:'Jordan',     email:'jordan.franchini4342@icloud.com'},
   'qlVoly7PsyMndWMnimTY9mKUu532': {role:'operateur', ini:'TB', nom:'Taïeb',      email:'tayodu42@hotmail.fr'},
   'z1e9TGOTUDZ9KYtGl12i6HnISrv2': {role:'operateur', ini:'MT', nom:'Marouane',   email:'marouane.tuibi@hotmail.com'}
 };
+// Destinataire du mail plan de découpe — changer ici uniquement (un seul endroit)
+const MAIL_DESTINATAIRE='d.cotte@step-international.com';
 var currentRole=null;
 var currentUser=null;
 var currentAuth=null;
@@ -730,29 +771,81 @@ try{
     messagingSenderId:"32158396700",
     appId:"1:32158396700:web:577d4e12942702d68fcad9"
   });
-  firebase.appCheck().activate('6LesqQgtAAAAAEbAl7sZYDrThGuop7l0w4fh82AA', true);
   db=firebase.firestore();
   storage=firebase.storage();
 }catch(e){
   console.warn('Firebase non disponible (mode hors-ligne ou fichier local) :',e.message);
 }
+// App Check : isolé pour qu'un échec reCAPTCHA ne coupe pas l'accès à la base
+try{
+  if(firebase.appCheck) firebase.appCheck().activate('6LesqQgtAAAAAEbAl7sZYDrThGuop7l0w4fh82AA', true);
+}catch(e){
+  console.warn('App Check non activé :',e.message);
+}
+// Persistance offline : file d'attente des écritures + sync auto au retour réseau
+if(db){
+  try{
+    db.enablePersistence({synchronizeTabs:true}).catch(function(err){
+      console.warn('Persistance offline indisponible ('+err.code+') — l\'app reste fonctionnelle en ligne.');
+    });
+  }catch(e){console.warn('Persistance offline :',e.message);}
+}
 
+// Toast léger + capture des exceptions non gérées (sinon échec silencieux)
+function showToast(msg,kind){
+  let t=document.getElementById('globalToast');
+  if(!t){
+    t=document.createElement('div');t.id='globalToast';
+    t.style.cssText='position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9999;max-width:90%;padding:11px 16px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.5);display:none';
+    document.body.appendChild(t);
+  }
+  t.style.background=kind==='ok'?'#14371f':'#3d1414';
+  t.style.color=kind==='ok'?'#4ade80':'#fca5a5';
+  t.style.border='1px solid '+(kind==='ok'?'#1e5c30':'#7a2222');
+  t.textContent=msg;t.style.display='block';
+  clearTimeout(t._timer);t._timer=setTimeout(()=>{t.style.display='none';},4000);
+}
+window.addEventListener('error',function(e){
+  console.error('Erreur non gérée :',e.error||e.message);
+  showToast('⚠ Une erreur est survenue. Si ça persiste, recharge la page.','err');
+});
+window.addEventListener('unhandledrejection',function(e){
+  console.error('Promesse rejetée :',e.reason);
+});
+
+var BACKFILL_FLAG='step_deleted_backfilled';
 async function loadFirestoreData(){
   if(!db) return;
   var spin=document.getElementById('dbLoadingBanner');
   var errEl=document.getElementById('dbErrorMsg');
   if(spin) spin.style.display='flex';
   if(errEl) errEl.style.display='none';
+  // Les docs créés avant l'ajout du champ `deleted` ne matcheraient pas where('deleted','==',false).
+  // Tant que la migration n'est pas faite (flag local), on charge non-filtré + filtre client (rien n'est masqué).
+  const migrated=localStorage.getItem(BACKFILL_FLAG)==='1';
+  async function loadCol(name,limit){
+    if(migrated){
+      try{
+        const snap=await db.collection(name).where('deleted','==',false).orderBy('date','desc').limit(limit).get();
+        return snap.docs.map(d=>Object.assign({_id:d.id},d.data()));
+      }catch(e){
+        if(e.code==='failed-precondition'){
+          console.warn('Index (deleted,date) manquant sur "'+name+'" — chargement non filtré. Crée l\'index proposé dans la console pour optimiser. Détail :',e.message);
+          const snap=await db.collection(name).orderBy('date','desc').limit(limit).get();
+          return snap.docs.map(d=>Object.assign({_id:d.id},d.data())).filter(x=>!x.deleted);
+        }
+        throw e;
+      }
+    } else {
+      const snap=await db.collection(name).orderBy('date','desc').limit(limit).get();
+      return snap.docs.map(d=>Object.assign({_id:d.id},d.data())).filter(x=>!x.deleted);
+    }
+  }
   try{
-    var results=await Promise.all([
-      db.collection('saves').orderBy('date','desc').limit(1000).get(),
-      db.collection('temps').orderBy('date','desc').limit(2000).get(),
-      db.collection('fiches').orderBy('date','desc').limit(1000).get()
-    ]);
-    savesCache=results[0].docs.map(function(d){return Object.assign({_id:d.id},d.data());});
-    tempsCache=results[1].docs.map(function(d){return Object.assign({_id:d.id},d.data());});
-    fichesCache=results[2].docs.map(function(d){return Object.assign({_id:d.id},d.data());});
-    purgeExpiredItems();
+    const r=await Promise.all([loadCol('saves',1000),loadCol('temps',2000),loadCol('fiches',1000)]);
+    savesCache=r[0];tempsCache=r[1];fichesCache=r[2];
+    if(!migrated && canManageData()) backfillDeleted();   // migration unique (admins/pilotage)
+    if(canManageData()) loadCorbeille(true);               // purge auto en arrière-plan (sans afficher)
     if(document.getElementById('page2')&&document.getElementById('page2').classList.contains('active')) renderDataPage();
   }catch(e){
     console.error('Firestore chargement:',e);
@@ -762,46 +855,97 @@ async function loadFirestoreData(){
   }
 }
 
-// Purge automatique des items archivés depuis plus de 45 jours
+// Migration unique : ajoute deleted:false aux docs actifs qui n'ont pas le champ
+// (créés avant cette version). Après ça, le chargement filtré devient possible.
+async function backfillDeleted(){
+  if(!db) return;
+  try{
+    const all=[['saves',savesCache],['temps',tempsCache],['fiches',fichesCache]];
+    let batch=db.batch(),n=0,total=0;
+    for(const [col,cache] of all){
+      for(const d of cache){
+        if(d.deleted===undefined){
+          batch.update(db.collection(col).doc(d._id),{deleted:false});
+          d.deleted=false;n++;total++;
+          if(n>=400){await batch.commit();batch=db.batch();n=0;}
+        }
+      }
+    }
+    if(n>0) await batch.commit();
+    localStorage.setItem(BACKFILL_FLAG,'1');
+    if(total>0) console.log('Migration deleted : '+total+' document(s) mis à jour. Chargement filtré actif au prochain login.');
+    else localStorage.setItem(BACKFILL_FLAG,'1');
+  }catch(e){console.warn('Migration deleted reportée (réessai au prochain login) :',e.message);}
+}
+async function loadCorbeille(silent){
+  if(!db) return;
+  try{
+    const r=await Promise.all([
+      db.collection('saves').where('deleted','==',true).limit(500).get(),
+      db.collection('temps').where('deleted','==',true).limit(500).get(),
+      db.collection('fiches').where('deleted','==',true).limit(500).get()
+    ]);
+    corbeilleCache=[
+      ...r[0].docs.map(d=>Object.assign({_id:d.id,_col:'saves'},d.data())),
+      ...r[1].docs.map(d=>Object.assign({_id:d.id,_col:'temps'},d.data())),
+      ...r[2].docs.map(d=>Object.assign({_id:d.id,_col:'fiches'},d.data()))
+    ];
+    await purgeExpiredItems();
+    if(!silent) renderCorbeille();
+  }catch(e){
+    console.error('Corbeille:',e);
+    if(!silent){const el=document.getElementById('corbeilleEmpty');if(el){el.style.display='';el.textContent='Erreur chargement corbeille : '+e.message;}}
+  }
+}
+
+// Purge automatique des items archivés depuis plus de 45 jours (opère sur corbeilleCache)
 async function purgeExpiredItems(){
   if(!db) return;
   const now=Date.now();
   const _45days=45*24*60*60*1000;
-  const isExpired=item=>item.deleted&&item.deletedAt&&(now-new Date(item.deletedAt).getTime())>_45days;
-  const expiredSaves=savesCache.filter(isExpired);
-  const expiredTemps=tempsCache.filter(isExpired);
-  const expiredFiches=fichesCache.filter(isExpired);
-  if(!expiredSaves.length&&!expiredTemps.length&&!expiredFiches.length) return;
+  const isExpired=item=>item.deletedAt&&(now-new Date(item.deletedAt).getTime())>_45days;
+  const expired=corbeilleCache.filter(isExpired);
+  if(!expired.length) return;
   try{
-    await Promise.all([
-      ...expiredSaves.map(s=>db.collection('saves').doc(s._id).delete()),
-      ...expiredTemps.map(t=>db.collection('temps').doc(t._id).delete()),
-      ...expiredFiches.map(f=>db.collection('fiches').doc(f._id).delete())
-    ]);
-    savesCache=savesCache.filter(s=>!isExpired(s));
-    tempsCache=tempsCache.filter(t=>!isExpired(t));
-    fichesCache=fichesCache.filter(f=>!isExpired(f));
-    console.log('Purge 45j :',expiredSaves.length+expiredTemps.length+expiredFiches.length,'élément(s) supprimé(s) définitivement.');
+    // Supprime aussi les photos Storage des fiches expirées
+    for(const it of expired){ if(it._col==='fiches') await deleteFichePhotos(it); }
+    await Promise.all(expired.map(it=>db.collection(it._col).doc(it._id).delete()));
+    corbeilleCache=corbeilleCache.filter(it=>!isExpired(it));
+    console.log('Purge 45j :',expired.length,'élément(s) supprimé(s) définitivement.');
   }catch(e){console.error('Erreur purge auto :',e);}
 }
 
+// Supprime toutes les photos Storage référencées par une fiche (best-effort)
+async function deleteFichePhotos(fiche){
+  if(!storage||!fiche||!fiche.ficheDetail) return;
+  for(const fd of fiche.ficheDetail){
+    if(fd&&fd.photo&&!String(fd.photo).startsWith('data:')){
+      try{await storage.refFromURL(fd.photo).delete();}catch(e){/* déjà supprimée ou inaccessible */}
+    }
+  }
+}
+
 // === PISTE D'AUDIT — enregistre qui/quand/quoi dans Firestore (collection 'audit') ===
-// Ne bloque jamais l'application (best-effort). Sert de preuve pour l'ISO 9001.
-function logAudit(action,collection,docId,details){
+// Asynchrone avec 1 retry. Pour les actions sensibles (delete/validate), appelée avec await.
+async function logAudit(action,collection,docId,details){
   if(!db) return;
+  const entry={
+    action:action,                         // 'create' | 'delete' | 'restore' | 'permanent_delete' | 'validate' | 'reject' | 'edit'
+    collection:collection,
+    docId:docId||'',
+    details:details||'',
+    user:currentUser?(currentUser.nom||currentUser.ini||currentUser.email||'?'):'?',
+    userIni:currentUser?currentUser.ini||'':'',
+    role:currentRole||'',
+    at:isoNow(),
+    ts:Date.now()
+  };
   try{
-    db.collection('audit').add({
-      action:action,                         // 'create' | 'delete' | 'restore' | 'permanent_delete' | 'validate' | 'reject' | 'edit'
-      collection:collection,
-      docId:docId||'',
-      details:details||'',
-      user:currentUser?(currentUser.nom||currentUser.ini||currentUser.email||'?'):'?',
-      userIni:currentUser?currentUser.ini||'':'',
-      role:currentRole||'',
-      at:isoNow(),
-      ts:Date.now()
-    });
-  }catch(e){console.warn('Audit non enregistré :',e);}
+    await db.collection('audit').add(entry);
+  }catch(e){
+    try{ await db.collection('audit').add(entry); }   // 1 retry
+    catch(e2){ console.warn('Audit non enregistré (2 tentatives) :',e2.message); }
+  }
 }
 
 async function showForgotPassword(){
@@ -869,17 +1013,22 @@ function applyRole(){
   initAtelier();
   const tag=document.getElementById('roleTag');
   const nom=currentUser?currentUser.nom:'';
+  const prenom=nom?nom.split(' ')[0]:'';
   if(currentRole==='admin'){
-    tag.textContent='ADMIN'+(nom?' · '+nom.split(' ')[0]:'');tag.className='role-admin';
-    document.getElementById('tabAnalyse').style.display='';
-    document.getElementById('tabCorbeille').style.display='';
-    document.getElementById('tabNc').style.display='';
+    tag.textContent='ADMIN'+(prenom?' · '+prenom:'');tag.className='role-admin';
+  } else if(currentRole==='pilotage'){
+    tag.textContent='PILOTAGE'+(prenom?' · '+prenom:'');tag.className='role-admin';
   } else {
-    tag.textContent='OP'+(nom?' · '+nom.split(' ')[0]:'');tag.className='role-op';
-    document.getElementById('tabAnalyse').style.display='none';
-    document.getElementById('tabCorbeille').style.display='none';
-    document.getElementById('tabNc').style.display='none';
-    if(document.getElementById('tabAnalyse').classList.contains('active')||document.getElementById('tabCorbeille').classList.contains('active')||document.getElementById('tabNc').classList.contains('active')) switchTab('saves');
+    tag.textContent='OP'+(prenom?' · '+prenom:'');tag.className='role-op';
+  }
+  // Analyse : admin uniquement · Corbeille + NC : admin + pilotage
+  document.getElementById('tabAnalyse').style.display=canViewAnalyse()?'':'none';
+  document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
+  document.getElementById('tabNc').style.display=canManageData()?'':'none';
+  // Si l'onglet actif n'est plus autorisé, rebascule sur Plans
+  const active=document.querySelector('.tab-btn.active');
+  if(active){
+    if((active.id==='tabAnalyse'&&!canViewAnalyse())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){
@@ -887,7 +1036,7 @@ function applyRole(){
     const h=document.getElementById('fInitiales');if(h)h.value=currentUser.ini;
     document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===currentUser.ini));
   }
-  // Boutons export/suppression : uniquement ER, CH, DC
+  // Boutons export / archive globale : admin + pilotage
   var canManage=canManageData();
   var fmb=document.getElementById('fichesManageBtns');if(fmb)fmb.style.display=canManage?'':'none';
   var tmb=document.getElementById('tempsManageBtns');if(tmb)tmb.style.display=canManage?'':'none';
@@ -1285,15 +1434,31 @@ function applyPackagingRules(clientName){
 // ============================================================
 // PERMISSIONS — Suppression/export uniquement pour certains
 // ============================================================
+// admin (ER, CH) + pilotage (DC) : gèrent données, export, corbeille, NC, validation
 function canManageData(){
-  if(!currentUser) return false;
-  return ['ER','CH','DC'].indexOf(currentUser.ini)!==-1;
+  return currentRole==='admin' || currentRole==='pilotage';
 }
-
-// Validation hiérarchique : réservée à Dominique (DC) et aux admins
+// Validation hiérarchique : pilotage (DC) + admins
 function canValidate(){
-  if(!currentUser) return false;
-  return currentUser.ini==='DC' || currentRole==='admin';
+  return currentRole==='admin' || currentRole==='pilotage';
+}
+// Suppression DÉFINITIVE : admin + pilotage uniquement (les opérateurs archivent seulement)
+function canPermanentDelete(){
+  return currentRole==='admin' || currentRole==='pilotage';
+}
+// Onglet Analyse : admins uniquement (DC = tout sauf Analyse)
+function canViewAnalyse(){
+  return currentRole==='admin';
+}
+// Échappement HTML — empêche l'injection via texte saisi (NC, client, étiquette…)
+function esc(v){
+  return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+// Cellule CSV sûre : neutralise l'injection de formule Excel + échappe les guillemets
+function csvCell(v){
+  let s=String(v==null?'':v);
+  if(/^[=+\-@]/.test(s)) s="'"+s;        // neutralise =SUM(), +, -, @ interprétés comme formule
+  return '"'+s.replace(/"/g,'""')+'"';
 }
 
 // ============================================================
@@ -1305,6 +1470,7 @@ let selectedIni = '';
 let selectedIni2 = '';
 let planGroups = [];
 let planChecked = [];
+let planOversize = [];
 let commandTotals = {};
 let ficheLines = [];
 let loadTargetIdx = null;
@@ -1553,14 +1719,17 @@ function syncFicheFromPlan(){
 }
 
 function switchTab(tab){
-  ['saves','temps','fiches','nc','analyse','corbeille'].forEach(t=>{
+  if(tab==='analyse'&&!canViewAnalyse()) tab='saves';
+  if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
+  ['saves','temps','fiches','brouillons','nc','analyse','corbeille'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
   if(tab==='saves') renderSaves();
   else if(tab==='temps') renderTemps();
+  else if(tab==='brouillons') renderDrafts();
   else if(tab==='analyse') renderAnalyse();
-  else if(tab==='corbeille') renderCorbeille();
+  else if(tab==='corbeille'){ loadCorbeille(); }
   else if(tab==='nc') renderNc();
   else renderFiches();
 }
@@ -1632,7 +1801,7 @@ function syncLargeur(){
 function getOrderRows(){
   const rows=[];
   document.querySelectorAll('.order-row').forEach(row=>{
-    const qty=parseNum(row.querySelector('[data-type="qty"]').value);
+    const qty=Math.floor(parseNum(row.querySelector('[data-type="qty"]').value));
     const w=parseNum(row.querySelector('[data-type="width"]').value);
     if(qty>0&&w>0) rows.push({qty,width:w});
   });
@@ -1744,6 +1913,7 @@ function recalcPlan(){
   const useful=getUseful();
   const blade=getBlade();
   if(!rows.length||useful<=0){
+    planOversize=[];
     document.getElementById('statsBar').innerHTML='';
     document.getElementById('planCards').innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
     document.getElementById('etiquetteSolde').classList.add('hidden');
@@ -1753,12 +1923,18 @@ function recalcPlan(){
   planGroups=groupBobines(bobines,blade);
   if(planChecked.length!==planGroups.length) planChecked=new Array(planGroups.length).fill(false);
 
+  // Laizes plus larges que la largeur utile → impossibles à découper, exclues du calcul
+  planOversize=rows.filter(r=>r.width>useful);
+  const oversizeBanner=planOversize.length
+    ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile (${fmt(useful)} mm) : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
+    : '';
+
   const totalBobines=bobines.length;
   const totalMat=totalBobines*useful;
   const totalUsed=bobines.reduce((s,p)=>s+calcStats(p,blade).total,0);
   const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
   const pctCls=pct<3?'pct-green':pct<8?'pct-orange':'pct-red';
-  document.getElementById('statsBar').innerHTML=`
+  document.getElementById('statsBar').innerHTML=oversizeBanner+`
     <div class="stat-chip">${totalBobines} bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">${planGroups.length} config${planGroups.length>1?'s':''}</div>
     <div class="stat-chip">utile <span style="font-weight:700">${fmt(useful)} mm</span></div>
@@ -1939,6 +2115,7 @@ async function doSave(){
     etiquetage:document.getElementById('planEtiquetage').value||'',
     cerclage:document.getElementById('planCerclage').value||'',
     notesEmballage:document.getElementById('planNotesEmballage').value||'',
+    deleted:false,
     date:isoNow()
   };
   try{
@@ -1983,10 +2160,10 @@ function renderSaves(){
     const cmdDetail=s.commandeDetail||(s.rows||[]).map(function(r){return r.qty+'×'+r.width+'mm';}).join(' + ')||'';
     const pkg=[s.typeCond||s.carton,s.palette,s.etiquetage||s.etiquette,s.cerclage].filter(Boolean).join(' · ');
     const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
-    const cmdLine=(s.numCmd)?`<div style="margin-top:5px"><span style="display:inline-block;background:var(--blue);color:#fff;font-weight:800;font-size:13px;padding:3px 10px;border-radius:6px;letter-spacing:.02em">N° ${s.numCmd}</span>${s.dateLiv?`<span style="margin-left:8px;font-size:12px;color:var(--muted)">📅 livr. ${new Date(s.dateLiv).toLocaleDateString('fr-FR')}</span>`:''}</div>`:'';
+    const cmdLine=(s.numCmd)?`<div style="margin-top:5px"><span style="display:inline-block;background:var(--blue);color:#fff;font-weight:800;font-size:13px;padding:3px 10px;border-radius:6px;letter-spacing:.02em">N° ${esc(s.numCmd)}</span>${s.dateLiv?`<span style="margin-left:8px;font-size:12px;color:var(--muted)">📅 livr. ${new Date(s.dateLiv).toLocaleDateString('fr-FR')}</span>`:''}</div>`:'';
     return `<div class="save-card">
       <div class="save-info">
-        <div class="save-title">${s.client} — ${s.ref}</div>
+        <div class="save-title">${esc(s.client)} — ${esc(s.ref)}</div>
         ${cmdLine}
         <div class="save-meta">${ds} · ${mn} · Bobine ${s.mother} mm</div>
         ${cmdDetail?'<div class="save-meta" style="color:var(--blue)">📋 '+cmdDetail+'</div>':''}
@@ -2032,18 +2209,16 @@ function doLoad(){
   if(s.client&&s.client!=='—'){
     const selClient=document.getElementById('planClient');
     selClient.value=s.client;
-    onClientChange();
-    setTimeout(()=>{
-      document.getElementById('planRef').value=s.ref||'';
-      onRefChange();
-      // ré-appliquer packaging sauvegardé (pas les règles auto du client)
-      document.getElementById('planType').value=s.typeCond||s.carton||'';
-      document.getElementById('planPalette').value=s.palette||'';
-      document.getElementById('planEtiquetage').value=s.etiquetage||s.etiquette||'';
-      document.getElementById('planCerclage').value=s.cerclage||'';
-      document.getElementById('planNotesEmballage').value=s.notesEmballage||'';
-      document.getElementById('packagingAlert').classList.add('hidden');
-    },50);
+    onClientChange();                       // peuple les réf (CLIENT_DATA = synchrone)
+    document.getElementById('planRef').value=s.ref||'';
+    onRefChange();
+    // ré-appliquer le packaging sauvegardé (écrase les règles auto du client)
+    document.getElementById('planType').value=s.typeCond||s.carton||'';
+    document.getElementById('planPalette').value=s.palette||'';
+    document.getElementById('planEtiquetage').value=s.etiquetage||s.etiquette||'';
+    document.getElementById('planCerclage').value=s.cerclage||'';
+    document.getElementById('planNotesEmballage').value=s.notesEmballage||'';
+    document.getElementById('packagingAlert').classList.add('hidden');
   }
   document.querySelectorAll('.order-row').forEach(r=>r.remove());
   s.rows.forEach(r=>addOrderRow(r.qty,r.width));
@@ -2111,14 +2286,20 @@ function buildPlanName(){
   return `${ini}_${client}_${refShort}_${machine}_J${jour}`;
 }
 
-function sendEmailPlan(){
+async function sendEmailPlan(){
   const rows=getOrderRows();
   if(!rows.length){alert('Aucune commande à envoyer.');return;}
+  const useful=getUseful(),blade=getBlade();
+  // Blocage : laize plus large que l'utile (exclue du plan) → commande incohérente
+  const over=rows.filter(r=>r.width>useful);
+  if(over.length){
+    alert(`⛔ Envoi bloqué.\n\n${over.length} laize(s) dépassent la largeur utile (${fmt(useful)} mm) : ${over.map(r=>fmt(r.width)+' mm').join(', ')}.\nElles ne sont pas découpables et sont exclues du plan. Corrige la commande avant d'envoyer.`);
+    return;
+  }
   if(ficheLines.length===0){
     alert('⚠ La fiche est obligatoire avant d\'envoyer.\n\nVa dans l\'onglet Fiche : les bobines se chargent automatiquement depuis le plan. Coche-les "coupées" au fur et à mesure.');
     return;
   }
-  const useful=getUseful(),blade=getBlade();
   const bobines=pack(expandDemand(rows),useful,blade);
   const groups=groupBobines(bobines,blade);
   const total=ficheLines.length;
@@ -2223,47 +2404,85 @@ function sendEmailPlan(){
   });
   body+=`\n-- Fin --`;
 
-  doChronoSaveAuto(client,ref,ini,rows,ini2,op2Bob);
-
   // Marquer chaque ligne fiche avec horsPlan
   const ficheDetailTagged=ficheData.map((fd,i)=>({...fd,horsPlan:(i+1)>nbPlan}));
 
-  saveFicheRecord({
+  const ficheEntry={
     name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,lame,numJour,longueur,mother,rows,
-    numCmd,dateLiv,
+    numCmd,dateLiv,deleted:false,
     palette,typeCond,etiquetage,cerclage,notesEmballage:notesEmb,
     groups:groups.map(g=>({label:makeLabel(g.pattern),count:g.count,total:fmt(calcStats(g.pattern,blade).total),waste:fmt(useful-calcStats(g.pattern,blade).total),isLast:false})),
     useful:fmt(useful),blade:fmt(blade),pct:pct.toFixed(1),tempsStr,totalBobines:bobines.length,
     ficheDetail:ficheDetailTagged,
     nbPlan,nbFiche,hasEcart,ecartMsg,
     valide:null,valideBy:null,valideAt:null
-  });
+  };
+  // Temps (seulement si le chrono a tourné)
+  let tempsEntry=null;
+  if(chronoSec>0){
+    const totalLaizes=rows.reduce((s,r)=>s+r.qty,0);
+    tempsEntry={
+      date:chronoStartTs||isoNow(),dateEnd:isoNow(),duree:chronoSec,
+      operateur:ini,operateur2:ini2||'',op2Bobine:op2Bob||'',
+      machine,client,ref,rows,numCmd,deleted:false,
+      commandeDetail:rows.map(r=>`${r.qty}×${r.width}mm`).join(' + '),
+      totalLaizes,nbBobines:bobines.length,
+      largeur:document.getElementById('planLargeur')?.value||'',
+      longueur:document.getElementById('planLongueur')?.value||'',
+      numJour:document.getElementById('fNumJour')?.value||'',
+      commentaire:''
+    };
+  }
+
+  // === ÉCRITURE ATOMIQUE (fiche + temps) — les deux ou aucune ===
+  if(db){
+    try{
+      const batch=db.batch();
+      const ficheRef=db.collection('fiches').doc();
+      batch.set(ficheRef,ficheEntry);
+      let tempsRef=null;
+      if(tempsEntry){tempsRef=db.collection('temps').doc();batch.set(tempsRef,tempsEntry);}
+      await batch.commit();
+      // Caches + audit seulement après succès
+      fichesCache.unshift({_id:ficheRef.id,...ficheEntry});
+      if(fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);
+      if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);}
+      await logAudit('create','fiches',ficheRef.id,`${client||''} / ${ref||''}${numCmd&&numCmd!=='—'?' / Cmd '+numCmd:''}`);
+      clearCurrentDraft();
+      chronoReset();
+    }catch(e){
+      // Échec réseau : on garde le formulaire et on sauvegarde un brouillon local
+      saveDraftFromSend(ficheEntry,tempsEntry,body);
+      alert('⚠ Enregistrement impossible (réseau ?).\n\nLa fiche a été placée en BROUILLON (Données > Brouillons). Reconnecte-toi puis renvoie-la depuis les brouillons.\n\nDétail : '+e.message);
+      return;
+    }
+  } else {
+    saveDraftFromSend(ficheEntry,tempsEntry,body);
+    alert('⚠ Base de données indisponible. Fiche placée en BROUILLON (Données > Brouillons).');
+    return;
+  }
 
   // === ENVOI : tente URL Gmail directe, fallback presse-papier si trop long ===
   const subject=encodeURIComponent(planName);
   const bodyEnc=encodeURIComponent(body);
-  const gmailUrlFull=`https://mail.google.com/mail/?view=cm&to=esterozier42480%40gmail.com&su=${subject}&body=${bodyEnc}`;
-  const gmailUrlEmpty=`https://mail.google.com/mail/?view=cm&to=esterozier42480%40gmail.com&su=${subject}`;
+  const gmailUrlFull=`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(MAIL_DESTINATAIRE)}&su=${subject}&body=${bodyEnc}`;
+  const gmailUrlEmpty=`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(MAIL_DESTINATAIRE)}&su=${subject}`;
   // Gmail accepte ~2000 chars d'URL. On laisse 200 de marge.
   if(gmailUrlFull.length<1800){
     window.open(gmailUrlFull,'_blank');
   } else {
-    // Trop long → copier dans presse-papier + ouvrir Gmail vide
     if(navigator.clipboard&&navigator.clipboard.writeText){
       navigator.clipboard.writeText(body).then(()=>{
         alert('📋 Plan trop long pour l\'URL Gmail — copié dans le presse-papier.\n\nDans le mail Gmail qui s\'ouvre, fais Cmd+V (ou Ctrl+V) pour coller le plan.');
         window.open(gmailUrlEmpty,'_blank');
-      }).catch(()=>{
-        promptCopy(body);
-        window.open(gmailUrlEmpty,'_blank');
-      });
+      }).catch(()=>{promptCopy(body);window.open(gmailUrlEmpty,'_blank');});
     } else {
       promptCopy(body);
       window.open(gmailUrlEmpty,'_blank');
     }
   }
 
-  // Reset complet après envoi — prêt pour la commande suivante
+  // Reset complet après envoi réussi — prêt pour la commande suivante
   setTimeout(function(){ resetAll(); }, 500);
 }
 
@@ -2446,7 +2665,8 @@ async function doChronoSave(){
     largeur:document.getElementById('planLargeur').value||'',
     longueur:document.getElementById('planLongueur').value||'',
     numJour:document.getElementById('fNumJour').value||'',
-    commentaire:document.getElementById('chronoComment').value||''
+    commentaire:document.getElementById('chronoComment').value||'',
+    deleted:false
   };
   try{
     const docRef=await db.collection('temps').add(entry);
@@ -2512,10 +2732,10 @@ function renderTemps(){
     return `<div class="chrono-record">
       <div class="cr-time">${fmtTime(t.duree)}</div>
       <div class="cr-info">
-        <div class="cr-title">${t.client} — ${t.ref}</div>
-        <div class="cr-meta">${ds} · <strong>${t.operateur}</strong>${op2} · ${t.machine}${t.numCmd?` · <span style="color:var(--blue);font-weight:700">N° ${t.numCmd}</span>`:''}</div>
-        <div class="cr-meta">${t.commandeDetail||''} · ${t.totalLaizes} laizes · ${t.nbBobines} bob. mères</div>
-        <div class="cr-meta" style="color:var(--blue)">${secPerLaize}s / laize${t.commentaire?' · <em>'+t.commentaire+'</em>':''}</div>
+        <div class="cr-title">${esc(t.client)} — ${esc(t.ref)}</div>
+        <div class="cr-meta">${ds} · <strong>${esc(t.operateur)}</strong>${op2} · ${esc(t.machine)}${t.numCmd?` · <span style="color:var(--blue);font-weight:700">N° ${esc(t.numCmd)}</span>`:''}</div>
+        <div class="cr-meta">${esc(t.commandeDetail||'')} · ${t.totalLaizes} laizes · ${t.nbBobines} bob. mères</div>
+        <div class="cr-meta" style="color:var(--blue)">${secPerLaize}s / laize${t.commentaire?' · <em>'+esc(t.commentaire)+'</em>':''}</div>
       </div>
       <button class="btn btn-red btn-sm" style="flex-shrink:0" onclick="deleteTempo('${t._id}')">✕</button>
     </div>`;
@@ -2530,30 +2750,32 @@ async function deleteTempo(id){
   renderTemps();
 }
 async function clearTemps(){
+  if(!canManageData()){alert('Action réservée au pilotage et aux admins.');return;}
   if(!confirm('Archiver TOUTES les données de temps ? (récupérable 45 jours)')) return;
   try{
     const active=tempsCache.filter(t=>!t.deleted);
     await Promise.all(active.map(t=>db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()})));
     active.forEach(t=>{t.deleted=true;t.deletedAt=isoNow();});
+    await logAudit('delete','temps','*',`Archivage global (${active.length} temps)`);
   }catch(e){alert('Erreur : '+e.message);}
   renderTemps();
 }
 function exportTemps(){
-  const temps=tempsCache;
+  const temps=tempsCache.filter(t=>!t.deleted);
   if(!temps.length){alert('Aucune donnée à exporter.');return;}
-  const headers='Date;Heure;Opérateur 1;Opérateur 2;Reprise bobine;Machine;Client;Référence;Commande;Durée (s);Durée (hms);Laizes totales;Bobines mères;Sec/laize;Largeur mère;Longueur;N°Jour;Commentaire';
+  const headers='Date;Heure;Opérateur 1;Opérateur 2;Reprise bobine;Machine;Client;Référence;N° Commande;Commande;Durée (s);Durée (hms);Laizes totales;Bobines mères;Sec/laize;Largeur mère;Longueur;N°Jour;Commentaire';
   const rows=temps.map(t=>{
     const d=new Date(t.date);
     const secL=t.totalLaizes>0?Math.round(t.duree/t.totalLaizes):0;
     return [
       d.toLocaleDateString('fr-FR'),
       d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
-      t.operateur,t.operateur2||'',t.op2Bobine||'',t.machine,t.client,t.ref,
+      t.operateur,t.operateur2||'',t.op2Bobine||'',t.machine,t.client,t.ref,t.numCmd||'',
       (t.commandeDetail||'').replace(/;/g,','),
       t.duree,fmtTimeFr(t.duree),
       t.totalLaizes,t.nbBobines,secL,t.largeur,t.longueur,t.numJour,
       (t.commentaire||'').replace(/;/g,',')
-    ].join(';');
+    ].map(csvCell).join(';');
   });
   const csv='\ufeff'+headers+'\n'+rows.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
@@ -3000,48 +3222,50 @@ function renderFiches(){
     const d=new Date(f.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const cmd=(f.rows||[]).map(r=>`${r.qty}×${r.width}`).join(' + ');
-    const op2=f.ini2?` + ${f.ini2}${f.op2Bob?` (bob.${f.op2Bob})`:''}`:'';
+    const op2=f.ini2?` + ${esc(f.ini2)}${f.op2Bob?` (b.${esc(f.op2Bob)})`:''}`:'';
     const pkg=[f.typeCond||f.carton,f.palette,f.etiquetage||f.etiquette,f.cerclage].filter(Boolean).join(' · ');
-    const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
-    const cmdLine=(f.numCmd&&f.numCmd!=='—')?`<div class="save-meta">N° Cmd : ${f.numCmd}${f.dateLiv&&f.dateLiv!=='—'?` · Livraison ${f.dateLiv}`:''}</div>`:'';
-    // Badge statut de validation
-    let statusBadge='';
-    if(f.valide===true) statusBadge=`<span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:#14371f;color:#4ade80">✓ Validée${f.valideBy?' · '+f.valideBy:''}</span>`;
-    else if(f.valide===false) statusBadge=`<span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:#3d1414;color:#f87171">✗ Refusée${f.valideBy?' · '+f.valideBy:''}</span>`;
-    else statusBadge=`<span style="display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;background:#3d2a00;color:#f59e0b">⏳ En attente de validation</span>`;
-    // Boutons validation pour Dominique
-    let validBtns='';
-    if(canValidate()){
-      validBtns=`
-        <button class="btn btn-ghost btn-sm" onclick="editFicheConfigs('${f._id}')" title="Modifier le plan de découpe">✏</button>
-        <button class="btn btn-green btn-sm" onclick="validateFiche('${f._id}')" title="Valider la fiche">✓</button>
-        <button class="btn btn-red btn-sm" onclick="rejectFiche('${f._id}')" title="Refuser la fiche">✗</button>`;
-    }
-    return `<div class="save-card" style="flex-direction:column;align-items:flex-start;gap:6px">
-      <div style="display:flex;width:100%;align-items:center;gap:10px">
-        <div class="save-info">
-          <div class="save-title">${f.name}</div>
-          <div style="margin:4px 0 6px">${statusBadge}</div>
-          <div class="save-meta">${ds} · ${f.machine} · ${f.totalBobines} bobines · perte ${f.pct}%</div>
-          <div class="save-meta">Opérateur : ${f.ini}${op2}</div>
-          ${cmdLine}
-          <div class="save-meta">Commande : ${cmd}</div>
-          ${pkgLine}
-          <div class="save-meta">Temps : ${f.tempsStr}</div>
-        </div>
-        <div class="save-actions" style="flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-          <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}')">👁</button>
-          <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}',true)" title="Exporter en PDF">📄</button>
-          ${(f.numCmd&&f.numCmd!=='—')?`<button class="btn btn-ghost btn-sm" onclick="showCommandeRecap('${String(f.numCmd).replace(/'/g,"\\'")}')" title="Vue commande consolidée">📦 Cmd</button>`:''}
-          ${validBtns}
-          <button class="btn btn-red btn-sm" onclick="deleteFiche('${f._id}')">🗑️</button>
-        </div>
+    const numCmdHas=(f.numCmd&&f.numCmd!=='—');
+    // Badge statut
+    let statusBadge,statusColor;
+    if(f.valide===true){statusBadge=`✓ Validée${f.valideBy?' · '+esc(f.valideBy):''}`;statusColor='background:#14371f;color:#4ade80';}
+    else if(f.valide===false){statusBadge=`✗ Refusée${f.valideBy?' · '+esc(f.valideBy):''}`;statusColor='background:#3d1414;color:#f87171';}
+    else{statusBadge=`⏳ En attente`;statusColor='background:#3d2a00;color:#f59e0b';}
+    // Boutons validation pour DC/admin
+    const validBtns=canValidate()?`
+      <button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="Modifier">✏ Modifier</button>
+      <button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>
+      <button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser">✗ Refuser</button>`:'';
+    const cmdBtn=numCmdHas?`<button class="fc-btn fc-btn-violet" onclick="showCommandeRecap('${String(f.numCmd).replace(/'/g,"\\'")}')">📦 Dossier cmd</button>`:'';
+    return `<div class="fiche-card">
+      <div class="fc-header">
+        <div class="fc-title">${esc(f.name)}</div>
+        <div class="fc-status" style="${statusColor}">${statusBadge}</div>
+      </div>
+      ${numCmdHas?`<div class="fc-cmd"><span class="fc-cmd-badge">N° ${esc(f.numCmd)}</span>${f.dateLiv&&f.dateLiv!=='—'?`<span class="fc-cmd-liv">📅 Livr. ${esc(f.dateLiv)}</span>`:''}</div>`:''}
+      <div class="fc-grid">
+        <div class="fc-cell"><span class="fc-lbl">Client</span><span class="fc-val">${esc(f.client||'—')}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Référence</span><span class="fc-val">${esc(f.ref||'—')}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Opérateur</span><span class="fc-val">${esc(f.ini)}${op2}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Machine</span><span class="fc-val">${esc(f.machine)}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Bobines</span><span class="fc-val">${f.totalBobines}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Perte</span><span class="fc-val" style="color:${parseFloat(f.pct)<3?'#4ade80':parseFloat(f.pct)<8?'#f59e0b':'#f87171'}">${f.pct}%</span></div>
+      </div>
+      <div class="fc-cmdline">${cmd||'—'}</div>
+      ${pkg?`<div class="fc-pkg">📦 ${esc(pkg)}</div>`:''}
+      <div class="fc-foot">${ds} · ⏱ ${esc(f.tempsStr||'—')}</div>
+      <div class="fc-actions">
+        <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}')">👁 Voir</button>
+        <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',true)">📄 PDF</button>
+        ${cmdBtn}
+        ${validBtns}
+        <button class="fc-btn fc-btn-red-ghost" onclick="deleteFiche('${f._id}')">🗑 Archiver</button>
       </div>
     </div>`;
   }).join('');
 }
 
 async function validateFiche(id){
+  if(!canValidate()){alert('Validation réservée au pilotage et aux admins.');return;}
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
   const by=currentUser?(currentUser.nom||currentUser.ini):'?';
@@ -3049,12 +3273,13 @@ async function validateFiche(id){
     const at=isoNow();
     await db.collection('fiches').doc(id).update({valide:true,valideBy:by,valideAt:at});
     f.valide=true;f.valideBy=by;f.valideAt=at;
-    logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`);
+    await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`);
   }catch(e){alert('Erreur validation : '+e.message);}
   renderFiches();
 }
 
 async function rejectFiche(id){
+  if(!canValidate()){alert('Action réservée au pilotage et aux admins.');return;}
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
   if(!confirm('Refuser cette fiche ? Elle sera marquée comme non conforme.')) return;
@@ -3063,7 +3288,7 @@ async function rejectFiche(id){
     const at=isoNow();
     await db.collection('fiches').doc(id).update({valide:false,valideBy:by,valideAt:at});
     f.valide=false;f.valideBy=by;f.valideAt=at;
-    logAudit('reject','fiches',id,`${f.client||''} / ${f.ref||''}`);
+    await logAudit('reject','fiches',id,`${f.client||''} / ${f.ref||''}`);
   }catch(e){alert('Erreur : '+e.message);}
   renderFiches();
 }
@@ -3231,10 +3456,10 @@ function renderNc(){
     return `<div class="save-card" style="flex-direction:column;align-items:flex-start;gap:4px;border-left:3px solid var(--red)">
       <div style="display:flex;width:100%;justify-content:space-between;align-items:flex-start;gap:10px">
         <div class="save-info">
-          <div class="save-title">${r.client} — ${r.ref}${r.numCmd&&r.numCmd!=='—'?` · Cmd ${r.numCmd}`:''}</div>
+          <div class="save-title">${esc(r.client)} — ${esc(r.ref)}${r.numCmd&&r.numCmd!=='—'?` · Cmd ${esc(r.numCmd)}`:''}</div>
           <div style="margin:4px 0">${typeBadges}</div>
-          <div class="save-meta">Bobine ${r.bobine}${r.label?` (${r.label})`:''} · Opérateur ${r.ini} · ${ds}</div>
-          ${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${r.detail}</div>`:'<div class="save-meta" style="color:#f87171">⚠ Aucun détail renseigné</div>'}
+          <div class="save-meta">Bobine ${r.bobine}${r.label?` (${esc(r.label)})`:''} · Opérateur ${esc(r.ini)} · ${ds}</div>
+          ${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${esc(r.detail)}</div>`:'<div class="save-meta" style="color:#f87171">⚠ Aucun détail renseigné</div>'}
           ${r.action?`<div class="save-meta">Action : ${r.action}</div>`:''}
         </div>
         <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${r.ficheId}')" style="flex-shrink:0">👁</button>
@@ -3249,7 +3474,7 @@ function exportNc(){
   const lines=rows.map(r=>[
     new Date(r.date).toLocaleString('fr-FR'),r.client,r.ref,r.numCmd,'B'+r.bobine,r.label,r.ini,
     r.types.map(t=>NC_LABELS[t]).join(' / '),r.detail.replace(/[\n;]/g,' '),r.action
-  ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';'));
+  ].map(csvCell).join(';'));
   const csv='\uFEFF'+head.join(';')+'\n'+lines.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
@@ -3280,9 +3505,9 @@ function showFicheDetail(id,autoPrint){
       const coupeeTag=fd&&fd.coupee?'<span style="color:#4ade80;font-weight:700">✓ Coupée</span>':'<span style="color:#888">— À couper</span>';
       const actionTag=fd?(fd.actDechet?'<span style="color:#f87171">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':''):'';
       const test2=fd?(fd.devi&&fd.droit?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>'):'';
-      const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${fd.ncDetail}</div>`:'';
+      const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
       const photoCell=fd&&fd.photo?`<a href="${fd.photo}" target="_blank"><img src="${fd.photo}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
-      const etiq=fd&&fd.label?`<span style="color:#60a5fa">${fd.label}</span>`:'';
+      const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
       rows.push(`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:11px">[SOLDE]</span>':''}</td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px">${g.label}</td>
@@ -3314,9 +3539,9 @@ function showFicheDetail(id,autoPrint){
     const coupeeTag=fd.coupee?'<span style="color:#4ade80;font-weight:700">✓ Coupée</span>':'<span style="color:#888">— À couper</span>';
     const actionTag=fd.actDechet?'<span style="color:#f87171">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':'';
     const test2=fd.devi&&fd.droit?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>';
-    const ncDetail=fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${fd.ncDetail}</div>`:'';
+    const ncDetail=fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
     const photoCell=fd.photo?`<a href="${fd.photo}" target="_blank"><img src="${fd.photo}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
-    const etiq=fd.label?`<span style="color:#f59e0b">${fd.label}</span>`:'';
+    const etiq=fd.label?`<span style="color:#f59e0b">${esc(fd.label)}</span>`:'';
     return `<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
         <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:10px;background:#3d2a00;color:#f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${fd.conf||'—'}</td>
@@ -3338,7 +3563,7 @@ function showFicheDetail(id,autoPrint){
 
   const op2Line=f.ini2?`<span>Opérateur 2</span><span>${f.ini2}${f.op2Bob?` — repris dès la bobine ${f.op2Bob}`:''}</span>`:'';
   const pkgLine=`<span>Packaging</span><span>Palette ${f.palette||'—'} · Type ${f.typeCond||f.carton||'—'} · Étiquetage ${f.etiquetage||f.etiquette||'—'} · Cerclage ${f.cerclage||'—'}</span>`;
-  const notesLine=(f.notesEmballage&&f.notesEmballage.trim())?`<span>Notes condit.</span><span style="white-space:pre-line">${f.notesEmballage}</span>`:'';
+  const notesLine=(f.notesEmballage&&f.notesEmballage.trim())?`<span>Notes condit.</span><span style="white-space:pre-line">${esc(f.notesEmballage)}</span>`:'';
 
   const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <title>${f.name}</title>
@@ -3371,13 +3596,13 @@ function showFicheDetail(id,autoPrint){
   <div class="card">
     <div class="card-title">En-tête</div>
     <div class="grid2">
-      <span>Opérateur 1</span><span>${f.ini}</span>
+      <span>Opérateur 1</span><span>${esc(f.ini)}</span>
       ${op2Line}
-      <span>Client</span><span>${f.client}</span>
-      <span>Référence</span><span>${f.ref}</span>
-      ${(f.numCmd&&f.numCmd!=='—')?`<span>N° Commande</span><span>${f.numCmd}</span>`:''}
-      ${(f.dateLiv&&f.dateLiv!=='—')?`<span>Livraison client</span><span>${f.dateLiv}</span>`:''}
-      <span>Machine</span><span>${f.machine}</span>
+      <span>Client</span><span>${esc(f.client)}</span>
+      <span>Référence</span><span>${esc(f.ref)}</span>
+      ${(f.numCmd&&f.numCmd!=='—')?`<span>N° Commande</span><span>${esc(f.numCmd)}</span>`:''}
+      ${(f.dateLiv&&f.dateLiv!=='—')?`<span>Livraison client</span><span>${esc(f.dateLiv)}</span>`:''}
+      <span>Machine</span><span>${esc(f.machine)}</span>
       <span>Bobine mère</span><span>${f.mother} mm · utile ${f.useful} mm · lame ${f.blade} mm</span>
       <span>Longueur réf.</span><span>${f.longueur} m</span>
       <span>Lame N°</span><span>${f.lame}</span>
@@ -3526,26 +3751,31 @@ async function deleteFiche(id){
     await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
     const item=fichesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
-    logAudit('delete','fiches',id,item?`${item.client||''} / ${item.ref||''}`:'');
+    await logAudit('delete','fiches',id,item?`${item.client||''} / ${item.ref||''}`:'');
   }catch(e){alert('Erreur : '+e.message);}
   renderFiches();
 }
 
 async function clearFiches(){
+  if(!canManageData()){alert('Action réservée au pilotage et aux admins.');return;}
   if(!confirm('Archiver TOUTES les fiches ? (récupérable 45 jours)')) return;
   try{
     const active=fichesCache.filter(f=>!f.deleted);
     await Promise.all(active.map(f=>db.collection('fiches').doc(f._id).update({deleted:true,deletedAt:isoNow()})));
     active.forEach(f=>{f.deleted=true;f.deletedAt=isoNow();});
+    await logAudit('delete','fiches','*',`Archivage global (${active.length} fiches)`);
   }catch(e){alert('Erreur : '+e.message);}
   renderFiches();
 }
 
+// Export JSON des données VISIBLES (≤ limites de chargement) — pas un backup exhaustif
+// (le backup complet est assuré par la sauvegarde automatique Firestore)
 function downloadFullBackup(){
-  if(!savesCache.length&&!tempsCache.length&&!fichesCache.length){alert('Aucune donnée à sauvegarder.');return;}
+  if(!savesCache.length&&!tempsCache.length&&!fichesCache.length){alert('Aucune donnée à exporter.');return;}
   const backup={
     exportDate:new Date().toISOString(),
     exportBy:currentUser?currentUser.nom:'inconnu',
+    note:'Export des données visibles uniquement (≤ limites de chargement). Backup complet = sauvegarde automatique Firestore.',
     saves:savesCache,
     temps:tempsCache,
     fiches:fichesCache
@@ -3554,41 +3784,45 @@ function downloadFullBackup(){
   const b=new Blob([json],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(b);
-  a.download='step_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='step_export_visible_'+new Date().toISOString().slice(0,10)+'.json';
   a.click();
 }
 
 // ============================================================
-// CORBEILLE — éléments archivés (soft delete)
+// CORBEILLE — éléments archivés (soft delete), chargés à la demande
 // ============================================================
 function renderCorbeille(){
   const now=Date.now();
-  const _30days=45*24*60*60*1000;
-  const deleted=[];
-  savesCache.filter(s=>s.deleted).forEach(s=>deleted.push({type:'save',collection:'saves',id:s._id,label:s.client+' — '+s.ref,date:s.deletedAt||s.date,item:s}));
-  tempsCache.filter(t=>t.deleted).forEach(t=>deleted.push({type:'temps',collection:'temps',id:t._id,label:t.client+' — '+t.ref+' ('+fmtTimeFr(t.duree)+')',date:t.deletedAt||t.date,item:t}));
-  fichesCache.filter(f=>f.deleted).forEach(f=>deleted.push({type:'fiche',collection:'fiches',id:f._id,label:f.name||f.client+' — '+f.ref,date:f.deletedAt||f.date,item:f}));
-  deleted.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const _45days=45*24*60*60*1000;
+  const labelOf={saves:'Plan',temps:'Temps',fiches:'Fiche'};
+  const deleted=corbeilleCache.map(it=>{
+    let label;
+    if(it._col==='temps') label=(it.client||'')+' — '+(it.ref||'')+' ('+fmtTimeFr(it.duree||0)+')';
+    else if(it._col==='fiches') label=it.name||((it.client||'')+' — '+(it.ref||''));
+    else label=(it.client||'')+' — '+(it.ref||'');
+    return {col:it._col,id:it._id,label,date:it.deletedAt||it.date};
+  }).sort((a,b)=>new Date(b.date)-new Date(a.date));
 
   const list=document.getElementById('corbeilleList');
   const empty=document.getElementById('corbeilleEmpty');
-  if(!deleted.length){list.innerHTML='';empty.style.display='';return;}
+  if(!deleted.length){list.innerHTML='';empty.style.display='';empty.textContent='Corbeille vide.';return;}
   empty.style.display='none';
 
   list.innerHTML=deleted.map(d=>{
     const delDate=new Date(d.date);
     const ds=delDate.toLocaleDateString('fr-FR')+' '+delDate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-    const remaining=Math.max(0,Math.ceil((_30days-(now-delDate.getTime()))/(24*60*60*1000)));
-    const typeLabel={save:'Plan',temps:'Temps',fiche:'Fiche'}[d.type]||d.type;
+    const remaining=Math.max(0,Math.ceil((_45days-(now-delDate.getTime()))/(24*60*60*1000)));
+    const typeLabel=labelOf[d.col]||d.col;
     const expiredClass=remaining<=0?' style="opacity:.5"':'';
+    const canPerm=canPermanentDelete();
     return `<div class="save-card"${expiredClass}>
       <div class="save-info">
-        <div class="save-title">${typeLabel} — ${d.label}</div>
+        <div class="save-title">${esc(typeLabel)} — ${esc(d.label)}</div>
         <div class="save-meta">Archivé le ${ds} · ${remaining>0?remaining+' jours restants':'Expiré'}</div>
       </div>
       <div class="save-actions">
-        ${remaining>0?`<button class="btn btn-green btn-sm" onclick="restoreItem('${d.collection}','${d.id}')">↩ Restaurer</button>`:''}
-        <button class="btn btn-red btn-sm" onclick="permanentDelete('${d.collection}','${d.id}')">✕ Supprimer</button>
+        ${remaining>0?`<button class="btn btn-green btn-sm" onclick="restoreItem('${d.col}','${d.id}')">↩ Restaurer</button>`:''}
+        ${canPerm?`<button class="btn btn-red btn-sm" onclick="permanentDelete('${d.col}','${d.id}')">✕ Supprimer</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -3597,25 +3831,27 @@ function renderCorbeille(){
 async function restoreItem(collection,id){
   try{
     await db.collection(collection).doc(id).update({deleted:false,deletedAt:''});
-    const caches={saves:savesCache,temps:tempsCache,fiches:fichesCache};
-    const item=(caches[collection]||[]).find(x=>x._id===id);
-    if(item){item.deleted=false;item.deletedAt='';}
-    logAudit('restore',collection,id,'');
+    // Repasse l'item dans le cache actif
+    const restored=corbeilleCache.find(x=>x._id===id);
+    corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
+    if(restored){
+      const copy=Object.assign({},restored);delete copy._col;copy.deleted=false;copy.deletedAt='';
+      const caches={saves:savesCache,temps:tempsCache,fiches:fichesCache};
+      if(caches[collection]&&!caches[collection].some(x=>x._id===id)) caches[collection].unshift(copy);
+    }
+    await logAudit('restore',collection,id,'');
   }catch(e){alert('Erreur restauration : '+e.message);}
   renderCorbeille();
 }
 
 async function permanentDelete(collection,id){
+  if(!canPermanentDelete()){alert('Suppression définitive réservée au pilotage et aux admins. Les opérateurs peuvent seulement archiver (suppression auto à 45 jours).');return;}
   if(!confirm('Supprimer définitivement ? Cette action est irréversible.')) return;
   try{
+    if(collection==='fiches'){const it=corbeilleCache.find(x=>x._id===id);if(it) await deleteFichePhotos(it);}
     await db.collection(collection).doc(id).delete();
-    const caches={saves:savesCache,temps:tempsCache,fiches:fichesCache};
-    const cache=caches[collection];
-    if(cache){
-      const idx=cache.findIndex(x=>x._id===id);
-      if(idx!==-1) cache.splice(idx,1);
-    }
-    logAudit('permanent_delete',collection,id,'');
+    corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
+    await logAudit('permanent_delete',collection,id,'');
   }catch(e){alert('Erreur : '+e.message);}
   renderCorbeille();
 }
@@ -3630,7 +3866,7 @@ function exportFiches(){
     f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
     (f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'),
     f.totalBobines,f.pct,f.tempsStr
-  ].join(';')).join('\n');
+  ].map(csvCell).join(';')).join('\n');
   const b=new Blob(['\ufeff'+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(b);
   a.download='step_fiches_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
@@ -3884,29 +4120,130 @@ function updateAllCumuls(){
     }).join('');
   });
 }
-function importFromPlan(){
-  const rows=getOrderRows(),useful=getUseful(),blade=getBlade();
-  if(!rows.length){alert('Aucun plan sur la page 1.');return;}
-  commandTotals={};
-  rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;});
-  const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
-  const client=document.getElementById('planClient').value;
-  const ref=document.getElementById('planRef').value;
-  if(client) document.getElementById('fClient').value=client;
-  if(ref) document.getElementById('fRef').value=ref;
-  const longueur=document.getElementById('planLongueur').value;
-  if(longueur) document.getElementById('fLongueur').value=longueur;
+// ============================================================
+// BROUILLONS (localStorage) — fiches parquées ou non envoyées (réseau coupé)
+// ============================================================
+const DRAFTS_KEY='step_drafts';
+function loadDrafts(){try{return JSON.parse(localStorage.getItem(DRAFTS_KEY)||'[]');}catch(e){return [];}}
+function persistDrafts(arr){try{localStorage.setItem(DRAFTS_KEY,JSON.stringify(arr));}catch(e){console.warn('Brouillon non sauvegardé :',e.message);}}
+function clearCurrentDraft(){ /* brouillons explicites uniquement — rien à nettoyer après envoi réussi */ }
+
+function serializeFicheState(){
+  const g=id=>document.getElementById(id);
+  return {
+    plan:{machine:currentMachine,mother:g('motherWidth')?.value||'',blade:g('bladeWidth')?.value||'',edge:g('edgeLoss')?.value||'',
+      client:g('planClient')?.value||'',ref:g('planRef')?.value||'',largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',
+      numCmd:g('planNumCmd')?.value||'',dateLiv:g('planDateLiv')?.value||'',type:g('planType')?.value||'',palette:g('planPalette')?.value||'',
+      etiquetage:g('planEtiquetage')?.value||'',cerclage:g('planCerclage')?.value||'',notes:g('planNotesEmballage')?.value||'',rows:getOrderRows()},
+    fiche:{machine:ficheMachine,ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',
+      lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
+      numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||''},
+    lines:getFicheLinesData()
+  };
+}
+function saveDraftManual(){
+  if(ficheLines.length===0){alert('Aucune bobine à enregistrer en brouillon.');return;}
+  const st=serializeFicheState();
+  const label=(st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°');
+  const drafts=loadDrafts();
+  drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label,state:st});
+  persistDrafts(drafts);
+  alert('💾 Brouillon enregistré — disponible dans Données > Brouillons.');
+}
+function saveDraftFromSend(ficheEntry,tempsEntry,body){
+  const st=serializeFicheState();
+  const label=(ficheEntry.client||'—')+' / '+(ficheEntry.numCmd||'sans n°');
+  const drafts=loadDrafts();
+  drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,fromSend:true});
+  persistDrafts(drafts);
+}
+function deleteDraft(id){
+  if(!confirm('Supprimer ce brouillon ?')) return;
+  persistDrafts(loadDrafts().filter(d=>d.id!==id));
+  renderDrafts();
+}
+function resumeDraft(id){
+  const d=loadDrafts().find(x=>x.id===id);
+  if(!d){alert('Brouillon introuvable.');return;}
+  restoreFicheState(d.state);
+  showPage(1);
+  alert('Brouillon chargé dans la Fiche. Vérifie les bobines puis envoie.');
+}
+function restoreFicheLineFromData(ld){
+  addFicheLine({label:ld.label||'',conf:ld.conf||''});
+  const id=ficheLines[ficheLines.length-1].id;
+  if(ld.photo){ficholinePhotos[id]=ld.photo;refreshPhotoZone(id);}
+  const setCk=(k,val)=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb)cb.checked=!!val;};
+  setCk('larg',ld.ncLarg);setCk('qty',ld.ncQty);setCk('casse',ld.ncCasse);setCk('ang',ld.ncAng);
+  updateNC(id);
+  const det=document.getElementById('nc_detail_'+id);if(det)det.value=ld.ncDetail||'';
+  const eDe=document.getElementById('flDevi_'+id);if(eDe)eDe.checked=!!ld.devi;
+  const eDr=document.getElementById('flDroit_'+id);if(eDr)eDr.checked=!!ld.droit;
+  updateTest2Subs(id);
+  if(ld.actDechet) toggleAction(id,'dechet');
+  if(ld.actChutes) toggleAction(id,'chutes');
+  if(ld.coupee){
+    const line=document.getElementById(id),btn=document.getElementById('coupeeBtn_'+id);
+    if(line) line.classList.add('coupee');
+    if(btn){btn.style.borderColor='var(--green)';btn.style.color='var(--green)';btn.style.background='#14371f';btn.textContent='✓ Coupée';}
+  }
+}
+function restoreFicheState(st){
+  if(!st) return;
+  const g=id=>document.getElementById(id);
+  selectMachine(st.plan.machine||'feba');
+  if(g('motherWidth'))g('motherWidth').value=st.plan.mother;
+  if(g('bladeWidth'))g('bladeWidth').value=st.plan.blade;
+  if(g('edgeLoss'))g('edgeLoss').value=st.plan.edge;
+  if(g('planClient')){g('planClient').value=st.plan.client; if(st.plan.client) onClientChange();}
+  if(g('planRef'))g('planRef').value=st.plan.ref;
+  if(g('planLargeur'))g('planLargeur').value=st.plan.largeur;
+  if(g('planLongueur'))g('planLongueur').value=st.plan.longueur;
+  if(g('planNumCmd'))g('planNumCmd').value=st.plan.numCmd;
+  if(g('planDateLiv'))g('planDateLiv').value=st.plan.dateLiv;
+  if(g('planType'))g('planType').value=st.plan.type;
+  if(g('planPalette'))g('planPalette').value=st.plan.palette;
+  if(g('planEtiquetage'))g('planEtiquetage').value=st.plan.etiquetage;
+  if(g('planCerclage'))g('planCerclage').value=st.plan.cerclage;
+  if(g('planNotesEmballage'))g('planNotesEmballage').value=st.plan.notes;
+  document.querySelectorAll('.order-row').forEach(r=>r.remove());
+  (st.plan.rows||[]).forEach(r=>addOrderRow(r.qty,r.width));
+  recalcPlan();
+  selectFicheMachine(st.fiche.machine||st.plan.machine||'feba');
+  const setV=(id,v)=>{const el=g(id);if(el)el.value=v;};
+  setV('fInitiales',st.fiche.ini);setV('fInitiales2',st.fiche.ini2);setV('fOp2Bobine',st.fiche.op2Bob);
+  setV('fNumLame',st.fiche.lame);setV('fNumJour',st.fiche.numJour);setV('fLongueur',st.fiche.longueur);
+  setV('fClient',st.fiche.client);setV('fRef',st.fiche.ref);setV('fNumCmd',st.fiche.numCmd);setV('fDateLiv',st.fiche.dateLiv);
+  setV('fType',st.fiche.type);setV('fPalette',st.fiche.palette);setV('fEtiquetage',st.fiche.etiquetage);setV('fCerclage',st.fiche.cerclage);setV('fNotesEmballage',st.fiche.notes);
+  if(st.fiche.ini){selectedIni=st.fiche.ini;document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===st.fiche.ini));}
+  if(g('fOp2Active')){g('fOp2Active').checked=!!st.fiche.op2Active;toggleOp2();}
   document.getElementById('ficheLines').innerHTML='';ficheLines=[];
   Object.keys(ficholinePhotos).forEach(k=>delete ficholinePhotos[k]);
-  let bi=1;
-  groups.forEach(g=>{
-    for(let ci=0;ci<g.count;ci++){
-      addFicheLine({label:'BOB-'+String(bi).padStart(3,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + ')});
-      bi++;
-    }
-  });
-  refreshOp2BobineList();
-  showPage(1);
+  (st.lines||[]).forEach(restoreFicheLineFromData);
+  updateAllCumuls();updateCoupeeStatus();refreshOp2BobineList();renumberFicheLines();
+}
+function renderDrafts(){
+  const drafts=loadDrafts();
+  const list=document.getElementById('draftsList');
+  const empty=document.getElementById('draftsEmpty');
+  if(!list) return;
+  if(!drafts.length){list.innerHTML='';if(empty)empty.style.display='';return;}
+  if(empty)empty.style.display='none';
+  list.innerHTML=drafts.map(d=>{
+    const dt=new Date(d.savedAt);const ds=dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    const nb=(d.state&&d.state.lines)?d.state.lines.length:0;
+    const tag=d.fromSend?'<span style="display:inline-block;background:#3d2a00;color:var(--orange);font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">non envoyé</span>':'';
+    return `<div class="save-card">
+      <div class="save-info">
+        <div class="save-title">${esc(d.label)}${tag}</div>
+        <div class="save-meta">Brouillon du ${ds} · ${nb} bobine(s)</div>
+      </div>
+      <div class="save-actions">
+        <button class="btn btn-green btn-sm" onclick="resumeDraft('${d.id}')">▶ Reprendre</button>
+        <button class="btn btn-red btn-sm" onclick="deleteDraft('${d.id}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 function printFiche(){
   const mn=getMachineLabel(ficheMachine);
