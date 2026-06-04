@@ -1913,11 +1913,24 @@ function addOrderRow(qty='',width='',carton='',rattrapage=false){
   document.getElementById('orderRows').appendChild(div);
   updateCartonVisibility();
 }
-// Retire toutes les lignes de rattrapage (plan + fiche) pour permettre un recalcul propre sans doublon
-function clearRattrapage(){
-  document.querySelectorAll('.order-row[data-rattrapage="1"]').forEach(r=>r.remove());
-  ficheLines.filter(l=>l.rattrapage).forEach(l=>{document.getElementById(l.id)?.remove();});
-  ficheLines=ficheLines.filter(l=>!l.rattrapage);
+// Une bobine est "figée" si l'opérateur a déjà agi dessus : coupée, config modifiée à la main,
+// photo, NC, action, ou test 2ème bobineaux. Sa config compte alors comme production engagée.
+// Les bobines NON figées (plan pas encore réalisé) sont ré-optimisables.
+function isLineFrozen(id){
+  const line=document.getElementById(id);
+  if(!line) return false;
+  if(line.classList.contains('coupee')) return true;
+  if(ficholinePhotos[id]) return true;
+  if((document.getElementById('nc_detail_'+id)?.value||'').trim()) return true;
+  if(['larg','qty','casse','ang'].some(k=>document.getElementById('nc_'+k+'_'+id)?.querySelector('input')?.checked)) return true;
+  if(document.getElementById('act_dechet_'+id)?.classList.contains('btn-red')) return true;
+  if(document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')) return true;
+  if(document.getElementById('flDevi_'+id)?.checked) return true;
+  if(document.getElementById('flDroit_'+id)?.checked) return true;
+  const meta=ficheLines.find(l=>l.id===id);
+  const cur=(document.getElementById('flConf_'+id)?.value||'').replace(/x/gi,'×').trim();
+  if(meta && cur!==(meta.origConf||'')) return true; // config modifiée manuellement
+  return false;
 }
 // Affiche/masque la case "Carton" par ligne selon le type de conditionnement (Carton)
 function updateCartonVisibility(){
@@ -2151,8 +2164,6 @@ function printEtiquette(d){
     ${d.numBob?`<div class="row"><b>Bobine mère n° :</b> ${d.numBob}</div>`:''}
     ${d.ref?`<div class="row"><b>Référence :</b> ${d.ref}</div>`:''}
     <div class="row"><b>Machine :</b> ${d.mn}</div>
-    ${d.decoupe?`<div class="row"><b>Découpe :</b> ${d.decoupe}</div>`:''}
-    <div class="row"><b>Bobine mère :</b> ${d.mother} mm</div>
     <div class="row"><b>Date :</b> ${d.date}</div>
   </div>
   </body></html>`;
@@ -2160,18 +2171,29 @@ function printEtiquette(d){
 }
 
 // ===== ÉTIQUETTE SOLDE EN BAS DE FICHE =====
-// Calcule le solde (laize restante) depuis le plan courant : dernière bobine du plan.
+// Calcule le solde (laize restante) sur la dernière bobine RÉELLE de la fiche.
+// Si la fiche est vide, repli sur le pack de la commande.
 function getEtiquetteSoldeData(){
-  const rows=getOrderRows(),useful=getUseful(),blade=getBlade();
-  if(!rows.length||useful<=0) return null;
-  const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
-  const lastG=groups[groups.length-1];
-  if(!lastG) return null;
-  const solde=useful-calcStats(lastG.pattern,blade).total;
-  const mother=parseNum(document.getElementById('motherWidth').value);
+  const useful=getUseful(),blade=getBlade();
+  if(useful<=0) return null;
+  let pattern=null;
+  if(ficheLines.length){
+    const lastId=ficheLines[ficheLines.length-1].id;
+    const p=parseConf(document.getElementById('flConf_'+lastId)?.value||'');
+    if(p.length) pattern=p;
+  }
+  if(!pattern){
+    const rows=getOrderRows();
+    if(!rows.length) return null;
+    const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
+    const lastG=groups[groups.length-1];
+    if(!lastG) return null;
+    pattern=lastG.pattern;
+  }
+  const solde=useful-calcStats(pattern,blade).total;
   const mn=getMachineLabel(ficheMachine||currentMachine);
   const ref=document.getElementById('fRef')?.value||document.getElementById('planRef')?.value||'';
-  return {mn,ref,decoupe:makeLabel(lastG.pattern),solde:fmt(solde),mother:fmt(mother),date:today()};
+  return {mn,ref,solde:fmt(solde),date:today()};
 }
 function refreshEtiquetteSolde(){
   const info=document.getElementById('etiquetteSoldeInfo');
@@ -2181,7 +2203,7 @@ function refreshEtiquetteSolde(){
     info.innerHTML='<span style="color:var(--muted)">Aucun plan chargé — l\'étiquette se calcule depuis les bobines du plan.</span>';
   }else{
     info.innerHTML=`Laize restante : <strong style="color:var(--orange)">${d.solde} mm</strong> · Réf : <strong>${esc(d.ref||'—')}</strong><br>`+
-      `Machine : ${d.mn} · Bobine mère : ${d.mother} mm · Date : ${d.date}`;
+      `Machine : ${d.mn} · Date : ${d.date}`;
   }
   updateEtiquetteBtn();
 }
@@ -2530,57 +2552,64 @@ async function confirmCommande(){
 }
 
 // === BOUTON "♻ Recalculer les écarts" (par bobine, agit sur toute la commande) ===
-// Recalcule l'écart commande↔découpe réelle SANS enregistrer ni reset.
-// Ré-exécutable : on retire d'abord l'ancien rattrapage (plan + fiche) pour ne pas accumuler de doublons.
+// Ré-optimise le plan SANS enregistrer ni reset, pour minimiser la perte :
+//  - les bobines figées (coupées / modifiées / NC / photo / action) = production engagée ;
+//  - le résiduel (commande − engagé) est re-packé sur les bobines NON figées, qu'on régénère ;
+//  - une bobine mère neuve n'apparaît que si c'est inévitable (et remplie au mieux par pack) ;
+//  - un surplus déjà coupé est tracé, jamais recoupé.
+// Ré-exécutable sans doublon.
 function recalcEcartsFromFiche(){
   if(!chronoRunning){
-    alert('⏱ Le chronomètre doit être en marche pour recalculer les écarts.');
+    alert('⏱ Le chronomètre doit être en marche pour recalculer le plan.');
     return;
   }
-  // 1) Nettoyer l'ancien rattrapage : on repart de la commande d'origine.
-  clearRattrapage();
-  renumberFicheLines();
-
-  const rows=getOrderRows(); // après nettoyage = commande d'origine
+  const rows=getOrderRows();
   if(!rows.length){alert('Aucune commande à recalculer.');return;}
   const useful=getUseful(),blade=getBlade();
-
-  // 2) Garde-fou : pas de laize > utile
   const over=rows.filter(r=>r.width>useful);
   if(over.length){
     alert(`⛔ Recalcul bloqué.\n\n${over.length} laize(s) dépassent la largeur utile (${fmt(useful)} mm) : ${over.map(r=>fmt(r.width)+' mm').join(', ')}.`);
     return;
   }
 
-  // 3) Calcul des écarts (déficit / surplus par largeur)
-  const ec=computeEcarts(rows);
-  const hasDeficit=Object.keys(ec.deficit).length>0;
-  const hasSurplus=Object.keys(ec.surplus).length>0;
+  // Commande client (fixe)
+  const command={};
+  rows.forEach(r=>{command[r.width]=(command[r.width]||0)+r.qty;});
 
-  if(!hasDeficit && !hasSurplus){
-    updateAllCumuls();updateCoupeeStatus();
-    alert('✓ Aucun écart : la découpe correspond à la commande.');
-    return;
-  }
+  // Production engagée = somme des configs des bobines figées
+  const frozenSet=new Set(ficheLines.filter(l=>isLineFrozen(l.id)).map(l=>l.id));
+  const committed={};
+  frozenSet.forEach(id=>{
+    parseConf(document.getElementById('flConf_'+id)?.value||'').forEach(p=>{committed[p.width]=(committed[p.width]||0)+p.qty;});
+  });
 
-  let ecartLines=[];
-  Object.entries(ec.deficit).forEach(([w,q])=>ecartLines.push(`−${q}×${w}mm (manquant)`));
-  Object.entries(ec.surplus).forEach(([w,q])=>ecartLines.push(`+${q}×${w}mm (en trop)`));
+  // Résiduel à couper + surplus déjà produit
+  const residual={}, surplus={};
+  new Set([...Object.keys(command),...Object.keys(committed)].map(Number)).forEach(w=>{
+    const c=command[w]||0, k=committed[w]||0;
+    if(c>k) residual[w]=c-k;
+    else if(k>c) surplus[w]=k-c;
+  });
 
-  // 4) SURPLUS : déduit des bobines NON coupées du plan
-  if(hasSurplus) applySurplusDeduction(ec.surplus);
+  // Retirer les bobines NON figées (plan pas encore réalisé), pour régénérer un plan optimal
+  ficheLines.filter(l=>!frozenSet.has(l.id)).forEach(l=>{document.getElementById(l.id)?.remove();delete ficholinePhotos[l.id];});
+  ficheLines=ficheLines.filter(l=>frozenSet.has(l.id));
 
-  // 5) DÉFICIT : bobine(s) de rattrapage optimisée(s), ajoutées fiche + plan (taguées)
-  if(hasDeficit){
-    const ratGroups=buildRattrapageGroups(ec.deficit,useful,blade);
+  // Re-pack du résiduel → bobines restantes optimisées
+  const items=[];
+  Object.entries(residual).forEach(([w,q])=>{for(let i=0;i<q;i++) items.push(Number(w));});
+  let added=0, wasteReste=0;
+  if(items.length){
+    const bobines=pack(items.sort((a,b)=>b-a),useful,blade);
+    const groups=groupBobines(bobines,blade);
     let ri=1;
-    ratGroups.forEach(g=>{
+    groups.forEach(g=>{
+      wasteReste+=(useful-calcStats(g.pattern,blade).total)*g.count;
       for(let ci=0;ci<g.count;ci++){
-        addFicheLine({label:'RATTRAPAGE-'+String(ri).padStart(2,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),rattrapage:true});
-        ri++;
+        addFicheLine({label:'RESTE-'+String(ri).padStart(2,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + ')});
+        ri++; added++;
       }
     });
-    Object.entries(ec.deficit).forEach(([w,q])=>{ addOrderRow(q,Number(w),'',true); });
   }
 
   recalcPlan();
@@ -2590,10 +2619,14 @@ function recalcEcartsFromFiche(){
   renumberFicheLines();
   refreshEtiquetteSolde();
 
-  let msg='♻ Écarts recalculés :\n\n'+ecartLines.join('\n')+'\n\n';
-  if(hasDeficit) msg+='→ Bobine(s) de RATTRAPAGE ajoutée(s) (fiche + plan). Coupe-la(les) puis confirme.\n';
-  if(hasSurplus) msg+='→ Surplus déduit des bobines non encore coupées.\n';
-  alert(msg);
+  // Récap
+  let parts=[];
+  if(added>0) parts.push(`→ ${added} bobine(s) restante(s) à couper (ré-optimisées, perte restante ${fmt(Math.round(wasteReste))} mm).`);
+  else parts.push('→ Commande couverte : plus rien à couper.');
+  if(Object.keys(surplus).length){
+    parts.push('⚠ Surplus déjà coupé (tracé, non recoupé) : '+Object.entries(surplus).map(([w,q])=>`${q}×${w}mm`).join(', ')+'.');
+  }
+  alert('♻ Plan ré-optimisé.\n\n'+parts.join('\n\n'));
 }
 
 // Applique la déduction d'un surplus sur les bobines NON coupées du plan (P1)
@@ -4167,7 +4200,7 @@ function getMachineLabel(m){return {feba:'FEBA',maveg:'MAVEG',cevenini:'CEVENINI
 function addFicheLine(data){
   const id='fl_'+Date.now()+'_'+Math.floor(Math.random()*9999);
   data=data||{};
-  ficheLines.push({id,rattrapage:!!data.rattrapage});
+  ficheLines.push({id,rattrapage:!!data.rattrapage,origConf:(data.conf||'').replace(/x/gi,'×').trim()});
   const div=document.createElement('div');
   div.className='fiche-line';div.id=id;
   if(data.rattrapage){ div.style.borderColor='#caa15a'; div.style.background='rgba(245,158,11,0.05)'; }
