@@ -393,6 +393,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
       <button class="btn btn-blue btn-sm" onclick="openSaveModal()">💾 Sauvegarder</button>
+      <button class="btn btn-green btn-sm" onclick="importPlanToFiche()">→ Créer / Mettre à jour la fiche</button>
     </div>
     <div id="planCards"></div>
     <div id="etiquetteSolde" class="hidden"></div>
@@ -1636,7 +1637,7 @@ function closePhotoViewer(){
 function showPage(i){
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
-  if(i===1) syncFicheFromPlan();
+  // Synchro Plan→Fiche : retirée. Désormais explicite via bouton "→ Créer / Mettre à jour la fiche" dans le Plan.
   if(i===2) renderDataPage();
 }
 
@@ -1673,62 +1674,67 @@ function isFicheUntouched(){
   return true;
 }
 
-function syncFicheFromPlan(){
+function importPlanToFiche(){
   try{
-    // Propager systématiquement les en-têtes depuis le Plan (le Plan est la source de vérité
-    // tant que l'opérateur n'a pas commencé à travailler sur les bobines).
-    // Si la fiche est "untouched", on écrase tout depuis le plan.
-    // Sinon (l'opérateur a déjà coché/photographié), on ne touche QUE les champs vides.
-    const untouched=isFicheUntouched();
-    const setField=(planId,ficheId)=>{
-      const p=document.getElementById(planId), f=document.getElementById(ficheId);
-      if(!p||!f) return;
-      if(untouched || !f.value) f.value=p.value||'';
-    };
-    setField('planClient','fClient');
-    setField('planRef','fRef');
-    setField('planLongueur','fLongueur');
-    setField('planNumCmd','fNumCmd');
-    setField('planDateLiv','fDateLiv');
-    ['Palette','Type','Etiquetage','Cerclage'].forEach(k=>setField('plan'+k,'f'+k));
-    setField('planNotesEmballage','fNotesEmballage');
-
-    // Garde de cohérence DOM/tableau : si désynchro (ex. tableau dit N bobines mais DOM en a 0),
-    // on force la régénération depuis zéro pour récupérer un état propre.
-    const ficheLinesDiv=document.getElementById('ficheLines');
-    const domCount=ficheLinesDiv ? ficheLinesDiv.querySelectorAll('.fiche-line').length : 0;
-    const desync=ficheLines.length!==domCount;
-    if(desync){
-      console.warn('Désynchro détectée ficheLines['+ficheLines.length+'] vs DOM['+domCount+'] — régénération forcée.');
-    }
-
-    // Bobines : import auto depuis le plan tant que l'opérateur n'a rien saisi,
-    // OU forcé si désynchro DOM/tableau.
+    // Vérifs préalables sur le Plan
     const rows=getOrderRows();
-    if(rows.length && (untouched || desync)){
-      if(ficheLinesDiv) ficheLinesDiv.innerHTML='';
-      ficheLines=[];
-      ficholinePhotos={};
-      const useful=getUseful(),blade=getBlade();
-      commandTotals={};
-      rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;});
-      // Garde-fou : si une largeur > largeur utile, on n'essaie même pas de packer (évite crash)
-      const tooWide=rows.some(r=>r.width>useful);
-      if(!tooWide){
-        const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
-        let bi=1;
-        groups.forEach(g=>{
-          for(let ci=0;ci<g.count;ci++){
-            addFicheLine({label:'BOB-'+String(bi).padStart(3,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + ')});
-            bi++;
-          }
-        });
-      }
-      refreshOp2BobineList();
+    if(!rows.length){
+      alert('⚠ Aucune ligne de commande dans le Plan.\n\nRemplis le plan d\'abord puis clique à nouveau sur ce bouton.');
+      return;
     }
+    const useful=getUseful(),blade=getBlade();
+    const tooWide=rows.some(r=>r.width>useful);
+    if(tooWide){
+      alert('⚠ Une largeur dépasse la largeur utile ('+useful+' mm).\n\nCorrige le plan avant d\'importer dans la fiche.');
+      return;
+    }
+
+    // Si l'opérateur a déjà commencé à travailler dans la Fiche, confirmation obligatoire
+    if(!isFicheUntouched()){
+      const ok=confirm('⚠ La fiche contient déjà des saisies (bobines coupées, photos, NC, etc.).\n\n'+
+                       'Cliquer OK va TOUT EFFACER et regénérer la fiche depuis le Plan.\n\n'+
+                       'Continuer ?');
+      if(!ok) return;
+    }
+
+    // En-têtes : copie depuis le Plan (écrase ce qu'il y a dans la Fiche)
+    const copy=(planId,ficheId)=>{
+      const p=document.getElementById(planId), f=document.getElementById(ficheId);
+      if(p&&f) f.value=p.value||'';
+    };
+    copy('planClient','fClient');
+    copy('planRef','fRef');
+    copy('planLongueur','fLongueur');
+    copy('planNumCmd','fNumCmd');
+    copy('planDateLiv','fDateLiv');
+    ['Palette','Type','Etiquetage','Cerclage'].forEach(k=>copy('plan'+k,'f'+k));
+    copy('planNotesEmballage','fNotesEmballage');
+
+    // Bobines : reset complet du DOM + tableau + photos
+    const ficheLinesDiv=document.getElementById('ficheLines');
+    if(ficheLinesDiv) ficheLinesDiv.innerHTML='';
+    ficheLines=[];
+    ficholinePhotos={};
+
+    // Régénération depuis le Plan
+    commandTotals={};
+    rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;});
+    const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
+    let bi=1;
+    groups.forEach(g=>{
+      for(let ci=0;ci<g.count;ci++){
+        addFicheLine({label:'BOB-'+String(bi).padStart(3,'0'),conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + ')});
+        bi++;
+      }
+    });
+    refreshOp2BobineList();
+
+    // Bascule automatique vers la Fiche
+    showPage(1);
+    showToast('✓ Fiche créée — '+ficheLines.length+' bobine(s) à découper','ok');
   }catch(e){
-    console.error('syncFicheFromPlan a échoué :',e);
-    // On ne propage pas : un échec de synchro ne doit pas afficher le toast d'erreur rouge global.
+    console.error('importPlanToFiche a échoué :',e);
+    alert('Erreur lors de l\'import : '+(e.message||e)+'\n\nRecharge la page et réessaie.');
   }
 }
 
