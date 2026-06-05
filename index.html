@@ -572,11 +572,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
       <label>N° de la bobine mère <span style="color:var(--orange);font-size:11px">obligatoire pour imprimer</span></label>
       <input type="text" id="etiqNumMere" placeholder="ex : 11" inputmode="text" oninput="updateEtiquetteBtn()">
     </div>
-    <div class="field">
-      <label>N° de lot</label>
-      <input type="text" id="etiqNumLot" placeholder="ex : 2406-12" inputmode="text">
-    </div>
-    <button class="btn btn-orange" id="etiqPrintBtn" style="width:100%;justify-content:center;opacity:.4;cursor:not-allowed" onclick="printEtiquetteSolde()">🖨️ Imprimer l'étiquette solde (A4)</button>
+    <button class="btn btn-orange" id="etiqPrintBtn" style="width:100%;justify-content:center;opacity:.4;cursor:not-allowed" onclick="printEtiquetteSolde()">🖨️ Imprimer l'étiquette solde</button>
     <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)" id="etiqHint">Saisis le n° de la bobine mère pour activer l'impression</div>
   </div>
 
@@ -2001,25 +1997,98 @@ function scorePattern(pattern,useful,blade){
   if(waste<-0.01) return -Infinity;
   return -waste*100+pattern.reduce((m,p)=>Math.max(m,p.width),0)*0.5+pattern.reduce((s,p)=>s+p.qty,0)*10;
 }
+// Optimiseur d'une bobine : programmation dynamique (sac à dos borné).
+// Remplace l'ancienne récursion exponentielle (freeze quand beaucoup de
+// largeurs distinctes). Coût polynomial. Même objectif :
+//   1) chute minimale  2) max de pièces  3) largeur max favorisée.
+// La lame consomme blade mm entre deux pièces -> on raisonne en "slot" :
+// chaque pièce occupe (width+blade), et on ajoute une lame fictive en
+// début de bobine pour que (somme des slots) <= (useful+blade).
 function bestPattern(counts,useful,blade){
-  const widths=Object.keys(counts).map(Number).sort((a,b)=>b-a);
-  if(!widths.length) return [];
-  function tryPack(wi,partial){
-    if(wi>=widths.length) return partial;
-    const w=widths[wi];
-    const avail=counts[w];
-    let best=tryPack(wi+1,partial);
-    let bestSc=scorePattern(best,useful,blade);
-    for(let q=1;q<=avail;q++){
-      const cand=[...partial,{width:w,qty:q}];
-      if(calcStats(cand,blade).total>useful+0.01) break;
-      const sub=tryPack(wi+1,cand);
-      const sc=scorePattern(sub,useful,blade);
-      if(sc>bestSc){bestSc=sc;best=sub;}
+  const widths=Object.keys(counts).map(Number).filter(w=>w>0).sort((a,b)=>b-a);
+  if(!widths.length||useful<=0) return [];
+
+  // Capacité du sac en "slots" (width+blade), arrondie au mm entier.
+  // +blade : la lame fictive de tête compense la 1re pièce sans coupe avant.
+  const CAP=Math.floor(useful+blade+0.001);
+  if(CAP<=0) return [];
+
+  // Décomposition binaire des quantités disponibles -> objets 0/1.
+  // Chaque "item" = un paquet de k pièces d'une largeur (k = 1,2,4,...).
+  const items=[];
+  widths.forEach(w=>{
+    let avail=counts[w]|0;
+    let k=1;
+    while(avail>0){
+      const take=Math.min(k,avail);
+      items.push({width:w, n:take, slot:(w+blade)*take});
+      avail-=take;
+      k*=2;
     }
-    return best;
+  });
+
+  // dp[c] = meilleur état atteignable en occupant exactement <= c slots.
+  // état = {used, pieces, maxW, choice[]} ; choice = indices d'items pris.
+  // Objectif lexicographique encodé : on compare via betterState().
+  const NEG={used:0, pieces:-1, maxW:0, choice:null}; // pieces=-1 => non atteint sauf c=0
+  const dp=new Array(CAP+1);
+  dp[0]={used:0, pieces:0, maxW:0, choice:[]};
+  for(let c=1;c<=CAP;c++) dp[c]=null;
+
+  function betterState(a,b){
+    // a meilleur que b ? lexico : moins de chute (plus de "used"),
+    // puis plus de pièces, puis plus grande largeur.
+    if(!b) return true;
+    if(!a) return false;
+    if(a.used!==b.used) return a.used>b.used;
+    if(a.pieces!==b.pieces) return a.pieces>b.pieces;
+    return a.maxW>b.maxW;
   }
-  return tryPack(0,[]);
+
+  // 0/1 knapsack : on parcourt c de haut en bas pour ne prendre chaque item qu'une fois.
+  for(let ii=0;ii<items.length;ii++){
+    const it=items[ii];
+    const cost=Math.round(it.slot);
+    if(cost<=0||cost>CAP) continue;
+    for(let c=CAP;c>=cost;c--){
+      const prev=dp[c-cost];
+      if(!prev) continue;
+      const cand={
+        used: prev.used+it.width*it.n,           // largeur utile réelle (hors lame)
+        pieces: prev.pieces+it.n,
+        maxW: Math.max(prev.maxW, it.width),
+        choice: prev.choice.concat(ii)
+      };
+      if(betterState(cand, dp[c])) dp[c]=cand;
+    }
+  }
+
+  // Meilleur état toutes capacités confondues.
+  let best=dp[0];
+  for(let c=1;c<=CAP;c++){ if(betterState(dp[c],best)) best=dp[c]; }
+  if(!best||!best.choice||!best.choice.length) return [];
+
+  // Reconstruction : agrège les items choisis par largeur -> pattern.
+  const agg={};
+  best.choice.forEach(idx=>{const it=items[idx]; agg[it.width]=(agg[it.width]||0)+it.n;});
+  const pattern=Object.keys(agg).map(Number).sort((a,b)=>b-a)
+    .map(w=>({width:w, qty:agg[w]}));
+
+  // Garde-fou : ne jamais dépasser le stock dispo (sécurité reconstruction).
+  let okStock=true;
+  pattern.forEach(p=>{if(p.qty>(counts[p.width]|0)) okStock=false;});
+  if(!okStock){
+    // repli sûr : on rabote les quantités au stock dispo
+    pattern.forEach(p=>{p.qty=Math.min(p.qty, counts[p.width]|0);});
+  }
+  // Garde-fou : ne jamais dépasser la laize utile.
+  while(pattern.length && calcStats(pattern,blade).total>useful+0.01){
+    // retire la pièce la plus petite jusqu'à rentrer
+    const small=pattern[pattern.length-1];
+    small.qty--;
+    if(small.qty<=0) pattern.pop();
+  }
+  return pattern.filter(p=>p.qty>0);
 }
 function pack(items,useful,blade){
   if(!items.length||useful<=0) return [];
@@ -2057,6 +2126,74 @@ function groupBobines(bobines,blade){
     i+=cnt;
   }
   return groups;
+}
+
+// ============================================================
+// MULTI-RÉFÉRENCES — modèle de données (Bloc 1)
+// ============================================================
+// Un plan = 1 client + une liste de "ref-groups". Chaque ref-group a sa
+// propre référence/film, sa largeur mère (donc sa laize utile), sa longueur
+// et ses lignes de découpe. L'optimisation se fait réf par réf, indépendamment.
+//
+// Rétro-compat : tant que l'UI multi-blocs n'est pas en place (Bloc 2), il
+// n'existe qu'un bloc réf #1 (les champs historiques planRef/motherWidth/…).
+// getRefGroups() renvoie alors une liste à un seul élément, et getOrderRows()
+// continue de fonctionner exactement comme avant.
+
+// Lit la liste des blocs réf à l'écran. Chaque bloc porte ses propres champs.
+// Si aucun bloc multi-réf n'existe, fabrique un groupe unique depuis les
+// champs historiques (planRef, motherWidth, edgeLoss, planLongueur, .order-row).
+function getRefGroups(){
+  const blocks=document.querySelectorAll('.ref-block');
+  const blade=getBlade();
+  if(blocks.length){
+    const groups=[];
+    blocks.forEach(bl=>{
+      const ref=(bl.querySelector('[data-rb="ref"]')?.value||'').trim();
+      const longueur=bl.querySelector('[data-rb="longueur"]')?.value||'';
+      const mother=parseNum(bl.querySelector('[data-rb="mother"]')?.value);
+      const edge=parseNum(bl.querySelector('[data-rb="edge"]')?.value);
+      const useful=Math.max(0,mother-edge);
+      const rows=[];
+      bl.querySelectorAll('.order-row').forEach(row=>{
+        const qty=Math.floor(parseNum(row.querySelector('[data-type="qty"]')?.value));
+        const w=parseNum(row.querySelector('[data-type="width"]')?.value);
+        const cEl=row.querySelector('[data-type="carton"]');
+        const carton=cEl?Math.floor(parseNum(cEl.value)):0;
+        if(qty>0&&w>0){const o={qty,width:w};if(carton>0)o.carton=carton;rows.push(o);}
+      });
+      groups.push({ref,longueur,mother,edge,useful,blade,rows});
+    });
+    return groups;
+  }
+  // Mode mono-réf historique : un seul groupe construit depuis les champs globaux.
+  return [{
+    ref:(document.getElementById('planRef')?.value||'').trim(),
+    longueur:document.getElementById('planLongueur')?.value||'',
+    mother:parseNum(document.getElementById('motherWidth')?.value),
+    edge:parseNum(document.getElementById('edgeLoss')?.value),
+    useful:getUseful(),
+    blade,
+    rows:getOrderRows()
+  }];
+}
+
+// Packe chaque ref-group indépendamment avec sa propre laize utile.
+// Renvoie une liste de groupes "calculés" prêts pour le rendu :
+//   [{ref, useful, blade, longueur, rows, bobines, planGroups, oversize, stats}, ...]
+function packRefGroups(groups){
+  return groups.map(g=>{
+    const valid=g.rows.filter(r=>r.width<=g.useful);
+    const oversize=g.rows.filter(r=>r.width>g.useful);
+    const bobines=(g.useful>0&&valid.length)?pack(expandDemand(valid),g.useful,g.blade):[];
+    const planGroups=groupBobines(bobines,g.blade);
+    const totalBobines=bobines.length;
+    const totalMat=totalBobines*g.useful;
+    const totalUsed=bobines.reduce((s,p)=>s+calcStats(p,g.blade).total,0);
+    const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
+    return {...g, bobines, planGroups, oversize,
+      stats:{totalBobines,totalMat,totalUsed,pct}};
+  });
 }
 
 // ============================================================
@@ -2188,35 +2325,22 @@ function getPlanHTML(){
   <table><tr><th>Bobines</th><th>Configuration</th><th>Laizes</th><th>Utilisé / Utile</th><th>Chute</th></tr>${tRows}</table></body></html>`;
 }
 function printEtiquette(d){
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Étiquette solde STEP</title>
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Étiquette solde</title>
   <style>
-    @page{size:A4 landscape;margin:8mm}
-    *{margin:0;padding:0;box-sizing:border-box}
-    html,body{width:100%;height:100%}
-    body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;padding:6mm;display:flex;flex-direction:column}
-    .frame{border:6px solid #000;border-radius:10px;flex:1;display:flex;flex-direction:column;padding:10mm 12mm}
-    .hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:4px solid #000;padding-bottom:8px}
-    .hd .t{font-size:34px;font-weight:900;letter-spacing:.04em}
-    .hd .d{font-size:22px;font-weight:700}
-    .client{font-size:58px;font-weight:900;line-height:1;margin:14px 0 4px}
-    .ref{font-size:30px;font-weight:700;color:#222}
-    .solde{font-size:120px;font-weight:900;color:#b45309;line-height:1;margin:6px 0 10px}
-    .solde small{font-size:48px;font-weight:800}
-    .rows{display:grid;grid-template-columns:auto 1fr;gap:6px 28px;font-size:38px;margin-top:auto}
-    .rows b{font-weight:900}
-    .rows .v{font-weight:700}
-    .machine{font-size:24px;color:#333;margin-top:10px}
+    body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fff}
+    .etiq{border:3px solid #000;border-radius:12px;padding:24px 32px;width:320px;text-align:center;font-size:15px;line-height:2}
+    .etiq h2{font-size:18px;margin-bottom:8px;border-bottom:2px solid #000;padding-bottom:8px}
+    .solde{font-size:32px;font-weight:900;color:#b45309;margin:8px 0}
+    .row{font-size:13px;color:#444}
+    @media print{body{min-height:auto}}
   </style></head><body>
-  <div class="frame">
-    <div class="hd"><span class="t">SOLDE — STEP</span><span class="d">${esc(d.date||'')}</span></div>
-    ${d.client?`<div class="client">${esc(d.client)}</div>`:''}
-    ${d.ref?`<div class="ref">Réf : ${esc(d.ref)}</div>`:''}
-    <div class="solde">${esc(String(d.solde))}<small> mm</small></div>
-    <div class="rows">
-      <b>N° BOBINE MÈRE</b><span class="v">${esc(d.numBob||'—')}</span>
-      <b>N° LOT</b><span class="v">${esc(d.numLot||'—')}</span>
-    </div>
-    <div class="machine">Machine : ${esc(d.mn||'—')}</div>
+  <div class="etiq">
+    <h2>ÉTIQUETTE SOLDE — STEP</h2>
+    <div class="solde">${d.solde} mm</div>
+    ${d.numBob?`<div class="row"><b>Bobine mère n° :</b> ${d.numBob}</div>`:''}
+    ${d.ref?`<div class="row"><b>Référence :</b> ${d.ref}</div>`:''}
+    <div class="row"><b>Machine :</b> ${d.mn}</div>
+    <div class="row"><b>Date :</b> ${d.date}</div>
   </div>
   </body></html>`;
   openPrintWindow(html);
@@ -2271,9 +2395,7 @@ function printEtiquetteSolde(){
   if(!num){alert('⚠ Saisis le n° de la bobine mère avant d\'imprimer l\'étiquette.');return;}
   const d=getEtiquetteSoldeData();
   if(!d){alert('⚠ Aucun plan chargé : impossible de calculer le solde.');return;}
-  const lot=(document.getElementById('etiqNumLot')?.value||'').trim();
-  const client=(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'').trim();
-  printEtiquette({...d,numBob:num,numLot:lot,client});
+  printEtiquette({...d,numBob:num});
 }
 
 function printOrder(){
@@ -2879,7 +3001,6 @@ function resetAll(){
   document.querySelectorAll('#initBtns2 .ini-btn').forEach(function(b){b.classList.remove('sel2');});
   document.getElementById('fOp2Bobine').innerHTML='<option value="">— Choisir une bobine —</option>';
   const etiqN=document.getElementById('etiqNumMere');if(etiqN)etiqN.value='';
-  const etiqL=document.getElementById('etiqNumLot');if(etiqL)etiqL.value='';
   refreshEtiquetteSolde();
 
   // Re-sélectionner l'opérateur connecté
@@ -3178,80 +3299,61 @@ function svgHBars(items,unit,W,padL){
   });
   return `<svg viewBox="0 0 ${W} ${padT+n*gap}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
 }
-// Sépare la PERTE réelle (matière perdue) de la CHUTE (solde dernière bobine, réutilisable → stock).
-// Calcul à l'affichage uniquement : ne modifie pas le champ f.pct stocké (historique + export CSV préservés).
-function fichePerteChute(f){
-  const useful=parseFloat(f.useful)||0;
-  const groups=f.groups||[];
-  const nb=f.totalBobines||groups.reduce((s,g)=>s+(g.count||1),0)||0;
-  const totalMat=useful*nb;
-  const lastWaste=groups.length?(parseFloat(groups[groups.length-1].waste)||0):0;
-  const pctStored=parseFloat(f.pct);
-  const chutePct=totalMat>0?lastWaste/totalMat*100:NaN;
-  let perte=isNaN(pctStored)?NaN:pctStored-(isNaN(chutePct)?0:chutePct);
-  if(!isNaN(perte)&&perte<0)perte=0;
-  return {perte, chuteMm:lastWaste, chutePct, hasData:!isNaN(pctStored)};
-}
-function perteColor(p){return p<3?'#4ade80':p<8?'#f59e0b':'#f87171';}
-// Extrait le code matière/article depuis la référence ("41319051 - TacFlex® DQ1002" → "DQ1002")
-function matiereKey(ref){
-  if(!ref) return '?';
-  const m=String(ref).match(/TacFlex\u00ae?\s*([A-Za-z]{1,4}\d{3,4}(?:-\d)?)/);
-  return m?m[1].toUpperCase():(String(ref).replace(/^\d+\s*-\s*/,'').trim()||'?');
-}
-// Bascule Client / Matière du graphe % chute (Analyse)
-function chuteDim(d){
-  const c=document.getElementById('chuteWrapClient'), m=document.getElementById('chuteWrapMat');
-  const bc=document.getElementById('chuteBtnClient'), bm=document.getElementById('chuteBtnMat');
-  if(!c||!m) return;
-  const on=d==='mat';
-  c.style.display=on?'none':'block'; m.style.display=on?'block':'none';
-  if(bc&&bm){
-    bc.style.background=on?'transparent':'var(--blue)'; bc.style.color=on?'var(--muted)':'#fff';
-    bm.style.background=on?'var(--blue)':'transparent'; bm.style.color=on?'#fff':'var(--muted)';
-  }
-}
 function buildFicheAnalytics(){
   const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length) return '';
-  const opStat={},machStat={};
+  let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,totBob=0,ncBob=0;
+  const opStat={},machStat={},clientPct={};
   fiches.forEach(f=>{
     const det=f.ficheDetail||[];
     let fNc=0;
-    det.forEach(d=>{ if(d.ncLarg||d.ncQty||d.ncCasse||d.ncAng) fNc++; });
+    det.forEach(d=>{
+      totBob++;let isNc=false;
+      if(d.ncLarg){ncLarg++;isNc=true;}
+      if(d.ncQty){ncQty++;isNc=true;}
+      if(d.ncCasse){ncCasse++;isNc=true;}
+      if(d.ncAng){ncAng++;isNc=true;}
+      if(isNc){ncBob++;fNc++;}
+    });
     const op=f.ini||'?';if(!opStat[op])opStat[op]={nc:0,tot:0};opStat[op].nc+=fNc;opStat[op].tot+=det.length;
     const m=f.machine||'?';if(!machStat[m])machStat[m]={nc:0,tot:0};machStat[m].nc+=fNc;machStat[m].tot+=det.length;
+    const pct=parseFloat(f.pct);if(!isNaN(pct)){const c=f.client||'?';if(!clientPct[c])clientPct[c]=[];clientPct[c].push(pct);}
   });
+  const ncTotal=ncLarg+ncQty+ncCasse+ncAng;
+  const ncSlices=[
+    {label:'Largeur',value:ncLarg,color:'#f87171'},
+    {label:'Quantité',value:ncQty,color:'#f59e0b'},
+    {label:'Casse',value:ncCasse,color:'#a78bfa'},
+    {label:'Angle',value:ncAng,color:'#60a5fa'}
+  ].filter(s=>s.value>0);
+  const ncLegend=ncSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">
+    <span style="width:12px;height:12px;border-radius:2px;background:${s.color};flex-shrink:0"></span>
+    <span style="color:#ccc">${s.label}</span>
+    <span style="color:#fff;font-weight:700;margin-left:auto">${s.value}</span>
+    <span style="color:#777;width:42px;text-align:right">${Math.round(s.value/ncTotal*100)}%</span>
+  </div>`).join('');
   const opColors={'TB':'#60a5fa','JF':'#4ade80','MT':'#f59e0b','DC':'#a78bfa','ER':'#f87171','CH':'#34d399','?':'#888'};
   const opItems=Object.entries(opStat).filter(([,d])=>d.tot>0).map(([op,d])=>({label:op,value:d.tot?d.nc/d.tot*100:0,color:opColors[op]||'#60a5fa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
   const machColors={'FEBA':'#60a5fa','MAVEG':'#4ade80','CEVENINI':'#a78bfa','?':'#888'};
   const machItems=Object.entries(machStat).filter(([,d])=>d.tot>0).map(([m,d])=>({label:m,value:d.tot?d.nc/d.tot*100:0,color:machColors[m]||'#a78bfa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
-  // % de chute (solde dernière bobine) par client et par matière
-  const clientChute={},matChute={};
-  fiches.forEach(f=>{
-    const pc=fichePerteChute(f);
-    if(!isFinite(pc.chutePct)) return;
-    const c=f.client||'?';(clientChute[c]=clientChute[c]||[]).push(pc.chutePct);
-    const mk=matiereKey(f.ref);(matChute[mk]=matChute[mk]||[]).push(pc.chutePct);
-  });
-  const clientChuteItems=Object.entries(clientChute).map(([c,a])=>({label:c,value:avgArr(a),color:'#f59e0b',sub:`(${a.length})`})).sort((a,b)=>b.value-a.value);
-  const matChuteItems=Object.entries(matChute).map(([m,a])=>({label:m,value:avgArr(a),color:'#60a5fa',sub:`(${a.length})`})).sort((a,b)=>b.value-a.value);
-  const chuteCard=`
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">\u2702 % de chute (solde \u2192 stock)</div>
-        <div style="display:inline-flex;border:1px solid var(--border2);border-radius:8px;overflow:hidden">
-          <button id="chuteBtnClient" onclick="chuteDim('client')" style="border:0;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff">Client</button>
-          <button id="chuteBtnMat" onclick="chuteDim('mat')" style="border:0;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted)">Mati\u00e8re</button>
+  const clientItems=Object.entries(clientPct).map(([c,arr])=>({label:c,value:avgArr(arr),color:'#34d399',sub:`(${arr.length} cmd)`})).sort((a,b)=>b.value-a.value);
+  const globalNcRate=totBob?Math.round(ncBob/totBob*1000)/10:0;
+
+  const ncBlock=ncTotal===0
+    ?`<div style="text-align:center;padding:24px;color:var(--green);font-weight:700">✓ Aucune non-conformité enregistrée sur ${totBob} bobines</div>`
+    :`<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        <svg viewBox="0 0 120 120" style="width:120px;height:120px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">${svgPie(ncSlices,120)}</svg>
+        <div style="flex:1;min-width:160px">${ncLegend}
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a28;font-size:12px;color:#888">Total NC : <strong style="color:#f87171">${ncTotal}</strong> sur ${totBob} bobines · taux ${globalNcRate}%</div>
         </div>
-      </div>
-      <div id="chuteWrapClient" style="overflow-x:auto">${svgHBars(clientChuteItems,'%',460,110)}</div>
-      <div id="chuteWrapMat" style="display:none;overflow-x:auto">${svgHBars(matChuteItems,'%',460,70)}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">Chute = solde de la derni\u00e8re bobine (r\u00e9utilisable, part en stock), en % de la mati\u00e8re engag\u00e9e. Bascule Client / Mati\u00e8re.</div>
-    </div>`;
+      </div>`;
 
   return `
-    ${chuteCard}
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">🥧 Répartition des non-conformités par type</div>
+      ${ncBlock}
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Source : fiches de découpe (hors corbeille). Identifie le défaut récurrent à traiter en priorité (ISO 9001).</div>
+    </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
       <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
@@ -3595,7 +3697,6 @@ function renderFiches(){
       <button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="Modifier">✏ Modifier</button>
       <button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>
       <button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser">✗ Refuser</button>`:'';
-    const pc=fichePerteChute(f);
     return `<div class="fiche-card"${f.modifie?' style="border-color:#caa15a"':''}>
       <div class="fc-header">
         <div class="fc-title">${esc(f.name)}</div>
@@ -3609,8 +3710,8 @@ function renderFiches(){
         <div class="fc-cell"><span class="fc-lbl">Opérateur</span><span class="fc-val">${esc(f.ini)}${op2}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Machine</span><span class="fc-val">${esc(f.machine)}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Bobines</span><span class="fc-val">${f.totalBobines}</span></div>
-        <div class="fc-cell"><span class="fc-lbl">Perte</span><span class="fc-val" style="color:${pc.hasData?perteColor(pc.perte):'#888'}">${pc.hasData?pc.perte.toFixed(1)+'%':'—'}</span></div>
-        <div class="fc-cell"><span class="fc-lbl">Chute stock</span><span class="fc-val" style="color:#f59e0b">${(f.groups||[]).length?fmt(pc.chuteMm)+' mm':'—'}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Perte</span><span class="fc-val" style="color:${parseFloat(f.pct)<3?'#4ade80':parseFloat(f.pct)<8?'#f59e0b':'#f87171'}">${f.pct}%</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Chute</span><span class="fc-val">${(f.groups||[]).length?(f.groups[f.groups.length-1].waste||'0')+' mm':'—'}</span></div>
       </div>
       <div class="fc-cmdline">${cmd||'—'}</div>
       ${pkg?`<div class="fc-pkg">📦 ${esc(pkg)}${cartonRatioStr(f)?` · ${esc(cartonRatioStr(f))}`:''}</div>`:''}
@@ -3846,7 +3947,6 @@ function exportNc(){
 function showFicheDetail(id,autoPrint){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
-  const pc=fichePerteChute(f);
   let bobNum=0;
   const planRows=(f.groups||[]).map((g,gi)=>{
     const isLast=gi===(f.groups.length-1);
@@ -3873,7 +3973,7 @@ function showFicheDetail(id,autoPrint){
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:11px">[SOLDE]</span>':''}</td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px">${g.label}</td>
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
-        <td style="padding:10px 12px;text-align:right;white-space:nowrap;color:${(isLast&&k===g.count-1)?'#f59e0b':(parseFloat(g.waste)>0?'#f87171':'#666')}">${g.waste} mm${(isLast&&k===g.count-1)?' <span style="font-size:10px;color:#f59e0b">solde stock</span>':''}</td>
+        <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${g.waste} mm</td>
         <td style="padding:10px 12px">${etiq}</td>
         <td style="padding:10px 12px">${photoCell}</td>
         <td style="padding:10px 12px">${test2}</td>
@@ -3943,14 +4043,14 @@ function showFicheDetail(id,autoPrint){
     table{width:100%;border-collapse:collapse;font-size:13px}
     th{padding:8px 12px;text-align:left;font-size:11px;color:#888;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #333}
     td{vertical-align:top}
-    .badge-pct{display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;${!pc.hasData||pc.perte<3?'background:#14371f;color:#4ade80':pc.perte<8?'background:#3d2a00;color:#f59e0b':'background:#3d1414;color:#f87171'}}
+    .badge-pct{display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;${parseFloat(f.pct)<3?'background:#14371f;color:#4ade80':parseFloat(f.pct)<8?'background:#3d2a00;color:#f59e0b':'background:#3d1414;color:#f87171'}}
     @media print{body{padding:12px}button{display:none}}
   </style>
   </head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
     <div>
       <h1>${f.name}</h1>
-      <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.machine} · ${f.totalBobines} bobines · perte <span class="badge-pct">${pc.hasData?pc.perte.toFixed(1)+'%':'—'}</span> · chute stock ${(f.groups||[]).length?fmt(pc.chuteMm)+' mm':'—'}</div>
+      <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.machine} · ${f.totalBobines} bobines · perte <span class="badge-pct">${f.pct}%</span> · chute ${(f.groups||[]).length?(f.groups[f.groups.length-1].waste||'0')+' mm':'—'}</div>
     </div>
     <button onclick="window.print()" style="padding:8px 16px;border-radius:8px;border:1px solid #444;background:#222;color:#e5e5e3;font-size:13px;cursor:pointer">🖨 Imprimer</button>
   </div>
@@ -3961,11 +4061,12 @@ function showFicheDetail(id,autoPrint){
       <span>Opérateur 1</span><span>${esc(f.ini)}</span>
       ${op2Line}
       <span>Client</span><span>${esc(f.client)}</span>
-      <span>Référence</span><span>${esc(f.ref)}${(f.longueur!==undefined&&f.longueur!==''&&f.longueur!=null)?` · ${esc(String(f.longueur))} ml`:''}</span>
+      <span>Référence</span><span>${esc(f.ref)}</span>
       ${(f.numCmd&&f.numCmd!=='—')?`<span>N° Commande</span><span>${esc(f.numCmd)}</span>`:''}
       ${(f.dateLiv&&f.dateLiv!=='—')?`<span>Livraison client</span><span>${esc(f.dateLiv)}</span>`:''}
       <span>Machine</span><span>${esc(f.machine)}</span>
       <span>Bobine mère</span><span>${f.mother} mm · utile ${f.useful} mm · lame ${f.blade} mm</span>
+      <span>Longueur réf.</span><span>${f.longueur} m</span>
       <span>Lame N°</span><span>${f.lame}</span>
       <span>N° Jour</span><span>${f.numJour}</span>
       ${pkgLine}
@@ -3986,7 +4087,7 @@ function showFicheDetail(id,autoPrint){
     <div class="card-title">Plan de découpe — bobine par bobine</div>
     <table>
       <thead><tr>
-        <th>N°</th><th>Découpe</th><th>Total</th><th>Perte / solde</th>
+        <th>N°</th><th>Découpe</th><th>Total</th><th>Chute</th>
         <th>Étiquette</th><th>Photo</th><th>Test 2ème bob.</th><th>Non-conformité</th><th>État</th>
       </tr></thead>
       <tbody>${planRows}${horsPlanRows}</tbody>
@@ -4665,9 +4766,10 @@ function printFiche(){
   table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:6px 9px;vertical-align:top}
   th{background:#eee;font-size:11px;text-transform:uppercase;letter-spacing:.4px}@media print{body{padding:8px}}</style></head><body>
   <h2>Fiche de découpe — STEP International</h2>
-  <div class="meta"><span><b>Client :</b> ${client}</span><span><b>Réf. :</b> ${ref}${(document.getElementById('fLongueur')?.value||document.getElementById('planLongueur')?.value)?` · ${document.getElementById('fLongueur')?.value||document.getElementById('planLongueur')?.value} ml`:''}</span>
+  <div class="meta"><span><b>Client :</b> ${client}</span><span><b>Réf. :</b> ${ref}</span>
   <span><b>Machine :</b> ${mn}</span><span><b>Lame N° :</b> ${lame}</span>
   <span><b>Opérateur 1 :</b> ${ini}</span>${op2Meta}<span><b>N° Jour :</b> ${numJour}</span>
+  <span><b>Longueur réf. :</b> ${document.getElementById('fLongueur').value||'—'} m</span>
   <span><b>Date :</b> ${today()}</span></div>
   <table><tr><th>Étiquette bobine mère</th><th>Photo</th><th>Nb bob × Larg.</th><th>Test 2ème</th><th>Cumul laizes</th><th>Non-conformité</th><th>Action</th></tr>
   ${rows}</table></body></html>`);
