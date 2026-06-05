@@ -3158,6 +3158,39 @@ function svgHBars(items,unit,W,padL){
   });
   return `<svg viewBox="0 0 ${W} ${padT+n*gap}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
 }
+// Sépare la PERTE réelle (matière perdue) de la CHUTE (solde dernière bobine, réutilisable → stock).
+// Calcul à l'affichage uniquement : ne modifie pas le champ f.pct stocké (historique + export CSV préservés).
+function fichePerteChute(f){
+  const useful=parseFloat(f.useful)||0;
+  const groups=f.groups||[];
+  const nb=f.totalBobines||groups.reduce((s,g)=>s+(g.count||1),0)||0;
+  const totalMat=useful*nb;
+  const lastWaste=groups.length?(parseFloat(groups[groups.length-1].waste)||0):0;
+  const pctStored=parseFloat(f.pct);
+  const chutePct=totalMat>0?lastWaste/totalMat*100:NaN;
+  let perte=isNaN(pctStored)?NaN:pctStored-(isNaN(chutePct)?0:chutePct);
+  if(!isNaN(perte)&&perte<0)perte=0;
+  return {perte, chuteMm:lastWaste, chutePct, hasData:!isNaN(pctStored)};
+}
+function perteColor(p){return p<3?'#4ade80':p<8?'#f59e0b':'#f87171';}
+// Extrait le code matière/article depuis la référence ("41319051 - TacFlex® DQ1002" → "DQ1002")
+function matiereKey(ref){
+  if(!ref) return '?';
+  const m=String(ref).match(/TacFlex\u00ae?\s*([A-Za-z]{1,4}\d{3,4}(?:-\d)?)/);
+  return m?m[1].toUpperCase():(String(ref).replace(/^\d+\s*-\s*/,'').trim()||'?');
+}
+// Bascule Client / Matière du graphe % chute (Analyse)
+function chuteDim(d){
+  const c=document.getElementById('chuteWrapClient'), m=document.getElementById('chuteWrapMat');
+  const bc=document.getElementById('chuteBtnClient'), bm=document.getElementById('chuteBtnMat');
+  if(!c||!m) return;
+  const on=d==='mat';
+  c.style.display=on?'none':'block'; m.style.display=on?'block':'none';
+  if(bc&&bm){
+    bc.style.background=on?'transparent':'var(--blue)'; bc.style.color=on?'var(--muted)':'#fff';
+    bm.style.background=on?'var(--blue)':'transparent'; bm.style.color=on?'#fff':'var(--muted)';
+  }
+}
 function buildFicheAnalytics(){
   const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length) return '';
@@ -3198,6 +3231,30 @@ function buildFicheAnalytics(){
   const clientItems=Object.entries(clientPct).map(([c,arr])=>({label:c,value:avgArr(arr),color:'#34d399',sub:`(${arr.length} cmd)`})).sort((a,b)=>b.value-a.value);
   const globalNcRate=totBob?Math.round(ncBob/totBob*1000)/10:0;
 
+  // % de chute (solde dernière bobine) par client et par matière
+  const clientChute={},matChute={};
+  fiches.forEach(f=>{
+    const pc=fichePerteChute(f);
+    if(!isFinite(pc.chutePct)) return;
+    const c=f.client||'?';(clientChute[c]=clientChute[c]||[]).push(pc.chutePct);
+    const mk=matiereKey(f.ref);(matChute[mk]=matChute[mk]||[]).push(pc.chutePct);
+  });
+  const clientChuteItems=Object.entries(clientChute).map(([c,a])=>({label:c,value:avgArr(a),color:'#f59e0b',sub:`(${a.length})`})).sort((a,b)=>b.value-a.value);
+  const matChuteItems=Object.entries(matChute).map(([m,a])=>({label:m,value:avgArr(a),color:'#60a5fa',sub:`(${a.length})`})).sort((a,b)=>b.value-a.value);
+  const chuteCard=`
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">\u2702 % de chute (solde \u2192 stock)</div>
+        <div style="display:inline-flex;border:1px solid var(--border2);border-radius:8px;overflow:hidden">
+          <button id="chuteBtnClient" onclick="chuteDim('client')" style="border:0;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff">Client</button>
+          <button id="chuteBtnMat" onclick="chuteDim('mat')" style="border:0;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted)">Mati\u00e8re</button>
+        </div>
+      </div>
+      <div id="chuteWrapClient" style="overflow-x:auto">${svgHBars(clientChuteItems,'%',460,110)}</div>
+      <div id="chuteWrapMat" style="display:none;overflow-x:auto">${svgHBars(matChuteItems,'%',460,70)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Chute = solde de la derni\u00e8re bobine (r\u00e9utilisable, part en stock), en % de la mati\u00e8re engag\u00e9e. Bascule Client / Mati\u00e8re.</div>
+    </div>`;
+
   const ncBlock=ncTotal===0
     ?`<div style="text-align:center;padding:24px;color:var(--green);font-weight:700">✓ Aucune non-conformité enregistrée sur ${totBob} bobines</div>`
     :`<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
@@ -3208,11 +3265,7 @@ function buildFicheAnalytics(){
       </div>`;
 
   return `
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">🥧 Répartition des non-conformités par type</div>
-      ${ncBlock}
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">Source : fiches de découpe (hors corbeille). Identifie le défaut récurrent à traiter en priorité (ISO 9001).</div>
-    </div>
+    ${chuteCard}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
       <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
@@ -3556,6 +3609,7 @@ function renderFiches(){
       <button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="Modifier">✏ Modifier</button>
       <button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>
       <button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser">✗ Refuser</button>`:'';
+    const pc=fichePerteChute(f);
     return `<div class="fiche-card"${f.modifie?' style="border-color:#caa15a"':''}>
       <div class="fc-header">
         <div class="fc-title">${esc(f.name)}</div>
@@ -3569,8 +3623,8 @@ function renderFiches(){
         <div class="fc-cell"><span class="fc-lbl">Opérateur</span><span class="fc-val">${esc(f.ini)}${op2}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Machine</span><span class="fc-val">${esc(f.machine)}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Bobines</span><span class="fc-val">${f.totalBobines}</span></div>
-        <div class="fc-cell"><span class="fc-lbl">Perte</span><span class="fc-val" style="color:${parseFloat(f.pct)<3?'#4ade80':parseFloat(f.pct)<8?'#f59e0b':'#f87171'}">${f.pct}%</span></div>
-        <div class="fc-cell"><span class="fc-lbl">Chute</span><span class="fc-val">${(f.groups||[]).length?(f.groups[f.groups.length-1].waste||'0')+' mm':'—'}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Perte</span><span class="fc-val" style="color:${pc.hasData?perteColor(pc.perte):'#888'}">${pc.hasData?pc.perte.toFixed(1)+'%':'—'}</span></div>
+        <div class="fc-cell"><span class="fc-lbl">Chute stock</span><span class="fc-val" style="color:#f59e0b">${(f.groups||[]).length?fmt(pc.chuteMm)+' mm':'—'}</span></div>
       </div>
       <div class="fc-cmdline">${cmd||'—'}</div>
       ${pkg?`<div class="fc-pkg">📦 ${esc(pkg)}${cartonRatioStr(f)?` · ${esc(cartonRatioStr(f))}`:''}</div>`:''}
@@ -3806,6 +3860,7 @@ function exportNc(){
 function showFicheDetail(id,autoPrint){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
+  const pc=fichePerteChute(f);
   let bobNum=0;
   const planRows=(f.groups||[]).map((g,gi)=>{
     const isLast=gi===(f.groups.length-1);
@@ -3832,7 +3887,7 @@ function showFicheDetail(id,autoPrint){
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:11px">[SOLDE]</span>':''}</td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px">${g.label}</td>
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
-        <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${g.waste} mm</td>
+        <td style="padding:10px 12px;text-align:right;white-space:nowrap;color:${(isLast&&k===g.count-1)?'#f59e0b':(parseFloat(g.waste)>0?'#f87171':'#666')}">${g.waste} mm${(isLast&&k===g.count-1)?' <span style="font-size:10px;color:#f59e0b">solde stock</span>':''}</td>
         <td style="padding:10px 12px">${etiq}</td>
         <td style="padding:10px 12px">${photoCell}</td>
         <td style="padding:10px 12px">${test2}</td>
@@ -3902,14 +3957,14 @@ function showFicheDetail(id,autoPrint){
     table{width:100%;border-collapse:collapse;font-size:13px}
     th{padding:8px 12px;text-align:left;font-size:11px;color:#888;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #333}
     td{vertical-align:top}
-    .badge-pct{display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;${parseFloat(f.pct)<3?'background:#14371f;color:#4ade80':parseFloat(f.pct)<8?'background:#3d2a00;color:#f59e0b':'background:#3d1414;color:#f87171'}}
+    .badge-pct{display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;${!pc.hasData||pc.perte<3?'background:#14371f;color:#4ade80':pc.perte<8?'background:#3d2a00;color:#f59e0b':'background:#3d1414;color:#f87171'}}
     @media print{body{padding:12px}button{display:none}}
   </style>
   </head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
     <div>
       <h1>${f.name}</h1>
-      <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.machine} · ${f.totalBobines} bobines · perte <span class="badge-pct">${f.pct}%</span> · chute ${(f.groups||[]).length?(f.groups[f.groups.length-1].waste||'0')+' mm':'—'}</div>
+      <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.machine} · ${f.totalBobines} bobines · perte <span class="badge-pct">${pc.hasData?pc.perte.toFixed(1)+'%':'—'}</span> · chute stock ${(f.groups||[]).length?fmt(pc.chuteMm)+' mm':'—'}</div>
     </div>
     <button onclick="window.print()" style="padding:8px 16px;border-radius:8px;border:1px solid #444;background:#222;color:#e5e5e3;font-size:13px;cursor:pointer">🖨 Imprimer</button>
   </div>
@@ -3920,7 +3975,7 @@ function showFicheDetail(id,autoPrint){
       <span>Opérateur 1</span><span>${esc(f.ini)}</span>
       ${op2Line}
       <span>Client</span><span>${esc(f.client)}</span>
-      <span>Référence</span><span>${esc(f.ref)}</span>
+      <span>Référence</span><span>${esc(f.ref)}${(f.longueur!==undefined&&f.longueur!==''&&f.longueur!=null)?` · ${esc(String(f.longueur))} ml`:''}</span>
       ${(f.numCmd&&f.numCmd!=='—')?`<span>N° Commande</span><span>${esc(f.numCmd)}</span>`:''}
       ${(f.dateLiv&&f.dateLiv!=='—')?`<span>Livraison client</span><span>${esc(f.dateLiv)}</span>`:''}
       <span>Machine</span><span>${esc(f.machine)}</span>
@@ -3946,7 +4001,7 @@ function showFicheDetail(id,autoPrint){
     <div class="card-title">Plan de découpe — bobine par bobine</div>
     <table>
       <thead><tr>
-        <th>N°</th><th>Découpe</th><th>Total</th><th>Chute</th>
+        <th>N°</th><th>Découpe</th><th>Total</th><th>Perte / solde</th>
         <th>Étiquette</th><th>Photo</th><th>Test 2ème bob.</th><th>Non-conformité</th><th>État</th>
       </tr></thead>
       <tbody>${planRows}${horsPlanRows}</tbody>
@@ -4625,7 +4680,7 @@ function printFiche(){
   table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:6px 9px;vertical-align:top}
   th{background:#eee;font-size:11px;text-transform:uppercase;letter-spacing:.4px}@media print{body{padding:8px}}</style></head><body>
   <h2>Fiche de découpe — STEP International</h2>
-  <div class="meta"><span><b>Client :</b> ${client}</span><span><b>Réf. :</b> ${ref}</span>
+  <div class="meta"><span><b>Client :</b> ${client}</span><span><b>Réf. :</b> ${ref}${(document.getElementById('fLongueur')?.value||document.getElementById('planLongueur')?.value)?` · ${document.getElementById('fLongueur')?.value||document.getElementById('planLongueur')?.value} ml`:''}</span>
   <span><b>Machine :</b> ${mn}</span><span><b>Lame N° :</b> ${lame}</span>
   <span><b>Opérateur 1 :</b> ${ini}</span>${op2Meta}<span><b>N° Jour :</b> ${numJour}</span>
   <span><b>Longueur réf. :</b> ${document.getElementById('fLongueur').value||'—'} m</span>
