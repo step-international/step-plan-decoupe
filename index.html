@@ -66,6 +66,11 @@ button{cursor:pointer;font-family:inherit}
 .badge{display:inline-block;border-radius:5px;padding:2px 8px;font-size:12px;font-weight:700}
 .badge-green{background:#14371f;color:var(--green)}.badge-orange{background:#3d2a00;color:var(--orange)}.badge-red{background:#3d1414;color:var(--red)}
 .badge-solde{background:#3a2e00;color:#f59e0b;border-radius:5px;padding:2px 8px;font-size:12px;font-weight:700}
+.ref-block{background:var(--section);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;position:relative}
+.ref-block.extra{border-left:3px solid var(--violet)}
+.ref-block-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.ref-block-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--violet)}
+.ref-band{background:#2a1f3d;border:1px solid var(--violet);color:#c4b5fd;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;margin:14px 0 8px}
 .stats-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .stat-chip{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px}
 .stat-chip span{font-weight:700;font-size:14px}
@@ -215,6 +220,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
 .fc-btn-green{background:#14371f;color:var(--green);border-color:#1e5c30}
 .fc-btn-red{background:#3d1414;color:var(--red);border-color:#7a2222}
 .fc-btn-red-ghost{background:#1a0e0e;color:var(--red);border-color:#5a2020}
+.btn-violet{background:#2a1f3d;color:var(--violet);border:1px solid #4a3a70}.btn-violet:hover{background:#352a52}
 .fc-btn-violet{background:#2a1f3d;color:var(--violet);border-color:#4a3a70}
 @media(min-width:560px){.fc-actions{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:380px){.fc-grid{grid-template-columns:1fr}.fc-title{font-size:14px}.fc-actions{grid-template-columns:1fr}}
@@ -269,27 +275,10 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
       <button class="machine-btn" id="btnMaveg" onclick="selectMachine('maveg')">MAVEG</button>
       <button class="machine-btn" id="btnCevenini" onclick="selectMachine('cevenini')">CEVENINI</button>
     </div>
-    <div class="row2">
-      <div class="field">
-        <label>Bobine mère (mm)</label>
-        <input type="text" id="motherWidth" value="2100" oninput="onParamChange()" inputmode="decimal">
-        <div class="useful-display" id="usefulDisplay"></div>
-      </div>
-      <div class="field">
-        <label>Perte bords total (mm)</label>
-        <input type="text" id="edgeLoss" value="10" oninput="onParamChange()" inputmode="decimal">
-      </div>
-    </div>
-    <div class="row2">
-      <div class="field">
-        <label>Perte lame (mm)</label>
-        <input type="text" id="bladeWidth" value="5" oninput="onParamChange()" inputmode="decimal">
-      </div>
-    </div>
   </div>
 
   <div class="section">
-    <div class="section-title">Client &amp; Référence</div>
+    <div class="section-title">Client</div>
     <div class="row2">
       <div class="field">
         <label>Client</label>
@@ -298,36 +287,67 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
         </select>
       </div>
       <div class="field">
-        <label>Référence / Film</label>
-        <select id="planRef" onchange="onRefChange()">
-          <option value="">— Référence —</option>
-        </select>
-      </div>
-    </div>
-    <div class="row2">
-      <div class="field">
         <label>N° de commande</label>
         <input type="text" id="planNumCmd" placeholder="ex : CMD-2026-0142" inputmode="text">
       </div>
+    </div>
+    <div class="row2">
       <div class="field">
         <label>Date de livraison client</label>
         <input type="date" id="planDateLiv">
       </div>
-    </div>
-    <div class="row2">
       <div class="field">
-        <label>Largeur bobine mère (mm) <span style="color:var(--green);font-size:11px">auto</span></label>
-        <input type="text" id="planLargeur" placeholder="2100" inputmode="decimal" oninput="syncLargeur()">
-      </div>
-      <div class="field">
-        <label>Longueur (m) <span style="color:var(--green);font-size:11px">auto</span></label>
-        <input type="text" id="planLongueur" placeholder="600" inputmode="decimal">
+        <label>📷 Photo de la commande client</label>
+        <div id="commandePhotoZone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="photo-btn" onclick="triggerPhoto('__commande__')">📷 Ajouter photo</button></div>
       </div>
     </div>
-    <div class="field" style="margin-top:4px">
-      <label>📷 Photo de la commande client</label>
-      <div id="commandePhotoZone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="photo-btn" onclick="triggerPhoto('__commande__')">📷 Ajouter photo</button></div>
+  </div>
+
+  <!-- Blocs référence : chaque réf a sa largeur mère / pertes / film / longueur / lignes -->
+  <div id="refBlocks">
+    <!-- BLOC RÉF #1 — garde les IDs historiques (rétro-compat save/fiche/print) -->
+    <div class="ref-block" data-ref-idx="0">
+      <div class="ref-block-head">
+        <div class="ref-block-title">Référence 1</div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Référence / Film</label>
+          <select id="planRef" data-rb="ref" onchange="onRefChange()">
+            <option value="">— Référence —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Longueur (m) <span style="color:var(--green);font-size:11px">auto</span></label>
+          <input type="text" id="planLongueur" data-rb="longueur" placeholder="600" inputmode="decimal">
+        </div>
+      </div>
+      <div class="row3">
+        <div class="field">
+          <label>Bobine mère (mm)</label>
+          <input type="text" id="motherWidth" data-rb="mother" value="2100" oninput="onParamChange()" inputmode="decimal">
+          <div class="useful-display" id="usefulDisplay"></div>
+        </div>
+        <div class="field">
+          <label>Perte bords (mm)</label>
+          <input type="text" id="edgeLoss" data-rb="edge" value="10" oninput="onParamChange()" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label>Perte lame (mm)</label>
+          <input type="text" id="bladeWidth" data-rb="blade" value="5" oninput="onParamChange()" inputmode="decimal">
+        </div>
+      </div>
+      <input type="hidden" id="planLargeur" data-rb="largeur">
+      <div class="section-title" style="margin:12px 0 8px">Largeurs à découper</div>
+      <div class="rb-rows" data-rb="rows"></div>
+      <div class="flex mt8">
+        <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ajouter une ligne</button>
+      </div>
     </div>
+  </div>
+
+  <div class="flex mt8" style="margin-bottom:14px">
+    <button class="btn btn-violet btn-sm" onclick="addRefBlock()">+ Ajouter une référence</button>
   </div>
 
   <div class="section">
@@ -382,14 +402,6 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     </div>
     <div id="packagingAlert" class="hidden" style="margin-top:8px;padding:10px 14px;border-radius:8px;background:#3d2a00;border:1px solid #7a5200;font-size:12px;color:var(--orange);line-height:1.6"></div>
     <div class="text-muted" style="font-size:11px;margin-top:6px">Auto-rempli quand tu choisis un client. Modifiable manuellement. Sauvegardé avec le plan.</div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Commande (largeurs à découper)</div>
-    <div id="orderRows"></div>
-    <div class="flex mt8">
-      <button class="btn btn-ghost btn-sm" onclick="addOrderRow()">+ Ajouter une ligne</button>
-    </div>
   </div>
 
   <div class="section">
@@ -1871,7 +1883,6 @@ function selectMachine(m){
 function getUseful(){return Math.max(0,parseNum(document.getElementById('motherWidth').value)-parseNum(document.getElementById('edgeLoss').value));}
 function getBlade(){return parseNum(document.getElementById('bladeWidth').value);}
 function onParamChange(){
-  document.getElementById('usefulDisplay').textContent='Largeur utile : '+fmt(getUseful())+' mm';
   recalcPlan();
 }
 
@@ -1887,11 +1898,18 @@ function initClientDropdown(){
 function onClientChange(){
   const client=document.getElementById('planClient').value;
   const refs=CLIENT_DATA[client]||[];
-  document.getElementById('planRef').innerHTML='<option value="">— Référence —</option>'+
+  const opts='<option value="">— Référence —</option>'+
     refs.map(r=>`<option value="${r.ref}">${r.ref}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');
-  document.getElementById('planLargeur').value='';
-  document.getElementById('planLongueur').value='';
+  // Recharge la liste des réfs dans TOUS les blocs (même client partout), en gardant la valeur si possible
+  document.querySelectorAll('.ref-block [data-rb="ref"]').forEach(sel=>{
+    const prev=sel.value;
+    sel.innerHTML=opts;
+    if(refs.some(r=>r.ref===prev)) sel.value=prev; else sel.value='';
+  });
+  const lg=document.getElementById('planLongueur'); if(lg) lg.value='';
+  const lr=document.getElementById('planLargeur'); if(lr) lr.value='';
   if(client) applyPackagingRules(client);
+  recalcPlan();
 }
 
 function onRefChange(){
@@ -1903,11 +1921,11 @@ function onRefChange(){
     document.getElementById('planLongueur').value=found.longueur||'';
     if(found.largeur>0){
       document.getElementById('motherWidth').value=found.largeur;
-      onParamChange();
     }
   }
   // Re-appliquer packaging pour détecter KX dans la nouvelle réf
   if(client) applyPackagingRules(client);
+  recalcPlan();
 }
 
 function syncLargeur(){
@@ -1918,9 +1936,11 @@ function syncLargeur(){
 // ============================================================
 // ORDER ROWS
 // ============================================================
+// getOrderRows() : lignes du PREMIER bloc réf (rétro-compat save/fiche/print mono-réf).
 function getOrderRows(){
+  const first=document.querySelector('.ref-block .rb-rows');
   const rows=[];
-  document.querySelectorAll('.order-row').forEach(row=>{
+  (first?first.querySelectorAll('.order-row'):[]).forEach(row=>{
     const qty=Math.floor(parseNum(row.querySelector('[data-type="qty"]').value));
     const w=parseNum(row.querySelector('[data-type="width"]').value);
     const cEl=row.querySelector('[data-type="carton"]');
@@ -1929,7 +1949,8 @@ function getOrderRows(){
   });
   return rows;
 }
-function addOrderRow(qty='',width='',carton='',rattrapage=false){
+// Crée le HTML d'une ligne de découpe (sans l'insérer).
+function makeOrderRow(qty='',width='',carton='',rattrapage=false){
   const div=document.createElement('div');
   div.className='order-row';
   if(rattrapage){div.dataset.rattrapage='1';div.style.borderLeft='3px solid var(--orange)';div.style.paddingLeft='6px';}
@@ -1941,8 +1962,97 @@ function addOrderRow(qty='',width='',carton='',rattrapage=false){
     <span class="order-lbl carton-cell" style="display:none">· Carton</span>
     <input type="text" data-type="carton" placeholder="3" value="${carton}" inputmode="numeric" oninput="debouncedRecalcPlan()" class="carton-cell" style="max-width:70px;display:none">
     <button class="btn btn-red btn-sm" style="padding:7px 10px" onclick="this.parentElement.remove();recalcPlan()">✕</button>`;
-  document.getElementById('orderRows').appendChild(div);
+  return div;
+}
+// Ajoute une ligne au premier bloc réf (rétro-compat appels existants).
+function addOrderRow(qty='',width='',carton='',rattrapage=false){
+  const first=document.querySelector('.ref-block .rb-rows');
+  if(first){first.appendChild(makeOrderRow(qty,width,carton,rattrapage));updateCartonVisibility();}
+}
+// Ajoute une ligne au bloc réf qui contient le bouton cliqué.
+function addOrderRowTo(btn){
+  const block=btn.closest('.ref-block');
+  const cont=block&&block.querySelector('.rb-rows');
+  if(cont){cont.appendChild(makeOrderRow());updateCartonVisibility();}
+}
+// Ajoute un nouveau bloc référence (même client). Largeur mère/pertes par défaut.
+let _refBlockSeq=1;
+function addRefBlock(){
+  const idx=++_refBlockSeq;
+  const client=document.getElementById('planClient')?.value||'';
+  const refs=CLIENT_DATA[client]||[];
+  const refOpts='<option value="">— Référence —</option>'+
+    refs.map(r=>`<option value="${r.ref}">${r.ref}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');
+  const block=document.createElement('div');
+  block.className='ref-block extra';
+  block.dataset.refIdx=idx;
+  block.innerHTML=`
+    <div class="ref-block-head">
+      <div class="ref-block-title">Référence ${document.querySelectorAll('.ref-block').length+1}</div>
+      <button class="btn btn-red btn-sm" style="padding:6px 10px" onclick="removeRefBlock(this)">✕ Retirer</button>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Référence / Film</label>
+        <select data-rb="ref" onchange="onRefChangeBlock(this)">${refOpts}</select>
+      </div>
+      <div class="field">
+        <label>Longueur (m)</label>
+        <input type="text" data-rb="longueur" placeholder="600" inputmode="decimal">
+      </div>
+    </div>
+    <div class="row3">
+      <div class="field">
+        <label>Bobine mère (mm)</label>
+        <input type="text" data-rb="mother" value="2100" oninput="recalcPlan()" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>Perte bords (mm)</label>
+        <input type="text" data-rb="edge" value="10" oninput="recalcPlan()" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>Perte lame (mm)</label>
+        <input type="text" data-rb="blade" value="5" oninput="recalcPlan()" inputmode="decimal">
+      </div>
+    </div>
+    <input type="hidden" data-rb="largeur">
+    <div class="section-title" style="margin:12px 0 8px">Largeurs à découper</div>
+    <div class="rb-rows" data-rb="rows"></div>
+    <div class="flex mt8">
+      <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ajouter une ligne</button>
+    </div>`;
+  document.getElementById('refBlocks').appendChild(block);
+  // 2 lignes vides par défaut sur le nouveau bloc
+  const cont=block.querySelector('.rb-rows');
+  cont.appendChild(makeOrderRow());cont.appendChild(makeOrderRow());
   updateCartonVisibility();
+  renumberRefBlocks();
+  recalcPlan();
+}
+function removeRefBlock(btn){
+  const block=btn.closest('.ref-block');
+  if(!block) return;
+  block.remove();
+  renumberRefBlocks();
+  recalcPlan();
+}
+function renumberRefBlocks(){
+  document.querySelectorAll('.ref-block').forEach((bl,i)=>{
+    const t=bl.querySelector('.ref-block-title');
+    if(t) t.textContent='Référence '+(i+1);
+  });
+}
+// Auto-remplit largeur mère + longueur d'un bloc réf "extra" quand on choisit une réf.
+function onRefChangeBlock(sel){
+  const block=sel.closest('.ref-block');
+  if(!block) return;
+  const client=document.getElementById('planClient')?.value||'';
+  const found=(CLIENT_DATA[client]||[]).find(r=>r.ref===sel.value);
+  if(found){
+    if(found.largeur>0){const m=block.querySelector('[data-rb="mother"]');if(m)m.value=found.largeur;}
+    const lg=block.querySelector('[data-rb="longueur"]');if(lg)lg.value=found.longueur||'';
+  }
+  recalcPlan();
 }
 // Une bobine est "figée" si l'opérateur a déjà agi dessus : coupée, config modifiée à la main,
 // photo, NC, action, ou test 2ème bobineaux. Sa config compte alors comme production engagée.
@@ -2204,68 +2314,91 @@ function packRefGroups(groups){
 let _recalcPlanTimer=null;
 function debouncedRecalcPlan(){clearTimeout(_recalcPlanTimer);_recalcPlanTimer=setTimeout(recalcPlan,2000);}
 function recalcPlan(){
-  const rows=getOrderRows();
-  const useful=getUseful();
-  const blade=getBlade();
-  if(!rows.length||useful<=0){
-    planOversize=[];
-    document.getElementById('statsBar').innerHTML='';
-    document.getElementById('planCards').innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
-    return;
-  }
-  const bobines=pack(expandDemand(rows),useful,blade);
-  planGroups=groupBobines(bobines,blade);
+  if(document.getElementById('usefulDisplay'))
+    document.getElementById('usefulDisplay').textContent='Largeur utile : '+fmt(getUseful())+' mm';
+  const groups=getRefGroups();
+  const computed=packRefGroups(groups);
+  // planGroups global = concat des configs de toutes les réfs (pour le reste de l'app)
+  planGroups=[].concat(...computed.map(c=>c.planGroups));
   if(planChecked.length!==planGroups.length) planChecked=new Array(planGroups.length).fill(false);
 
-  // Laizes plus larges que la largeur utile → impossibles à découper, exclues du calcul
-  planOversize=rows.filter(r=>r.width>useful);
-  const oversizeBanner=planOversize.length
-    ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile (${fmt(useful)} mm) : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
-    : '';
+  const statsEl=document.getElementById('statsBar');
+  const cardsEl=document.getElementById('planCards');
+  const anyRows=computed.some(c=>c.rows.length);
+  if(!anyRows){
+    planOversize=[];
+    if(statsEl) statsEl.innerHTML='';
+    if(cardsEl) cardsEl.innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
+    return;
+  }
 
-  const totalBobines=bobines.length;
-  const totalMat=totalBobines*useful;
-  const totalUsed=bobines.reduce((s,p)=>s+calcStats(p,blade).total,0);
+  // Oversize cumulé (toutes réfs)
+  planOversize=[].concat(...computed.map(c=>c.oversize));
+
+  // Totaux globaux
+  const totalBobines=computed.reduce((s,c)=>s+c.stats.totalBobines,0);
+  const totalMat=computed.reduce((s,c)=>s+c.stats.totalMat,0);
+  const totalUsed=computed.reduce((s,c)=>s+c.stats.totalUsed,0);
   const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
   const pctCls=pct<3?'pct-green':pct<8?'pct-orange':'pct-red';
-  document.getElementById('statsBar').innerHTML=oversizeBanner+`
+  const multi=computed.length>1;
+  const oversizeBanner=planOversize.length
+    ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
+    : '';
+  if(statsEl) statsEl.innerHTML=oversizeBanner+`
     <div class="stat-chip">${totalBobines} bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">${planGroups.length} config${planGroups.length>1?'s':''}</div>
-    <div class="stat-chip">utile <span style="font-weight:700">${fmt(useful)} mm</span></div>
-    <div class="stat-chip ${pctCls}">Perte : <span>${pct.toFixed(1)}%</span></div>`;
+    ${multi?`<div class="stat-chip">${computed.length} références</div>`:`<div class="stat-chip">utile <span style="font-weight:700">${fmt(computed[0].useful)} mm</span></div>`}
+    <div class="stat-chip ${pctCls}">Perte ${multi?'globale ':''}: <span>${pct.toFixed(1)}%</span></div>`;
 
+  // Rendu des cartes, réf par réf, avec bande de changement entre réfs.
   let html='';
-  let bStart=1;
-  planGroups.forEach((g,gi)=>{
-    const st=calcStats(g.pattern,blade);
-    const waste=useful-st.total;
-    const isLast=gi===planGroups.length-1;
-    const cls='bobine-card'+(isLast?' solde':'');
-    const wLabel=isLast
-      ?`<span class="badge-solde">solde conservé ${fmt(waste)} mm</span>`
-      :`<span class="badge ${waste<useful*0.03?'badge-green':waste<useful*0.08?'badge-orange':'badge-red'}">${fmt(waste)} mm chute</span>`;
-    const bEnd=bStart+g.count-1;
-    const numLabel=g.count>1?`${bStart}→${bEnd} / ${totalBobines}`:`${bStart} / ${totalBobines}`;
-    bStart=bEnd+1;
-    html+=`<div class="${cls}" data-gi="${gi}">
-      <div class="card-header">
-        <div>
-          <div class="card-config">${g.count>1?g.count+' bobines':'1 bobine'} — ${makeLabel(g.pattern)}</div>
-          <div class="card-sub flex-wrap" style="margin-top:5px">
-            <span>${fmt(st.total)} / ${fmt(useful)} mm</span><span>·</span>${wLabel}
+  let bGlobal=1;       // numéro de bobine global (continu sur tout le plan)
+  let giGlobal=0;      // index de config global (aligné sur planGroups)
+  computed.forEach((c,ci)=>{
+    if(!c.rows.length) return;
+    const useful=c.useful, blade=c.blade;
+    if(multi){
+      const refLbl=c.ref||('Référence '+(ci+1));
+      html+=`<div class="ref-band">🎞 ${refLbl} — laize ${fmt(useful)} mm · ${c.stats.totalBobines} bobine${c.stats.totalBobines>1?'s':''} · perte ${c.stats.pct.toFixed(1)}%</div>`;
+    }
+    c.planGroups.forEach((g,gi)=>{
+      const st=calcStats(g.pattern,blade);
+      const waste=useful-st.total;
+      const isLast=gi===c.planGroups.length-1;
+      const cls='bobine-card'+(isLast?' solde':'');
+      const wLabel=isLast
+        ?`<span class="badge-solde">solde conservé ${fmt(waste)} mm</span>`
+        :`<span class="badge ${waste<useful*0.03?'badge-green':waste<useful*0.08?'badge-orange':'badge-red'}">${fmt(waste)} mm chute</span>`;
+      const bEnd=bGlobal+g.count-1;
+      bGlobal=bEnd+1;
+      html+=`<div class="${cls}" data-gi="${giGlobal}">
+        <div class="card-header">
+          <div>
+            <div class="card-config">${g.count>1?g.count+' bobines':'1 bobine'} — ${makeLabel(g.pattern)}</div>
+            <div class="card-sub flex-wrap" style="margin-top:5px">
+              <span>${fmt(st.total)} / ${fmt(useful)} mm</span><span>·</span>${wLabel}
+            </div>
           </div>
         </div>
-      </div>
-    </div>`;
+      </div>`;
+      giGlobal++;
+    });
   });
-  document.getElementById('planCards').innerHTML=html;
+  if(cardsEl) cardsEl.innerHTML=html;
   // L'étiquette solde est désormais gérée en bas de la Fiche découpe (plus dans le Plan).
 }
 
 function resetPlan(){
   planChecked=[];
+  // Retire tous les blocs réf supplémentaires (garde le bloc #1)
+  document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
+  _refBlockSeq=1;
+  renumberRefBlocks();
   document.querySelectorAll('.order-row').forEach(r=>r.remove());
   document.getElementById('motherWidth').value='2100';
+  document.getElementById('edgeLoss').value='10';
+  document.getElementById('bladeWidth').value='5';
   document.getElementById('planClient').value='';
   document.getElementById('planRef').innerHTML='<option value="">— Référence —</option>';
   document.getElementById('planLargeur').value='';
@@ -4619,6 +4752,7 @@ function serializeFicheState(){
     fiche:{machine:ficheMachine,ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
       numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||''},
+    chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning},
     lines:getFicheLinesData()
   };
 }
@@ -4687,6 +4821,8 @@ function restoreFicheState(st){
   if(g('planEtiquetage'))g('planEtiquetage').value=st.plan.etiquetage;
   if(g('planCerclage'))g('planCerclage').value=st.plan.cerclage;
   if(g('planNotesEmballage'))g('planNotesEmballage').value=st.plan.notes;
+  document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
+  _refBlockSeq=1; renumberRefBlocks();
   document.querySelectorAll('.order-row').forEach(r=>r.remove());
   (st.plan.rows||[]).forEach(r=>addOrderRow(r.qty,r.width,r.carton||''));
   commandePhoto=st.plan.commandePhoto||'';refreshCommandePhotoZone();
@@ -4705,6 +4841,31 @@ function restoreFicheState(st){
   Object.keys(ficholinePhotos).forEach(k=>delete ficholinePhotos[k]);
   (st.lines||[]).forEach(restoreFicheLineFromData);
   updateAllCumuls();updateCoupeeStatus();refreshOp2BobineList();renumberFicheLines();
+  // Reprise du chrono à la valeur où le brouillon a été créé (remis en pause).
+  restoreChrono(st.chrono);
+}
+// Repositionne le chrono à la valeur enregistrée dans le brouillon, en pause.
+function restoreChrono(c){
+  clearInterval(chronoInterval);
+  chronoRunning=false;
+  if(!c||!c.sec||c.sec<=0){
+    chronoSec=0; chronoStartTs=null;
+    document.getElementById('chronoDisplay').textContent='00:00:00';
+    document.getElementById('chronoDisplay').className='chrono-display';
+    document.getElementById('chronoStartBtn').classList.remove('hidden');
+    document.getElementById('chronoStartBtn').textContent='▶ Démarrer';
+    document.getElementById('chronoPauseBtn').classList.add('hidden');
+    document.getElementById('chronoStatus').textContent='Prêt — appuie sur Démarrer quand tu commences la commande';
+    return;
+  }
+  chronoSec=c.sec;
+  chronoStartTs=c.startTs||null;
+  document.getElementById('chronoDisplay').textContent=fmtTime(chronoSec);
+  document.getElementById('chronoDisplay').className='chrono-display paused';
+  document.getElementById('chronoStartBtn').classList.remove('hidden');
+  document.getElementById('chronoStartBtn').textContent='▶ Reprendre';
+  document.getElementById('chronoPauseBtn').classList.add('hidden');
+  document.getElementById('chronoStatus').textContent='Repris du brouillon — '+fmtTimeFr(chronoSec)+' écoulé. Appuie sur Reprendre.';
 }
 function renderDrafts(){
   const drafts=loadDrafts();
