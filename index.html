@@ -445,7 +445,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <div class="section-title">Plan de découpe</div>
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
-      <button class="btn btn-blue btn-sm" onclick="openSaveModal()">💾 Sauvegarder</button>
+      <button class="btn btn-blue btn-sm" id="planSaveBtn" onclick="openSaveModal()">💾 Sauvegarder</button>
       <button class="btn btn-green btn-sm" onclick="importPlanToFiche()">→ Créer / Mettre à jour la fiche</button>
     </div>
     <div id="planCards"></div>
@@ -475,6 +475,20 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
       <button class="machine-btn-fiche sel-feba" id="fBtnFeba" onclick="selectFicheMachine('feba')">FEBA</button>
       <button class="machine-btn-fiche" id="fBtnMaveg" onclick="selectFicheMachine('maveg')">MAVEG</button>
       <button class="machine-btn-fiche" id="fBtnCevenini" onclick="selectFicheMachine('cevenini')">CEVENINI</button>
+    </div>
+    <div class="row3" style="margin-top:12px">
+      <div class="field">
+        <label>Bobine mère (mm)</label>
+        <input type="text" id="fMother" inputmode="decimal" oninput="syncFicheParams('mother')">
+      </div>
+      <div class="field">
+        <label>Perte bords (mm)</label>
+        <input type="text" id="fEdge" inputmode="decimal" oninput="syncFicheParams('edge')">
+      </div>
+      <div class="field">
+        <label>Perte lame (mm)</label>
+        <input type="text" id="fBlade" inputmode="decimal" oninput="syncFicheParams('blade')">
+      </div>
     </div>
   </div>
 
@@ -560,6 +574,21 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
             <button type="button" class="machine-btn-fiche" id="fBtnMaveg2" onclick="selectFicheMachine2('maveg')">MAVEG</button>
             <button type="button" class="machine-btn-fiche" id="fBtnCevenini2" onclick="selectFicheMachine2('cevenini')">CEVENINI</button>
           </div>
+          <div class="row3" style="margin-top:12px">
+            <div class="field">
+              <label>Bobine mère (mm)</label>
+              <input type="text" id="fMother2" inputmode="decimal" oninput="updateUtile2()">
+            </div>
+            <div class="field">
+              <label>Perte bords (mm)</label>
+              <input type="text" id="fEdge2" inputmode="decimal" oninput="updateUtile2()">
+            </div>
+            <div class="field">
+              <label>Perte lame (mm)</label>
+              <input type="text" id="fBlade2" inputmode="decimal">
+            </div>
+          </div>
+          <div class="text-muted" style="font-size:12px;margin-top:6px">Largeur utile : <span id="fUtile2" style="color:var(--green);font-weight:700">—</span> mm</div>
         </div>
       </div>
     </div>
@@ -760,12 +789,12 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
 <!-- MODALS -->
 <div class="modal-overlay" id="saveModal">
   <div class="modal">
-    <h3>💾 Sauvegarder le plan</h3>
+    <h3 id="saveModalTitle">💾 Sauvegarder le plan</h3>
     <div class="field"><label>Client</label><input type="text" id="saveClient" inputmode="text"></div>
     <div class="field"><label>Référence produit</label><input type="text" id="saveRef" inputmode="text"></div>
     <div class="modal-btns">
       <button class="btn btn-ghost btn-sm" onclick="closeSaveModal()">Annuler</button>
-      <button class="btn btn-blue btn-sm" onclick="doSave()">Sauvegarder</button>
+      <button class="btn btn-blue btn-sm" id="saveModalBtn" onclick="doSave()">Sauvegarder</button>
     </div>
   </div>
 </div>
@@ -1657,6 +1686,7 @@ let cartonByWidth = {};
 let ficheLines = [];
 let loadTargetIdx = null;
 let loadedSaveId = null; // id du plan sauvegardé chargé par l'opérateur (supprimé après confirmation de la fiche)
+let editingSaveId = null; // id du plan en cours de MODIFICATION (la sauvegarde écrase ce plan)
 let photoTargetId = null; // pour savoir quelle bobine reçoit la photo
 let ficholinePhotos = {}; // id -> Storage URL (ou ancien base64)
 let commandePhoto = ''; // [LEGACY] ancienne photo unique de commande (rétro-compat)
@@ -2058,7 +2088,7 @@ function showPage(i){
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
   // Au passage sur la Fiche : import auto depuis le Plan (silencieux, ne touche pas si déjà travaillé).
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
-  if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); }
+  if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); }
   if(i===2) renderDataPage();
 }
 
@@ -2685,6 +2715,27 @@ function filmAttrStr(g){
   if(!g) return '';
   return [g.film,g.veka].map(x=>(x||'').trim()).filter(Boolean).join(' · ');
 }
+// Applique un client sauvegardé au <select> client, en tolérant qu'il ne soit
+// plus exactement dans la liste (renommé, casse/espaces différents, retiré).
+// Retourne le nom de client effectivement sélectionné (pour la suite).
+function applySavedClient(selectEl,savedClient){
+  if(!selectEl) return '';
+  const want=(savedClient||'').trim();
+  if(!want||want==='—'){selectEl.value='';return '';}
+  const opts=Array.from(selectEl.options).map(o=>o.value);
+  // 1) correspondance exacte
+  if(opts.includes(want)){selectEl.value=want;return want;}
+  // 2) correspondance insensible casse/espaces
+  const norm=x=>x.toLowerCase().replace(/\s+/g,' ').trim();
+  const match=opts.find(o=>norm(o)===norm(want));
+  if(match){selectEl.value=match;return match;}
+  // 3) client absent du catalogue : on l'ajoute pour ne pas perdre la sélection
+  const opt=document.createElement('option');
+  opt.value=want; opt.textContent=want+' (hors liste)';
+  selectEl.appendChild(opt);
+  selectEl.value=want;
+  return want;
+}
 // Applique une réf sauvegardée à un <select> de réf, en tolérant que le
 // catalogue client ait changé (ex. KX1035 -> KX1045 sous le même code article).
 // Ordre : 1) valeur exacte si l'option existe ; 2) même code article (préfixe
@@ -3243,6 +3294,9 @@ function downloadPlan(){
 function openSaveModal(){
   document.getElementById('saveClient').value=document.getElementById('planClient').value;
   document.getElementById('saveRef').value=document.getElementById('planRef').value;
+  const editing=!!editingSaveId;
+  const t=document.getElementById('saveModalTitle'); if(t) t.textContent=editing?'✏️ Modifier le plan':'💾 Sauvegarder le plan';
+  const b=document.getElementById('saveModalBtn'); if(b) b.textContent=editing?'Modifier le plan':'Sauvegarder';
   document.getElementById('saveModal').classList.add('open');
 }
 function closeSaveModal(){document.getElementById('saveModal').classList.remove('open');}
@@ -3276,10 +3330,23 @@ async function doSave(){
     date:isoNow()
   };
   try{
-    const docRef=await db.collection('saves').add(entry);
-    savesCache.unshift({_id:docRef.id,...entry});
-    if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
+    if(editingSaveId){
+      // MODIFICATION : on écrase le plan existant au lieu d'en créer un nouveau.
+      const target=editingSaveId; editingSaveId=null;
+      await db.collection('saves').doc(target).update({...entry,date:isoNow()});
+      const idx=savesCache.findIndex(x=>x._id===target);
+      if(idx>=0) savesCache[idx]={...savesCache[idx],...entry,_id:target};
+      else savesCache.unshift({_id:target,...entry});
+      await logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`);
+      if(typeof showToast==='function') showToast('✏️ Plan modifié','ok');
+    }else{
+      const docRef=await db.collection('saves').add(entry);
+      savesCache.unshift({_id:docRef.id,...entry});
+      if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
+      if(typeof showToast==='function') showToast('💾 Plan sauvegardé','ok');
+    }
   }catch(e){alert('Erreur sauvegarde : '+e.message);return;}
+  if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   closeSaveModal();showPage(2);
 }
 function renderSaves(){
@@ -3326,6 +3393,8 @@ function renderSaves(){
     const cmdDetailHtml=isMulti
       ? `<div class="save-meta" style="color:var(--blue);white-space:pre-line;line-height:1.5">📋 ${esc(s.refGroups.map(g=>`${g.ref||'?'} → ${(g.rows||[]).map(r=>r.qty+'×'+r.width+'mm').join(' + ')||'—'}`).join('\n'))}</div>`
       : (cmdDetail?'<div class="save-meta" style="color:var(--blue)">📋 '+esc(cmdDetail)+'</div>':'');
+    const cf=readCommandeFiles(s);
+    const filesLine=cf.length?`<div class="save-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${cf.map(file=>`<a href="${file.url}" target="_blank" rel="noopener" title="${esc(file.name||'pièce jointe')}" style="color:#60a5fa;text-decoration:none;font-size:16px">📎</a>`).join('')}<span style="font-size:11px;color:var(--muted)">${cf.length} pièce${cf.length>1?'s':''} jointe${cf.length>1?'s':''}</span></div>`:'';
     return `<div class="save-card">
       <div class="save-info">
         ${titleHtml}
@@ -3333,9 +3402,11 @@ function renderSaves(){
         <div class="save-meta">${ds} · ${mn} · Bobine ${s.mother} mm</div>
         ${cmdDetailHtml}
         ${pkgLine}
+        ${filesLine}
       </div>
       <div class="save-actions">
         <button class="btn btn-green btn-sm" onclick="openLoadModal('${s._id}')" title="Charger">📂</button>
+        <button class="btn btn-ghost btn-sm" onclick="editSavedPlan('${s._id}')" title="Modifier le plan">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="printSavedPlan('${s._id}')" title="Imprimer le plan">🖨️</button>
         <button class="btn btn-red btn-sm" onclick="deleteSave('${s._id}')" title="Archiver">🗑️</button>
       </div>
@@ -3355,20 +3426,40 @@ function openLoadModal(id){
   document.getElementById('loadModal').classList.add('open');
 }
 function closeLoadModal(){document.getElementById('loadModal').classList.remove('open');loadTargetIdx=null;}
+// Charge un plan dans l'éditeur pour le MODIFIER : la prochaine sauvegarde
+// écrasera ce plan au lieu d'en créer un nouveau (voir doSave).
+function editSavedPlan(id){
+  const s=savesCache.find(x=>x._id===id);
+  if(!s) return;
+  loadTargetIdx=id;
+  doLoad();            // remplit l'éditeur (et ferme la modale, va sur Plan)
+  editingSaveId=id;    // marque le plan comme "en édition"
+  loadedSaveId=null;   // on n'est pas dans le flux opérateur→fiche
+  updateSaveBtnLabel();
+  showToast('✏️ Plan chargé pour modification — enregistre pour écraser l\'ancien','ok');
+}
+// Met le libellé du bouton "Sauvegarder/Modifier" de la page Plan selon le mode.
+function updateSaveBtnLabel(){
+  const b=document.getElementById('planSaveBtn');
+  if(b) b.textContent=editingSaveId?'✏️ Modifier le plan':'💾 Sauvegarder';
+}
 function doLoad(){
   if(!loadTargetIdx) return;
   const s=savesCache.find(x=>x._id===loadTargetIdx);
   if(!s) return;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
+  editingSaveId=null; // un chargement normal annule un éventuel mode modification
+  if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   const G=id=>document.getElementById(id);
   const set=(id,v)=>{const el=G(id);if(el)el.value=(v==null?'':v);};
   const hasGroups=Array.isArray(s.refGroups)&&s.refGroups.length>0;
 
   // 1) CLIENT EN PRIORITÉ — isolé pour qu'aucune autre étape ne puisse l'empêcher.
+  let effClient='';
   if(s.client&&s.client!=='—'){
     try{
       const selClient=G('planClient');
-      if(selClient){ selClient.value=s.client; onClientChange(); }
+      if(selClient){ effClient=applySavedClient(selClient,s.client); onClientChange(); }
     }catch(e){ console.warn('doLoad client:',e); }
   }
 
@@ -3734,6 +3825,11 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   const op2Bob=g('fOp2Active').checked?(g('fOp2Bobine').value||''):'';
   const machine=getMachineLabel(ficheMachine);
   const machine2=(g('fOp2Active').checked&&g('fOp2DiffMachine')?.checked&&ficheMachine2)?getMachineLabel(ficheMachine2):'';
+  const op2Diff=g('fOp2Active').checked&&g('fOp2DiffMachine')?.checked;
+  const mother2=op2Diff?(g('fMother2')?.value||''):'';
+  const edge2=op2Diff?(g('fEdge2')?.value||''):'';
+  const blade2=op2Diff?(g('fBlade2')?.value||''):'';
+  const useful2=op2Diff?fmt(Math.max(0,parseNum(mother2)-parseNum(edge2))):'';
   const lame=g('fNumLame').value||'—';
   const numJour=g('fNumJour').value||'—';
   const longueur=multi?computed.map(c=>c.longueur||'—').join(' / '):(g('fLongueur').value||g('planLongueur').value||'—');
@@ -3772,7 +3868,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   }
 
   const ficheEntry={
-    name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,machine2,lame,numJour,longueur,mother,rows,
+    name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,machine2,mother2,edge2,blade2,useful2,lame,numJour,longueur,mother,rows,
     refGroups:multi?serializeRefGroups():null,
     film:multi?'':(getRefGroups()[0]?.film||''), veka:multi?'':(getRefGroups()[0]?.veka||''),
     mandrinByWidth:(()=>{const m={};getRefGroups().forEach(g=>(g.rows||[]).forEach(r=>{if(r.mandrin)m[r.width]=r.mandrin;}));return m;})(),
@@ -3881,7 +3977,8 @@ function resetAll(){
   document.getElementById('ficheLines').innerHTML='';
   ficheLines=[];
   Object.keys(ficholinePhotos).forEach(function(k){delete ficholinePhotos[k];});
-  commandePhoto='';commandeFiles=[];refreshCommandePhotoZone();loadedSaveId=null;
+  commandePhoto='';commandeFiles=[];refreshCommandePhotoZone();loadedSaveId=null;editingSaveId=null;
+  if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   commandTotals={};
   cartonByWidth={};
   document.getElementById('fClient').value='';
@@ -3902,6 +3999,8 @@ function resetAll(){
   const op2dm=document.getElementById('fOp2DiffMachine');if(op2dm)op2dm.checked=false;
   document.getElementById('op2MachineZone')?.classList.add('hidden');
   ficheMachine2='';
+  ['fMother2','fEdge2','fBlade2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const u2=document.getElementById('fUtile2');if(u2)u2.textContent='—';
   refreshEtiquetteSolde();
 
   // Re-sélectionner l'opérateur connecté
@@ -5093,6 +5192,7 @@ function showFicheDetail(id,autoPrint){
       ${(f.dateLiv&&f.dateLiv!=='—')?`<span>Livraison client</span><span>${esc(f.dateLiv)}</span>`:''}
       <span>Machine</span><span>${f.machine2&&f.machine2!==f.machine?`${esc(f.machine)} <span style="color:#888">(op.1)</span> · <b style="color:#f59e0b">${esc(f.machine2)}</b> <span style="color:#888">(op.2${f.op2Bob?` dès bobine ${esc(f.op2Bob)}`:''})</span>`:esc(f.machine)}</span>
       <span>Bobine mère</span><span>${f.mother} mm · utile ${f.useful} mm · lame ${f.blade} mm</span>
+      ${(f.mother2||f.edge2||f.blade2)?`<span>Réglages op.2</span><span style="color:#f59e0b">Bobine mère ${esc(String(f.mother2||'—'))} mm · utile ${esc(String(f.useful2||'—'))} mm · bords ${esc(String(f.edge2||'—'))} mm · lame ${esc(String(f.blade2||'—'))} mm</span>`:''}
       <span>Longueur réf.</span><span>${f.longueur} m</span>
       <span>Lame N°</span><span>${f.lame}</span>
       <span>N° Jour</span><span>${f.numJour}</span>
@@ -5416,6 +5516,25 @@ function selectFicheMachine(m){
   document.getElementById('fBtnFeba').className='machine-btn-fiche'+(m==='feba'?' sel-feba':'');
   document.getElementById('fBtnMaveg').className='machine-btn-fiche'+(m==='maveg'?' sel-maveg':'');
   document.getElementById('fBtnCevenini').className='machine-btn-fiche'+(m==='cevenini'?' sel-cevenini':'');
+  refreshFicheParams();
+}
+// Recopie les champs fiche (bobine mère / perte bords / lame) -> champs plan,
+// puis recalcule. Les deux jeux de champs restent synchronisés.
+function syncFicheParams(which){
+  const map={mother:'motherWidth',edge:'edgeLoss',blade:'bladeWidth'};
+  const fId={mother:'fMother',edge:'fEdge',blade:'fBlade'};
+  const planEl=document.getElementById(map[which]);
+  const fEl=document.getElementById(fId[which]);
+  if(planEl&&fEl){ planEl.value=fEl.value; }
+  recalcPlan();
+}
+// Recopie les champs plan -> champs fiche (affichage à jour à l'ouverture de la fiche).
+function refreshFicheParams(){
+  const m=document.getElementById('motherWidth'), e=document.getElementById('edgeLoss'), b=document.getElementById('bladeWidth');
+  const fm=document.getElementById('fMother'), fe=document.getElementById('fEdge'), fb=document.getElementById('fBlade');
+  if(fm&&m) fm.value=m.value;
+  if(fe&&e) fe.value=e.value;
+  if(fb&&b) fb.value=b.value;
 }
 function selectFicheMachine2(m){
   ficheMachine2=m;
@@ -5426,7 +5545,20 @@ function selectFicheMachine2(m){
 function toggleOp2Machine(){
   const on=document.getElementById('fOp2DiffMachine').checked;
   document.getElementById('op2MachineZone').classList.toggle('hidden',!on);
-  if(on && !ficheMachine2){ selectFicheMachine2(ficheMachine||'feba'); }
+  if(on){
+    if(!ficheMachine2){ selectFicheMachine2(ficheMachine||'feba'); }
+    // Pré-remplit les réglages op2 depuis ceux de l'op1 s'ils sont vides.
+    const cp=(src,dst)=>{const s=document.getElementById(src),d=document.getElementById(dst);if(d&&!d.value&&s)d.value=s.value;};
+    cp('motherWidth','fMother2'); cp('edgeLoss','fEdge2'); cp('bladeWidth','fBlade2');
+    updateUtile2();
+  }
+}
+function updateUtile2(){
+  const m=parseNum(document.getElementById('fMother2')?.value);
+  const e=parseNum(document.getElementById('fEdge2')?.value);
+  const u=Math.max(0,m-e);
+  const el=document.getElementById('fUtile2');
+  if(el) el.textContent=(m>0)?fmt(u):'—';
 }
 function selectIni(v){
   selectedIni=v;document.getElementById('fInitiales').value=v;
@@ -5755,7 +5887,7 @@ function serializeFicheState(){
       client:g('planClient')?.value||'',ref:g('planRef')?.value||'',largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',
       numCmd:g('planNumCmd')?.value||'',dateLiv:g('planDateLiv')?.value||'',type:g('planType')?.value||'',palette:g('planPalette')?.value||'',
       etiquetage:g('planEtiquetage')?.value||'',cerclage:g('planCerclage')?.value||'',notes:g('planNotesEmballage')?.value||'',rows:getOrderRows(),refGroups:serializeRefGroups(),commandeFiles:(migrateCommandePhoto(),commandeFiles.slice())},
-    fiche:{machine:ficheMachine,machine2:ficheMachine2,op2DiffMachine:g('fOp2DiffMachine')?.checked||false,ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',
+    fiche:{machine:ficheMachine,machine2:ficheMachine2,op2DiffMachine:g('fOp2DiffMachine')?.checked||false,mother2:g('fMother2')?.value||'',edge2:g('fEdge2')?.value||'',blade2:g('fBlade2')?.value||'',ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
       numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||''},
     chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning},
@@ -5870,7 +6002,7 @@ function restoreFicheState(st){
   if(st.fiche.ini){selectedIni=st.fiche.ini;document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===st.fiche.ini));}
   if(st.fiche.ini2){selectedIni2=st.fiche.ini2;document.querySelectorAll('#initBtns2 .ini-btn').forEach(b=>b.classList.toggle('sel2',b.textContent===st.fiche.ini2));}
   if(g('fOp2Active')){g('fOp2Active').checked=!!st.fiche.op2Active;toggleOp2();}
-  if(g('fOp2DiffMachine')){g('fOp2DiffMachine').checked=!!st.fiche.op2DiffMachine;ficheMachine2=st.fiche.machine2||'';toggleOp2Machine();if(ficheMachine2)selectFicheMachine2(ficheMachine2);}
+  if(g('fOp2DiffMachine')){g('fOp2DiffMachine').checked=!!st.fiche.op2DiffMachine;ficheMachine2=st.fiche.machine2||'';toggleOp2Machine();if(ficheMachine2)selectFicheMachine2(ficheMachine2);const sv=(id,v)=>{const el=g(id);if(el)el.value=v||'';};sv('fMother2',st.fiche.mother2);sv('fEdge2',st.fiche.edge2);sv('fBlade2',st.fiche.blade2);updateUtile2();}
   document.getElementById('ficheLines').innerHTML='';ficheLines=[];
   Object.keys(ficholinePhotos).forEach(k=>delete ficholinePhotos[k]);
   (st.lines||[]).forEach(restoreFicheLineFromData);
