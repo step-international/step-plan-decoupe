@@ -645,6 +645,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
       <button class="btn btn-red btn-sm" onclick="clearFiches()">📦 Tout archiver</button>
     </div>
+    <input type="text" id="ficheSearch" oninput="renderFiches()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
     <div id="fichesList"></div>
     <div id="fichesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune fiche enregistrée.</div>
   </div>
@@ -861,6 +862,15 @@ window.addEventListener('beforeunload',function(e){
     e.preventDefault();
     e.returnValue='';
     return '';
+  }
+});
+// Raccourci atelier : Échap ferme le modal ouvert (photo, sauvegarde, chargement, chrono).
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    const open=document.querySelector('.modal-overlay.open');
+    if(open){open.classList.remove('open');return;}
+    const po=document.getElementById('photoOverlay');
+    if(po&&po.classList.contains('open')){closePhotoViewer();}
   }
 });
 
@@ -2054,8 +2064,9 @@ function importPlanToFiche(opts){
 function insertFicheRefSeparator(ref,useful,longueur){
   const div=document.createElement('div');
   div.className='fiche-ref-sep';
+  div.dataset.ref=ref||'';
   const mlPart=(longueur!=null&&String(longueur).trim()!=='')?` · ${esc(String(longueur))} ml`:'';
-  div.innerHTML=`🎞 ${esc(ref)} — laize ${fmt(useful)} mm${mlPart}`;
+  div.innerHTML=`🎞 ${esc(ref)} — laize ${fmt(useful)} mm${mlPart} <span class="ref-sep-count" style="margin-left:8px"></span>`;
   document.getElementById('ficheLines').appendChild(div);
 }
 
@@ -2558,25 +2569,32 @@ function packRefGroups(groups){
 // Anti-freeze : pendant la saisie, on ne relance le calcul d'optimisation
 // qu'une fois la frappe arrêtée (2 s), au lieu d'à chaque caractère.
 let _recalcPlanTimer=null;
-function debouncedRecalcPlan(){clearTimeout(_recalcPlanTimer);_recalcPlanTimer=setTimeout(recalcPlan,2000);}
+function debouncedRecalcPlan(){
+  clearTimeout(_recalcPlanTimer);
+  // Tempo adaptative : sur les grosses saisies (beaucoup de bobines attendues),
+  // on laisse 3 s pour éviter de relancer le calcul à chaque frappe et faire ramer le PC.
+  let delay=2000;
+  try{
+    const totalQty=getRefGroups().reduce((s,g)=>s+g.rows.reduce((a,r)=>a+(r.qty>0?r.qty:0),0),0);
+    if(totalQty>=300) delay=3000;
+  }catch(e){}
+  _recalcPlanTimer=setTimeout(recalcPlan,delay);
+}
 function recalcPlan(){
   if(document.getElementById('usefulDisplay'))
     document.getElementById('usefulDisplay').textContent='Largeur utile : '+fmt(getUseful())+' mm';
   const groups=getRefGroups();
-  // Garde-fou anti-freeze : l'optimisation devient coûteuse quand une réf cumule
+  // Avertissement (non bloquant) : l'optimisation devient coûteuse quand une réf cumule
   // beaucoup de largeurs DISTINCTES et une grosse quantité (calcul ~quadratique).
-  // Plutôt que de geler le poste atelier, on prévient et on stoppe le calcul.
+  // On NE bloque PAS : on prévient que le calcul peut prendre quelques secondes, puis on calcule.
   const heavy=groups.find(g=>{
     const widths=new Set(g.rows.filter(r=>r.qty>0&&r.width>0).map(r=>r.width));
     const qty=g.rows.reduce((s,r)=>s+(r.qty>0?r.qty:0),0);
     return widths.size>=40 && qty>=400;
   });
+  let heavyBanner='';
   if(heavy){
-    const cardsEl=document.getElementById('planCards');
-    const statsEl=document.getElementById('statsBar');
-    if(statsEl) statsEl.innerHTML='';
-    if(cardsEl) cardsEl.innerHTML='<div style="background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:14px;font-size:13px;font-weight:700">⛔ Commande trop complexe pour l\'optimisation automatique (beaucoup de laizes distinctes + grosse quantité). Découpe-la en plusieurs plans plus simples, ou vérifie une éventuelle faute de saisie.</div>';
-    return;
+    heavyBanner='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⏳ Commande volumineuse (beaucoup de laizes distinctes + grosse quantité) — le calcul peut prendre quelques secondes, patiente.</div>';
   }
   const computed=packRefGroups(groups);
   // planGroups global = concat des configs de toutes les réfs (pour le reste de l'app)
@@ -2606,7 +2624,7 @@ function recalcPlan(){
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
     : '';
-  if(statsEl) statsEl.innerHTML=oversizeBanner+`
+  if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+`
     <div class="stat-chip">${totalBobines} bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">${planGroups.length} config${planGroups.length>1?'s':''}</div>
     ${multi?`<div class="stat-chip">${computed.length} références</div>`:`<div class="stat-chip">utile <span style="font-weight:700">${fmt(computed[0].useful)} mm</span></div>`}
@@ -3048,6 +3066,7 @@ function chronoStart(){
   document.getElementById('chronoStartBtn').classList.add('hidden');
   document.getElementById('chronoPauseBtn').classList.remove('hidden');
   document.getElementById('chronoStatus').textContent='En cours…';
+  startAutosave();
 }
 function chronoPause(){
   if(!chronoRunning) return;
@@ -3058,6 +3077,7 @@ function chronoPause(){
   document.getElementById('chronoStartBtn').textContent='▶ Reprendre';
   document.getElementById('chronoPauseBtn').classList.add('hidden');
   document.getElementById('chronoStatus').textContent='En pause — '+fmtTimeFr(chronoSec)+' écoulé';
+  stopAutosave();
 }
 function chronoReset(){
   chronoRunning=false;
@@ -3069,6 +3089,7 @@ function chronoReset(){
   document.getElementById('chronoStartBtn').textContent='▶ Démarrer';
   document.getElementById('chronoPauseBtn').classList.add('hidden');
   document.getElementById('chronoStatus').textContent='Prêt — appuie sur Démarrer quand tu commences la commande';
+  stopAutosave();
 }
 
 // ============================================================
@@ -3396,7 +3417,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     return;
   }
 
-  alert('✓ Commande confirmée et enregistrée dans Données'+(opts.modifié?' (fiche marquée modifiée)':'')+'.');
+  showToast('✓ Commande confirmée et enregistrée'+(opts.modifié?' (fiche modifiée)':''),'ok');
   // Reset complet → Plan vierge
   setTimeout(function(){ resetAll(); }, 300);
 }
@@ -3596,7 +3617,7 @@ async function doChronoSave(){
   }catch(e){alert('Erreur enregistrement : '+e.message);return;}
   closeChronoSaveModal();
   chronoReset();
-  alert('✓ Temps enregistré : '+fmtTimeFr(entry.duree));
+  showToast('✓ Temps enregistré : '+fmtTimeFr(entry.duree),'ok');
 }
 
 // ============================================================
@@ -4122,7 +4143,15 @@ function cartonRatioStr(f){
 function renderFiches(){
   const all=fichesCache.filter(f=>!f.deleted);
   const nbValid=all.filter(f=>f.valide===true).length;
-  const fiches=showValidatedFiches?all.filter(f=>f.valide===true):all.filter(f=>f.valide!==true);
+  let fiches=showValidatedFiches?all.filter(f=>f.valide===true):all.filter(f=>f.valide!==true);
+  // Recherche texte (client, n° commande, nom de fiche, réf).
+  const q=(document.getElementById('ficheSearch')?.value||'').trim().toLowerCase();
+  if(q){
+    fiches=fiches.filter(f=>{
+      const refs=Array.isArray(f.refGroups)?f.refGroups.map(g=>g.ref||'').join(' '):(f.ref||'');
+      return [f.client,f.numCmd,f.name,refs].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+  }
   const list=document.getElementById('fichesList');
   const empty=document.getElementById('fichesEmpty');
   // Mise à jour du bouton toggle
@@ -4132,6 +4161,11 @@ function renderFiches(){
     btn.className='btn btn-sm '+(showValidatedFiches?'btn-green':'btn-ghost');
   }
   if(!fiches.length){
+    if(q){
+      list.innerHTML='<div style="text-align:center;padding:24px 16px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">Aucune fiche ne correspond à « '+esc(q)+' ».</div>';
+      empty.classList.add('hidden');
+      return;
+    }
     list.innerHTML=showValidatedFiches
       ?'<div style="text-align:center;padding:30px 16px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px"><div style="font-size:32px;margin-bottom:8px">📁</div><div>Aucune fiche validée pour l\'instant.</div></div>'
       :'';
@@ -4324,7 +4358,7 @@ async function saveFicheConfigs(id){
     logAudit('edit','fiches',id,`Plan modifié par valideur — ${client} / ${ref} (${newDetail.length} bobines)`);
     document.getElementById('editFicheOverlay')?.remove();
     renderFiches();
-    alert('✓ Plan modifié et enregistré ('+newDetail.length+' bobines).');
+    showToast('✓ Plan modifié et enregistré ('+newDetail.length+' bobines)','ok');
   }catch(e){alert('Erreur enregistrement : '+e.message);}
 }
 
@@ -5022,6 +5056,13 @@ function updateCoupeeStatus(){
       const lines=ficheLines.filter(l=>l.ref===r);
       const d=lines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
       const ok=d===lines.length;
+      // Compteur dans la bande séparatrice de cette réf (évite que l'opérateur se mélange).
+      document.querySelectorAll('.fiche-ref-sep').forEach(sep=>{
+        if(sep.dataset.ref===r){
+          const c=sep.querySelector('.ref-sep-count');
+          if(c){c.innerHTML=`✂ <strong>${d}/${lines.length}</strong>`;c.style.color=ok?'var(--green)':'#fca5a5';}
+        }
+      });
       return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(r)} <strong>${d}/${lines.length}</strong></span>`;
     }).join(' · ');
   }
@@ -5163,7 +5204,7 @@ function saveDraftManual(){
   const drafts=loadDrafts();
   drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label,state:st});
   persistDrafts(drafts);
-  alert('💾 Brouillon enregistré — disponible dans Données > Brouillons.');
+  showToast('💾 Brouillon enregistré — Données > Brouillons','ok');
 }
 function saveDraftFromSend(ficheEntry,tempsEntry,body){
   const st=serializeFicheState();
@@ -5171,6 +5212,25 @@ function saveDraftFromSend(ficheEntry,tempsEntry,body){
   const drafts=loadDrafts();
   drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,fromSend:true});
   persistDrafts(drafts);
+}
+// Auto-sauvegarde : tant que le chrono tourne, on maintient UN brouillon auto (id fixe)
+// rafraîchi toutes les 60 s. Évite la perte si l'app est fermée en pleine saisie.
+let _autosaveTimer=null;
+const AUTOSAVE_ID='d_autosave';
+function autosaveDraftTick(){
+  if(!ficheLines.length) return;
+  const st=serializeFicheState();
+  const label='🔄 Auto · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
+  const drafts=loadDrafts().filter(d=>d.id!==AUTOSAVE_ID);
+  drafts.unshift({id:AUTOSAVE_ID,savedAt:isoNow(),label,state:st,auto:true});
+  persistDrafts(drafts);
+}
+function startAutosave(){
+  if(_autosaveTimer) return;
+  _autosaveTimer=setInterval(autosaveDraftTick,60000);
+}
+function stopAutosave(){
+  if(_autosaveTimer){clearInterval(_autosaveTimer);_autosaveTimer=null;}
 }
 function deleteDraft(id){
   if(!confirm('Supprimer ce brouillon ?')) return;
@@ -5182,7 +5242,7 @@ function resumeDraft(id){
   if(!d){alert('Brouillon introuvable.');return;}
   restoreFicheState(d.state);
   showPage(1);
-  alert('Brouillon chargé dans la Fiche. Vérifie les bobines puis envoie.');
+  showToast('Brouillon chargé — vérifie les bobines puis envoie','ok');
 }
 function restoreFicheLineFromData(ld){
   addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',useful:ld.useful||0,blade:ld.blade||0});
