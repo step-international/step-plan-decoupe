@@ -2789,23 +2789,38 @@ function getPlanHTML(){
   ${sections}</body></html>`;
 }
 function printEtiquette(d){
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Étiquette solde</title>
+  const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Étiquette solde</title>
   <style>
-    body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fff}
-    .etiq{border:3px solid #000;border-radius:12px;padding:24px 32px;width:320px;text-align:center;font-size:15px;line-height:2}
-    .etiq h2{font-size:18px;margin-bottom:8px;border-bottom:2px solid #000;padding-bottom:8px}
-    .solde{font-size:32px;font-weight:900;color:#b45309;margin:8px 0}
-    .row{font-size:13px;color:#444}
-    @media print{body{min-height:auto}}
+    @page{size:A4 landscape;margin:6mm}
+    *{box-sizing:border-box}
+    html,body{margin:0;background:#fff;font-family:Arial,Helvetica,sans-serif}
+    .toolbar{position:sticky;top:0;display:flex;gap:12px;justify-content:center;padding:14px;background:#15131c;flex-wrap:wrap}
+    .toolbar button{font-size:17px;font-weight:800;padding:14px 20px;border-radius:12px;border:0;cursor:pointer}
+    .back{background:#2563eb;color:#fff}
+    .prn{background:#16a34a;color:#fff}
+    .sheet{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 72px);padding:8mm}
+    .etiq{border:7px solid #000;border-radius:22px;padding:5vh 4vw;width:100%;max-width:270mm;text-align:center}
+    .etiq h2{font-size:44px;margin:0 0 20px;border-bottom:6px solid #000;padding-bottom:16px;letter-spacing:1px}
+    .solde{font-weight:900;color:#b45309;line-height:.95;font-size:210px;margin:14px 0}
+    .solde small{font-size:70px;font-weight:800}
+    .grid{display:flex;flex-wrap:wrap;justify-content:center;gap:14px 56px;font-size:36px;margin-top:20px}
+    .grid b{font-size:40px}
+    @media print{ .toolbar{display:none} .sheet{min-height:auto;padding:0} .etiq{border-width:6px} }
   </style></head><body>
-  <div class="etiq">
-    <h2>ÉTIQUETTE SOLDE — STEP</h2>
-    <div class="solde">${d.solde} mm</div>
-    ${d.numBob?`<div class="row"><b>Bobine mère n° :</b> ${d.numBob}</div>`:''}
-    ${d.ref?`<div class="row"><b>Référence :</b> ${d.ref}</div>`:''}
-    <div class="row"><b>Machine :</b> ${d.mn}</div>
-    <div class="row"><b>Date :</b> ${d.date}</div>
+  <div class="toolbar">
+    <button class="back" onclick="window.close()">← Revenir à la fiche découpe</button>
+    <button class="prn" onclick="window.print()">🖨️ Imprimer</button>
   </div>
+  <div class="sheet"><div class="etiq">
+    <h2>ÉTIQUETTE SOLDE — STEP</h2>
+    <div class="solde">${esc(String(d.solde))}<small> mm</small></div>
+    <div class="grid">
+      ${d.numBob?`<span><b>Bobine mère n° :</b> ${esc(String(d.numBob))}</span>`:''}
+      ${d.ref?`<span><b>Réf :</b> ${esc(String(d.ref))}</span>`:''}
+      <span><b>Machine :</b> ${esc(String(d.mn))}</span>
+      <span><b>Date :</b> ${esc(String(d.date))}</span>
+    </div>
+  </div></div>
   </body></html>`;
   openPrintWindow(html);
 }
@@ -4308,7 +4323,7 @@ function renderFiches(){
     // Boutons validation pour DC/admin
     const validBtns=canValidate()?`
       <button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="Modifier">✏ Modifier</button>
-      <button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>
+      ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
       <button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser">✗ Refuser</button>`:'';
     return `<div class="fiche-card"${f.modifie?' style="border-color:#caa15a"':''}>
       <div class="fc-header">
@@ -4450,6 +4465,25 @@ function efRemoveBob(btn){
   efRenumber();
 }
 
+// Reconstruit les "groupes" (plan de découpe du PDF) à partir des bobines réelles
+// de la fiche (ficheDetail) : regroupe les configs identiques consécutives et
+// recalcule total/chute. Utilisé après une modification valideur, sinon le PDF
+// continuerait d'afficher l'ancien plan. useful/blade : 1ʳᵉ valeur de la fiche
+// (exact en mono-réf ; chute approximée en multi-réf, configs toujours exactes).
+function groupsFromDetail(detail,useful,blade){
+  const out=[]; let i=0;
+  const norm=c=>(c||'').replace(/x/gi,'×').replace(/\*/g,'×').trim();
+  while(i<detail.length){
+    const conf=norm(detail[i].conf);
+    let cnt=1; while(i+cnt<detail.length && norm(detail[i+cnt].conf)===conf) cnt++;
+    const pattern=parseConf(conf);
+    const total=calcStats(pattern,blade).total;
+    out.push({label:pattern.length?makeLabel(pattern):(conf||'—'),count:cnt,total:fmt(total),waste:fmt(useful-total),isLast:false});
+    i+=cnt;
+  }
+  return out;
+}
+
 async function saveFicheConfigs(id){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
@@ -4466,9 +4500,19 @@ async function saveFicheConfigs(id){
     newDetail.push({...base,label:r.querySelector('.ef-lab').value,conf:r.querySelector('.ef-cf').value});
   });
   if(!newDetail.length){alert('Il faut au moins une bobine.');return;}
+  // Régénère le plan (groups) depuis les bobines modifiées → le PDF reflète la modif.
+  const useful=parseNum(f.useful)||0, blade=parseNum(f.blade)||0;
+  const newGroups=groupsFromDetail(newDetail,useful,blade);
+  const totalUsed=newGroups.reduce((s,g)=>s+parseNum(g.total)*g.count,0);
+  const totalMat=useful*newDetail.length;
+  const pct=(totalMat>0?((totalMat-totalUsed)/totalMat*100):0).toFixed(1);
+  // Plan et fiche terrain désormais alignés : plus d'écart.
+  const upd={client,ref,numCmd,dateLiv,lame,ficheDetail:newDetail,
+    groups:newGroups,nbPlan:newDetail.length,nbFiche:newDetail.length,totalBobines:newDetail.length,
+    pct,hasEcart:false,ecartMsg:'',modifie:true};
   try{
-    await db.collection('fiches').doc(id).update({client,ref,numCmd,dateLiv,lame,ficheDetail:newDetail,nbFiche:newDetail.length,totalBobines:newDetail.length});
-    f.client=client;f.ref=ref;f.numCmd=numCmd;f.dateLiv=dateLiv;f.lame=lame;f.ficheDetail=newDetail;f.nbFiche=newDetail.length;f.totalBobines=newDetail.length;
+    await db.collection('fiches').doc(id).update(upd);
+    Object.assign(f,upd);
     logAudit('edit','fiches',id,`Plan modifié par valideur — ${client} / ${ref} (${newDetail.length} bobines)`);
     document.getElementById('editFicheOverlay')?.remove();
     renderFiches();
@@ -4549,10 +4593,24 @@ function renderNc(){
           ${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${esc(r.detail)}</div>`:'<div class="save-meta" style="color:#f87171">⚠ Aucun détail renseigné</div>'}
           ${r.action?`<div class="save-meta">Action : ${r.action}</div>`:''}
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${r.ficheId}')" style="flex-shrink:0">👁</button>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${r.ficheId}')" title="Voir la fiche">👁</button>
+          <button class="btn btn-red btn-sm" onclick="ncArchiveFiche('${r.ficheId}')" title="Archiver la fiche (corbeille)">🗑</button>
+        </div>
       </div>
     </div>`;
   }).join('');
+}
+async function ncArchiveFiche(id){
+  if(!canManageData()){alert('Action réservée au pilotage et aux admins.');return;}
+  const f=fichesCache.find(x=>x._id===id);
+  if(!confirm('Archiver toute la fiche de cette non-conformité ?\n\nLa fiche entière part à la corbeille (récupérable) et disparaît du registre NC.')) return;
+  try{
+    await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
+    if(f){f.deleted=true;f.deletedAt=isoNow();}
+    await logAudit('delete','fiches',id,f?`NC → archive — ${f.client||''} / ${f.ref||''}`:'');
+  }catch(e){alert('Erreur : '+e.message);}
+  renderNc();
 }
 function exportNc(){
   const rows=buildNcRows();
@@ -4901,7 +4959,7 @@ function renderCorbeille(){
   if(!deleted.length){list.innerHTML='';empty.style.display='';empty.textContent='Corbeille vide.';return;}
   empty.style.display='none';
 
-  list.innerHTML=deleted.map(d=>{
+  const cards=deleted.map(d=>{
     const delDate=new Date(d.date);
     const ds=delDate.toLocaleDateString('fr-FR')+' '+delDate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const remaining=Math.max(0,Math.ceil((_45days-(now-delDate.getTime()))/(24*60*60*1000)));
@@ -4919,6 +4977,33 @@ function renderCorbeille(){
       </div>
     </div>`;
   }).join('');
+  const toolbar=canPermanentDelete()
+    ? `<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-red btn-sm" onclick="permanentDeleteAll()">🗑 Tout supprimer (${deleted.length})</button></div>`
+    : '';
+  list.innerHTML=toolbar+cards;
+}
+
+async function permanentDeleteAll(){
+  if(!canPermanentDelete()){alert('Suppression définitive réservée au pilotage et aux admins.');return;}
+  const items=corbeilleCache.slice();
+  if(!items.length){alert('La corbeille est déjà vide.');return;}
+  const nbValid=items.filter(it=>it._col==='fiches'&&it.valide===true).length;
+  let msg='Vider la corbeille : supprimer DÉFINITIVEMENT les '+items.length+' élément(s) ? Action IRRÉVERSIBLE.';
+  if(nbValid>0) msg+='\n\n⚠ Dont '+nbValid+' fiche(s) VALIDÉE(S) (conservation qualité / ISO 2 ans) qui seront aussi supprimées.';
+  if(!confirm(msg)) return;
+  if(nbValid>0 && !confirm('Dernière confirmation : '+nbValid+' fiche(s) validée(s) seront supprimées définitivement.')) return;
+  const doneIds=new Set(); let errc=0;
+  for(const it of items){
+    try{
+      if(it._col==='fiches'){ addToColdArchive([it]); await deleteFichePhotos(it); }
+      await db.collection(it._col).doc(it._id).delete();
+      doneIds.add(it._id);
+    }catch(e){ errc++; console.error('permanentDeleteAll',it._col,it._id,e); }
+  }
+  corbeilleCache=corbeilleCache.filter(it=>!doneIds.has(it._id));
+  await logAudit('permanent_delete','*','*','Vidage corbeille ('+doneIds.size+' supprimé(s)'+(errc?', '+errc+' échec(s)':'')+')');
+  renderCorbeille();
+  showToast(doneIds.size+' élément(s) supprimé(s) définitivement'+(errc?' · '+errc+' échec(s)':''), errc?'err':'ok');
 }
 
 async function restoreItem(collection,id){
@@ -4939,19 +5024,20 @@ async function restoreItem(collection,id){
 
 async function permanentDelete(collection,id){
   if(!canPermanentDelete()){alert('Suppression définitive réservée au pilotage et aux admins. Les opérateurs peuvent seulement archiver (suppression auto à 45 jours).');return;}
-  // Protection qualité/ISO : une fiche VALIDÉE ne peut pas être supprimée avant 2 ans
+  // Fiche VALIDÉE : conservation qualité/ISO recommandée 2 ans. On n'interdit plus,
+  // mais on avertit explicitement avant d'autoriser la suppression.
   if(collection==='fiches'){
     const it=corbeilleCache.find(x=>x._id===id);
     if(it&&it.valide===true){
       const ageDays=it.deletedAt?Math.floor((Date.now()-new Date(it.deletedAt).getTime())/(24*60*60*1000)):0;
-      if(ageDays<RETENTION_VALID_DAYS){
-        const reste=RETENTION_VALID_DAYS-ageDays;
-        alert('⛔ Suppression refusée.\n\nCette fiche est VALIDÉE et doit être conservée 2 ans (qualité / ISO / réclamations clients).\n\nElle pourra être supprimée dans '+reste+' jour(s).');
-        return;
-      }
+      const reste=Math.max(0,RETENTION_VALID_DAYS-ageDays);
+      if(!confirm('⚠ Fiche VALIDÉE.\n\nElle est normalement conservée 2 ans (qualité / ISO / réclamations clients)'+(reste>0?` — encore ${reste} jour(s)`:'')+'.\n\nSupprimer définitivement quand même ? Action IRRÉVERSIBLE.')) return;
+    } else if(!confirm('Supprimer définitivement ? Cette action est irréversible.')){
+      return;
     }
+  } else if(!confirm('Supprimer définitivement ? Cette action est irréversible.')){
+    return;
   }
-  if(!confirm('Supprimer définitivement ? Cette action est irréversible.')) return;
   try{
     if(collection==='fiches'){const it=corbeilleCache.find(x=>x._id===id);if(it){addToColdArchive([it]);await deleteFichePhotos(it);}}
     await db.collection(collection).doc(id).delete();
