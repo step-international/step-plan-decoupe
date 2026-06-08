@@ -2514,10 +2514,33 @@ function serializeRefGroups(){
     ref:g.ref, longueur:g.longueur, mother:g.mother, edge:g.edge, blade:g.blade, rows:g.rows
   }));
 }
+// Applique une réf sauvegardée à un <select> de réf, en tolérant que le
+// catalogue client ait changé (ex. KX1035 -> KX1045 sous le même code article).
+// Ordre : 1) valeur exacte si l'option existe ; 2) même code article (préfixe
+// avant " - ") dans le catalogue client ; 3) à défaut, on ajoute l'option
+// sauvegardée pour ne jamais perdre la réf affichée.
+function applySavedRef(selectEl,savedRef,client){
+  if(!selectEl) return;
+  const ref=(savedRef||'').trim();
+  if(!ref){selectEl.value='';return;}
+  const opts=Array.from(selectEl.options).map(o=>o.value);
+  if(opts.includes(ref)){selectEl.value=ref;return;}
+  // 2) même code article (ce qui précède " - ")
+  const code=ref.split(' - ')[0].trim();
+  const catalog=(typeof CLIENT_DATA!=='undefined'&&CLIENT_DATA[client])?CLIENT_DATA[client]:[];
+  const sameCode=code?catalog.find(r=>String(r.ref).split(' - ')[0].trim()===code):null;
+  if(sameCode&&opts.includes(sameCode.ref)){selectEl.value=sameCode.ref;return;}
+  // 3) fallback : ajouter l'option sauvegardée telle quelle
+  const opt=document.createElement('option');
+  opt.value=ref; opt.textContent=ref+' (réf. archivée)';
+  selectEl.appendChild(opt);
+  selectEl.value=ref;
+}
 // Reconstruit les blocs réf à l'écran depuis une structure sauvegardée.
 // Le bloc #1 réutilise les champs historiques ; les suivants sont des blocs "extra".
 function restoreRefGroups(arr){
   if(!arr||!arr.length) return;
+  const client=document.getElementById('planClient')?.value||'';
   // Réinitialise : retire les blocs extra, vide les lignes du bloc #1
   document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
   _refBlockSeq=1; renumberRefBlocks();
@@ -2527,7 +2550,7 @@ function restoreRefGroups(arr){
   const setRb=(sel,v)=>{const el=document.querySelector('.ref-block [data-rb="'+sel+'"]');if(el)el.value=v==null?'':v;};
   setRb('mother',g0.mother); setRb('edge',g0.edge); setRb('blade',g0.blade);
   setRb('longueur',g0.longueur);
-  const refSel=document.querySelector('.ref-block [data-rb="ref"]'); if(refSel) refSel.value=g0.ref||'';
+  const refSel=document.querySelector('.ref-block [data-rb="ref"]'); applySavedRef(refSel,g0.ref,client);
   const cont0=document.querySelector('.ref-block .rb-rows');
   (g0.rows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.qty,r.width,r.carton||'')));
   // Blocs suivants
@@ -2537,7 +2560,7 @@ function restoreRefGroups(arr){
     const gi=arr[i];
     const set=(sel,v)=>{const el=bl.querySelector('[data-rb="'+sel+'"]');if(el)el.value=v==null?'':v;};
     set('mother',gi.mother); set('edge',gi.edge); set('blade',gi.blade); set('longueur',gi.longueur);
-    const rs=bl.querySelector('[data-rb="ref"]'); if(rs) rs.value=gi.ref||'';
+    const rs=bl.querySelector('[data-rb="ref"]'); applySavedRef(rs,gi.ref,client);
     const cont=bl.querySelector('.rb-rows');
     cont.querySelectorAll('.order-row').forEach(r=>r.remove()); // addRefBlock met 2 lignes vides
     (gi.rows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.qty,r.width,r.carton||'')));
@@ -3091,7 +3114,7 @@ function doLoad(){
     selClient.value=s.client;
     onClientChange();                       // peuple les réf (CLIENT_DATA = synchrone)
     if(!hasGroups){
-      document.getElementById('planRef').value=s.ref||'';
+      applySavedRef(document.getElementById('planRef'),s.ref,s.client);
       onRefChange();
     }
     // ré-appliquer le packaging sauvegardé (écrase les règles auto du client)
