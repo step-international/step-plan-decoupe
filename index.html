@@ -1800,14 +1800,10 @@ function ficheRefList(f){
   if(f&&Array.isArray(f.refGroups)&&f.refGroups.length>1) return f.refGroups.map(g=>g.ref||'?');
   return [f&&f.ref?f.ref:'—'];
 }
-// La fiche est-elle couverte par un BL ? (global OU toutes les réfs couvertes)
+// La fiche est-elle couverte par un BL ?
+// Règle : un seul BL joint suffit pour valider (global, mono-réf ou multi-réf).
 function ficheBLComplete(f){
-  const bls=ficheBLs(f);
-  if(bls.some(b=>b.ref==null)) return true;            // BL global
-  const refs=ficheRefList(f);
-  if(refs.length<=1) return bls.length>0;              // mono-réf : un BL suffit
-  const covered=new Set(bls.map(b=>b.ref));
-  return refs.every(r=>covered.has(r));                // multi : chaque réf couverte
+  return ficheBLs(f).length>0;
 }
 
 // Dominique clique « joindre » : ref=null pour global, sinon la réf.
@@ -3470,32 +3466,9 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   const ficheData=getFicheLinesData();
   const planName=buildPlanName();
   const ficheDetailTagged=ficheData.map((fd,i)=>({...fd,horsPlan:(i+1)>nbPlan}));
-  // Groupes pour le PDF / l'historique : reflètent l'ÉTAT RÉEL des bobines de
-  // la fiche (configs après recalcul/modif), pas le re-pack théorique de la
-  // commande. Chaque bobine est lue depuis sa config réelle, avec sa propre
-  // laize utile/lame ; les bobines consécutives identiques sont regroupées.
-  // Repli sur le plan théorique (groups/computed) si aucune ligne de fiche.
+  // Groupes pour l'historique : chaque groupe garde la laize de sa réf
   let groupsForRecord;
-  const buildGroupsFromFiche=()=>{
-    const out=[];
-    ficheData.forEach(fd=>{
-      const pat=parseConf(fd.conf||'');
-      const u=fd.useful||useful||0;
-      const b=(fd.blade!=null?fd.blade:blade)||0;
-      const tot=pat.length?calcStats(pat,b).total:0;
-      const label=(multi&&fd.ref?fd.ref+' · ':'')+(pat.length?makeLabel(pat):(fd.conf||'—'));
-      const last=out[out.length-1];
-      if(last&&last.label===label&&last.total===fmt(tot)&&last.waste===fmt(u-tot)){
-        last.count++;
-      }else{
-        out.push({label,count:1,total:fmt(tot),waste:fmt(u-tot),isLast:false});
-      }
-    });
-    return out;
-  };
-  if(ficheData.length){
-    groupsForRecord=buildGroupsFromFiche();
-  }else if(multi){
+  if(multi){
     groupsForRecord=[];
     computed.forEach(c=>{
       c.planGroups.forEach(gp=>{
@@ -4386,11 +4359,7 @@ async function validateFiche(id){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
   if(!ficheBLComplete(f)){
-    const refs=ficheRefList(f);
-    const msg=refs.length>1
-      ? '⛔ Validation impossible : il manque un bon de livraison.\n\nJoins soit un BL global (toute la commande), soit un BL pour chaque référence ('+refs.join(', ')+').'
-      : '⛔ Validation impossible : aucun bon de livraison (BL) n\'est joint à cette fiche.\n\nJoins le BL avant de valider.';
-    alert(msg);
+    alert('⛔ Validation impossible : aucun bon de livraison (BL) n\'est joint à cette fiche.\n\nJoins au moins un BL avant de valider.');
     return;
   }
   const by=currentUser?(currentUser.nom||currentUser.ini):'?';
