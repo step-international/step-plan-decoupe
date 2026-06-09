@@ -834,7 +834,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
 
 <!-- input fichier caché pour les photos -->
 <input type="file" id="photoFileInput" accept="image/*" capture="environment" style="display:none">
-<input type="file" id="blFileInput" accept="image/*,application/pdf" style="display:none">
+<input type="file" id="blFileInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
 <input type="file" id="commandeFilesInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple style="display:none">
 
 
@@ -1936,14 +1936,22 @@ document.getElementById('blFileInput').addEventListener('change',async function(
   const f=fichesCache.find(x=>x._id===tgt.ficheId);
   if(!f){alert('Fiche introuvable.');return;}
   const isPdf=file.type==='application/pdf'||/\.pdf$/i.test(file.name);
+  const isImg=/^image\//.test(file.type||'')||/\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(file.name||'');
   try{
-    let url;
+    let url, type, name=file.name||'BL';
     if(isPdf){
       url=storage?await uploadBLToStorage(file,'pdf','application/pdf'):await fileToBase64(file);
-    }else{
+      type='pdf'; name=file.name||'BL.pdf';
+    }else if(isImg){
       url=storage?await uploadBLToStorage(await compressImageBlob(file,1400,0.7),'jpg','image/jpeg'):await compressImage(file,1400,0.7);
+      type='image'; name=file.name||'BL.jpg';
+    }else{
+      // Autres types (Excel, Word, CSV, txt…) : upload brut avec son extension/type.
+      const ext=((file.name||'').match(/\.([a-z0-9]+)$/i)||[,'bin'])[1].toLowerCase();
+      url=storage?await uploadBLToStorage(file,ext,file.type||'application/octet-stream'):await fileToBase64(file);
+      type='file';
     }
-    const entry={ref:tgt.ref, url, type:isPdf?'pdf':'image', name:file.name||(isPdf?'BL.pdf':'BL.jpg'), at:isoNow()};
+    const entry={ref:tgt.ref, url, type, name, at:isoNow()};
     // Construit la nouvelle liste : remplace un BL existant de la même portée
     let bls=ficheBLs(f).slice();
     // si on ajoute un global, on peut garder les autres ; si on remplace même ref, on enlève l'ancien
@@ -1980,7 +1988,7 @@ function blCardBlock(f){
   const complete=ficheBLComplete(f);
   const manage=canValidate();
   const fid=f._id;
-  const blChip=(b)=>`<a href="${b.url}" target="_blank" rel="noopener" style="color:#4ade80;text-decoration:underline">${b.type==='pdf'?'📄':'🖼'} ${esc(b.name||'BL')}</a>`;
+  const blChip=(b)=>`<a href="${b.url}" target="_blank" rel="noopener" style="color:#4ade80;text-decoration:underline">${b.type==='pdf'?'📄':b.type==='image'?'🖼':'📎'} ${esc(b.name||'BL')}</a>`;
   const rm=(ref)=>manage?` <button onclick="deleteBLFiche('${fid}',${ref==null?'null':"'"+ref.replace(/'/g,"\\'")+"'"})" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:12px">🗑</button>`:'';
   const head=complete
     ? `<div style="color:#4ade80;font-weight:700;font-size:12px;margin-bottom:4px">📎 BL complet</div>`
