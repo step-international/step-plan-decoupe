@@ -1951,11 +1951,9 @@ document.getElementById('blFileInput').addEventListener('change',async function(
       url=storage?await uploadBLToStorage(file,ext,file.type||'application/octet-stream'):await fileToBase64(file);
       type='file';
     }
-    const entry={ref:tgt.ref, url, type, name, at:isoNow()};
-    // Construit la nouvelle liste : remplace un BL existant de la même portée
+    const entry={id:'bl_'+Date.now()+'_'+Math.floor(Math.random()*9999),ref:tgt.ref, url, type, name, at:isoNow()};
+    // Plusieurs BL par fiche : on AJOUTE toujours, on ne remplace plus.
     let bls=ficheBLs(f).slice();
-    // si on ajoute un global, on peut garder les autres ; si on remplace même ref, on enlève l'ancien
-    bls=bls.filter(b=>!(b.ref===entry.ref));
     bls.push(entry);
     await db.collection('fiches').doc(f._id).update({bls});
     f.bls=bls; if('bl' in f) delete f.bl;
@@ -1963,17 +1961,20 @@ document.getElementById('blFileInput').addEventListener('change',async function(
     renderFiches();
   }catch(e){ alert('Erreur BL : '+e.message); }
 });
-async function deleteBLFiche(ficheId,ref){
+async function deleteBLFiche(ficheId,idx){
   if(!canValidate()){alert('Action réservée au pilotage.');return;}
   const f=fichesCache.find(x=>x._id===ficheId);
   if(!f) return;
   if(!confirm('Retirer ce BL ?')) return;
-  const target=ficheBLs(f).find(b=>b.ref===(ref===undefined?null:ref));
-  let bls=ficheBLs(f).filter(b=>b.ref!==(ref===undefined?null:ref));
+  let bls=ficheBLs(f).slice();
+  const target=bls[idx];
+  if(!target) return;
+  bls.splice(idx,1);
   try{
-    if(target&&target.url) await deletePhotoFromStorage(target.url);
+    if(target.url) await deletePhotoFromStorage(target.url);
     await db.collection('fiches').doc(ficheId).update({bls});
     f.bls=bls; if('bl' in f) delete f.bl;
+    await logAudit('bl-del','fiches',ficheId,`${f.client||''} / ${target.ref||'global'}`);
     renderFiches();
   }catch(e){alert('Erreur : '+e.message);}
 }
@@ -1989,26 +1990,29 @@ function blCardBlock(f){
   const manage=canValidate();
   const fid=f._id;
   const blChip=(b)=>`<a href="${b.url}" target="_blank" rel="noopener" style="color:#4ade80;text-decoration:underline">${b.type==='pdf'?'📄':b.type==='image'?'🖼':'📎'} ${esc(b.name||'BL')}</a>`;
-  const rm=(ref)=>manage?` <button onclick="deleteBLFiche('${fid}',${ref==null?'null':"'"+ref.replace(/'/g,"\\'")+"'"})" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:12px">🗑</button>`:'';
+  const trash=(i)=>manage?` <button onclick="deleteBLFiche('${fid}',${i})" title="Retirer ce BL" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:13px">🗑</button>`:'';
   const head=complete
     ? `<div style="color:#4ade80;font-weight:700;font-size:12px;margin-bottom:4px">📎 BL complet</div>`
     : `<div style="color:#f87171;font-weight:700;font-size:12px;margin-bottom:4px">⛔ BL manquant — validation bloquée</div>`;
   let body='';
-  const globalBL=bls.find(b=>b.ref==null);
-  if(globalBL){
-    body+=`<div style="font-size:12px;margin:2px 0">Global : ${blChip(globalBL)}${rm(null)}</div>`;
-  }
-  if(multi){
+  // Liste de TOUS les BL joints (plusieurs possibles), chacun avec sa poubelle.
+  bls.forEach((b,i)=>{
+    const scope=b.ref==null?'Global':esc(b.ref);
+    body+=`<div style="font-size:12px;margin:2px 0">${scope} : ${blChip(b)}${trash(i)}</div>`;
+  });
+  if(!bls.length) body+=`<div style="font-size:12px;margin:2px 0;color:#f87171">Aucun BL joint</div>`;
+  // En multi-réf sans BL global : signaler les réfs encore sans BL (bouton joindre ciblé).
+  if(multi && !bls.some(b=>b.ref==null)){
     refs.forEach(r=>{
-      const b=bls.find(x=>x.ref===r);
-      if(b) body+=`<div style="font-size:12px;margin:2px 0">${esc(r)} : ${blChip(b)}${rm(r)}</div>`;
-      else if(!globalBL) body+=`<div style="font-size:12px;margin:2px 0;color:#f87171">${esc(r)} : aucun BL${manage?` <button onclick="triggerBLFiche('${fid}','${r.replace(/'/g,"\\'")}')" style="background:none;border:1px solid #1e5c30;color:#4ade80;border-radius:5px;cursor:pointer;font-size:11px;padding:1px 6px">📎 joindre</button>`:''}</div>`;
+      if(!bls.some(x=>x.ref===r)){
+        body+=`<div style="font-size:12px;margin:2px 0;color:#f87171">${esc(r)} : aucun BL${manage?` <button onclick="triggerBLFiche('${fid}','${r.replace(/'/g,"\\'")}')" style="background:none;border:1px solid #1e5c30;color:#4ade80;border-radius:5px;cursor:pointer;font-size:11px;padding:1px 6px">📎 joindre</button>`:''}</div>`;
+      }
     });
   }
   let actions='';
   if(manage){
     actions=`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">`;
-    if(!globalBL) actions+=`<button onclick="triggerBLFiche('${fid}',null)" style="background:#14371f;border:1px solid #1e5c30;color:#4ade80;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;padding:3px 8px">📎 BL global (toute la commande)</button>`;
+    actions+=`<button onclick="triggerBLFiche('${fid}',null)" style="background:#14371f;border:1px solid #1e5c30;color:#4ade80;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;padding:3px 8px">📎 Ajouter un BL${multi?' (global)':''}</button>`;
     actions+=`</div>`;
   }
   return `<div style="margin:6px 0;padding:8px 10px;border-radius:8px;background:${complete?'rgba(74,222,128,0.08)':'rgba(248,113,113,0.08)'};border:1px solid ${complete?'#1e5c30':'#7a2222'}">${head}${body}${actions}</div>`;
