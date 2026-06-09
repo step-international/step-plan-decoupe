@@ -150,9 +150,9 @@ button{cursor:pointer;font-family:inherit}
 .save-refrow{font-size:13px;color:var(--text);font-weight:600;word-break:break-word}
 .save-refrow .rdot{color:var(--violet,#a78bfa);font-weight:800;margin-right:5px}
 .save-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
-.save-actions{display:flex;gap:8px;flex-shrink:0}
+.save-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:108px}
 .save-actions .btn{min-width:44px;min-height:44px;font-size:17px;justify-content:center}
-@media(max-width:600px){.tab-btn{padding:12px 13px;font-size:13.5px}.save-card{padding:13px;gap:10px}}
+@media(max-width:600px){.tab-btn{padding:12px 13px;font-size:13.5px}.save-card{padding:13px;gap:10px}.save-actions{max-width:96px}.save-actions .btn{min-width:40px;min-height:40px}}
 .chrono-record{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
 .cr-time{font-size:22px;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap}
 .cr-info{flex:1;min-width:0}
@@ -2236,14 +2236,17 @@ function switchTab(tab){
 // ============================================================
 // MACHINE (Plan)
 // ============================================================
+// Réglages par défaut par machine (perte bords / perte lame). La bobine mère
+// n'est pas imposée : elle reste celle du plan.
+const MACHINE_DEFAULTS={feba:{edge:'10',blade:'5'},maveg:{edge:'20',blade:'0'},cevenini:{edge:'20',blade:'0'}};
 function selectMachine(m){
   currentMachine=m;
   document.getElementById('btnFeba').className='machine-btn'+(m==='feba'?' sel-feba':'');
   document.getElementById('btnMaveg').className='machine-btn'+(m==='maveg'?' sel-maveg':'');
   document.getElementById('btnCevenini').className='machine-btn'+(m==='cevenini'?' sel-cevenini':'');
-  if(m==='feba'){document.getElementById('bladeWidth').value='5';document.getElementById('edgeLoss').value='10';}
-  else if(m==='maveg'){document.getElementById('bladeWidth').value='0';document.getElementById('edgeLoss').value='20';}
-  else{document.getElementById('bladeWidth').value='0';document.getElementById('edgeLoss').value='10';}
+  const def=MACHINE_DEFAULTS[m]||MACHINE_DEFAULTS.feba;
+  document.getElementById('bladeWidth').value=def.blade;
+  document.getElementById('edgeLoss').value=def.edge;
   selectFicheMachine(m);
   onParamChange();
 }
@@ -2907,11 +2910,26 @@ function recalcPlan(){
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
     : '';
+  // Estimation perte/chute pour l'écran : pour chaque réf, le solde (dernière
+  // bobine) = chute pour stockage ; les autres chutes de bord = perte (déchet).
+  let perteMm=0, chuteStockMm=0;
+  computed.forEach(c=>{
+    const pg=c.planGroups||[];
+    pg.forEach((g,gi)=>{
+      const w=Math.max(0,c.useful-calcStats(g.pattern,c.blade).total);
+      const isLast=gi===pg.length-1;
+      const n=g.count||1;
+      if(isLast){ chuteStockMm+=w; perteMm+=w*(n-1); } // 1 solde, le reste en perte
+      else perteMm+=w*n;
+    });
+  });
   if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+`
     <div class="stat-chip">${totalBobines} bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">${planGroups.length} config${planGroups.length>1?'s':''}</div>
     ${multi?`<div class="stat-chip">${computed.length} références</div>`:`<div class="stat-chip">utile <span style="font-weight:700">${fmt(computed[0].useful)} mm</span></div>`}
-    <div class="stat-chip ${pctCls}">Perte ${multi?'globale ':''}: <span>${pct.toFixed(1)}%</span></div>`;
+    <div class="stat-chip ${pctCls}">Perte ${multi?'globale ':''}: <span>${pct.toFixed(1)}%</span></div>
+    <div class="stat-chip">🗑 Déchet <span style="font-weight:700;color:var(--red)">${fmt(perteMm)} mm</span></div>
+    <div class="stat-chip">✂ Chute stock <span style="font-weight:700;color:var(--orange)">${fmt(chuteStockMm)} mm</span></div>`;
 
   // Rendu des cartes, réf par réf, avec bande de changement entre réfs.
   let html='';
@@ -2982,15 +3000,25 @@ function resetPlan(){
 // PRINT / DOWNLOAD
 // ============================================================
 function openPrintWindow(html,autoPrint){
-  // Blob URL plutôt que document.write : le contenu (souvent lourd, photos
-  // base64) est chargé nativement par le navigateur sans bloquer/figer
-  // l'onglet parent. L'URL est révoquée après chargement pour libérer la RAM.
+  // L'impression est déclenchée DEPUIS la fenêtre enfant (script injecté), jamais
+  // depuis le parent : appeler w.print() depuis le parent bloque son thread JS
+  // tant que la boîte de dialogue reste ouverte (freeze de l'app). En laissant
+  // l'enfant gérer son propre print(), le parent reste réactif quoi qu'il arrive.
+  const autoScript=(autoPrint!==false)
+    ? `<script>window.addEventListener('load',function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},300);});<\/script>`
+    : '';
+  // Injecte le script juste avant </body> (ou en fin si absent).
+  let doc=html;
+  if(autoScript){
+    if(/<\/body>/i.test(doc)) doc=doc.replace(/<\/body>/i,autoScript+'</body>');
+    else doc=doc+autoScript;
+  }
   try{
-    const blob=new Blob([html],{type:'text/html'});
+    const blob=new Blob([doc],{type:'text/html'});
     const url=URL.createObjectURL(blob);
     const w=window.open(url,'_blank');
     if(w){
-      if(autoPrint!==false){ w.addEventListener?.('load',()=>{try{w.print();}catch(e){}},{once:true}); setTimeout(()=>{try{w.print();}catch(e){}},800); }
+      // On NE touche plus à w depuis le parent (pas de w.print()).
       setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},60000);
       return;
     }
@@ -2999,7 +3027,7 @@ function openPrintWindow(html,autoPrint){
     setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},60000);
   }catch(e){
     const w=window.open('','_blank');
-    if(w){w.document.open();w.document.write(html);w.document.close();if(autoPrint!==false)setTimeout(()=>{try{w.print();}catch(e){}},400);}
+    if(w){w.document.open();w.document.write(doc);w.document.close();}
   }
 }
 // Récap "Code mandrin par largeur" — uniquement Legrand France, si des codes existent.
@@ -5019,6 +5047,29 @@ function exportNc(){
   a.click();
 }
 
+// Sépare la matière non utilisée d'une fiche en deux catégories :
+//  - PERTE (déchet) : chutes de bord des bobines + bobines marquées 🗑 Déchet.
+//  - CHUTE pour stockage : bobines marquées ✂ Chutes + solde conservé de la
+//    DERNIÈRE bobine mère de chaque référence.
+// Retourne { perteMm, chuteStockMm } (en mm cumulés de laize).
+function computePerteChute(f){
+  const det=(f&&f.ficheDetail)||[];
+  let perte=0, chute=0;
+  // Indices de la dernière bobine de chaque référence (= solde conservé).
+  const lastByRef={};
+  det.forEach((fd,i)=>{ lastByRef[fd.ref||'']=i; });
+  const lastIdx=new Set(Object.values(lastByRef));
+  det.forEach((fd,i)=>{
+    const pat=parseConf(fd.conf||'');
+    if(!pat.length) return;
+    const u=(fd.useful!=null&&fd.useful>0)?fd.useful:(parseNum(f.useful)||0);
+    const b=(fd.blade!=null)?fd.blade:(parseNum(f.blade)||0);
+    const w=Math.max(0,u-calcStats(pat,b).total); // chute de cette bobine
+    if(fd.actChutes || lastIdx.has(i)) chute+=w;   // récupéré (stock) ou solde
+    else perte+=w;                                 // déchet (bords + 🗑 Déchet)
+  });
+  return { perteMm:Math.round(perte), chuteStockMm:Math.round(chute) };
+}
 function showFicheDetail(id,autoPrint){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
@@ -5062,6 +5113,27 @@ function showFicheDetail(id,autoPrint){
     const codes=[...new Set(pat.map(p=>mandrinMap[p.width]).filter(Boolean))];
     return codes.length?codes.join(' / '):'';
   };
+  // Nb de bobineaux par carton, par largeur (Legrand France).
+  const cartonMap=(()=>{
+    const m={};
+    if(f.cartonByWidth&&typeof f.cartonByWidth==='object') Object.assign(m,f.cartonByWidth);
+    return m;
+  })();
+  // Libellé enrichi Legrand France : pour chaque segment de largeur, ajoute
+  // "carton N" et "(mandrin XXXX)". Ex : 4×100 (2404) + 3×120 carton 3 (3009).
+  const labelLegrand=(conf)=>{
+    const pat=parseConf(conf||'');
+    if(!pat.length) return conf||'—';
+    // Cumule les quantités par largeur, en conservant l'ordre d'apparition.
+    const order=[]; const qty={};
+    pat.forEach(p=>{ if(qty[p.width]==null){qty[p.width]=0;order.push(p.width);} qty[p.width]+=p.qty; });
+    return order.map(w=>{
+      let seg=`${qty[w]}×${fmt(w)}`;
+      const c=cartonMap[w]; if(c>0) seg+=` carton ${c}`;
+      const md=mandrinMap[w]; if(md) seg+=` (${md})`;
+      return seg;
+    }).join(' + ');
+  };
   let bobNum=0;
   const planRows=(liveGroups||[]).map((g,gi)=>{
     const isLast=gi===(liveGroups.length-1);
@@ -5086,8 +5158,7 @@ function showFicheDetail(id,autoPrint){
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
       rows.push(`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:11px">[SOLDE]</span>':''}</td>
-        <td style="padding:10px 12px;font-family:monospace;font-size:13px">${g.label}</td>
-        ${isLegrandFr?`<td style="padding:10px 12px;font-family:monospace;font-weight:700;color:#f59e0b;white-space:nowrap">${mandrinForConf(g.label)||'<span style="color:#555">—</span>'}</td>`:''}
+        <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(labelLegrand(g.label)):g.label}</td>
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
         <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${g.waste} mm</td>
         <td style="padding:10px 12px">${etiq}</td>
@@ -5121,8 +5192,7 @@ function showFicheDetail(id,autoPrint){
     const etiq=fd.label?`<span style="color:#f59e0b">${esc(fd.label)}</span>`:'';
     return `<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
         <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:10px;background:#3d2a00;color:#f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
-        <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${fd.conf||'—'}</td>
-        ${isLegrandFr?`<td style="padding:10px 12px;font-family:monospace;font-weight:700;color:#f59e0b;white-space:nowrap">${mandrinForConf(fd.conf)||'<span style="color:#555">—</span>'}</td>`:''}
+        <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${isLegrandFr?esc(labelLegrand(fd.conf)):(fd.conf||'—')}</td>
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
         <td style="padding:10px 12px">${etiq}</td>
@@ -5167,7 +5237,8 @@ function showFicheDetail(id,autoPrint){
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
     <div>
       <h1>${f.name}</h1>
-      <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.machine} · ${f.totalBobines} bobines · perte <span class="badge-pct">${f.pct}%</span> · chute ${(liveGroups||[]).length?(liveGroups[liveGroups.length-1].waste||'0')+' mm':'—'}</div>
+      <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.machine} · ${f.totalBobines} bobines · perte <span class="badge-pct">${f.pct}%</span></div>
+      ${(()=>{const pc=computePerteChute(f);return `<div class="sub" style="margin-top:4px">🗑 Perte (déchet) : <b style="color:#f87171">${fmt(pc.perteMm)} mm</b> · ✂ Chute pour stockage : <b style="color:#f59e0b">${fmt(pc.chuteStockMm)} mm</b></div>`;})()}
     </div>
     <button onclick="window.print()" style="padding:8px 16px;border-radius:8px;border:1px solid #444;background:#222;color:#e5e5e3;font-size:13px;cursor:pointer">🖨 Imprimer</button>
   </div>
@@ -5219,7 +5290,7 @@ function showFicheDetail(id,autoPrint){
     <div class="card-title">Plan de découpe — bobine par bobine</div>
     <table>
       <thead><tr>
-        <th>N°</th><th>Découpe</th>${isLegrandFr?'<th>Mandrin</th>':''}<th>Total</th><th>Chute</th>
+        <th>N°</th><th>Découpe</th><th>Total</th><th>Chute</th>
         <th>Étiquette</th><th>Photo</th><th>Test 2ème bob.</th><th>Non-conformité</th><th>État</th>
       </tr></thead>
       <tbody>${planRows}${horsPlanRows}</tbody>
@@ -5516,6 +5587,18 @@ function selectFicheMachine(m){
   document.getElementById('fBtnFeba').className='machine-btn-fiche'+(m==='feba'?' sel-feba':'');
   document.getElementById('fBtnMaveg').className='machine-btn-fiche'+(m==='maveg'?' sel-maveg':'');
   document.getElementById('fBtnCevenini').className='machine-btn-fiche'+(m==='cevenini'?' sel-cevenini':'');
+  // Applique les réglages par défaut de la machine (bords/lame) au plan, en
+  // gardant la bobine mère du plan. Ne rappelle pas selectMachine (anti-boucle).
+  const def=MACHINE_DEFAULTS[m];
+  if(def){
+    const e=document.getElementById('edgeLoss'); if(e) e.value=def.edge;
+    const b=document.getElementById('bladeWidth'); if(b) b.value=def.blade;
+    currentMachine=m;
+    document.getElementById('btnFeba').className='machine-btn'+(m==='feba'?' sel-feba':'');
+    document.getElementById('btnMaveg').className='machine-btn'+(m==='maveg'?' sel-maveg':'');
+    document.getElementById('btnCevenini').className='machine-btn'+(m==='cevenini'?' sel-cevenini':'');
+    if(typeof recalcPlan==='function') recalcPlan();
+  }
   refreshFicheParams();
 }
 // Recopie les champs fiche (bobine mère / perte bords / lame) -> champs plan,
@@ -5541,6 +5624,16 @@ function selectFicheMachine2(m){
   document.getElementById('fBtnFeba2').className='machine-btn-fiche'+(m==='feba'?' sel-feba':'');
   document.getElementById('fBtnMaveg2').className='machine-btn-fiche'+(m==='maveg'?' sel-maveg':'');
   document.getElementById('fBtnCevenini2').className='machine-btn-fiche'+(m==='cevenini'?' sel-cevenini':'');
+  // Applique les réglages par défaut de la machine aux champs op2 (bobine mère
+  // reprise du plan), puis recalcule la largeur utile op2.
+  const def=MACHINE_DEFAULTS[m];
+  if(def){
+    const fe=document.getElementById('fEdge2'); if(fe) fe.value=def.edge;
+    const fb=document.getElementById('fBlade2'); if(fb) fb.value=def.blade;
+    const fm=document.getElementById('fMother2'); const pm=document.getElementById('motherWidth');
+    if(fm&&!fm.value&&pm) fm.value=pm.value;
+    if(typeof updateUtile2==='function') updateUtile2();
+  }
 }
 function toggleOp2Machine(){
   const on=document.getElementById('fOp2DiffMachine').checked;
