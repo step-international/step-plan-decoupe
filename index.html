@@ -446,7 +446,6 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
       <button class="btn btn-blue btn-sm" id="planSaveBtn" onclick="openSaveModal()">💾 Sauvegarder</button>
-      <button class="btn btn-green btn-sm" onclick="importPlanToFiche()">→ Créer / Mettre à jour la fiche</button>
     </div>
     <div id="planCards"></div>
   </div>
@@ -1682,6 +1681,7 @@ let planGroups = [];
 let planChecked = [];
 let planOversize = [];
 let commandTotals = {};
+let mandrinByWidthPlan = {}; // largeur -> code mandrin (Legrand France)
 let cartonByWidth = {};
 let ficheLines = [];
 let loadTargetIdx = null;
@@ -2181,6 +2181,9 @@ function importPlanToFiche(opts){
     commandTotals={};
     cartonByWidth={};
     computed.forEach(c=>c.rows.forEach(r=>{commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty; if(r.carton>0) cartonByWidth[r.width]=r.carton;}));
+    // Mandrins par largeur (Legrand France) — lus directement depuis la saisie.
+    mandrinByWidthPlan={};
+    try{ getRefGroups().forEach(g=>(g.rows||[]).forEach(r=>{ if(r.mandrin) mandrinByWidthPlan[r.width]=r.mandrin; })); }catch(e){}
 
     // Génération des bobines, réf par réf, avec séparateur visuel entre réfs.
     let bi=1;
@@ -2910,25 +2913,23 @@ function recalcPlan(){
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
     : '';
-  // Estimation perte/chute pour l'écran : pour chaque réf, le solde (dernière
-  // bobine) = chute pour stockage ; les autres chutes de bord = perte (déchet).
-  let perteMm=0, chuteStockMm=0;
+  // Chute pour STOCKAGE : solde (dernière bobine de chaque réf) — récupérée.
+  let chuteStockMm=0;
   computed.forEach(c=>{
     const pg=c.planGroups||[];
-    pg.forEach((g,gi)=>{
-      const w=Math.max(0,c.useful-calcStats(g.pattern,c.blade).total);
-      const isLast=gi===pg.length-1;
-      const n=g.count||1;
-      if(isLast){ chuteStockMm+=w; perteMm+=w*(n-1); } // 1 solde, le reste en perte
-      else perteMm+=w*n;
-    });
+    if(!pg.length) return;
+    const last=pg[pg.length-1];
+    chuteStockMm+=Math.max(0,c.useful-calcStats(last.pattern,c.blade).total); // 1 seul solde par réf
   });
+  // PERTE = tout le non-utilisé SAUF la chute stockage = bords + lame + déchets.
+  const perteMm=Math.max(0,totalMat-totalUsed-chuteStockMm);
+  const pertePct=totalMat>0?(perteMm/totalMat*100):0;
+  const perteCls=pertePct<3?'pct-green':pertePct<8?'pct-orange':'pct-red';
   if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+`
     <div class="stat-chip">${totalBobines} bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">${planGroups.length} config${planGroups.length>1?'s':''}</div>
     ${multi?`<div class="stat-chip">${computed.length} références</div>`:`<div class="stat-chip">utile <span style="font-weight:700">${fmt(computed[0].useful)} mm</span></div>`}
-    <div class="stat-chip ${pctCls}">Perte ${multi?'globale ':''}: <span>${pct.toFixed(1)}%</span></div>
-    <div class="stat-chip">🗑 Déchet <span style="font-weight:700;color:var(--red)">${fmt(perteMm)} mm</span></div>
+    <div class="stat-chip ${perteCls}">🗑 Perte ${multi?'globale ':''}: <span style="font-weight:700">${fmt(perteMm)} mm · ${pertePct.toFixed(1)}%</span></div>
     <div class="stat-chip">✂ Chute stock <span style="font-weight:700;color:var(--orange)">${fmt(chuteStockMm)} mm</span></div>`;
 
   // Rendu des cartes, réf par réf, avec bande de changement entre réfs.
@@ -5956,12 +5957,14 @@ function updateAllCumuls(){
     const cumEl=document.getElementById('flCumul_'+l.id);
     if(!cumEl) return;
     if(!pieces.length){cumEl.innerHTML='<span style="color:var(--muted);font-size:13px">—</span>';return;}
+    const isLegrandFr=(document.getElementById('planClient')?.value==='Legrand France');
     cumEl.innerHTML=pieces.map(p=>{
       const total=commandTotals[p.width]||0;
       const cur=running[p.width]||0;
       const done=total>0&&cur>=total;
       const carton=cartonByWidth[p.width]||0;
-      return `<div class="cumul-row ${done?'done':'run'}">${p.width} mm : ${cur}${total>0?' / '+total:''}${carton>0?' · '+carton+'/carton':''}${done?' ✓':''}</div>`;
+      const mandrin=isLegrandFr?(mandrinByWidthPlan[p.width]||''):'';
+      return `<div class="cumul-row ${done?'done':'run'}">${p.width} mm : ${cur}${total>0?' / '+total:''}${carton>0?' · '+carton+'/carton':''}${mandrin?' · mandrin '+esc(mandrin):''}${done?' ✓':''}</div>`;
     }).join('');
   });
 }
