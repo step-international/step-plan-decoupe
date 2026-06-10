@@ -477,9 +477,75 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 .fc-btn-violet{background:var(--violet-dim);color:var(--violet);border-color:#3a2a60}
 @media(min-width:560px){.fc-actions{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:380px){.fc-grid{grid-template-columns:1fr}.fc-title{font-size:13px}.fc-actions{grid-template-columns:1fr}}
+
+/* =========================================
+   PHASE 2 — Formulaires, Fiche, UX
+   ========================================= */
+
+/* Auto-save indicator */
+#autosaveIndicator{
+  position:fixed;bottom:16px;left:16px;
+  background:var(--elevated);border:1px solid var(--border2);
+  border-radius:var(--radius-sm);padding:5px 10px;
+  font-size:11px;font-weight:600;color:var(--muted);
+  z-index:4000;display:none;align-items:center;gap:5px;
+  font-family:var(--font);pointer-events:none;
+}
+#autosaveIndicator.visible{display:flex}
+#autosaveIndicator.saved{color:var(--green)}
+
+/* Coupée banner */
+#coupeeBanner{
+  position:sticky;top:8px;z-index:50;
+  margin-bottom:10px;padding:11px 14px;
+  border-radius:var(--radius);
+  background:var(--elevated);border:1px solid var(--border2);
+  font-size:13px;font-weight:600;text-align:center;
+  box-shadow:var(--shadow-sm);
+}
+
+/* Confirm btn */
+#sendPlanBtn{width:100%;justify-content:center;font-size:14px;padding:13px 16px;border-radius:var(--radius)}
+
+/* Section-title avec icône */
+.section-title i[data-lucide]{flex-shrink:0}
+
+/* Helpers champ */
+.field-helper{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+.field-helper.warn{color:var(--orange)}
+.field-helper.ok{color:var(--green)}
+
+/* Plan empty */
+.plan-empty{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:28px 16px;color:var(--muted);text-align:center;
+  border:1px dashed var(--border2);border-radius:var(--radius);
+  background:var(--elevated);
+}
+.plan-empty .pe-title{font-size:13px;font-weight:700;color:var(--subtle)}
+
+/* Manual hint redesigné */
+#planManualHint{
+  font-size:12px;color:var(--orange);margin:0 0 8px;
+  padding:8px 12px;background:var(--orange-dim);
+  border-radius:var(--radius-sm);border:1px solid #6a3410;
+}
+
+/* Op2 block */
+.op2-block{background:var(--section);border:1px solid var(--border2);border-radius:var(--radius);padding:12px}
+
+/* Tab btn avec icône */
+.tab-btn i[data-lucide]{flex-shrink:0;opacity:.7}
+.tab-btn.active i[data-lucide]{opacity:1}
 </style>
 </head>
 <body>
+
+<!-- Auto-save indicator -->
+<div id="autosaveIndicator" aria-live="polite">
+  <i data-lucide="cloud" style="width:12px;height:12px"></i>
+  <span id="autosaveText">Brouillon sauvegardé</span>
+</div>
 
 <!-- DB Loading/Error Banner -->
 <div id="dbLoadingBanner" style="display:none;position:fixed;bottom:16px;right:16px;background:var(--blue-dim);color:var(--blue);border:1px solid #2c4e88;border-radius:var(--radius-sm);padding:9px 15px;font-size:12px;font-weight:600;z-index:5000;align-items:center;gap:8px;font-family:var(--font)">
@@ -539,7 +605,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 <!-- ===== PAGE 1 : PLAN ===== -->
 <div class="page active" id="page0">
   <div class="section">
-    <div class="section-title">Client</div>
+    <div class="section-title"><i data-lucide="building-2" style="width:13px;height:13px"></i> Client</div>
     <div class="row2">
       <div class="field">
         <label>Client</label>
@@ -632,20 +698,20 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
         </div>
       </div>
       <input type="hidden" id="planLargeur" data-rb="largeur">
-      <div class="section-title" style="margin:12px 0 8px">Largeurs à découper</div>
+      <div class="section-title" style="margin:12px 0 8px"><i data-lucide="sliders-horizontal" style="width:13px;height:13px"></i> Largeurs à découper</div>
       <div class="rb-rows" data-rb="rows"></div>
       <div class="flex mt8">
-        <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ajouter une ligne</button>
+        <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)"><i data-lucide="plus" style="width:12px;height:12px"></i> Ajouter une ligne</button>
       </div>
     </div>
   </div>
 
   <div class="flex mt8" style="margin-bottom:14px">
-    <button class="btn btn-violet btn-sm" onclick="addRefBlock()">+ Ajouter une référence</button>
+    <button class="btn btn-violet btn-sm" onclick="addRefBlock()"><i data-lucide="plus" style="width:12px;height:12px"></i> Ajouter une référence</button>
   </div>
 
   <div class="section">
-    <div class="section-title">📦 Conditionnement &amp; Packaging</div>
+    <div class="section-title"><i data-lucide="package-2" style="width:13px;height:13px"></i> Conditionnement &amp; Packaging</div>
     <div class="row2">
       <div class="field">
         <label>Palette</label>
@@ -699,14 +765,14 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
   </div>
 
   <div class="section">
-    <div class="section-title">Plan de découpe</div>
+    <div class="section-title"><i data-lucide="scissors" style="width:13px;height:13px"></i> Plan de découpe</div>
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
       <button class="btn btn-blue btn-sm" id="planSaveBtn" onclick="openSaveModal()"><i data-lucide="save" style="width:13px;height:13px"></i> Sauvegarder</button>
-      <button class="btn btn-ghost btn-sm" id="planEditBtn" onclick="togglePlanManual()"><i data-lucide="pencil" style="width:13px;height:13px"></i> Modifier le plan à la main</button>
+      <button class="btn btn-ghost btn-sm" id="planEditBtn" onclick="togglePlanManual()"><i data-lucide="pencil" style="width:13px;height:13px"></i> Modifier à la main</button>
     </div>
-    <div id="planManualHint" style="display:none;font-size:12px;color:var(--orange);margin:0 0 8px">✏️ Mode édition manuelle — modifie les bobines ci-dessous. Tout changement d'une donnée du plan (largeur, mère, machine…) régénère le plan automatiquement et efface ces modifs.</div>
-    <div id="planCards"></div>
+    <div id="planManualHint" style="display:none">Mode édition manuelle — modifie les bobines ci-dessous. Tout recalcul auto efface ces modifs.</div>
+    <div id="planCards"><div class="plan-empty"><i data-lucide="scissors" style="width:32px;height:32px;opacity:.3" class="pe-icon"></i><div class="pe-title">Remplis la commande ci-dessus pour générer le plan</div></div></div>
   </div>
 </div>
 
@@ -715,7 +781,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 
   <!-- CHRONO -->
   <div class="section" style="padding:16px">
-    <div class="section-title">⏱ Chronomètre commande</div>
+    <div class="section-title"><i data-lucide="timer" style="width:13px;height:13px"></i> Chronomètre commande</div>
     <div class="chrono-block">
       <div class="chrono-display" id="chronoDisplay">00:00:00</div>
       <div class="chrono-btns">
@@ -728,7 +794,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
   </div>
 
   <div class="section">
-    <div class="section-title">Machine</div>
+    <div class="section-title"><i data-lucide="settings-2" style="width:13px;height:13px"></i> Machine</div>
     <div class="machine-btns" style="margin-bottom:0">
       <button class="machine-btn-fiche sel-feba" id="fBtnFeba" onclick="selectFicheMachine('feba')">FEBA</button>
       <button class="machine-btn-fiche" id="fBtnMaveg" onclick="selectFicheMachine('maveg')">MAVEG</button>
@@ -749,18 +815,18 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
       </div>
     </div>
     <div style="margin-top:12px">
-      <button class="btn btn-orange btn-sm" onclick="addChuteReel()" title="Ajouter une chute du stock à utiliser dans le plan">✂ Chute — utiliser une chute du stock</button>
+      <button class="btn btn-orange btn-sm" onclick="addChuteReel()" title="Ajouter une chute du stock à utiliser dans le plan"><i data-lucide="scissors" style="width:12px;height:12px"></i> Chute du stock</button>
       <div id="ficheChutesList" style="margin-top:8px"></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-blue" style="flex:1" onclick="applyFichePlanChange()">🔄 Changement plan</button>
-      <button class="btn btn-ghost" style="flex:1" onclick="printFichePlan()">🖨️ Imprimer le plan</button>
+      <button class="btn btn-blue" style="flex:1" onclick="applyFichePlanChange()"><i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Changement plan</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="printFichePlan()"><i data-lucide="printer" style="width:14px;height:14px"></i> Imprimer le plan</button>
     </div>
-    <div id="fPlanHint" style="font-size:12px;margin-top:6px;color:var(--orange)">⚠ Renseigne les 4 champs machine puis clique « Changement plan » avant de démarrer le chrono.</div>
+    <div id="fPlanHint" style="font-size:12px;margin-top:6px;color:var(--orange)">Renseigne les 4 champs machine puis clique « Changement plan » avant de démarrer le chrono.</div>
   </div>
 
   <div class="section">
-    <div class="section-title">En-tête fiche</div>
+    <div class="section-title"><i data-lucide="file-text" style="width:13px;height:13px"></i> En-tête fiche</div>
     <div class="row2">
       <div class="field">
         <label>Client</label>
@@ -810,7 +876,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
     </div>
 
     <!-- 2ÈME OPÉRATEUR -->
-    <div class="field" style="background:#1a1a18;border:1px solid var(--border2);border-radius:10px;padding:12px">
+    <div class="field op2-block">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:10px">
         <input type="checkbox" id="fOp2Active" onchange="toggleOp2()" style="width:18px;height:18px;flex:0 0 auto;accent-color:var(--orange)">
         <span style="font-size:14px;color:var(--text);font-weight:600">Commande faite en deux temps (2ème opérateur)</span>
@@ -863,7 +929,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
     </div>
 
     <div class="field" style="margin-top:14px">
-      <div class="section-title" style="font-size:14px;margin-bottom:10px">📦 Conditionnement &amp; Packaging <span style="color:var(--green);font-size:11px;font-weight:400">auto depuis plan</span></div>
+      <div class="section-title" style="font-size:11px;margin-bottom:10px"><i data-lucide="package-2" style="width:13px;height:13px"></i> Conditionnement &amp; Packaging <span style="color:var(--green);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">auto depuis plan</span></div>
       <div class="row2">
         <div class="field">
           <label>Palette</label>
@@ -915,24 +981,24 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
     </div>
 
     <div class="flex-wrap mt12">
-      <button class="btn btn-ghost btn-sm" onclick="addFicheLine()">+ Ligne manuelle</button>
-      <button class="btn btn-ghost btn-sm" onclick="resetFicheBobines()">↺ Reset bobines</button>
-      <button class="btn btn-ghost btn-sm" onclick="saveDraftManual()">💾 Brouillon</button>
-      <button class="btn btn-ghost btn-sm" onclick="printFiche()">🖨️ Imprimer fiche</button>
+      <button class="btn btn-ghost btn-sm" onclick="addFicheLine()"><i data-lucide="plus" style="width:12px;height:12px"></i> Ligne manuelle</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetFicheBobines()"><i data-lucide="rotate-ccw" style="width:12px;height:12px"></i> Reset bobines</button>
+      <button class="btn btn-ghost btn-sm" onclick="saveDraftManual()"><i data-lucide="save" style="width:12px;height:12px"></i> Brouillon</button>
+      <button class="btn btn-ghost btn-sm" onclick="printFiche()"><i data-lucide="printer" style="width:12px;height:12px"></i> Imprimer fiche</button>
     </div>
   </div>
 
   <div id="ficheLines"></div>
 
   <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
-    <div class="section-title">🏷️ Étiquette solde — bobine mère restante</div>
+    <div class="section-title"><i data-lucide="tag" style="width:13px;height:13px"></i> Étiquette solde — bobine mère restante</div>
     <div id="etiquetteSoldeList"><div style="font-size:13px;color:var(--muted)">—</div></div>
   </div>
 
   <div style="padding:16px 0 8px">
     <div id="coupeeBanner" style="display:none;position:sticky;top:8px;z-index:50;margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#1a1a18;border:1px solid var(--border2);font-size:14px;font-weight:600;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
-    <button id="sendPlanBtn" class="btn btn-green" style="width:100%;justify-content:center;font-size:15px;opacity:.4;cursor:not-allowed" onclick="confirmCommande()">
-      ✓ Confirmer la commande &amp; enregistrer
+    <button id="sendPlanBtn" class="btn btn-green" style="opacity:.4;cursor:not-allowed" onclick="confirmCommande()">
+      <i data-lucide="check-circle-2" style="width:15px;height:15px"></i> Confirmer la commande &amp; enregistrer
     </button>
     <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)" id="sendPlanHint">Marque toutes les bobines comme Coupées pour pouvoir confirmer</div>
   </div>
@@ -941,20 +1007,20 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 <!-- ===== PAGE 3 : DONNÉES ===== -->
 <div class="page" id="page2">
   <div class="tab-bar">
-    <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
-    <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
-    <button class="tab-btn" id="tabNc" onclick="switchTab('nc')">⚠ Registre NC</button>
-    <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
-    <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
-    <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
-    <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
+    <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')"><i data-lucide="layers" style="width:12px;height:12px"></i> Plans</button>
+    <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')"><i data-lucide="clipboard-check" style="width:12px;height:12px"></i> Fiches</button>
+    <button class="tab-btn" id="tabNc" onclick="switchTab('nc')"><i data-lucide="alert-triangle" style="width:12px;height:12px"></i> NC</button>
+    <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')"><i data-lucide="timer" style="width:12px;height:12px"></i> Temps</button>
+    <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')"><i data-lucide="bar-chart-2" style="width:12px;height:12px"></i> Analyse</button>
+    <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')"><i data-lucide="file-text" style="width:12px;height:12px"></i> Brouillons</button>
+    <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none"><i data-lucide="trash-2" style="width:12px;height:12px"></i> Corbeille</button>
   </div>
 
   <!-- ONGLET SAUVEGARDES -->
   <div id="tabContentSaves">
     <div id="backupBtnZone" class="flex-wrap" style="margin-bottom:12px;display:none">
-      <button class="btn btn-orange btn-sm" onclick="downloadFullBackup()">📦 Sauvegarde complète JSON</button>
-      <button class="btn btn-ghost btn-sm" onclick="downloadColdArchive()">🧊 Archive froide</button>
+      <button class="btn btn-orange btn-sm" onclick="downloadFullBackup()"><i data-lucide="download" style="width:12px;height:12px"></i> Export JSON</button>
+      <button class="btn btn-ghost btn-sm" onclick="downloadColdArchive()"><i data-lucide="archive" style="width:12px;height:12px"></i> Archive froide</button>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
       <select id="saveFilterClient" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
@@ -973,9 +1039,9 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
   <!-- ONGLET FICHES -->
   <div id="tabContentFiches" class="hidden">
     <div class="flex-wrap" style="margin-bottom:12px" id="fichesManageBtns">
-      <button class="btn btn-ghost btn-sm" id="btnToggleValid" onclick="toggleValidatedFiches()">✓ Fiches validées</button>
-      <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
-      <button class="btn btn-red btn-sm" onclick="clearFiches()">📦 Tout archiver</button>
+      <button class="btn btn-ghost btn-sm" id="btnToggleValid" onclick="toggleValidatedFiches()"><i data-lucide="check-square" style="width:12px;height:12px"></i> Fiches validées</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportFiches()"><i data-lucide="download" style="width:12px;height:12px"></i> Exporter CSV</button>
+      <button class="btn btn-red btn-sm" onclick="clearFiches()"><i data-lucide="archive" style="width:12px;height:12px"></i> Tout archiver</button>
     </div>
     <input type="text" id="ficheSearch" oninput="renderFiches()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
     <div id="fichesList"></div>
@@ -1007,8 +1073,8 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
       <button class="btn btn-ghost btn-sm" onclick="resetTempsFilters()">✕ Reset</button>
     </div>
     <div class="flex-wrap" style="margin-bottom:12px" id="tempsManageBtns">
-      <button class="btn btn-ghost btn-sm" onclick="exportTemps()">⬇️ Exporter CSV</button>
-      <button class="btn btn-red btn-sm" onclick="clearTemps()">📦 Tout archiver</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportTemps()"><i data-lucide="download" style="width:12px;height:12px"></i> Exporter CSV</button>
+      <button class="btn btn-red btn-sm" onclick="clearTemps()"><i data-lucide="archive" style="width:12px;height:12px"></i> Tout archiver</button>
     </div>
     <div id="tempsList"></div>
     <div id="tempsEmpty" class="text-muted hidden" style="padding:8px 0">Aucune donnée de temps enregistrée.</div>
@@ -1058,7 +1124,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 <!-- MODALS -->
 <div class="modal-overlay" id="saveModal">
   <div class="modal">
-    <h3 id="saveModalTitle">💾 Sauvegarder le plan</h3>
+    <h3 id="saveModalTitle" style="display:flex;align-items:center;gap:8px"><i data-lucide="save" style="width:16px;height:16px;color:var(--blue)"></i> Sauvegarder le plan</h3>
     <div class="field"><label>Client</label><input type="text" id="saveClient" inputmode="text"></div>
     <div class="field"><label>Référence produit</label><input type="text" id="saveRef" inputmode="text"></div>
     <div class="modal-btns">
@@ -1081,7 +1147,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 
 <div class="modal-overlay" id="chronoSaveModal">
   <div class="modal">
-    <h3>⏱ Enregistrer le temps</h3>
+    <h3 style="display:flex;align-items:center;gap:8px"><i data-lucide="timer" style="width:16px;height:16px;color:var(--blue)"></i> Enregistrer le temps</h3>
     <div id="chronoSaveInfo" style="background:#1a1a18;border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px;line-height:1.8"></div>
     <div class="field"><label>Commentaire (facultatif)</label>
       <textarea id="chronoComment" placeholder="ex : problème casse bobine 3..." style="min-height:50px"></textarea>
@@ -2120,8 +2186,8 @@ function refreshPhotoZone(lineId){
   const data=ficholinePhotos[lineId];
   if(data){
     zone.innerHTML=`<img src="${data}" class="photo-thumb" onclick="openPhotoViewer('${lineId}')" alt="photo">
-      <button class="photo-btn" onclick="triggerPhoto('${lineId}')">🔄 Changer</button>
-      <button class="photo-btn" onclick="deletePhoto('${lineId}')" style="border-color:#7a2222;color:var(--red)">🗑</button>`;
+      <button class="photo-btn" onclick="triggerPhoto('${lineId}')">↺ Changer</button>
+      <button class="photo-btn" onclick="deletePhoto('${lineId}')" style="border-color:#6a2020;color:var(--red)">✕</button>`;
   } else {
     zone.innerHTML=`<button class="photo-btn" onclick="triggerPhoto('${lineId}')">📷 Ajouter photo</button>`;
   }
@@ -3305,7 +3371,8 @@ function recalcPlan(){
   if(!anyRows){
     planOversize=[];
     if(statsEl) statsEl.innerHTML='';
-    if(cardsEl) cardsEl.innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
+    if(cardsEl) cardsEl.innerHTML='<div class="plan-empty"><i data-lucide="scissors" style="width:28px;height:28px;opacity:.25" class="pe-icon"></i><div class="pe-title">Remplis la commande ci-dessus pour générer le plan</div></div>';
+    if(typeof lucide!=='undefined')lucide.createIcons({nodes:[cardsEl]});
     return;
   }
 
@@ -6459,22 +6526,22 @@ function addFicheLine(data){
       <span class="fl-pos" id="pos_${id}">—</span>
       <span class="fl-title">Bobine <span id="badge_${id}" class="fl-badge badge-green">RAS</span></span>
       <button id="coupeeBtn_${id}" onclick="toggleCoupee('${id}')"
-        style="padding:8px 14px;border-radius:8px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap">
+        style="padding:8px 14px;border-radius:8px;border:2px solid var(--border2);background:var(--section);color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap">
         ✂ Coupée
       </button>
-      <button class="btn btn-red btn-sm" onclick="removeFicheLine('${id}')">✕</button>
+      <button class="btn btn-red btn-sm" onclick="removeFicheLine('${id}')" title="Supprimer cette bobine" style="padding:6px 9px"><i data-lucide="x" style="width:13px;height:13px"></i></button>
     </div>
     <div class="fiche-grid">
       <div class="field" style="grid-column:1/-1"><label>Étiquette bobine mère</label>
         <input type="text" id="flLabel_${id}" value="${data.label||''}" placeholder="BOB-001" inputmode="text" oninput="refreshOp2BobineList()">
         <div class="photo-zone" id="photoZone_${id}">
-          <button class="photo-btn" onclick="triggerPhoto('${id}')">📷 Ajouter photo</button>
+          <button class="photo-btn" onclick="triggerPhoto('${id}')"><i data-lucide="camera" style="width:12px;height:12px"></i> Ajouter photo</button>
         </div>
       </div>
       <div class="field" style="grid-column:1/-1"><label>Nb bob. × Largeur</label>
         <input type="text" id="flConf_${id}" value="${data.conf||''}" placeholder="5×80 + 3×50"
           inputmode="text" oninput="onFicheConfChange('${id}')">
-        <button class="btn btn-orange btn-sm" style="margin-top:8px" onclick="recalcEcartsFromFiche()" title="Recalcule les écarts (rattrapage / surplus) sur toute la commande">♻ Recalculer les écarts</button>
+        <button class="btn btn-orange btn-sm" style="margin-top:8px" onclick="recalcEcartsFromFiche()" title="Recalcule les écarts (rattrapage / surplus) sur toute la commande"><i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Recalculer les écarts</button>
       </div>
       <div class="field" style="grid-column:1/-1">
         <label>Test 2ème bobineaux</label>
@@ -6514,12 +6581,13 @@ function addFicheLine(data){
       <div class="field">
         <label>Action</label>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1">🗑 Déchet</button>
-          <button class="btn btn-ghost btn-sm" id="act_chutes_${id}" onclick="toggleAction('${id}','chutes')" style="flex:1">✂ Chutes</button>
+          <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1"><i data-lucide="trash-2" style="width:12px;height:12px"></i> Déchet</button>
+          <button class="btn btn-ghost btn-sm" id="act_chutes_${id}" onclick="toggleAction('${id}','chutes')" style="flex:1"><i data-lucide="scissors" style="width:12px;height:12px"></i> Chutes</button>
         </div>
       </div>
     </div>`;
   document.getElementById('ficheLines').appendChild(div);
+  if(typeof lucide!=='undefined') lucide.createIcons({nodes:[div]});
   refreshPhotoZone(id);
   updateTest2Subs(id);
   updateAllCumuls();
@@ -6801,10 +6869,20 @@ const AUTOSAVE_ID='d_autosave';
 function autosaveDraftTick(){
   if(!ficheLines.length) return;
   const st=serializeFicheState();
-  const label='🔄 Auto · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
+  const label='Auto · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
   const drafts=loadDrafts().filter(d=>d.id!==AUTOSAVE_ID);
   drafts.unshift({id:AUTOSAVE_ID,savedAt:isoNow(),label,state:st,auto:true});
   persistDrafts(drafts);
+  // Indicateur visuel autosave
+  const ind=document.getElementById('autosaveIndicator');
+  const txt=document.getElementById('autosaveText');
+  if(ind&&txt){
+    const now=new Date();
+    txt.textContent='Brouillon — '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    ind.className='visible saved';
+    clearTimeout(ind._hideTimer);
+    ind._hideTimer=setTimeout(()=>{ind.className='';},4000);
+  }
 }
 function startAutosave(){
   if(_autosaveTimer) return;
