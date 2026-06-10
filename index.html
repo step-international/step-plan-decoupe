@@ -867,6 +867,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
 
 <!-- input fichier caché pour les photos -->
 <input type="file" id="photoFileInput" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="efPhotoFileInput" accept="image/*" capture="environment" style="display:none">
 <input type="file" id="blFileInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
 <input type="file" id="commandeFilesInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple style="display:none">
 
@@ -1744,6 +1745,8 @@ let loadedSaveId = null; // id du plan sauvegardé chargé par l'opérateur (sup
 let editingSaveId = null; // id du plan en cours de MODIFICATION (la sauvegarde écrase ce plan)
 let photoTargetId = null; // pour savoir quelle bobine reçoit la photo
 let ficholinePhotos = {}; // id -> Storage URL (ou ancien base64)
+let efPhotos = {};        // édition fiche : index bobine -> URL/base64
+let efPhotoTargetOrig = null; // index bobine ciblé pour upload photo en édition
 let commandePhoto = ''; // [LEGACY] ancienne photo unique de commande (rétro-compat)
 let commandeFiles = []; // fichiers commande client : [{url,type,name}] type ∈ image|pdf|doc|xls|file
 
@@ -1885,6 +1888,31 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
     else{ficholinePhotos[lid]=val;refreshPhotoZone(lid);}
   }catch(e){alert('Erreur photo : '+e.message);if(isCmd)refreshCommandePhotoZone();else refreshPhotoZone(lid);}
 });
+// Upload photo en édition de fiche (réutilise Storage, fallback base64).
+(function(){
+  const inp=document.getElementById('efPhotoFileInput');
+  if(!inp) return;
+  inp.addEventListener('change',async function(){
+    const file=this.files&&this.files[0];
+    if(!file||efPhotoTargetOrig===null) return;
+    const orig=efPhotoTargetOrig; efPhotoTargetOrig=null;
+    const z=document.querySelector(`#ef_bobList .ef-photo[data-orig="${orig}"]`);
+    if(z) z.innerHTML='<span style="color:#888;font-size:12px">⏳…</span>';
+    const oldUrl=efPhotos[orig];
+    try{
+      let val;
+      if(storage){
+        const blob=await compressImageBlob(file,800,0.6);
+        if(oldUrl) await deletePhotoFromStorage(oldUrl);
+        val=await uploadPhotoToStorage(blob,'edit_'+Date.now());
+      } else {
+        val=await compressImage(file,800,0.6);
+      }
+      efPhotos[orig]=val;
+    }catch(e){alert('Erreur photo : '+e.message);}
+    efRenderPhoto(orig);
+  });
+})();
 function refreshPhotoZone(lineId){
   const zone=document.getElementById('photoZone_'+lineId);
   if(!zone) return;
@@ -5120,9 +5148,10 @@ function renderFiches(){
     if(f.valide===true){statusBadge=`✓ Validée${f.valideBy?' · '+esc(f.valideBy):''}`;statusColor='background:#14371f;color:#4ade80';}
     else if(f.valide===false){statusBadge=`✗ Refusée${f.valideBy?' · '+esc(f.valideBy):''}`;statusColor='background:#3d1414;color:#f87171';}
     else{statusBadge=`⏳ En attente`;statusColor='background:#3d2a00;color:#f59e0b';}
-    // Boutons validation pour DC/admin
+    // Modifier : ouvert à tous les opérateurs tant que la fiche n'est pas validée (BL posé).
+    const editBtn=f.valide!==true?`<button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="Modifier">✏ Modifier</button>`:'';
+    // Valider / Refuser : réservés au pilotage/admin.
     const validBtns=canValidate()?`
-      <button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="Modifier">✏ Modifier</button>
       ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
       <button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser">✗ Refuser</button>`:'';
     return `<div class="fiche-card"${f.modifie?' style="border-color:#caa15a"':''}>
@@ -5151,6 +5180,7 @@ function renderFiches(){
       <div class="fc-foot">${ds} · ⏱ ${esc(f.tempsStr||'—')}</div>
       <div class="fc-actions">
         <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',true)">📄 PDF</button>
+        ${editBtn}
         ${validBtns}
         <button class="fc-btn fc-btn-red-ghost" onclick="deleteFiche('${f._id}')">🗑 Archiver</button>
       </div>
@@ -5199,7 +5229,11 @@ async function rejectFiche(id){
 function editFicheConfigs(id){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
-  if(!canValidate()){alert('Modification réservée au valideur.');return;}
+  // Édition ouverte à tous les opérateurs, SAUF si la fiche est validée (BL posé) → verrouillée.
+  if(f.valide===true){alert('🔒 Fiche validée (BL posé) — non modifiable.');return;}
+  // Map de travail des photos par bobine, indexée sur l'index d'origine.
+  efPhotos={};
+  (f.ficheDetail||[]).forEach((fd,i)=>{ if(fd.photo) efPhotos[i]=fd.photo; });
   const detail=(f.ficheDetail||[]).map((fd,i)=>({i,label:fd.label||'',conf:fd.conf||''}));
   const old=document.getElementById('editFicheOverlay');
   if(old) old.remove();
@@ -5210,7 +5244,7 @@ function editFicheConfigs(id){
   ov.innerHTML=`
     <div style="background:#1a1a18;border:1px solid #333;border-radius:14px;max-width:640px;width:100%;margin:auto;padding:22px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-family:sans-serif;font-size:17px;font-weight:800;color:#fff">✏ Modifier le plan — ${f.name||''}</div>
+        <div style="font-family:sans-serif;font-size:17px;font-weight:800;color:#fff">✏ Modifier la fiche — ${f.name||''}</div>
         <button onclick="document.getElementById('editFicheOverlay').remove()" style="background:#222;border:1px solid #444;color:#ccc;border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
@@ -5226,10 +5260,11 @@ function editFicheConfigs(id){
       </div>
       <div id="ef_bobList" style="max-height:340px;overflow-y:auto">
         ${detail.map(d=>`
-          <div class="ef-bob-row" data-orig="${d.i}" style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+          <div class="ef-bob-row" data-orig="${d.i}" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
             <span class="ef-num" style="color:#a78bfa;font-weight:700;font-size:13px;width:64px;flex-shrink:0">Bob ${d.i+1}</span>
             <input class="ef-lab" value="${d.label.replace(/"/g,'&quot;')}" placeholder="Étiquette" style="width:100px;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-size:13px">
-            <input class="ef-cf" value="${d.conf.replace(/"/g,'&quot;')}" placeholder="ex : 5×80 + 3×50" style="flex:1;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-family:monospace;font-size:13px">
+            <input class="ef-cf" value="${d.conf.replace(/"/g,'&quot;')}" placeholder="ex : 5×80 + 3×50" style="flex:1;min-width:120px;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-family:monospace;font-size:13px">
+            <span class="ef-photo" data-orig="${d.i}" style="display:flex;gap:6px;align-items:center;flex-shrink:0"></span>
             <button onclick="efRemoveBob(this)" title="Supprimer cette bobine" style="background:#3a1414;border:1px solid #5a2020;color:#f87171;border-radius:8px;padding:8px 11px;cursor:pointer;flex-shrink:0">✕</button>
           </div>`).join('')}
       </div>
@@ -5239,6 +5274,39 @@ function editFicheConfigs(id){
       </div>
     </div>`;
   document.body.appendChild(ov);
+  // Rendre les zones photo de chaque bobine.
+  document.querySelectorAll('#ef_bobList .ef-photo').forEach(z=>efRenderPhoto(z.getAttribute('data-orig')));
+}
+// Rendu de la zone photo d'une bobine dans l'éditeur (orig = index d'origine ou 'new').
+function efRenderPhoto(orig){
+  const z=document.querySelector(`#ef_bobList .ef-photo[data-orig="${orig}"]`);
+  if(!z) return;
+  const url=efPhotos[orig];
+  if(url){
+    z.innerHTML=`<img src="${url}" onclick="efOpenPhoto('${orig}')" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer">
+      <button onclick="efTriggerPhoto('${orig}')" title="Changer la photo" style="background:#1c3a5c;border:1px solid #2b5b8c;color:#9ecbf0;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px">🔄</button>
+      <button onclick="efDeletePhoto('${orig}')" title="Supprimer la photo" style="background:#3a1414;border:1px solid #5a2020;color:#f87171;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px">🗑</button>`;
+  } else {
+    z.innerHTML=`<button onclick="efTriggerPhoto('${orig}')" title="Ajouter une photo" style="background:#222;border:1px solid #444;color:#ccc;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px">📷</button>`;
+  }
+}
+function efTriggerPhoto(orig){
+  efPhotoTargetOrig=orig;
+  const input=document.getElementById('efPhotoFileInput');
+  input.value='';
+  input.click();
+}
+async function efDeletePhoto(orig){
+  const url=efPhotos[orig];
+  if(url) await deletePhotoFromStorage(url);
+  delete efPhotos[orig];
+  efRenderPhoto(orig);
+}
+function efOpenPhoto(orig){
+  const url=efPhotos[orig];
+  if(!url) return;
+  document.getElementById('photoOverlayImg').src=url;
+  document.getElementById('photoOverlay').classList.add('open');
 }
 function efRenumber(){
   document.querySelectorAll('#ef_bobList .ef-bob-row').forEach((r,i)=>{
@@ -5248,15 +5316,18 @@ function efRenumber(){
 function efAddBob(){
   const list=document.getElementById('ef_bobList');
   if(!list) return;
+  const key='new_'+Date.now()+'_'+Math.floor(Math.random()*9999);
   const row=document.createElement('div');
   row.className='ef-bob-row';
   row.setAttribute('data-orig','new');
-  row.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:center';
+  row.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap';
   row.innerHTML=`<span class="ef-num" style="color:#a78bfa;font-weight:700;font-size:13px;width:64px;flex-shrink:0"></span>
     <input class="ef-lab" placeholder="Étiquette" style="width:100px;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-size:13px">
-    <input class="ef-cf" placeholder="ex : 5×80 + 3×50" style="flex:1;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-family:monospace;font-size:13px">
+    <input class="ef-cf" placeholder="ex : 5×80 + 3×50" style="flex:1;min-width:120px;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-family:monospace;font-size:13px">
+    <span class="ef-photo" data-orig="${key}" style="display:flex;gap:6px;align-items:center;flex-shrink:0"></span>
     <button onclick="efRemoveBob(this)" title="Supprimer cette bobine" style="background:#3a1414;border:1px solid #5a2020;color:#f87171;border-radius:8px;padding:8px 11px;cursor:pointer;flex-shrink:0">✕</button>`;
   list.appendChild(row);
+  efRenderPhoto(key);
   efRenumber();
 }
 function efRemoveBob(btn){
@@ -5297,7 +5368,10 @@ async function saveFicheConfigs(id){
   document.querySelectorAll('#ef_bobList .ef-bob-row').forEach(r=>{
     const o=r.getAttribute('data-orig');
     const base=(o!=='new'&&orig[+o])?orig[+o]:{};
-    newDetail.push({...base,label:r.querySelector('.ef-lab').value,conf:r.querySelector('.ef-cf').value});
+    const photoZone=r.querySelector('.ef-photo');
+    const pOrig=photoZone?photoZone.getAttribute('data-orig'):o;
+    const photo=(pOrig!=null&&efPhotos[pOrig]!==undefined)?efPhotos[pOrig]:(base.photo||'');
+    newDetail.push({...base,label:r.querySelector('.ef-lab').value,conf:r.querySelector('.ef-cf').value,photo});
   });
   if(!newDetail.length){alert('Il faut au moins une bobine.');return;}
   // Régénère le plan (groups) depuis les bobines modifiées → le PDF reflète la modif.
@@ -5313,10 +5387,12 @@ async function saveFicheConfigs(id){
   try{
     await db.collection('fiches').doc(id).update(upd);
     Object.assign(f,upd);
-    logAudit('edit','fiches',id,`Plan modifié par valideur — ${client} / ${ref} (${newDetail.length} bobines)`);
+    const who=(typeof currentUser!=='undefined'&&currentUser)?(currentUser.nom||currentUser.ini||''):'';
+    logAudit('edit','fiches',id,`Fiche modifiée${who?' par '+who:''} — ${client} / ${ref} (${newDetail.length} bobines)`);
     document.getElementById('editFicheOverlay')?.remove();
+    efPhotos={};
     renderFiches();
-    showToast('✓ Plan modifié et enregistré ('+newDetail.length+' bobines)','ok');
+    showToast('✓ Fiche modifiée et enregistrée ('+newDetail.length+' bobines)','ok');
   }catch(e){alert('Erreur enregistrement : '+e.message);}
 }
 
