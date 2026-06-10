@@ -5295,13 +5295,24 @@ function exportNc(){
 }
 
 // Sépare la matière non utilisée d'une fiche en deux catégories :
-//  - PERTE (déchet) : chutes de bord des bobines + bobines marquées 🗑 Déchet.
+//  - PERTE (déchet) : perte lame + reste non récupéré + perte bords (rognage
+//    des deux côtés de chaque bobine mère) + bobines marquées 🗑 Déchet.
 //  - CHUTE pour stockage : bobines marquées ✂ Chutes + solde conservé de la
 //    DERNIÈRE bobine mère de chaque référence.
 // Retourne { perteMm, chuteStockMm } (en mm cumulés de laize).
 function computePerteChute(f){
   const det=(f&&f.ficheDetail)||[];
   let perte=0, chute=0;
+  // Perte bords (mm rognés des deux côtés de CHAQUE bobine mère engagée).
+  // Lue à l'affichage depuis refGroups (multi) ou mère−utile (mono) : aucune
+  // écriture Firestore. Comptée pour toute fiche disposant de ces champs.
+  const edgeForFd=(fd)=>{
+    if(Array.isArray(f.refGroups)&&f.refGroups.length){
+      const g=f.refGroups.find(x=>(x.ref||'')===(fd.ref||''))||f.refGroups[0];
+      if(g) return Math.max(0,parseNum(g.edge));
+    }
+    return Math.max(0,parseNum(f.mother)-parseNum(f.useful));
+  };
   // Indices de la dernière bobine de chaque référence (= solde conservé).
   const lastByRef={};
   det.forEach((fd,i)=>{ lastByRef[fd.ref||'']=i; });
@@ -5311,9 +5322,10 @@ function computePerteChute(f){
     if(!pat.length) return;
     const u=(fd.useful!=null&&fd.useful>0)?fd.useful:(parseNum(f.useful)||0);
     const b=(fd.blade!=null)?fd.blade:(parseNum(f.blade)||0);
-    const w=Math.max(0,u-calcStats(pat,b).total); // chute de cette bobine
+    const w=Math.max(0,u-calcStats(pat,b).total); // reste sur la laize utile
     if(fd.actChutes || lastIdx.has(i)) chute+=w;   // récupéré (stock) ou solde
-    else perte+=w;                                 // déchet (bords + 🗑 Déchet)
+    else perte+=w;                                 // déchet (lame + reste + 🗑 Déchet)
+    perte+=edgeForFd(fd);                           // perte bords : toujours rognée
   });
   return { perteMm:Math.round(perte), chuteStockMm:Math.round(chute) };
 }
