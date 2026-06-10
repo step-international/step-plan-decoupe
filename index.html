@@ -359,6 +359,16 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
           </select>
         </div>
       </div>
+      <div class="row2">
+        <div class="field">
+          <label>Machine de cette référence</label>
+          <select data-rb="machine" onchange="onRefMachineChange(this)">
+            <option value="feba">FEBA</option>
+            <option value="maveg">MAVEG</option>
+            <option value="cevenini">CEVENINI</option>
+          </select>
+        </div>
+      </div>
       <div class="row3">
         <div class="field">
           <label>Bobine mère (mm)</label>
@@ -720,7 +730,16 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
       <button class="btn btn-red btn-sm" onclick="clearFiches()">📦 Tout archiver</button>
     </div>
-    <input type="text" id="ficheSearch" oninput="renderFiches()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+    <input type="text" id="ficheSearch" oninput="renderFiches()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <select id="ficheFilterClient" onchange="renderFiches()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+        <option value="">Tous clients</option>
+      </select>
+      <select id="ficheFilterRef" onchange="renderFiches()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+        <option value="">Toutes matières / réf.</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="resetFicheFilters()">✕ Reset</button>
+    </div>
     <div id="fichesList"></div>
     <div id="fichesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune fiche enregistrée.</div>
   </div>
@@ -2236,8 +2255,9 @@ function importPlanToFiche(opts){
 
     // Génération des bobines, réf par réf, avec séparateur visuel entre réfs.
     let bi=1;
+    let prevMach='';
     computed.forEach((c,ci)=>{
-      if(multi) insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur);
+      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach); if(c.machine) prevMach=c.machine; }
       const man=planManual&&planManual[ci];
       const myChutes=(ficheChutes||[]).filter(ch=>(ch.ref||'')===(c.ref||''));
       if(man){
@@ -2305,12 +2325,25 @@ function importPlanToFiche(opts){
   }
 }
 // Insère une bande de séparation de référence dans la liste des bobines de la fiche.
-function insertFicheRefSeparator(ref,useful,longueur){
+function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine){
   const div=document.createElement('div');
   div.className='fiche-ref-sep';
   div.dataset.ref=ref||'';
   const mlPart=(longueur!=null&&String(longueur).trim()!=='')?` · ${esc(String(longueur))} ml`:'';
-  div.innerHTML=`🎞 ${esc(ref)} — laize ${fmt(useful)} mm${mlPart} <span class="ref-sep-count" style="margin-left:8px"></span>`;
+  const machLbl=getMachineLabel(machine||'');
+  const machPart=machLbl?` · ⚙ ${esc(machLbl)}`:'';
+  // Barre rouge : la machine de cette réf diffère de la précédente.
+  let bandHtml='';
+  if(machLbl && prevMachine){
+    const prevLbl=getMachineLabel(prevMachine);
+    if(prevLbl && prevLbl!==machLbl){
+      div.style.borderColor='#f87171';
+      div.style.background='#3d1414';
+      div.style.color='#f87171';
+      bandHtml=`<div style="font-size:12px;font-weight:800;letter-spacing:.04em;margin-bottom:5px">⚙ CHANGEMENT DE MACHINE — ${esc(prevLbl)} → ${esc(machLbl)}</div>`;
+    }
+  }
+  div.innerHTML=`${bandHtml}🎞 ${esc(ref)} — laize ${fmt(useful)} mm${mlPart}${machPart} <span class="ref-sep-count" style="margin-left:8px"></span>`;
   document.getElementById('ficheLines').appendChild(div);
 }
 
@@ -2346,8 +2379,20 @@ function selectMachine(m){
   // pas seulement la réf 1 (les blocs réf utilisent tous data-rb="edge"/"blade").
   document.querySelectorAll('#refBlocks [data-rb="edge"]').forEach(el=>{el.value=def.edge;});
   document.querySelectorAll('#refBlocks [data-rb="blade"]').forEach(el=>{el.value=def.blade;});
+  // Le sélecteur machine global aligne aussi la machine de CHAQUE référence.
+  document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value=m;});
   selectFicheMachine(m);
   onParamChange();
+}
+// Machine choisie pour UNE référence (multi-réf) : applique les défauts
+// bords/lame de cette machine à CE bloc uniquement, puis recalcule.
+function onRefMachineChange(sel){
+  const block=sel.closest('.ref-block');
+  if(!block) return;
+  const def=MACHINE_DEFAULTS[sel.value]||MACHINE_DEFAULTS.feba;
+  const eEl=block.querySelector('[data-rb="edge"]'); if(eEl) eEl.value=def.edge;
+  const bEl=block.querySelector('[data-rb="blade"]'); if(bEl) bEl.value=def.blade;
+  recalcPlan();
 }
 function getUseful(){return Math.max(0,parseNum(document.getElementById('motherWidth').value)-parseNum(document.getElementById('edgeLoss').value));}
 function getBlade(){return parseNum(document.getElementById('bladeWidth').value);}
@@ -2507,6 +2552,16 @@ function addRefBlock(){
         </select>
       </div>
     </div>
+    <div class="row2">
+      <div class="field">
+        <label>Machine de cette référence</label>
+        <select data-rb="machine" onchange="onRefMachineChange(this)">
+          <option value="feba">FEBA</option>
+          <option value="maveg">MAVEG</option>
+          <option value="cevenini">CEVENINI</option>
+        </select>
+      </div>
+    </div>
     <div class="row3">
       <div class="field">
         <label>Bobine mère (mm)</label>
@@ -2533,6 +2588,7 @@ function addRefBlock(){
   const def=MACHINE_DEFAULTS[currentMachine]||MACHINE_DEFAULTS.feba;
   const eEl=block.querySelector('[data-rb="edge"]'); if(eEl) eEl.value=def.edge;
   const bEl=block.querySelector('[data-rb="blade"]'); if(bEl) bEl.value=def.blade;
+  const mEl=block.querySelector('[data-rb="machine"]'); if(mEl) mEl.value=currentMachine;
   // 2 lignes vides par défaut sur le nouveau bloc
   const cont=block.querySelector('.rb-rows');
   cont.appendChild(makeOrderRow());cont.appendChild(makeOrderRow());
@@ -2783,6 +2839,7 @@ function getRefGroups(){
       const mother=parseNum(bl.querySelector('[data-rb="mother"]')?.value);
       const edge=parseNum(bl.querySelector('[data-rb="edge"]')?.value);
       const blade=parseNum(bl.querySelector('[data-rb="blade"]')?.value);
+      const machine=(bl.querySelector('[data-rb="machine"]')?.value||currentMachine||'').trim();
       const useful=Math.max(0,mother-edge);
       const rows=[];
       bl.querySelectorAll('.order-row').forEach(row=>{
@@ -2793,7 +2850,7 @@ function getRefGroups(){
         const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
         if(qty>0&&w>0){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;rows.push(o);}
       });
-      groups.push({ref,longueur,film,veka,mother,edge,useful,blade,rows});
+      groups.push({ref,longueur,film,veka,mother,edge,useful,blade,machine,rows});
     });
     return groups;
   }
@@ -2807,6 +2864,7 @@ function getRefGroups(){
     edge:parseNum(document.getElementById('edgeLoss')?.value),
     useful:getUseful(),
     blade:getBlade(),
+    machine:currentMachine||'',
     rows:getOrderRows()
   }];
 }
@@ -2814,7 +2872,7 @@ function getRefGroups(){
 // Sérialise les blocs réf pour la sauvegarde (structure persistée).
 function serializeRefGroups(){
   return getRefGroups().map(g=>({
-    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, rows:g.rows
+    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine||'', rows:g.rows
   }));
 }
 // Chaîne lisible des attributs film d'une réf (ex. "Imprimé · VEKA"). Vide si rien.
@@ -2880,6 +2938,7 @@ function restoreRefGroups(arr){
   setRb('mother',g0.mother); setRb('edge',g0.edge); setRb('blade',g0.blade);
   setRb('longueur',g0.longueur);
   setRb('film',g0.film); setRb('veka',g0.veka);
+  if(g0.machine) setRb('machine',g0.machine);
   const refSel=document.querySelector('.ref-block [data-rb="ref"]'); applySavedRef(refSel,g0.ref,client);
   const cont0=document.querySelector('.ref-block .rb-rows');
   (g0.rows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'')));
@@ -2891,6 +2950,7 @@ function restoreRefGroups(arr){
     const set=(sel,v)=>{const el=bl.querySelector('[data-rb="'+sel+'"]');if(el)el.value=v==null?'':v;};
     set('mother',gi.mother); set('edge',gi.edge); set('blade',gi.blade); set('longueur',gi.longueur);
     set('film',gi.film); set('veka',gi.veka);
+    if(gi.machine) set('machine',gi.machine);
     const rs=bl.querySelector('[data-rb="ref"]'); applySavedRef(rs,gi.ref,client);
     const cont=bl.querySelector('.rb-rows');
     cont.querySelectorAll('.order-row').forEach(r=>r.remove()); // addRefBlock met 2 lignes vides
@@ -3269,7 +3329,7 @@ function getPlanHTML(){
     });
     if(multi){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
-      sections+=`<h3 style="font-size:14px;margin:18px 0 6px;color:#5b21b6">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;
+      sections+=`<h3 style="font-size:14px;margin:18px 0 6px;color:#5b21b6">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;
     }
     sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Laizes</th><th>Utilisé / Utile</th><th>Chute</th></tr>${tRows}</table>`;
   });
@@ -3303,7 +3363,7 @@ function printSavedPlan(id){
     : [{ref:s.ref,longueur:s.longueur,mother:parseNum(s.mother),edge:parseNum(s.edgeLoss),blade:parseNum(s.blade),rows:s.rows||[]}];
   const grpInput=arr.map(g=>{
     const mother=parseNum(g.mother), edge=parseNum(g.edge!=null?g.edge:s.edgeLoss);
-    return {ref:g.ref||'', longueur:g.longueur||'', film:g.film||'', veka:g.veka||'', mother, edge, useful:Math.max(0,mother-edge), blade:parseNum(g.blade!=null?g.blade:s.blade), rows:g.rows||[]};
+    return {ref:g.ref||'', longueur:g.longueur||'', film:g.film||'', veka:g.veka||'', mother, edge, useful:Math.max(0,mother-edge), blade:parseNum(g.blade!=null?g.blade:s.blade), machine:g.machine||'', rows:g.rows||[]};
   });
   const groups=packRefGroups(grpInput).filter(c=>c.rows.length);
   const mn=getMachineLabel(s.machine||currentMachine);
@@ -3329,7 +3389,7 @@ function printSavedPlan(id){
     });
     if(multi){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
-      sections+=`<h3 style="font-size:14px;margin:18px 0 6px;color:#5b21b6">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;
+      sections+=`<h3 style="font-size:14px;margin:18px 0 6px;color:#5b21b6">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;
     }
     sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Laizes</th><th>Utilisé / Utile</th><th>Chute</th></tr>${tRows}</table>`;
   });
@@ -4939,6 +4999,27 @@ function renderFiches(){
   const all=fichesCache.filter(f=>!f.deleted);
   const nbValid=all.filter(f=>f.valide===true).length;
   let fiches=showValidatedFiches?all.filter(f=>f.valide===true):all.filter(f=>f.valide!==true);
+  // Helper : toutes les réfs d'une fiche (multi-ref ou mono).
+  const ficheRefs=f=>Array.isArray(f.refGroups)&&f.refGroups.length?f.refGroups.map(g=>g.ref).filter(Boolean):(f.ref?[f.ref]:[]);
+  // Remplir les filtres (selon le périmètre courant en cours/validées).
+  const selC=document.getElementById('ficheFilterClient');
+  const selR=document.getElementById('ficheFilterRef');
+  if(selC){
+    const cur=selC.value;
+    const clients=[...new Set(fiches.map(f=>f.client).filter(c=>c&&c!=='—'))].sort();
+    selC.innerHTML='<option value="">Tous clients</option>'+clients.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    selC.value=cur;
+  }
+  if(selR){
+    const cur=selR.value;
+    const refs=[...new Set(fiches.flatMap(ficheRefs).filter(r=>r&&r!=='—'))].sort();
+    selR.innerHTML='<option value="">Toutes matières / réf.</option>'+refs.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('');
+    selR.value=cur;
+  }
+  const fC=document.getElementById('ficheFilterClient')?.value||'';
+  const fR=document.getElementById('ficheFilterRef')?.value||'';
+  if(fC) fiches=fiches.filter(f=>f.client===fC);
+  if(fR) fiches=fiches.filter(f=>ficheRefs(f).includes(fR));
   // Recherche texte (client, n° commande, nom de fiche, réf).
   const q=(document.getElementById('ficheSearch')?.value||'').trim().toLowerCase();
   if(q){
@@ -4956,8 +5037,9 @@ function renderFiches(){
     btn.className='btn btn-sm '+(showValidatedFiches?'btn-green':'btn-ghost');
   }
   if(!fiches.length){
-    if(q){
-      list.innerHTML='<div style="text-align:center;padding:24px 16px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">Aucune fiche ne correspond à « '+esc(q)+' ».</div>';
+    if(q||fC||fR){
+      const crit=q?('« '+esc(q)+' »'):'ces filtres';
+      list.innerHTML='<div style="text-align:center;padding:24px 16px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">Aucune fiche ne correspond à '+crit+'.</div>';
       empty.classList.add('hidden');
       return;
     }
@@ -5022,6 +5104,11 @@ function renderFiches(){
       </div>
     </div>`;
   }).join('');
+}
+function resetFicheFilters(){
+  ['ficheFilterClient','ficheFilterRef'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const s=document.getElementById('ficheSearch');if(s)s.value='';
+  renderFiches();
 }
 
 async function validateFiche(id){
@@ -5393,6 +5480,13 @@ function showFicheDetail(id,autoPrint){
       return seg;
     }).join(' + ');
   };
+  // Machine par référence (multi-réf) : barre rouge insérée dans le tableau
+  // dès que la machine change d'une bobine à la suivante. Anciennes fiches sans
+  // machine par réf -> une seule machine -> aucune barre.
+  const machByRef={};
+  if(Array.isArray(f.refGroups)) f.refGroups.forEach(g=>{ if(g) machByRef[(g.ref||'')]=getMachineLabel(g.machine||''); });
+  const defMachLbl=f.machine||'';
+  let prevMachLbl=null;
   let bobNum=0;
   const planRows=(liveGroups||[]).map((g,gi)=>{
     const isLast=gi===(liveGroups.length-1);
@@ -5400,6 +5494,17 @@ function showFicheDetail(id,autoPrint){
     for(let k=0;k<g.count;k++){
       bobNum++;
       const fd=f.ficheDetail&&f.ficheDetail[bobNum-1];
+      const curMachLbl=(machByRef[(fd&&fd.ref)||'']||defMachLbl)||'';
+      let machBand='';
+      if(curMachLbl){
+        if(prevMachLbl!==null && curMachLbl!==prevMachLbl){
+          machBand=`<tr><td colspan="9" style="padding:0">`
+            +`<div style="height:5px;background:#f87171"></div>`
+            +`<div style="background:#3d1414;color:#f87171;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">⚙ CHANGEMENT DE MACHINE — ${esc(prevMachLbl)} → ${esc(curMachLbl)}</div>`
+            +`</td></tr>`;
+        }
+        prevMachLbl=curMachLbl;
+      }
       let ncBadge='<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;background:#14371f;color:#4ade80">✓ RAS</span>';
       if(fd){
         const ncs=[];
@@ -5415,7 +5520,7 @@ function showFicheDetail(id,autoPrint){
       const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
       const photoCell=fd&&fd.photo?`<a href="${fd.photo}" target="_blank"><img src="${fd.photo}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
-      rows.push(`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
+      rows.push(machBand+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:11px">[SOLDE]</span>':''}</td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(labelLegrand(g.label)):g.label}</td>
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
