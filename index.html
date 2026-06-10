@@ -537,6 +537,45 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 /* Tab btn avec icône */
 .tab-btn i[data-lucide]{flex-shrink:0;opacity:.7}
 .tab-btn.active i[data-lucide]{opacity:1}
+
+/* =========================================
+   PHASE 3 — Analyse / Données
+   ========================================= */
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:18px}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;text-align:center}
+.kpi-val{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* Analyse section card */
+.analyse-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.analyse-title{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+
+/* Chart canvas containers */
+.chart-wrap{position:relative}
+.chart-wrap-sm{height:140px}
+.chart-wrap-md{height:180px}
+.chart-wrap-lg{height:220px}
+
+/* Analyse filters */
+.analyse-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.analyse-filters select{flex:1;min-width:100px;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:12px;font-family:var(--font)}
+
+/* Client ranking table */
+.rank-table{width:100%;border-collapse:collapse;font-size:13px}
+.rank-table th{text-align:left;padding:6px 8px;color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:700;border-bottom:1px solid var(--border)}
+.rank-table td{padding:7px 8px;border-bottom:1px solid var(--border)}
+.rank-bar{background:var(--elevated);border-radius:3px;height:6px;overflow:hidden;min-width:80px}
+.rank-bar-fill{height:100%;border-radius:3px;transition:width .4s}
+
+/* NC doughnut */
+.nc-legend{display:flex;flex-direction:column;gap:6px;min-width:140px}
+.nc-legend-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.nc-legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.nc-legend-lbl{flex:1;color:var(--muted)}
+.nc-legend-val{font-weight:700;color:var(--text)}
+.nc-legend-pct{color:var(--subtle);width:36px;text-align:right}
 </style>
 </head>
 <body>
@@ -1165,6 +1204,7 @@ body.atelier .chrono-display{font-size:72px;letter-spacing:6px}
 <input type="file" id="commandeFilesInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple style="display:none">
 
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -4022,7 +4062,7 @@ function renderSaves(){
     const machBadge=mn?`<div style="margin-top:6px"><span style="display:inline-block;padding:3px 12px;border-radius:7px;font-size:15px;font-weight:800;letter-spacing:.5px;color:#fff;background:${machCol}">⚙ ${esc(mn)}</span></div>`:'';
     const cmdDetail=s.commandeDetail||(s.rows||[]).map(function(r){return r.qty+'×'+r.width+'mm';}).join(' + ')||'';
     const pkg=[s.typeCond||s.carton,s.palette,s.etiquetage||s.etiquette,s.cerclage].filter(Boolean).join(' · ');
-    const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
+    const pkgLine=pkg?`<div class="save-meta" style="color:var(--muted)">${pkg}</div>`:'';
     const cmdLine=(s.numCmd)?`<div style="margin-top:5px"><span style="display:inline-block;background:var(--blue);color:#fff;font-weight:800;font-size:13px;padding:3px 10px;border-radius:6px;letter-spacing:.02em">N° ${esc(s.numCmd)}</span>${s.dateLiv?`<span style="margin-left:8px;font-size:12px;color:var(--muted)">📅 livr. ${new Date(s.dateLiv).toLocaleDateString('fr-FR')}</span>`:''}</div>`:'';
     const isMulti=Array.isArray(s.refGroups)&&s.refGroups.length>1;
     const titleHtml=isMulti
@@ -4031,7 +4071,7 @@ function renderSaves(){
       : `<div class="save-title-wrap">${esc(s.client)} — ${esc(s.ref)}${s.longueur?` · ${esc(String(s.longueur))} ml`:''}</div>`;
     const cmdDetailHtml=isMulti
       ? `<div class="save-meta" style="color:var(--blue);white-space:pre-line;line-height:1.5">📋 ${esc(s.refGroups.map(g=>`${g.ref||'?'} → ${(g.rows||[]).map(r=>r.qty+'×'+r.width+'mm').join(' + ')||'—'}`).join('\n'))}</div>`
-      : (cmdDetail?'<div class="save-meta" style="color:var(--blue)">📋 '+esc(cmdDetail)+'</div>':'');
+      : (cmdDetail?'<div class="save-meta" style="color:var(--blue);font-variant-numeric:tabular-nums">'+esc(cmdDetail)+'</div>':'');
     const cf=readCommandeFiles(s);
     const filesLine=cf.length?`<div class="save-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${cf.map(file=>`<a href="${file.url}" target="_blank" rel="noopener" title="${esc(file.name||'pièce jointe')}" style="color:#60a5fa;text-decoration:none;font-size:16px">📎</a>`).join('')}<span style="font-size:11px;color:var(--muted)">${cf.length} pièce${cf.length>1?'s':''} jointe${cf.length>1?'s':''}</span></div>`:'';
     return `<div class="save-card">
@@ -4935,6 +4975,22 @@ function exportTemps(){
 // ============================================================
 // ONGLET ANALYSE
 // ============================================================
+// State des filtres Analyse (persisté entre les renders)
+let _analyseCharts={};
+let _analysePeriod='all',_analyseMachine='',_analyseClient='';
+let _ncChartData=null; // données NC transmises par buildFicheAnalytics → renderAnalyse
+
+function onAnalyseFilterChange(){
+  _analysePeriod=document.getElementById('analyseFilterPeriod')?.value||'all';
+  _analyseMachine=document.getElementById('analyseFilterMachine')?.value||'';
+  _analyseClient=document.getElementById('analyseFilterClient')?.value||'';
+  renderAnalyse();
+}
+function _destroyAnalyseCharts(){
+  Object.values(_analyseCharts).forEach(c=>{try{c.destroy();}catch(e){}});
+  _analyseCharts={};
+}
+
 function getWeekKey(dateStr){
   const d=new Date(dateStr);
   const jan1=new Date(d.getFullYear(),0,1);
@@ -4992,9 +5048,9 @@ function svgHBars(items,unit,W,padL){
 }
 function buildFicheAnalytics(){
   const fiches=fichesCache.filter(f=>!f.deleted);
-  if(!fiches.length) return '';
+  if(!fiches.length){_ncChartData=null;return '';}
   let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,totBob=0,ncBob=0;
-  const opStat={},machStat={},clientPct={};
+  const opStat={},machStat={};
   fiches.forEach(f=>{
     const det=f.ficheDetail||[];
     let fNc=0;
@@ -5008,54 +5064,62 @@ function buildFicheAnalytics(){
     });
     const op=f.ini||'?';if(!opStat[op])opStat[op]={nc:0,tot:0};opStat[op].nc+=fNc;opStat[op].tot+=det.length;
     const m=f.machine||'?';if(!machStat[m])machStat[m]={nc:0,tot:0};machStat[m].nc+=fNc;machStat[m].tot+=det.length;
-    const pct=parseFloat(f.pct);if(!isNaN(pct)){const c=f.client||'?';if(!clientPct[c])clientPct[c]=[];clientPct[c].push(pct);}
   });
   const ncTotal=ncLarg+ncQty+ncCasse+ncAng;
   const ncSlices=[
     {label:'Largeur',value:ncLarg,color:'#f87171'},
-    {label:'Quantité',value:ncQty,color:'#f59e0b'},
+    {label:'Quantité',value:ncQty,color:'#f97316'},
     {label:'Casse',value:ncCasse,color:'#a78bfa'},
-    {label:'Angle',value:ncAng,color:'#60a5fa'}
+    {label:'Angle',value:ncAng,color:'#4f8ef7'}
   ].filter(s=>s.value>0);
-  const ncLegend=ncSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">
-    <span style="width:12px;height:12px;border-radius:2px;background:${s.color};flex-shrink:0"></span>
-    <span style="color:#ccc">${s.label}</span>
-    <span style="color:#fff;font-weight:700;margin-left:auto">${s.value}</span>
-    <span style="color:#777;width:42px;text-align:right">${Math.round(s.value/ncTotal*100)}%</span>
-  </div>`).join('');
-  const opColors={'TB':'#60a5fa','JF':'#4ade80','MT':'#f59e0b','DC':'#a78bfa','ER':'#f87171','CH':'#34d399','?':'#888'};
-  const opItems=Object.entries(opStat).filter(([,d])=>d.tot>0).map(([op,d])=>({label:op,value:d.tot?d.nc/d.tot*100:0,color:opColors[op]||'#60a5fa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
-  const machColors={'FEBA':'#60a5fa','MAVEG':'#4ade80','CEVENINI':'#a78bfa','?':'#888'};
-  const machItems=Object.entries(machStat).filter(([,d])=>d.tot>0).map(([m,d])=>({label:m,value:d.tot?d.nc/d.tot*100:0,color:machColors[m]||'#a78bfa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
-  const clientItems=Object.entries(clientPct).map(([c,arr])=>({label:c,value:avgArr(arr),color:'#34d399',sub:`(${arr.length} cmd)`})).sort((a,b)=>b.value-a.value);
+  const opColors={'TB':'#4f8ef7','JF':'#34d399','MT':'#f97316','DC':'#a78bfa','ER':'#f87171','CH':'#2dd4bf','?':'#888'};
+  const machColors={'FEBA':'#4f8ef7','MAVEG':'#34d399','CEVENINI':'#a78bfa','?':'#888'};
+  const opItems=Object.entries(opStat).filter(([,d])=>d.tot>0)
+    .map(([op,d])=>({label:op,pct:d.tot?d.nc/d.tot*100:0,color:opColors[op]||'#4f8ef7',info:`${d.nc}/${d.tot}`}))
+    .sort((a,b)=>b.pct-a.pct);
+  const machItemsNc=Object.entries(machStat).filter(([,d])=>d.tot>0)
+    .map(([m,d])=>({label:m,pct:d.tot?d.nc/d.tot*100:0,color:machColors[m]||'#a78bfa',info:`${d.nc}/${d.tot}`}))
+    .sort((a,b)=>b.pct-a.pct);
   const globalNcRate=totBob?Math.round(ncBob/totBob*1000)/10:0;
 
+  // Stocker pour init Chart.js après innerHTML
+  _ncChartData={ncSlices,ncTotal,totBob,ncBob,globalNcRate,opItems,machItemsNc};
+
+  const legend=ncSlices.map(s=>`
+    <div class="nc-legend-row">
+      <span class="nc-legend-dot" style="background:${s.color}"></span>
+      <span class="nc-legend-lbl">${s.label}</span>
+      <span class="nc-legend-val">${s.value}</span>
+      <span class="nc-legend-pct">${Math.round(s.value/(ncTotal||1)*100)}%</span>
+    </div>`).join('');
+
   const ncBlock=ncTotal===0
-    ?`<div style="text-align:center;padding:24px;color:var(--green);font-weight:700">✓ Aucune non-conformité enregistrée sur ${totBob} bobines</div>`
+    ?`<div style="text-align:center;padding:20px;color:var(--green);font-weight:700;font-size:13px">Aucune non-conformité enregistrée sur ${totBob} bobines</div>`
     :`<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-        <svg viewBox="0 0 120 120" style="width:120px;height:120px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">${svgPie(ncSlices,120)}</svg>
-        <div style="flex:1;min-width:160px">${ncLegend}
-          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a28;font-size:12px;color:#888">Total NC : <strong style="color:#f87171">${ncTotal}</strong> sur ${totBob} bobines · taux ${globalNcRate}%</div>
+        <div class="chart-wrap" style="width:120px;height:120px;flex-shrink:0"><canvas id="chartNcDonut"></canvas></div>
+        <div class="nc-legend">${legend}
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
+            Total : <strong style="color:var(--red)">${ncTotal}</strong> sur ${totBob} bob. — taux <strong>${globalNcRate}%</strong>
+          </div>
         </div>
       </div>`;
 
   return `
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">🥧 Répartition des non-conformités par type</div>
+    <div class="analyse-card">
+      <div class="analyse-title">Répartition des non-conformités par type</div>
       ${ncBlock}
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">Source : fiches de découpe (hors corbeille). Identifie le défaut récurrent à traiter en priorité (ISO 9001).</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Source : fiches (hors corbeille). Identifie le défaut prioritaire — ISO 9001.</div>
     </div>
-
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚠ Taux de NC par opérateur</div>
-        <div style="overflow-x:auto">${svgHBars(opItems,'%',420,46)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:6px">NC ÷ bobines contrôlées. À lire comme un indicateur de formation, pas de sanction.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+      <div class="analyse-card">
+        <div class="analyse-title">Taux NC par opérateur</div>
+        <div class="chart-wrap chart-wrap-md"><canvas id="chartNcOp"></canvas></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">NC ÷ bobines contrôlées. Indicateur de formation, pas de sanction.</div>
       </div>
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚙️ Taux de NC par machine</div>
-        <div style="overflow-x:auto">${svgHBars(machItems,'%',420,80)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:6px">Une machine qui sort plus de NC = réglage ou maintenance à prévoir.</div>
+      <div class="analyse-card">
+        <div class="analyse-title">Taux NC par machine</div>
+        <div class="chart-wrap chart-wrap-md"><canvas id="chartNcMach"></canvas></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">NC élevé sur une machine = réglage ou maintenance à prévoir.</div>
       </div>
     </div>`;
 }
@@ -5122,214 +5186,208 @@ function svgLineChart(series,weeks,W,H,padL,padB){
 }
 
 function renderAnalyse(){
+  _destroyAnalyseCharts();
   const allTemps=tempsCache.filter(t=>!t.deleted);
   const ac=document.getElementById('analyseContent');
-  const valid=allTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
+  const allClients=[...new Set(allTemps.map(t=>t.client).filter(Boolean))].sort();
+  const now=Date.now();
+  let valid=allTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
+  const pMs={'1m':30,'3m':90,'6m':180};
+  if(pMs[_analysePeriod]) valid=valid.filter(t=>now-new Date(t.date).getTime()<pMs[_analysePeriod]*864e5);
+  if(_analyseMachine) valid=valid.filter(t=>(t.machine||'').toUpperCase()===_analyseMachine);
+  if(_analyseClient) valid=valid.filter(t=>t.client===_analyseClient);
+
+  // Fiches KPIs
+  const fiches=fichesCache.filter(f=>!f.deleted);
+  const avgPerte=fiches.length?avgArr(fiches.map(f=>parseFloat(f.pct)||0).filter(v=>!isNaN(v))):0;
+  const totBobKpi=fiches.reduce((s,f)=>s+(f.ficheDetail||[]).length,0);
+  const ncBobKpi=fiches.reduce((s,f)=>s+(f.ficheDetail||[]).filter(d=>d.ncLarg||d.ncQty||d.ncCasse||d.ncAng).length,0);
+  const ncRateKpi=totBobKpi?(ncBobKpi/totBobKpi*100):0;
+
+  const filtersHtml=`<div class="analyse-filters">
+    <select id="analyseFilterPeriod" onchange="onAnalyseFilterChange()">
+      <option value="all"${_analysePeriod==='all'?' selected':''}>Toute la période</option>
+      <option value="1m"${_analysePeriod==='1m'?' selected':''}>Dernier mois</option>
+      <option value="3m"${_analysePeriod==='3m'?' selected':''}>3 derniers mois</option>
+      <option value="6m"${_analysePeriod==='6m'?' selected':''}>6 derniers mois</option>
+    </select>
+    <select id="analyseFilterMachine" onchange="onAnalyseFilterChange()">
+      <option value=""${!_analyseMachine?' selected':''}>Toutes machines</option>
+      <option value="FEBA"${_analyseMachine==='FEBA'?' selected':''}>FEBA</option>
+      <option value="MAVEG"${_analyseMachine==='MAVEG'?' selected':''}>MAVEG</option>
+      <option value="CEVENINI"${_analyseMachine==='CEVENINI'?' selected':''}>CEVENINI</option>
+    </select>
+    <select id="analyseFilterClient" onchange="onAnalyseFilterChange()">
+      <option value="">Tous clients</option>
+      ${allClients.map(c=>`<option value="${esc(c)}"${_analyseClient===c?' selected':''}>${esc(c)}</option>`).join('')}
+    </select>
+  </div>`;
+
+  const kpiItems=[
+    {val:valid.length,lbl:'Commandes',col:'var(--blue)'},
+    {val:valid.length?Math.round(avgArr(valid.map(t=>t.duree/t.totalLaizes)))+'s':'—',lbl:'Sec/laize moy.',col:'var(--green)'},
+    {val:Math.round(valid.reduce((s,t)=>s+t.duree,0)/3600*10)/10+'h',lbl:'Production',col:'var(--orange)'},
+    {val:avgPerte.toFixed(1)+'%',lbl:'Perte moy.',col:avgPerte<5?'var(--green)':avgPerte<10?'var(--orange)':'var(--red)'},
+    {val:ncRateKpi.toFixed(1)+'%',lbl:'Taux NC',col:ncRateKpi<3?'var(--green)':ncRateKpi<8?'var(--orange)':'var(--red)'}
+  ];
+  const kpisHtml=`<div class="kpi-grid">${kpiItems.map(k=>`<div class="kpi-card"><div class="kpi-val" style="color:${k.col}">${k.val}</div><div class="kpi-lbl">${k.lbl}</div></div>`).join('')}</div>`;
 
   if(valid.length<2){
     const fa=buildFicheAnalytics();
-    ac.innerHTML=`<div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
-      <div style="text-align:center;padding:30px 20px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">
-      <div style="font-size:40px;margin-bottom:12px">📈</div>
-      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Graphiques de productivité en attente</div>
-      <div style="font-size:13px">Les courbes temps/laize apparaîtront dès plusieurs commandes chronométrées.<br>Actuellement : <strong>${valid.length}</strong> entrée(s) valide(s).</div>
-    </div>${fa}</div>`;
+    ac.innerHTML=filtersHtml+kpisHtml+`
+    <div class="analyse-card" style="text-align:center;padding:28px 20px;border-style:dashed">
+      <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">Graphiques de productivité en attente</div>
+      <div style="font-size:13px;color:var(--muted)">Apparaîtront dès plusieurs commandes chronométrées. (${valid.length} entrée(s) valide(s))</div>
+    </div>${fa}`;
+    _initNcCharts();
     return;
   }
 
-  const widthMap={};
-  valid.forEach(t=>{
-    const secL=t.duree/t.totalLaizes;
-    const widths=parseWidthsFromEntry(t);
-    const uniq=[...new Set(widths)];
-    uniq.forEach(w=>{
-      const tranche=Math.round(w/10)*10;
-      push(widthMap,tranche,secL);
-    });
-  });
-  const widthItems=Object.keys(widthMap).map(w=>({label:w,value:avgArr(widthMap[w])}))
-    .sort((a,b)=>a.label-b.label);
-  const maxW=Math.max(...widthItems.map(x=>x.value),1);
+  const opColors={'TB':'#4f8ef7','JF':'#34d399','MT':'#f97316','DC':'#a78bfa','ER':'#f87171','CH':'#2dd4bf','?':'#888'};
 
+  // Data : largeurs → sec/laize
+  const widthMap={};
+  valid.forEach(t=>{const s=t.duree/t.totalLaizes;parseWidthsFromEntry(t).forEach(w=>{push(widthMap,Math.round(w/10)*10,s);});});
+  const wKeys=Object.keys(widthMap).map(Number).sort((a,b)=>a-b);
+
+  // Data : opérateurs hebdo
   const weekOpMap={};
-  valid.forEach(t=>{
-    const secL=t.duree/t.totalLaizes;
-    const wk=getWeekKey(t.date);
-    const op=t.operateur||'?';
-    push(weekOpMap,op+'__'+wk,secL);
-  });
+  valid.forEach(t=>{push(weekOpMap,(t.operateur||'?')+'__'+getWeekKey(t.date),t.duree/t.totalLaizes);});
   const allWeeks=[...new Set(valid.map(t=>getWeekKey(t.date)))].sort();
   const allOps=[...new Set(valid.map(t=>t.operateur||'?'))].sort();
-  const opColors={'TB':'#60a5fa','JF':'#4ade80','MT':'#f59e0b','DC':'#a78bfa','ER':'#f87171','CH':'#34d399','?':'#888'};
-  const series=allOps.map(op=>({
-    label:op,color:opColors[op]||'#60a5fa',
-    data:Object.fromEntries(allWeeks.map(wk=>[wk, weekOpMap[op+'__'+wk]?avgArr(weekOpMap[op+'__'+wk]):undefined]).filter(([,v])=>v!==undefined))
-  }));
 
+  // Data : clients
   const clientMap={};
-  valid.forEach(t=>{
-    const secL=t.duree/t.totalLaizes;
-    if(!clientMap[t.client]) clientMap[t.client]={vals:[],cmds:0};
-    clientMap[t.client].vals.push(secL);
-    clientMap[t.client].cmds++;
-  });
-  const clientRank=Object.entries(clientMap)
-    .map(([c,d])=>({client:c,avg:avgArr(d.vals),cmds:d.cmds}))
-    .sort((a,b)=>b.avg-a.avg);
+  valid.forEach(t=>{if(!clientMap[t.client])clientMap[t.client]={vals:[],cmds:0};clientMap[t.client].vals.push(t.duree/t.totalLaizes);clientMap[t.client].cmds++;});
+  const clientRank=Object.entries(clientMap).map(([c,d])=>({client:c,avg:avgArr(d.vals),cmds:d.cmds})).sort((a,b)=>b.avg-a.avg);
 
+  // Data : machines
   const machMap={};
-  valid.forEach(t=>{
-    const secL=t.duree/t.totalLaizes;
-    const m=t.machine||'?';
-    if(!machMap[m]) machMap[m]={vals:[],totalSec:0,cmds:0};
-    machMap[m].vals.push(secL);
-    machMap[m].totalSec+=t.duree;
-    machMap[m].cmds++;
-  });
-  const machItems=Object.entries(machMap).map(([m,d])=>({
-    label:m,avg:avgArr(d.vals),cmds:d.cmds,
-    totalH:Math.round(d.totalSec/3600*10)/10,
-    color:m==='FEBA'?'#60a5fa':m==='MAVEG'?'#4ade80':'#a78bfa'
-  })).sort((a,b)=>b.avg-a.avg);
-  const maxM=Math.max(...machItems.map(x=>x.avg),1);
+  valid.forEach(t=>{const m=t.machine||'?';if(!machMap[m])machMap[m]={vals:[],totalSec:0,cmds:0};machMap[m].vals.push(t.duree/t.totalLaizes);machMap[m].totalSec+=t.duree;machMap[m].cmds++;});
+  const machItems=Object.entries(machMap).map(([m,d])=>({label:m,avg:Math.round(avgArr(d.vals)),totalH:Math.round(d.totalSec/3600*10)/10,cmds:d.cmds,color:m==='FEBA'?'#4f8ef7':m==='MAVEG'?'#34d399':'#a78bfa'})).sort((a,b)=>b.avg-a.avg);
 
-  const legendOps=allOps.map(op=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px">
-    <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${opColors[op]||'#888'}"></span>${op}
-  </span>`).join('');
+  // Data : volume hebdo
+  const volMap={};valid.forEach(t=>push(volMap,getWeekKey(t.date),1));
+  const volWeeks=Object.keys(volMap).sort();
 
-  const W=560,H=200,padL=36,padB=20;
-  const W2=560,H2=220;
+  const opsLegend=allOps.map(op=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px"><span style="display:inline-block;width:18px;height:3px;border-radius:2px;background:${opColors[op]||'#888'}"></span>${op}</span>`).join('');
 
-  // Volume de découpes par semaine (charge atelier)
-  const volMap={};
-  valid.forEach(t=>{push(volMap,getWeekKey(t.date),1);});
-  const volItems=Object.keys(volMap).sort().map(wk=>({label:(wk.split('·')[1]||wk),value:volMap[wk].length}));
-  const maxVol=Math.max(...volItems.map(x=>x.value),1);
-  const volSvg=(()=>{
-    if(!volItems.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas de données</text>';
-    const n=volItems.length,gap=(W-padL-10)/n,barW=Math.max(14,gap*0.6),scaleY=(H-padB-16)/maxVol;
-    let out='';
-    for(let i=0;i<=4;i++){const y=H-padB-i*(H-padB-16)/4;out+=`<line x1="${padL}" x2="${W-4}" y1="${y}" y2="${y}" stroke="#2a2a28" stroke-width="1"/><text x="${padL-4}" y="${y+4}" text-anchor="end" fill="#666" font-size="10">${Math.round(maxVol*i/4)}</text>`;}
-    volItems.forEach((it,i)=>{const x=padL+i*gap+gap/2-barW/2,bh=Math.max(2,it.value*scaleY),y=H-padB-bh;out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#34d399" opacity="0.85"/><text x="${x+barW/2}" y="${y-4}" text-anchor="middle" fill="#e5e5e3" font-size="10" font-weight="600">${it.value}</text><text x="${x+barW/2}" y="${H-padB+13}" text-anchor="middle" fill="#888" font-size="9">${it.label}</text>`;});
-    return out;
-  })();
+  ac.innerHTML=filtersHtml+kpisHtml+`
+  <div style="display:flex;flex-direction:column;gap:16px;padding-bottom:20px">
 
-  ac.innerHTML=`
-  <div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
+  <div class="analyse-card">
+    <div class="analyse-title">Temps moyen / largeur (mm)</div>
+    <div class="chart-wrap chart-wrap-md"><canvas id="chartWidths"></canvas></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Sec/laize moyen par tranche de 10 mm</div>
+  </div>
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
-        <div style="font-size:26px;font-weight:800;color:var(--blue)">${valid.length}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">Commandes analysées</div>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
-        <div style="font-size:26px;font-weight:800;color:var(--green)">${Math.round(avgArr(valid.map(t=>t.duree/t.totalLaizes)))}s</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">Sec/laize moyen global</div>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
-        <div style="font-size:26px;font-weight:800;color:var(--orange)">${Math.round(valid.reduce((s,t)=>s+t.duree,0)/3600*10)/10}h</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">Production totale</div>
+  <div class="analyse-card">
+    <div class="analyse-title">Évolution hebdomadaire — sec/laize par opérateur</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px">${opsLegend}</div>
+    <div class="chart-wrap chart-wrap-lg"><canvas id="chartOps"></canvas></div>
+  </div>
+
+  <div class="analyse-card">
+    <div class="analyse-title">Classement clients — durée moyenne</div>
+    <table class="rank-table">
+      <thead><tr><th>#</th><th>Client</th><th style="text-align:right">s/laize</th><th style="text-align:right">Cmds</th><th>Indice</th></tr></thead>
+      <tbody>${clientRank.map((c,i)=>{const max=clientRank[0].avg||1;const pct=Math.round(c.avg/max*100);const col=pct>80?'#f87171':pct>50?'#f97316':'#34d399';return `<tr><td style="color:var(--muted)">${i+1}</td><td style="font-weight:600">${esc(c.client||'?')}</td><td style="text-align:right;font-weight:700;color:${col};font-variant-numeric:tabular-nums">${Math.round(c.avg)}s</td><td style="text-align:right;color:var(--muted)">${c.cmds}</td><td><div class="rank-bar"><div class="rank-bar-fill" style="background:${col};width:${pct}%"></div></div></td></tr>`;}).join('')}</tbody>
+    </table>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Rouge = commandes longues · Vert = rapides (relatif au plus lent)</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="analyse-card">
+      <div class="analyse-title">Machines — sec/laize moy.</div>
+      <div class="chart-wrap chart-wrap-sm"><canvas id="chartMachines"></canvas></div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+        ${machItems.map(m=>`<div style="display:flex;justify-content:space-between;font-size:11px"><span style="font-weight:700;color:${m.color}">${m.label}</span><span style="color:var(--muted)">${m.cmds}cmd · ${m.totalH}h</span></div>`).join('')}
       </div>
     </div>
-
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⬛ Temps moyen par largeur de bobineau</div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">
-          ${svgBarChart(widthItems,'#60a5fa',maxW,W,H,padL,padB)}
-        </svg>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Axe X = largeur en mm · Axe Y = secondes par laize (moyenne)</div>
+    <div class="analyse-card">
+      <div class="analyse-title">Volume hebdomadaire</div>
+      <div class="chart-wrap chart-wrap-sm"><canvas id="chartVol"></canvas></div>
     </div>
+  </div>
 
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📈 Évolution sec/laize par opérateur (par semaine)</div>
-      <div style="margin-bottom:10px">${legendOps}</div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W2} ${H2}" style="width:100%;max-width:${W2}px;display:block" xmlns="http://www.w3.org/2000/svg">
-          ${svgLineChart(series,allWeeks,W2,H2,padL,padB)}
-        </svg>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Axe X = semaine de l'année · Axe Y = secondes par laize (moyenne hebdo)</div>
-    </div>
-
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">🏆 Classement clients — durée moyenne</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:1px solid #333">
-          <th style="text-align:left;padding:6px 10px;color:#888;font-size:11px;font-weight:700">#</th>
-          <th style="text-align:left;padding:6px 10px;color:#888;font-size:11px;font-weight:700">Client</th>
-          <th style="text-align:right;padding:6px 10px;color:#888;font-size:11px;font-weight:700">Moy. sec/laize</th>
-          <th style="text-align:right;padding:6px 10px;color:#888;font-size:11px;font-weight:700">Commandes</th>
-          <th style="padding:6px 10px;color:#888;font-size:11px;font-weight:700">Indice</th>
-        </tr></thead>
-        <tbody>${clientRank.map((c,i)=>{
-          const max=clientRank[0].avg||1;
-          const pct=Math.round(c.avg/max*100);
-          const col=pct>80?'#f87171':pct>50?'#f59e0b':'#4ade80';
-          return `<tr style="border-bottom:1px solid #222">
-            <td style="padding:8px 10px;color:#888">${i+1}</td>
-            <td style="padding:8px 10px;font-weight:600">${c.client}</td>
-            <td style="padding:8px 10px;text-align:right;font-weight:700;color:${col}">${Math.round(c.avg)}s</td>
-            <td style="padding:8px 10px;text-align:right;color:#888">${c.cmds}</td>
-            <td style="padding:8px 10px;min-width:100px">
-              <div style="background:#222;border-radius:3px;height:8px;overflow:hidden">
-                <div style="background:${col};height:100%;width:${pct}%;border-radius:3px;transition:width .3s"></div>
-              </div>
-            </td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">Rouge = commandes longues · Vert = commandes rapides (relatif au client le plus lent)</div>
-    </div>
-
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚙️ Comparaison machines</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-        ${machItems.map(m=>`
-        <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px;text-align:center">
-          <div style="font-size:18px;font-weight:800;color:${m.color}">${Math.round(m.avg)}s</div>
-          <div style="font-size:12px;font-weight:700;margin:4px 0">${m.label}</div>
-          <div style="font-size:11px;color:#888">${m.cmds} cmd · ${m.totalH}h prod.</div>
-        </div>`).join('')}
-      </div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} 140" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">
-          ${(()=>{
-            const items=machItems.map(m=>({label:m.label,value:m.avg,color:m.color}));
-            if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
-            const n=items.length,barH=22,gap=34,padT=10;
-            const maxV=Math.max(...items.map(x=>x.value),1);
-            let out='';
-            for(let i=0;i<=4;i++){
-              const x=padL+i*(W-padL-10)/4;
-              out+=`<line x1="${x}" x2="${x}" y1="${padT}" y2="${padT+n*gap+10}" stroke="#2a2a28" stroke-width="1"/>`;
-              out+=`<text x="${x}" y="${padT+n*gap+22}" text-anchor="middle" fill="#666" font-size="10">${Math.round(maxV*i/4)}s</text>`;
-            }
-            items.forEach((it,i)=>{
-              const y=padT+i*gap;
-              const bw=Math.max(4,(it.value/maxV)*(W-padL-10));
-              out+=`<rect x="${padL}" y="${y}" width="${bw}" height="${barH}" rx="3" fill="${it.color}" opacity="0.85"/>`;
-              out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#888" font-size="11" font-weight="600">${it.label}</text>`;
-              out+=`<text x="${padL+bw+6}" y="${y+barH/2+4}" fill="#e5e5e3" font-size="11" font-weight="700">${Math.round(it.value)}s/laize</text>`;
-            });
-            return out;
-          })()}
-        </svg>
-      </div>
-    </div>
-
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">📦 Volume de découpes par semaine</div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${volSvg}</svg>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Nombre de commandes coupées par semaine — base pour estimer la charge atelier (roadmap étape 4).</div>
-    </div>
-
-    ${buildFicheAnalytics()}
+  ${buildFicheAnalytics()}
 
   </div>`;
+
+  if(typeof Chart==='undefined') return;
+  Chart.defaults.color='#78786e';
+  Chart.defaults.borderColor='#252523';
+  Chart.defaults.font.family="'Inter',sans-serif";
+  Chart.defaults.font.size=11;
+  const tt={backgroundColor:'#1c1c1a',borderColor:'#333330',borderWidth:1,titleColor:'#f0f0ee',bodyColor:'#78786e',padding:8,cornerRadius:6};
+
+  // 1. Bar chart largeurs
+  if(wKeys.length){
+    _analyseCharts.widths=new Chart(document.getElementById('chartWidths'),{
+      type:'bar',
+      data:{labels:wKeys.map(w=>w+'mm'),datasets:[{label:'s/laize',data:wKeys.map(w=>Math.round(avgArr(widthMap[w]))),backgroundColor:'rgba(79,142,247,.65)',borderColor:'#4f8ef7',borderWidth:1,borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tt,callbacks:{label:c=>`${c.raw}s/laize`}}},scales:{x:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10}}},y:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10},callback:v=>v+'s'},beginAtZero:true}}}
+    });
+  }
+
+  // 2. Line chart opérateurs
+  if(allWeeks.length){
+    _analyseCharts.ops=new Chart(document.getElementById('chartOps'),{
+      type:'line',
+      data:{labels:allWeeks.map(wk=>wk.split('·')[1]||wk),datasets:allOps.map(op=>({label:op,data:allWeeks.map(wk=>{const a=weekOpMap[op+'__'+wk];return a?Math.round(avgArr(a)):null;}),borderColor:opColors[op]||'#888',backgroundColor:'transparent',pointBackgroundColor:opColors[op]||'#888',pointRadius:4,borderWidth:2,spanGaps:true,tension:0.3}))},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tt,callbacks:{label:c=>`${c.dataset.label}: ${c.raw}s`}}},scales:{x:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10}}},y:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10},callback:v=>v+'s'},beginAtZero:true}}}
+    });
+  }
+
+  // 3. Horizontal bar machines
+  if(machItems.length){
+    _analyseCharts.machines=new Chart(document.getElementById('chartMachines'),{
+      type:'bar',
+      data:{labels:machItems.map(m=>m.label),datasets:[{label:'s/laize',data:machItems.map(m=>m.avg),backgroundColor:machItems.map(m=>m.color+'aa'),borderColor:machItems.map(m=>m.color),borderWidth:1,borderRadius:4}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tt,callbacks:{label:c=>`${c.raw}s/laize`}}},scales:{x:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10},callback:v=>v+'s'},beginAtZero:true},y:{grid:{display:false},ticks:{color:'#f0f0ee',font:{size:11,weight:'bold'}}}}}
+    });
+  }
+
+  // 4. Volume hebdo bar
+  if(volWeeks.length){
+    _analyseCharts.vol=new Chart(document.getElementById('chartVol'),{
+      type:'bar',
+      data:{labels:volWeeks.map(wk=>wk.split('·')[1]||wk),datasets:[{label:'Commandes',data:volWeeks.map(wk=>volMap[wk].length),backgroundColor:'rgba(52,211,153,.55)',borderColor:'#34d399',borderWidth:1,borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tt}},scales:{x:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10}}},y:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10},stepSize:1},beginAtZero:true}}}
+    });
+  }
+
+  _initNcCharts();
+}
+
+// Initialise les Chart.js NC (doughnut + bars NC opérateurs/machines)
+// Appelée après que le HTML NC est dans le DOM (fin de renderAnalyse ou cas valid<2)
+function _initNcCharts(){
+  if(typeof Chart==='undefined'||!_ncChartData) return;
+  const {ncSlices,ncTotal,opItems,machItemsNc}=_ncChartData;
+  const tt={backgroundColor:'#1c1c1a',borderColor:'#333330',borderWidth:1,titleColor:'#f0f0ee',bodyColor:'#78786e',padding:8,cornerRadius:6};
+
+  if(ncSlices.length&&document.getElementById('chartNcDonut')){
+    _analyseCharts.ncDonut=new Chart(document.getElementById('chartNcDonut'),{
+      type:'doughnut',
+      data:{labels:ncSlices.map(s=>s.label),datasets:[{data:ncSlices.map(s=>s.value),backgroundColor:ncSlices.map(s=>s.color+'cc'),borderColor:ncSlices.map(s=>s.color),borderWidth:2,hoverOffset:4}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{...tt}}}
+    });
+  }
+  if(opItems.length&&document.getElementById('chartNcOp')){
+    _analyseCharts.ncOp=new Chart(document.getElementById('chartNcOp'),{
+      type:'bar',
+      data:{labels:opItems.map(o=>o.label),datasets:[{label:'% NC',data:opItems.map(o=>Math.round(o.pct*10)/10),backgroundColor:opItems.map(o=>o.color+'99'),borderColor:opItems.map(o=>o.color),borderWidth:1,borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tt,callbacks:{label:c=>`${c.raw}% (${opItems[c.dataIndex].info})`}}},scales:{x:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:11}}},y:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10},callback:v=>v+'%'},beginAtZero:true}}}
+    });
+  }
+  if(machItemsNc.length&&document.getElementById('chartNcMach')){
+    _analyseCharts.ncMach=new Chart(document.getElementById('chartNcMach'),{
+      type:'bar',
+      data:{labels:machItemsNc.map(m=>m.label),datasets:[{label:'% NC',data:machItemsNc.map(m=>Math.round(m.pct*10)/10),backgroundColor:machItemsNc.map(m=>m.color+'99'),borderColor:machItemsNc.map(m=>m.color),borderWidth:1,borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...tt,callbacks:{label:c=>`${c.raw}% (${machItemsNc[c.dataIndex].info})`}}},scales:{x:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:11}}},y:{grid:{color:'#1e1e1c'},ticks:{color:'#78786e',font:{size:10},callback:v=>v+'%'},beginAtZero:true}}}
+    });
+  }
 }
 
 function toggleValidatedFiches(){
