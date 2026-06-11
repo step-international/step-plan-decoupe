@@ -3732,7 +3732,7 @@ async function doSave(){
   const multi=refGroups.length>1;
   const allRows=[].concat(...refGroups.map(g=>g.rows||[]));
   const entry={
-    rows:rows,machine:currentMachine,
+    rows:rows,machine:(refGroups[0]&&refGroups[0].machine)||currentMachine,
     refGroups:refGroups,                       // multi-réfs (nouveau)
     mother:document.getElementById('motherWidth').value,
     blade:document.getElementById('bladeWidth').value,
@@ -3827,9 +3827,20 @@ function renderSaves(){
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-    const mn=getMachineLabel(s.machine);
-    const machCol={'FEBA':'#60a5fa','MAVEG':'#4ade80','CEVENINI':'#a78bfa'}[mn]||'#a78bfa';
-    const machBadge=mn?`<div style="margin-top:6px"><span style="display:inline-block;padding:3px 12px;border-radius:7px;font-size:15px;font-weight:800;letter-spacing:.5px;color:#fff;background:${machCol}">⚙ ${esc(mn)}</span></div>`:'';
+    // Machines réelles : lire depuis refGroups (par réf) en priorité, sinon s.machine (rétro-compat).
+    const machLabels=(()=>{
+      if(Array.isArray(s.refGroups)&&s.refGroups.length){
+        const seen=new Set();
+        s.refGroups.forEach(g=>{const l=getMachineLabel(g.machine||'');if(l)seen.add(l);});
+        if(seen.size) return [...seen];
+      }
+      const l=getMachineLabel(s.machine||'');
+      return l?[l]:[];
+    })();
+    const MACH_COLORS={'FEBA':'#60a5fa','MAVEG':'#4ade80','CEVENINI':'#a78bfa'};
+    const machBadge=machLabels.length
+      ?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${machLabels.map(mn=>`<span style="display:inline-block;padding:3px 12px;border-radius:7px;font-size:15px;font-weight:800;letter-spacing:.5px;color:#fff;background:${MACH_COLORS[mn]||'#a78bfa'}">⚙ ${esc(mn)}</span>`).join('')}</div>`
+      :'';
     const cmdDetail=s.commandeDetail||(s.rows||[]).map(function(r){return r.qty+'×'+r.width+'mm';}).join(' + ')||'';
     const pkg=[s.typeCond||s.carton,s.palette,s.etiquetage||s.etiquette,s.cerclage].filter(Boolean).join(' · ');
     const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
