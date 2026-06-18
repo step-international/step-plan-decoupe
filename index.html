@@ -1546,7 +1546,7 @@ document.addEventListener('keydown',function(e){
         startAppCheckRefreshLoop();
         startVersionWatcher();   // veille nouvelle version (poste atelier laissé ouvert)
         // Suivi lame : charge le registre puis affiche le bandeau d'alerte (>=19/21 j).
-        loadMaintenance().then(()=>renderLameAlertBanner()).catch(e=>console.warn('Alerte lame:',e));
+        loadMaintenance().then(()=>{ renderLameAlertBanner(); startLameAlertCycle(); }).catch(e=>console.warn('Alerte lame:',e));
         // Reprise auto d'une commande dont le chrono tournait à la fermeture
         // (app tuée / téléphone éteint). On propose la reprise pour ne pas
         // écraser une éventuelle nouvelle saisie sans le consentement de l'opérateur.
@@ -1560,6 +1560,11 @@ document.addEventListener('keydown',function(e){
       // Utilisateur déconnecté
       stopAppCheckRefreshLoop();
       stopVersionWatcher();
+      // Arrêt des timers qui survivaient à la session (fuites).
+      if(_lameAlertCycleTimer){ clearInterval(_lameAlertCycleTimer); _lameAlertCycleTimer=null; }
+      if(_planAutosaveTimer){ clearInterval(_planAutosaveTimer); _planAutosaveTimer=null; }
+      stopAutosave();
+      const _lab=document.getElementById('lameAlertBanner'); if(_lab) _lab.style.display='none';
       currentRole=null;
       currentUser=null;
       auditCache=[]; auditLoaded=false; auditLoading=false;   // pas de fuite d'audit entre sessions
@@ -2064,7 +2069,7 @@ function parseNum(v){
   if(v===undefined||v===null||v==='') return 0;
   return parseFloat(String(v).replace(',','.')) || 0;
 }
-function fmt(n){return parseFloat(n.toFixed(2)).toString()}
+function fmt(n){const x=Number(n); return Number.isFinite(x)?parseFloat(x.toFixed(2)).toString():'0';}
 function today(){return new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function isoNow(){return new Date().toISOString();}
 function getDayOfYear(){
@@ -5049,6 +5054,21 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     };
   }
 
+  // Avertissement non bloquant : une fiche existe déjà pour ce n° de commande.
+  // Plusieurs fiches par commande sont légitimes (2 temps, multi-machine), donc
+  // on prévient sans bloquer. Le contrôle ne porte que sur l'historique en
+  // mémoire ; on le mentionne s'il n'est pas complet.
+  if(numCmd && numCmd!=='—'){
+    const nc=String(numCmd).trim().toLowerCase();
+    const dup=(fichesCache||[]).filter(f=>!f.deleted && String(f.numCmd||'').trim().toLowerCase()===nc);
+    if(dup.length){
+      const partiel=(typeof fullHistoryLoaded!=='undefined' && !fullHistoryLoaded)?'\n\n(Contrôle sur l\'historique chargé ; l\'historique complet n\'est pas garanti.)':'';
+      if(!confirm(`⚠ Une fiche existe déjà pour la commande N° ${numCmd} (${dup.length} fiche(s)).\n\nC\'est normal si tu enregistres une 2ᵉ partie de cette commande.\nSinon, vérifie que tu ne crées pas un doublon.${partiel}\n\nEnregistrer quand même ?`)){
+        return;   // l'opérateur annule
+      }
+    }
+  }
+
   if(db){
     try{
       const batch=db.batch();
@@ -5199,14 +5219,6 @@ function getFicheLinesData(){
       coupee:document.getElementById(id)?.classList.contains('coupee')||false
     };
   });
-}
-async function saveFicheRecord(entry){
-  try{
-    const docRef=await db.collection('fiches').add(entry);
-    fichesCache.unshift({_id:docRef.id,...entry});
-    if(fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);
-    logAudit('create','fiches',docRef.id,`${entry.client||''} / ${entry.ref||''}${entry.numCmd&&entry.numCmd!=='—'?' / Cmd '+entry.numCmd:''}`);
-  }catch(e){console.error('saveFicheRecord:',e);alert('Erreur enregistrement fiche : '+e.message);}
 }
 
 // Chrono manuel (bouton dédié si réutilisé)
@@ -5689,7 +5701,7 @@ var stockLoaded=false;
 var stockMvtType='entree';
 
 function stkEl(id){return document.getElementById(id);}
-function canViewStock(){ return !!(currentUser&&currentUser.ini==='ER'); }
+function canViewStock(){ return currentRole==='admin' || currentRole==='pilotage'; }
 function stockSurfaceUnit(largeur,longueur){ return (Number(largeur)||0)/1000*(Number(longueur)||0); }
 function stockSoldeM2(ref){ return stockMouvementsCache.filter(x=>x.ref===ref).reduce((s,x)=>s+(Number(x.m2)||0),0); }
 function stockRefInfo(ref){
@@ -5774,7 +5786,7 @@ function stockForecastRender(){
 }
 async function renderStock(){
   const c=stkEl('tabContentStock'); if(!c) return;
-  if(!canViewStock()){ c.innerHTML='<div class="text-muted" style="padding:20px">Accès réservé à Esté.</div>'; return; }
+  if(!canViewStock()){ c.innerHTML='<div class="text-muted" style="padding:20px">Accès réservé au pilotage et aux admins.</div>'; return; }
   if(!stockLoaded){ c.innerHTML='<div class="text-muted" style="padding:20px">Chargement du stock…</div>'; await loadStock(); }
   c.innerHTML=stockViewHTML();
   setStockMvtType(stockMvtType);
@@ -6076,13 +6088,6 @@ function lameActiveForMachine(machine){
     .sort((a,b)=>String(b.dateInstall||b.date||'').localeCompare(String(a.dateInstall||a.date||'')));
   return evts[0]||null;
 }
-// La machine a-t-elle déjà vu ce n° de lame (n'importe quand) ?
-function lameSeenOnMachine(machine,lameNum){
-  const key=String(lameNum||'').trim().toLowerCase();
-  if(!key) return true; // n° vide : on ne notifie pas
-  return (maintenanceCache||[]).some(r=>r.type==='lame'&&r.categorie==='installation'
-    &&r.machine===machine&&!r.deleted&&String(r.lameNum||'').trim().toLowerCase()===key);
-}
 // Nb de bobineaux (somme des qty) coupés sur une machine depuis une date ISO.
 // Source : fichesCache (déjà chargé). On somme les qty des rows dont la
 // machine de la fiche correspond. Une fiche multi-réf garde sa machine au
@@ -6114,7 +6119,10 @@ async function lameInstall(machine,lameNum,opts){
   if(!num){ showToast('N° de lame requis pour la pose.','err'); return false; }
   if(!db||!currentUser){ showToast('Connexion requise.','err'); return false; }
   const now=isoNow();
-  const pose=opts.dateInstall||now;
+  let pose=opts.dateInstall||now;
+  // Garde-fou : une pose ne peut pas être datée dans le futur (sinon âge négatif
+  // et alerte jamais déclenchée). On replie sur maintenant.
+  if(new Date(pose).getTime()>Date.now()){ pose=now; }
   const rec={ type:'lame', categorie:'installation', machine,
     lameNum:num, dateInstall:pose, date:pose,
     description:opts.description||('Pose lame '+num+' sur '+getMachineLabel(machine)),
@@ -6173,11 +6181,6 @@ async function lameDetectOnFiche(machineKey,lameNum){
     : `🔪 Première lame déclarée sur ${machLbl}.\n\nEnregistrer la pose de la lame ${num} sur ${machLbl} ?`;
   if(confirm(msg)){ await lameInstall(machineKey,num,{description:'Pose détectée à la validation de fiche'}); }
 }
-// Mappe un libellé machine (FEBA…) vers sa clé (feba…).
-function machineKeyFromLabel(lbl){
-  const L=String(lbl||'').trim().toUpperCase();
-  return ({FEBA:'feba',MAVEG:'maveg',CEVENINI:'cevenini'})[L]||'';
-}
 // Seuils d'âge d'une lame, PAR MACHINE (en jours). 'change' = à remplacer ;
 // pré-alerte 'soon' = 2 jours avant le seuil. PURE (testable hors DOM).
 const LAME_SEUIL_CHANGE_BY_MACHINE={feba:15, maveg:10, cevenini:10};
@@ -6213,6 +6216,10 @@ function lameAlerts(cache,nowMs){
 }
 // Bandeau d'alerte lame, visible par tous, tous onglets. Affiché tant qu'une
 // lame >=19 j n'est pas remplacée. Rouge si une lame >=21 j, sinon orange.
+// Bandeau d'alerte lame ÉPHÉMÈRE : s'affiche 5 secondes puis disparaît.
+// Réapparaît automatiquement toutes les 2 heures (cycle géré par
+// startLameAlertCycle). Si plus aucune lame n'est en alerte, ne s'affiche pas.
+let _lameBannerHideTimer=null;
 function renderLameAlertBanner(){
   const el=document.getElementById('lameAlertBanner'); if(!el) return;
   if(!currentUser){ el.style.display='none'; return; }
@@ -6233,15 +6240,15 @@ function renderLameAlertBanner(){
   const vbVisible=vb&&vb.style.display!=='none'&&getComputedStyle(vb).display!=='none';
   el.style.top=vbVisible?(vb.offsetHeight+'px'):'0';
   el.style.display='flex';
+  // Éphémère : masquage automatique après 5 s.
+  if(_lameBannerHideTimer) clearTimeout(_lameBannerHideTimer);
+  _lameBannerHideTimer=setTimeout(()=>{ el.style.display='none'; },5000);
 }
-function maintEcheanceState(e){
-  if(!e) return '';
-  const d=new Date(e+'T00:00:00'); if(isNaN(d.getTime())) return '';
-  const today=new Date(); today.setHours(0,0,0,0);
-  const diff=Math.round((d.getTime()-today.getTime())/86400000);
-  if(diff<0) return 'retard';
-  if(diff<=14) return 'proche';
-  return 'ok';
+// Réaffiche le bandeau toutes les 2 heures (puis il se masque seul après 5 s).
+let _lameAlertCycleTimer=null;
+function startLameAlertCycle(){
+  if(_lameAlertCycleTimer) return;
+  _lameAlertCycleTimer=setInterval(()=>{ try{ renderLameAlertBanner(); }catch(e){} },2*60*60*1000);
 }
 async function loadMaintenance(){
   // Lecture ouverte à tous les connectés (encart « État des lames » visible
@@ -6261,6 +6268,12 @@ function renderMaintenance(){
   renderLameEtat();
   renderAffutageList();
   maintRenderList();
+  // Compteur de bobineaux : il somme les fiches par machine. Tant que
+  // l'historique complet n'est pas chargé, le compte porte sur les dernières
+  // fiches en mémoire seulement → on charge le complet puis on re-rend l'encart.
+  if(typeof ensureFullHistory==='function' && !fullHistoryLoaded){
+    ensureFullHistory().then(()=>{ if(document.getElementById('lameEtat')) renderLameEtat(); }).catch(()=>{});
+  }
 }
 // Encart « État des lames » — visible par tous. Pour chaque machine : lame
 // courante, ancienneté depuis la pose, et nb de bobineaux coupés depuis.
@@ -6279,6 +6292,7 @@ function renderLameEtat(){
     const since=cur.dateInstall||cur.date;
     const days=Math.max(0,Math.floor((Date.now()-new Date(since).getTime())/86400000));
     const bob=lameBobineauxSince(m,since);
+    const bobNote=fullHistoryLoaded?'':' <span style="color:var(--muted);font-size:10px">(hist. partiel)</span>';
     const ageTxt=days===0?"aujourd'hui":days===1?'1 jour':days+' jours';
     const state=lameAgeState(days,m);
     const seuil=lameSeuilChange(m);
@@ -6290,7 +6304,7 @@ function renderLameEtat(){
       <div style="font-size:20px;font-weight:800;color:#5eead4;margin-top:4px">🔪 ${esc(cur.lameNum||'—')}</div>
       <div class="u-meta" style="margin-top:6px;color:${ageColor}">Installée depuis <b>${ageTxt}</b>${flag}</div>
       <div class="u-meta">Le ${esc(String(since).slice(0,10))}${cur.responsable?' · '+esc(cur.responsable):''}</div>
-      <div class="u-meta" style="margin-top:6px"><b>${bob}</b> bobineau${bob>1?'x':''} coupé${bob>1?'s':''} depuis</div>
+      <div class="u-meta" style="margin-top:6px"><b>${bob}</b> bobineau${bob>1?'x':''} coupé${bob>1?'s':''} depuis${bobNote}</div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="lameInstallPrompt('${m}')">🔄 Changer la lame</button>
     </div>`;
   }).join('');
