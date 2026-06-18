@@ -6050,13 +6050,16 @@ async function saveStockMouvement(btn){
 // ============================================================
 // REGISTRE ÉTALONNAGE LAMES + MAINTENANCE MACHINES (ISO 9001)
 // ------------------------------------------------------------
-// Collection 'maintenance', discriminée par type ('lame'|'machine').
-// Accès : admin + pilotage (canManageData). Soft-delete cohérent corbeille.
+// Collection 'maintenance' — désormais dédiée au SUIVI DES LAMES.
+// Events (champ 'categorie') :
+//   'installation' : pose d'une lame (date antidatable) → fait foi pour l'âge.
+//   'affutage'     : trace « lame partie à l'affûtage le … » ; s'accompagne
+//                    d'un nouvel 'installation' daté du jour (lame réidentifiée neuve).
+// Lecture/écriture ouvertes à tous les connectés ; delete réservé.
 // ============================================================
-var maintenanceCache=[]; var maintLoaded=false; var maintType='lame';
-const MAINT_CATS={ lame:[['remplacement','Remplacement'],['affutage','Affûtage']],
-                   machine:[['preventive','Préventive'],['corrective','Corrective']] };
-const MAINT_TYPE_LABEL={lame:'Lame',machine:'Machine'};
+var maintenanceCache=[]; var maintLoaded=false;
+const MAINT_CAT_LABEL={installation:'Installation', affutage:'Affûtage'};
+function maintCatLabel(type,cat){ return MAINT_CAT_LABEL[cat]||cat||''; }
 // ============================================================
 // SUIVI DES LAMES (catégorie 'installation' dans la collection maintenance)
 // Un event 'installation' = pose d'une lame sur une machine, à une date.
@@ -6104,26 +6107,55 @@ function lameBobineauxSince(machine,sinceIso){
   return total;
 }
 // Crée un event d'installation de lame. Ouvert à tous les connectés.
+// opts.dateInstall : ISO de la date de pose (antidatable). Défaut = maintenant.
 async function lameInstall(machine,lameNum,opts){
   opts=opts||{};
   const num=String(lameNum||'').trim();
   if(!num){ showToast('N° de lame requis pour la pose.','err'); return false; }
   if(!db||!currentUser){ showToast('Connexion requise.','err'); return false; }
   const now=isoNow();
+  const pose=opts.dateInstall||now;
   const rec={ type:'lame', categorie:'installation', machine,
-    lameNum:num, dateInstall:now, date:now,
+    lameNum:num, dateInstall:pose, date:pose,
     description:opts.description||('Pose lame '+num+' sur '+getMachineLabel(machine)),
     responsable:opts.responsable||(currentUser?currentUser.ini:''),
-    echeance:'', note:opts.note||'',
+    echeance:'', note:'',
     createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
   try{
     const r=await db.collection('maintenance').add(rec);
     rec.id=r.id; maintenanceCache.unshift(rec);
-    await logAudit('create','maintenance',r.id,`Pose lame ${num} sur ${getMachineLabel(machine)}`);
+    await logAudit('create','maintenance',r.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${String(pose).slice(0,10)})`);
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
     return true;
   }catch(e){ alert('Erreur enregistrement lame : '+e.message); return false; }
+}
+// Affûtage d'une lame courante : enregistre une trace 'affutage' ET réinstalle
+// la même lame datée d'aujourd'hui (réidentifiée neuve). Atomique via batch.
+async function lameAffuter(machine,lameNum){
+  const num=String(lameNum||'').trim();
+  if(!num||!machine){ showToast('Lame invalide.','err'); return false; }
+  if(!db||!currentUser){ showToast('Connexion requise.','err'); return false; }
+  const now=isoNow(); const who=currentUser?currentUser.ini:'?';
+  const trace={ type:'lame', categorie:'affutage', machine, lameNum:num,
+    dateInstall:now, date:now,
+    description:'Lame '+num+' partie à l\'affûtage', responsable:who, echeance:'', note:'',
+    createdAt:now, createdBy:who, deleted:false };
+  const neuve={ type:'lame', categorie:'installation', machine, lameNum:num,
+    dateInstall:now, date:now,
+    description:'Lame '+num+' réinstallée neuve après affûtage', responsable:who, echeance:'', note:'',
+    createdAt:now, createdBy:who, deleted:false };
+  try{
+    const batch=db.batch();
+    const tRef=db.collection('maintenance').doc(); batch.set(tRef,trace);
+    const nRef=db.collection('maintenance').doc(); batch.set(nRef,neuve);
+    await batch.commit();
+    trace.id=tRef.id; neuve.id=nRef.id;
+    maintenanceCache.unshift(trace); maintenanceCache.unshift(neuve);
+    await logAudit('create','maintenance',nRef.id,`Affûtage lame ${num} sur ${getMachineLabel(machine)} — réidentifiée neuve`);
+    if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
+    return true;
+  }catch(e){ alert('Erreur affûtage : '+e.message); return false; }
 }
 // Détection appelée à la validation de fiche : si la lame saisie diffère de
 // la lame courante de la machine, propose de confirmer la pose.
@@ -6202,7 +6234,6 @@ function renderLameAlertBanner(){
   el.style.top=vbVisible?(vb.offsetHeight+'px'):'0';
   el.style.display='flex';
 }
-function maintCatLabel(type,cat){ const a=(MAINT_CATS[type]||[]).find(x=>x[0]===cat); return a?a[1]:(cat||''); }
 function maintEcheanceState(e){
   if(!e) return '';
   const d=new Date(e+'T00:00:00'); if(isNaN(d.getTime())) return '';
@@ -6227,8 +6258,8 @@ function renderMaintenance(){
   if(!canAccessMaintenance()){ c.innerHTML='<div class="text-muted" style="padding:20px">Connexion requise.</div>'; return; }
   if(!maintLoaded){ c.innerHTML='<div class="text-muted" style="padding:20px">Chargement du registre…</div>'; loadMaintenance().then(()=>renderMaintenance()); return; }
   c.innerHTML=maintViewHTML();
-  setMaintType(maintType);
   renderLameEtat();
+  renderAffutageList();
   maintRenderList();
 }
 // Encart « État des lames » — visible par tous. Pour chaque machine : lame
@@ -6291,124 +6322,120 @@ function maintViewHTML(){
   const today=new Date().toISOString().slice(0,10);
   const machOpts=['feba','maveg','cevenini'].map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
   return `
-  <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Registre des lames (remplacement, affûtage) et des opérations de maintenance machines — preuve ISO 9001. Une échéance dépassée s'affiche en rouge.</div>
+  <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Suivi des lames de découpe — preuve ISO 9001. L'alerte de changement se déclenche selon la machine : FEBA 15 jours, MAVEG et CEVENINI 10 jours après la pose.</div>
   <div class="u-panel" style="margin-bottom:14px">
-    <div class="u-eyebrow" style="margin-bottom:12px">+ Nouvelle entrée</div>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button id="mtLame" onclick="setMaintType('lame')" style="flex:1;padding:9px;border-radius:9px;border:2px solid #555;background:var(--card);color:#999;font-size:13px;font-weight:700;cursor:pointer">🔪 Lame</button>
-      <button id="mtMachine" onclick="setMaintType('machine')" style="flex:1;padding:9px;border-radius:9px;border:2px solid #555;background:var(--card);color:#999;font-size:13px;font-weight:700;cursor:pointer">⚙ Machine</button>
-    </div>
+    <div class="u-eyebrow" style="margin-bottom:12px">🔪 Installer / déclarer une lame</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label class="stk-lbl">Machine</label><select id="m_machine" class="u-inp">${machOpts}</select></div>
-      <div><label class="stk-lbl">Catégorie</label><select id="m_cat" class="u-inp"></select></div>
-      <div id="m_lameRow"><label class="stk-lbl">Lame N°</label><input id="m_lameNum" placeholder="ex. L-204" class="u-inp"></div>
+      <div><label class="stk-lbl">Lame N°</label><input id="m_lameNum" placeholder="ex. L-204" class="u-inp"></div>
+      <div><label class="stk-lbl">Posée le <span style="color:#666">(date de pose)</span></label><input type="date" id="m_date" value="${today}" max="${today}" class="u-inp"></div>
       <div><label class="stk-lbl">Responsable</label><select id="m_resp" class="u-inp">${maintRespOpts('')}</select></div>
-      <div><label class="stk-lbl">Date</label><input type="date" id="m_date" value="${today}" class="u-inp"></div>
-      <div><label class="stk-lbl">Prochaine échéance <span style="color:#666">(option.)</span></label><input type="date" id="m_echeance" class="u-inp"></div>
-      <div style="grid-column:1/-1"><label class="stk-lbl">Description</label><textarea id="m_desc" rows="2" placeholder="Opération réalisée, mesure, résultat…" class="u-inp" style="resize:vertical"></textarea></div>
-      <div style="grid-column:1/-1"><label class="stk-lbl">Note <span style="color:#666">(option.)</span></label><input id="m_note" class="u-inp"></div>
     </div>
-    <div style="margin-top:14px;text-align:right"><button class="btn" style="background:#1f7a45;color:#fff;border:none" onclick="saveMaintenance(this)">💾 Enregistrer</button></div>
-  </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-    <select id="m_filterType" onchange="maintRenderList()" class="u-inp" style="flex:1;min-width:110px">
-      <option value="">Tous types</option><option value="lame">Lames</option><option value="machine">Machines</option></select>
-    <select id="m_filterMachine" onchange="maintRenderList()" class="u-inp" style="flex:1;min-width:110px">
-      <option value="">Toutes machines</option>${machOpts}</select>
-    <select id="m_filterEch" onchange="maintRenderList()" class="u-inp" style="flex:1;min-width:120px">
-      <option value="">Toutes échéances</option><option value="retard">En retard</option><option value="proche">À venir (≤14j)</option></select>
-    <button class="btn btn-ghost btn-sm" onclick="exportMaintenance()">⬇️ Exporter CSV</button>
+    <div style="margin-top:14px;text-align:right"><button class="btn" style="background:#1f7a45;color:#fff;border:none" onclick="saveMaintenance(this)">💾 Enregistrer la lame</button></div>
   </div>
   <div id="lameEtat"></div>
+  <div class="u-panel" style="margin-bottom:14px">
+    <div class="u-eyebrow" style="margin-bottom:8px">🛠 Lames parties à l'affûtage</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Coche les lames envoyées à l'affûtage. Elles repartent neuves (âge remis à zéro) et l'opération est tracée dans l'historique.</div>
+    <div id="affutageList"></div>
+    <div style="margin-top:12px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="submitAffutage(this)">✅ Marquer comme affûtées (neuves)</button></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+    <select id="m_filterMachine" onchange="maintRenderList()" class="u-inp" style="flex:1;min-width:110px">
+      <option value="">Toutes machines</option>${machOpts}</select>
+    <button class="btn btn-ghost btn-sm" onclick="exportMaintenance()">⬇️ Exporter CSV</button>
+  </div>
   <div id="maintSummary"></div>
   <div id="maintList"></div>`;
 }
-function setMaintType(t){
-  maintType=t;
-  const bl=document.getElementById('mtLame'), bm=document.getElementById('mtMachine');
-  if(bl&&bm){
-    const on=(b,act,col)=>{ b.style.border='2px solid '+(act?col:'#555'); b.style.color=act?col:'#999'; b.style.background=act?'rgba(255,255,255,.05)':'var(--card)'; };
-    on(bl,t==='lame','#9ecbf0'); on(bm,t==='machine','#9ecbf0');
+// Liste des cases à cocher des lames courantes pour l'affûtage.
+function renderAffutageList(){
+  const el=document.getElementById('affutageList'); if(!el) return;
+  const items=LAME_MACHINES.map(m=>{
+    const cur=lameActiveForMachine(m); if(!cur) return '';
+    const lbl=getMachineLabel(m);
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
+      <input type="checkbox" class="affut-ck" data-m="${m}" data-num="${esc(cur.lameNum||'')}" style="width:18px;height:18px;accent-color:var(--orange)">
+      <span style="font-size:13px;color:var(--text)">⚙ ${esc(lbl)} · 🔪 <b>${esc(cur.lameNum||'—')}</b></span>
+    </label>`;
+  }).filter(Boolean).join('');
+  el.innerHTML=items||'<div class="text-muted" style="font-size:13px">Aucune lame courante déclarée.</div>';
+}
+async function submitAffutage(btn){
+  if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
+  const cks=Array.from(document.querySelectorAll('.affut-ck:checked'));
+  if(!cks.length){ showToast('Coche au moins une lame.','err'); return; }
+  if(!confirm(cks.length+' lame(s) marquée(s) comme affûtée(s) et réidentifiée(s) neuve(s) ?')) return;
+  if(btn) btn.disabled=true;
+  let okCount=0;
+  for(const ck of cks){
+    const ok=await lameAffuter(ck.getAttribute('data-m'),ck.getAttribute('data-num'));
+    if(ok) okCount++;
   }
-  const cat=document.getElementById('m_cat');
-  if(cat) cat.innerHTML=(MAINT_CATS[t]||[]).map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
-  const lr=document.getElementById('m_lameRow'); if(lr) lr.style.display=(t==='lame')?'':'none';
+  if(btn) btn.disabled=false;
+  showToast('✓ '+okCount+' lame(s) réidentifiée(s) neuve(s)','ok');
+  renderMaintenance();
 }
 async function saveMaintenance(btn){
   if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
   const machine=document.getElementById('m_machine').value;
-  const cat=document.getElementById('m_cat').value;
-  const desc=(document.getElementById('m_desc').value||'').trim();
-  if(!desc){ alert('Description obligatoire.'); return; }
+  const num=(document.getElementById('m_lameNum').value||'').trim();
+  if(!num){ alert('N° de lame obligatoire.'); return; }
   const dRaw=document.getElementById('m_date').value;
-  const date=dRaw?new Date(dRaw+'T12:00:00').toISOString():isoNow();
-  const rec={ type:maintType, machine, categorie:cat,
-    lameNum:(maintType==='lame'?(document.getElementById('m_lameNum').value||'').trim():''),
-    description:desc, responsable:document.getElementById('m_resp').value||'',
-    date, echeance:document.getElementById('m_echeance').value||'',
-    note:(document.getElementById('m_note').value||'').trim(),
-    createdAt:isoNow(), createdBy:currentUser?currentUser.ini:'?', deleted:false };
+  const dateInstall=dRaw?new Date(dRaw+'T12:00:00').toISOString():isoNow();
+  const resp=document.getElementById('m_resp').value||'';
   if(btn) btn.disabled=true;
-  try{
-    const r=await db.collection('maintenance').add(rec);
-    rec.id=r.id; maintenanceCache.unshift(rec);
-    await logAudit('create','maintenance',r.id,`${MAINT_TYPE_LABEL[maintType]} ${getMachineLabel(machine)} — ${maintCatLabel(maintType,cat)}`);
-    renderMaintenance();
-    showToast('✓ Entrée enregistrée','ok');
-  }catch(e){ alert('Erreur enregistrement : '+e.message); if(btn) btn.disabled=false; }
+  const ok=await lameInstall(machine,num,{dateInstall,responsable:resp,description:'Pose lame '+num+' sur '+getMachineLabel(machine)+' (posée le '+(dRaw||'')+')'});
+  if(btn) btn.disabled=false;
+  if(ok) renderMaintenance();
 }
 async function maintDelete(id){
   if(!canManageData()){ showToast('Action réservée au pilotage et aux admins.','err'); return; }
   const rec=maintenanceCache.find(x=>x.id===id);
-  if(!confirm('Supprimer cette entrée du registre ?')) return;
+  if(!confirm('Supprimer cette entrée de l\'historique ?')) return;
   try{
     await db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow()});
     maintenanceCache=maintenanceCache.filter(x=>x.id!==id);
-    await logAudit('delete','maintenance',id,rec?`${MAINT_TYPE_LABEL[rec.type]||''} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel(rec.type,rec.categorie)}`:'');
-    maintRenderList();
+    await logAudit('delete','maintenance',id,rec?`Lame ${esc(rec.lameNum||'')} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel('lame',rec.categorie)}`:'');
+    renderMaintenance();
     showToast('Entrée supprimée','ok');
   }catch(e){ alert('Erreur : '+e.message); }
 }
 function maintFilteredRows(){
-  const fT=document.getElementById('m_filterType')?.value||'';
   const fM=document.getElementById('m_filterMachine')?.value||'';
-  const fE=document.getElementById('m_filterEch')?.value||'';
   return maintenanceCache.filter(r=>{
-    if(fT&&r.type!==fT) return false;
+    if(r.type&&r.type!=='lame') return false;       // ne montre que les events lame
     if(fM&&r.machine!==fM) return false;
-    if(fE&&maintEcheanceState(r.echeance)!==fE) return false;
     return true;
-  }).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  }).slice().sort((a,b)=>String(b.dateInstall||b.date).localeCompare(String(a.dateInstall||a.date)));
 }
 function maintRenderList(){
   const sum=document.getElementById('maintSummary'), list=document.getElementById('maintList');
   if(!sum||!list) return;
   const rows=maintFilteredRows();
-  const nbRetard=rows.filter(r=>maintEcheanceState(r.echeance)==='retard').length;
+  const nbAlerte=lameAlerts(maintenanceCache,Date.now()).length;
   sum.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
     <div class="u-tile">
-      <div style="font-size:22px;font-weight:800;color:var(--text)">${rows.length}</div><div class="u-meta">Entrées</div></div>
+      <div style="font-size:22px;font-weight:800;color:var(--text)">${rows.length}</div><div class="u-meta">Événements lame</div></div>
     <div class="u-tile">
-      <div style="font-size:22px;font-weight:800;color:${nbRetard?'#f87171':'#4ade80'}">${nbRetard}</div><div class="u-meta">Échéances en retard</div></div>
+      <div style="font-size:22px;font-weight:800;color:${nbAlerte?'#f87171':'#4ade80'}">${nbAlerte}</div><div class="u-meta">Lames à changer / bientôt</div></div>
   </div>`;
-  if(!rows.length){ list.innerHTML='<div class="text-muted" style="padding:14px 4px">Aucune entrée pour ces filtres.</div>'; return; }
+  if(!rows.length){ list.innerHTML='<div class="text-muted" style="padding:14px 4px">Aucun événement pour ce filtre.</div>'; return; }
   list.innerHTML=rows.map(r=>{
-    const d=new Date(r.date);
+    const dRaw=r.dateInstall||r.date;
+    const d=new Date(dRaw);
     const ds=isNaN(d.getTime())?'—':d.toLocaleDateString('fr-FR');
-    const st=maintEcheanceState(r.echeance);
-    const echTxt=r.echeance?new Date(r.echeance+'T00:00:00').toLocaleDateString('fr-FR'):'';
-    const echBadge=st==='retard'?`<span class="u-badge" style="font-size:11px;font-weight:800;background:#3d1414;color:#f87171">⚠ EN RETARD</span>`
-      :st==='proche'?`<span class="u-badge" style="font-size:11px;font-weight:800;background:#3a2a0e;color:#fbbf24">ÉCHÉANCE PROCHE</span>`:'';
-    const borderCol=st==='retard'?'#f87171':st==='proche'?'#fbbf24':(r.type==='lame'?'#60a5fa':'#a78bfa');
-    const typeBadge=`<span class="u-badge" style="font-size:12px;background:${r.type==='lame'?'#152a3f':'#241b3a'};color:${r.type==='lame'?'#9ecbf0':'#c4b5fd'};margin-right:4px">${MAINT_TYPE_LABEL[r.type]||r.type}</span>`;
+    const isAffut=r.categorie==='affutage';
+    const catLbl=maintCatLabel('lame',r.categorie||'installation');
+    const borderCol=isAffut?'#fbbf24':'#60a5fa';
+    const catBadge=`<span class="u-badge" style="font-size:12px;background:${isAffut?'#3a2a0e':'#152a3f'};color:${isAffut?'#fbbf24':'#9ecbf0'};margin-right:4px">${isAffut?'🛠 ':'🔪 '}${esc(catLbl)}</span>`;
     return `<div class="save-card" style="flex-direction:column;align-items:flex-start;gap:4px;border-left:3px solid ${borderCol}">
       <div style="display:flex;width:100%;justify-content:space-between;align-items:flex-start;gap:10px">
         <div class="save-info">
-          <div class="save-title">${getMachineLabel(r.machine||'')} — ${esc(maintCatLabel(r.type,r.categorie))}${r.lameNum?` · Lame ${esc(r.lameNum)}`:''}</div>
-          <div style="margin:4px 0">${typeBadge}${echBadge}</div>
+          <div class="save-title">${getMachineLabel(r.machine||'')} · Lame ${esc(r.lameNum||'—')}</div>
+          <div style="margin:4px 0">${catBadge}</div>
           <div class="save-meta">${esc(r.description||'')}</div>
-          <div class="save-meta">${ds}${r.responsable?` · Resp. ${esc(r.responsable)}`:''}${echTxt?` · Prochaine échéance : ${echTxt}`:''}</div>
-          ${r.note?`<div class="save-meta" style="font-style:italic;color:var(--muted)">📝 ${esc(r.note)}</div>`:''}
+          <div class="save-meta">${ds}${r.responsable?` · Resp. ${esc(r.responsable)}`:''}</div>
         </div>
         <div style="flex-shrink:0"><button class="btn btn-red btn-sm" onclick="maintDelete('${r.id}')" aria-label="Supprimer l'entrée" title="Supprimer">🗑</button></div>
       </div>
@@ -6418,20 +6445,17 @@ function maintRenderList(){
 function exportMaintenance(){
   const rows=maintFilteredRows();
   if(!rows.length){ showToast('Aucune entrée à exporter.','err'); return; }
-  const head=['Date','Type','Machine','Catégorie','Lame N°','Description','Responsable','Prochaine échéance','État','Note'];
-  const stLbl={retard:'En retard',proche:'À venir',ok:'OK','':''};
+  const head=['Date','Machine','Type d\'événement','Lame N°','Description','Responsable'];
   const lines=rows.map(r=>[
-    (()=>{const d=new Date(r.date);return isNaN(d.getTime())?'':d.toLocaleDateString('fr-FR');})(),
-    MAINT_TYPE_LABEL[r.type]||r.type,getMachineLabel(r.machine||''),maintCatLabel(r.type,r.categorie),
-    r.lameNum||'',(r.description||'').replace(/[\n;]/g,' '),r.responsable||'',
-    r.echeance?new Date(r.echeance+'T00:00:00').toLocaleDateString('fr-FR'):'',
-    stLbl[maintEcheanceState(r.echeance)]||'',(r.note||'').replace(/[\n;]/g,' ')
+    (()=>{const d=new Date(r.dateInstall||r.date);return isNaN(d.getTime())?'':d.toLocaleDateString('fr-FR');})(),
+    getMachineLabel(r.machine||''),maintCatLabel('lame',r.categorie||'installation'),
+    r.lameNum||'',(r.description||'').replace(/[\n;]/g,' '),r.responsable||''
   ].map(csvCell).join(';'));
   const csv='\uFEFF'+head.join(';')+'\n'+lines.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(b);
-  a.download='registre_maintenance_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='suivi_lames_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
 }
 
