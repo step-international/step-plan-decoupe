@@ -792,7 +792,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
     <button class="tab-btn" id="tabStock" onclick="switchTab('stock')" style="display:none">📦 Stock</button>
     <button class="tab-btn" id="tabAudit" onclick="switchTab('audit')" style="display:none">🛡 Piste d'audit</button>
-    <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Étalonnage &amp; maintenance</button>
+    <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Lame / Machine</button>
     <button class="tab-btn" id="tabImpressions" onclick="switchTab('impressions')" style="display:none">🖨 File d'impression</button>
   </div>
   <div style="text-align:center;margin:2px 0 10px">
@@ -1547,6 +1547,10 @@ document.addEventListener('keydown',function(e){
         startVersionWatcher();   // veille nouvelle version (poste atelier laissé ouvert)
         // Suivi lame : charge le registre puis affiche le bandeau d'alerte (>=19/21 j).
         loadMaintenance().then(()=>renderLameAlertBanner()).catch(e=>console.warn('Alerte lame:',e));
+        // Reprise auto d'une commande dont le chrono tournait à la fermeture
+        // (app tuée / téléphone éteint). On propose la reprise pour ne pas
+        // écraser une éventuelle nouvelle saisie sans le consentement de l'opérateur.
+        setTimeout(maybeResumeRunningChrono,600);
       }else{
         // UID non reconnu — déconnecter
         console.warn('UID non reconnu:',user.uid);
@@ -6050,7 +6054,7 @@ async function saveStockMouvement(btn){
 // Accès : admin + pilotage (canManageData). Soft-delete cohérent corbeille.
 // ============================================================
 var maintenanceCache=[]; var maintLoaded=false; var maintType='lame';
-const MAINT_CATS={ lame:[['etalonnage','Étalonnage'],['remplacement','Remplacement'],['affutage','Affûtage']],
+const MAINT_CATS={ lame:[['remplacement','Remplacement'],['affutage','Affûtage']],
                    machine:[['preventive','Préventive'],['corrective','Corrective']] };
 const MAINT_TYPE_LABEL={lame:'Lame',machine:'Machine'};
 // ============================================================
@@ -6142,14 +6146,15 @@ function machineKeyFromLabel(lbl){
   const L=String(lbl||'').trim().toUpperCase();
   return ({FEBA:'feba',MAVEG:'maveg',CEVENINI:'cevenini'})[L]||'';
 }
-// Seuils d'âge d'une lame. PURE (testable hors DOM).
-//  >=21 j : 'change'  (3 semaines atteintes — à changer)
-//  >=19 j : 'soon'    (pré-alerte « bientôt »)
-//  sinon  : 'ok'
-const LAME_SEUIL_CHANGE=21, LAME_SEUIL_SOON=19;
-function lameAgeState(days){
-  if(days>=LAME_SEUIL_CHANGE) return 'change';
-  if(days>=LAME_SEUIL_SOON)   return 'soon';
+// Seuils d'âge d'une lame, PAR MACHINE (en jours). 'change' = à remplacer ;
+// pré-alerte 'soon' = 2 jours avant le seuil. PURE (testable hors DOM).
+const LAME_SEUIL_CHANGE_BY_MACHINE={feba:15, maveg:10, cevenini:10};
+const LAME_PREALERTE_JOURS=2;
+function lameSeuilChange(machine){ return LAME_SEUIL_CHANGE_BY_MACHINE[machine]||15; }
+function lameAgeState(days,machine){
+  const seuil=lameSeuilChange(machine);
+  if(days>=seuil) return 'change';
+  if(days>=seuil-LAME_PREALERTE_JOURS) return 'soon';
   return 'ok';
 }
 // Nb de jours entiers depuis une date ISO jusqu'à "now" (ms, injectable pour test).
@@ -6169,8 +6174,8 @@ function lameAlerts(cache,nowMs){
     const cur=evts[0]; if(!cur) return;
     const since=cur.dateInstall||cur.date;
     const days=lameDaysSince(since,nowMs);
-    const state=lameAgeState(days);
-    if(state!=='ok') out.push({machine:m, lameNum:cur.lameNum||'—', days, state});
+    const state=lameAgeState(days,m);
+    if(state!=='ok') out.push({machine:m, lameNum:cur.lameNum||'—', days, state, seuil:lameSeuilChange(m)});
   });
   return out;
 }
@@ -6244,12 +6249,13 @@ function renderLameEtat(){
     const days=Math.max(0,Math.floor((Date.now()-new Date(since).getTime())/86400000));
     const bob=lameBobineauxSince(m,since);
     const ageTxt=days===0?"aujourd'hui":days===1?'1 jour':days+' jours';
-    const state=lameAgeState(days);
+    const state=lameAgeState(days,m);
+    const seuil=lameSeuilChange(m);
     const tileBorder=state==='change'?'2px solid var(--red)':state==='soon'?'2px solid var(--orange)':'1px solid var(--border2)';
     const ageColor=state==='change'?'#fca5a5':state==='soon'?'#fcd34d':'var(--text)';
     const flag=state==='change'?' <span style="color:#fca5a5;font-weight:800">⚠ À CHANGER</span>':state==='soon'?' <span style="color:#fcd34d;font-weight:800">⏳ bientôt</span>':'';
     return `<div class="u-tile" style="flex:1;min-width:180px;align-items:flex-start;text-align:left;border:${tileBorder}">
-      <div style="font-size:13px;font-weight:800;color:var(--text)">⚙ ${esc(lbl)}</div>
+      <div style="font-size:13px;font-weight:800;color:var(--text)">⚙ ${esc(lbl)} <span style="font-weight:400;color:var(--muted);font-size:11px">(max ${seuil} j)</span></div>
       <div style="font-size:20px;font-weight:800;color:#5eead4;margin-top:4px">🔪 ${esc(cur.lameNum||'—')}</div>
       <div class="u-meta" style="margin-top:6px;color:${ageColor}">Installée depuis <b>${ageTxt}</b>${flag}</div>
       <div class="u-meta">Le ${esc(String(since).slice(0,10))}${cur.responsable?' · '+esc(cur.responsable):''}</div>
@@ -6285,7 +6291,7 @@ function maintViewHTML(){
   const today=new Date().toISOString().slice(0,10);
   const machOpts=['feba','maveg','cevenini'].map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
   return `
-  <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Registre des étalonnages de lames et des opérations de maintenance machines — preuve ISO 9001. Une échéance dépassée s'affiche en rouge.</div>
+  <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Registre des lames (remplacement, affûtage) et des opérations de maintenance machines — preuve ISO 9001. Une échéance dépassée s'affiche en rouge.</div>
   <div class="u-panel" style="margin-bottom:14px">
     <div class="u-eyebrow" style="margin-bottom:12px">+ Nouvelle entrée</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -8645,7 +8651,7 @@ function serializeFicheState(){
     fiche:{machine:ficheMachine,machine2:ficheMachine2,op2DiffMachine:g('fOp2DiffMachine')?.checked||false,mother2:g('fMother2')?.value||'',edge2:g('fEdge2')?.value||'',blade2:g('fBlade2')?.value||'',ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',lameChg:g('fLameChg')?.checked||false,lameNew:g('fLameNew')?.value||'',lameChgBob:g('fLameChgBob')?.value||'',
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
       numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||''},
-    chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning},
+    chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning, runStart:chronoRunStart},
     lines:getFicheLinesData()
   };
 }
@@ -8684,6 +8690,27 @@ function startAutosave(){
 }
 function stopAutosave(){
   if(_autosaveTimer){clearInterval(_autosaveTimer);_autosaveTimer=null;}
+}
+// Au démarrage : si le brouillon auto contient un chrono qui TOURNAIT et que
+// l'écran fiche est vide, propose de reprendre la commande là où elle en était.
+// Le temps actif réel (fermeture comprise) est recalculé par restoreChrono.
+function maybeResumeRunningChrono(){
+  try{
+    if(ficheLines&&ficheLines.length) return;           // une fiche est déjà à l'écran
+    if(typeof chronoRunning!=='undefined'&&chronoRunning) return;
+    const d=loadDrafts().find(x=>x.id===AUTOSAVE_ID);
+    if(!d||!d.state||!d.state.chrono) return;
+    const c=d.state.chrono;
+    if(!c.wasRunning||!c.runStart) return;              // n'était pas en marche
+    const actifSec=Math.max(0,Math.floor((Date.now()-c.runStart)/1000));
+    const lbl=(d.state.fiche&&(d.state.fiche.client||d.state.fiche.numCmd))
+      ? ((d.state.fiche.client||'—')+' / '+(d.state.fiche.numCmd||'sans n°'))
+      : 'commande en cours';
+    if(confirm('⏱ Une commande était en cours quand l\'application a été fermée :\n\n'
+      +lbl+'\nChrono actif : '+fmtTimeFr(actifSec)+'\n\nReprendre cette commande (le chrono continue) ?')){
+      resumeDraft(AUTOSAVE_ID);
+    }
+  }catch(e){ console.warn('Reprise chrono:',e); }
 }
 // ============================================================
 // AUTO-SAVE PLAN (demande 4) — dès qu'un utilisateur saisit ou modifie
@@ -8805,6 +8832,14 @@ function restoreFicheState(st){
     document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
     _refBlockSeq=1; renumberRefBlocks();
     document.querySelectorAll('.order-row').forEach(r=>r.remove());
+    // Réinjecter les paramètres du plan DANS le ref-block #1 (et pas seulement
+    // dans les champs legacy #motherWidth/#edgeLoss/#bladeWidth) : c'est le
+    // ref-block qui fait foi pour getRefGroups()/recalcPlan(). Sans ça, une
+    // perte de bords modifiée à la main était perdue au rechargement du
+    // brouillon (le bloc gardait sa valeur par défaut machine).
+    const setRb1=(sel,v)=>{const el=document.querySelector('.ref-block [data-rb="'+sel+'"]');if(el&&v!=null&&v!=='')el.value=v;};
+    if(st.plan.machine) setRb1('machine',st.plan.machine);
+    setRb1('mother',st.plan.mother); setRb1('edge',st.plan.edge); setRb1('blade',st.plan.blade);
     (st.plan.rows||[]).forEach(r=>addOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||''));
   }
   commandePhoto='';commandeFiles=readCommandeFiles(st.plan);refreshCommandePhotoZone();
@@ -8844,12 +8879,18 @@ function restoreFicheState(st){
   // Reprise du chrono à la valeur où le brouillon a été créé (remis en pause).
   restoreChrono(st.chrono);
 }
-// Repositionne le chrono à la valeur enregistrée dans le brouillon, en pause.
+// Repositionne le chrono depuis un brouillon. Deux cas :
+//  - le chrono était EN PAUSE à la fermeture : on le laisse en pause à sa valeur.
+//  - le chrono TOURNAIT : on reprend EN MARCHE en recalculant le temps ACTIF
+//    réel depuis l'horodatage de début de segment (runStart). Comme
+//    runStart = début − tempsDéjàActif, (now − runStart) = tout l'actif,
+//    pauses exclues, y compris le temps pendant lequel l'app était fermée /
+//    le téléphone éteint.
 function restoreChrono(c){
   clearInterval(chronoInterval);
   chronoRunning=false;
   chronoRunStart=null;
-  if(!c||!c.sec||c.sec<=0){
+  if(!c||((!c.sec||c.sec<=0)&&!c.wasRunning)){
     chronoSec=0; chronoStartTs=null;
     document.getElementById('chronoDisplay').textContent='00:00:00';
     document.getElementById('chronoDisplay').className='chrono-display';
@@ -8859,8 +8900,23 @@ function restoreChrono(c){
     document.getElementById('chronoStatus').textContent='Prêt — appuie sur Démarrer quand tu commences la commande';
     return;
   }
-  chronoSec=c.sec;
   chronoStartTs=c.startTs||null;
+  if(c.wasRunning && c.runStart){
+    // Reprise EN MARCHE : recalcul du temps actif réel depuis le début de segment.
+    chronoRunStart=c.runStart;
+    chronoSec=Math.max(0,Math.floor((Date.now()-chronoRunStart)/1000));
+    chronoRunning=true;
+    chronoInterval=setInterval(chronoTick,1000);
+    chronoTick();
+    document.getElementById('chronoDisplay').className='chrono-display running';
+    document.getElementById('chronoStartBtn').classList.add('hidden');
+    document.getElementById('chronoPauseBtn').classList.remove('hidden');
+    document.getElementById('chronoStatus').textContent='⏱ Chrono repris automatiquement — '+fmtTimeFr(chronoSec)+' (temps actif)';
+    startAutosave();
+    return;
+  }
+  // Sinon : remis en pause à la valeur figée.
+  chronoSec=c.sec;
   document.getElementById('chronoDisplay').textContent=fmtTime(chronoSec);
   document.getElementById('chronoDisplay').className='chrono-display paused';
   document.getElementById('chronoStartBtn').classList.remove('hidden');
