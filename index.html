@@ -1010,7 +1010,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.06.16-L15';
+const APP_VERSION='2026.06.22-L19';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 
@@ -1339,17 +1339,22 @@ async function showForgotPassword(){
     document.getElementById('loginErr').textContent='Entrez d\'abord votre adresse e-mail.';
     return;
   }
+  // Message générique, identique que le compte existe ou non : on n'expose pas
+  // quels e-mails sont enregistrés (évite l'énumération de comptes via cette page).
+  const _resetMsg=()=>{
+    const el=document.getElementById('loginErr');
+    el.textContent='✓ Si un compte existe pour '+email+', un lien de réinitialisation vient d\'être envoyé. Vérifie ta boîte mail ET tes spams (expéditeur noreply@).';
+    el.style.color='var(--green)';
+    setTimeout(()=>{ el.style.color='var(--red)'; el.textContent=''; },8000);
+  };
   try{
     await firebase.auth().sendPasswordResetEmail(email);
-    document.getElementById('loginErr').textContent='✓ Lien envoyé à '+email+'. Vérifie ta boîte mail ET tes spams (expéditeur noreply@).';
-    document.getElementById('loginErr').style.color='var(--green)';
-    setTimeout(()=>{
-      document.getElementById('loginErr').style.color='var(--red)';
-      document.getElementById('loginErr').textContent='';
-    },8000);
+    _resetMsg();
   }catch(e){
     if(e.code==='auth/user-not-found'){
-      document.getElementById('loginErr').textContent='Cet e-mail n\'existe pas.';
+      _resetMsg();                                   // même message : pas de divulgation
+    }else if(e.code==='auth/too-many-requests'){
+      document.getElementById('loginErr').textContent='Trop de tentatives. Réessaie dans quelques minutes.';
     }else{
       document.getElementById('loginErr').textContent='Erreur : '+e.message;
     }
@@ -1540,6 +1545,7 @@ document.addEventListener('keydown',function(e){
         // un token reCAPTCHA périmé qui ferait échouer les écritures Firestore/Storage.
         await refreshAppCheckToken();
         loadFirestoreData();
+        startBrouillons();          // sync temps réel des brouillons partagés
         ensureMonthlyAggregates();   // KPI mensuels : fige le dernier mois clos (ER/CH, idempotent)
         // Refresh périodique tant que la session reste ouverte (TTL App Check = 1 jour),
         // pour qu'un poste atelier laissé ouvert toute la journée ne se bloque jamais.
@@ -1565,6 +1571,7 @@ document.addEventListener('keydown',function(e){
       if(_planAutosaveTimer){ clearInterval(_planAutosaveTimer); _planAutosaveTimer=null; }
       stopAutosave();
       const _lab=document.getElementById('lameAlertBanner'); if(_lab) _lab.style.display='none';
+      stopBrouillons();
       currentRole=null;
       currentUser=null;
       auditCache=[]; auditLoaded=false; auditLoading=false;   // pas de fuite d'audit entre sessions
@@ -2050,6 +2057,9 @@ let tempsRenderLimit=50;          // pagination de la liste des temps
 let chronoRunning = false;
 let chronoInterval = null;
 let chronoStartTs = null;
+// Heures supp assumées : clé de date (jour) où l'opérateur a choisi de continuer
+// après l'heure de fin de journée → suspend l'arrêt auto pour ce jour-là.
+let _chronoAutoStopOverride = null;
 // Horodatage (ms) du début du segment EN COURS. Le temps écoulé est recalculé
 // depuis cet instant (Date.now()-chronoRunStart) au lieu d'incrémenter un compteur :
 // ainsi le chrono ne "fige" pas quand le téléphone se met en veille et suspend
@@ -4579,6 +4589,9 @@ async function deleteSave(id){
 function chronoTick(){
   // Recalcul depuis l'horodatage : robuste à la veille/throttling du téléphone.
   if(chronoRunStart==null) return;
+  // Coupure de fin de journée : peut figer le temps et mettre le chrono en pause.
+  chronoAutoStopCheck();
+  if(!chronoRunning) return;            // l'arrêt auto vient de prendre la main
   chronoSec=Math.max(0,Math.floor((Date.now()-chronoRunStart)/1000));
   document.getElementById('chronoDisplay').textContent=fmtTime(chronoSec);
 }
@@ -4598,6 +4611,9 @@ function chronoStart(){
   chronoStartTs=chronoStartTs||new Date().toISOString();
   // Start virtuel : on retranche le temps déjà cumulé (cas reprise après pause).
   chronoRunStart=Date.now()-chronoSec*1000;
+  // (Re)démarrage APRÈS l'heure de fin de journée = heures supp assumées :
+  // on suspend l'arrêt auto pour le reste de ce jour-là.
+  { const _co=dayChronoCutoffMs(Date.now()); if(_co!=null && Date.now()>=_co) _chronoAutoStopOverride=_dateKey(Date.now()); }
   chronoInterval=setInterval(chronoTick,1000);
   chronoTick();
   document.getElementById('chronoDisplay').className='chrono-display running';
@@ -4623,7 +4639,7 @@ function chronoPause(){
 function chronoReset(){
   chronoRunning=false;
   clearInterval(chronoInterval);
-  chronoSec=0;chronoStartTs=null;chronoRunStart=null;
+  chronoSec=0;chronoStartTs=null;chronoRunStart=null;_chronoAutoStopOverride=null;
   document.getElementById('chronoDisplay').textContent='00:00:00';
   document.getElementById('chronoDisplay').className='chrono-display';
   document.getElementById('chronoStartBtn').classList.remove('hidden');
@@ -4635,6 +4651,46 @@ function chronoReset(){
 // Au réveil du téléphone / retour d'onglet, recaler immédiatement l'affichage
 // (l'intervalle a pu être suspendu pendant la veille — chronoTick recalcule
 // le vrai temps écoulé depuis l'horodatage de départ).
+// ── Arrêt automatique du chrono en fin de journée ──────────────────────────
+// Lun→jeu : 16h15 · Ven : 15h15 · Sam/dim : pas d'arrêt auto.
+// On met le chrono en PAUSE (jamais d'enregistrement auto) en figeant le temps
+// À l'heure de fin de journée, pour qu'un chrono oublié ne tourne pas toute la
+// nuit. Heures supp : l'opérateur Reprend normalement (l'arrêt auto est alors
+// suspendu pour le reste du jour, cf. chronoStart).
+function _dateKey(ms){ const d=new Date(ms); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+function dayChronoCutoffMs(ms){
+  const d=new Date(ms); const day=d.getDay();   // 0=dim … 6=sam
+  let h,m;
+  if(day>=1 && day<=4){ h=16; m=15; }            // lundi → jeudi
+  else if(day===5){ h=15; m=15; }                // vendredi
+  else return null;                              // week-end : pas de coupure auto
+  return new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m,0,0).getTime();
+}
+function chronoAutoStopCheck(){
+  if(!chronoRunning || chronoRunStart==null) return;
+  const now=Date.now();
+  const cutoff=dayChronoCutoffMs(chronoRunStart);          // fin de journée du JOUR de démarrage
+  if(cutoff==null || now<cutoff) return;                   // week-end, ou pas encore l'heure
+  if(_chronoAutoStopOverride===_dateKey(chronoRunStart)) return;  // heures supp ce jour-là
+  if(chronoRunStart<cutoff){
+    chronoSec=Math.max(0,Math.floor((cutoff-chronoRunStart)/1000)); // figer À l'heure de fin
+  }
+  autoStopChrono();
+}
+function autoStopChrono(){
+  chronoRunStart=null;
+  chronoRunning=false;
+  clearInterval(chronoInterval);
+  const disp=document.getElementById('chronoDisplay');
+  if(disp){ disp.textContent=fmtTime(chronoSec); disp.className='chrono-display paused'; }
+  const sb=document.getElementById('chronoStartBtn'); if(sb){ sb.classList.remove('hidden'); sb.textContent='▶ Reprendre'; }
+  const pb=document.getElementById('chronoPauseBtn'); if(pb) pb.classList.add('hidden');
+  const st=document.getElementById('chronoStatus'); if(st) st.textContent='Fin de journée — chrono en pause à '+fmtTimeFr(chronoSec)+'. Reprendre = heures supp.';
+  stopAutosave();
+  // Rafraîchir le brouillon auto (wasRunning:false) → une réouverture ne proposera pas une reprise gonflée.
+  try{ if(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length) autosaveDraftTick(); }catch(e){}
+  try{ showToast('⏸ Fin de journée — chrono mis en pause. Reprends-le pour des heures supplémentaires.','ok'); }catch(e){}
+}
 function chronoCatchUp(){ if(chronoRunning) chronoTick(); }
 if(typeof document!=='undefined' && document.addEventListener){
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden) chronoCatchUp(); });
@@ -5320,6 +5376,7 @@ function renderTemps(){
         <div class="cr-meta">${esc(t.commandeDetail||'')} · ${t.totalLaizes} laizes · ${t.nbBobines} bob. mères</div>
         <div class="cr-meta" style="color:var(--blue)">${secPerLaize}s / laize${t.commentaire?' · <em>'+esc(t.commentaire)+'</em>':''}</div>
       </div>
+      ${canManageData()?`<button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="openTempsEdit('${t._id}')" title="Corriger ce relevé (durée, quantités, client…)">✎</button>`:''}
       <button class="btn btn-red btn-sm" style="flex-shrink:0" onclick="deleteTempo('${t._id}')">✕</button>
     </div>`;
   }).join('')+(temps.length>tempsRenderLimit
@@ -5334,6 +5391,111 @@ async function deleteTempo(id){
     if(item){item.deleted=true;item.deletedAt=isoNow();}
   }catch(e){alert('Erreur : '+e.message);}
   renderTemps();
+}
+// ── Correction d'un relevé de temps (ER/CH/DC) ─────────────────────────────
+// La règle Firestore autorise déjà temps.update pour isManage. On expose ici
+// une UI de correction complète (durée + quantités + infos). Les analyses
+// (débit m/h, KPI) lisent tempsCache à chaud → un Object.assign suffit à les
+// rafraîchir. NB : un mois déjà FIGÉ (agrégat) n'est pas recalculé (snapshot ISO).
+function _tempsIniOpts(sel, allowEmpty){
+  let o = allowEmpty ? '<option value="">— aucun —</option>' : '';
+  const known = Object.values(USER_PROFILES).map(p=>p.ini);
+  if(sel && known.indexOf(sel)<0) o += `<option value="${esc(sel)}" selected>${esc(sel)}</option>`;
+  o += known.map(i=>`<option value="${esc(i)}"${i===sel?' selected':''}>${esc(i)}</option>`).join('');
+  return o;
+}
+function openTempsEdit(id){
+  if(!canManageData()){showToast('Correction réservée au pilotage et aux admins.','err');return;}
+  const t=tempsCache.find(x=>x._id===id);
+  if(!t){alert('Relevé introuvable (recharge l\'historique).');return;}
+  const sec=Math.max(0,Number(t.duree)||0);
+  const dh=Math.floor(sec/3600), dm=Math.floor((sec%3600)/60), dss=sec%60;
+  const dateVal=(()=>{ const d=new Date(t.date); return isNaN(d)?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const machVal=String(t.machine||'').toUpperCase();
+  const machOpts=['FEBA','MAVEG','CEVENINI'].map(m=>`<option value="${m}"${m===machVal?' selected':''}>${m}</option>`).join('');
+  const old=document.getElementById('tempsEditOverlay'); if(old) old.remove();
+  const inp='padding:9px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;width:100%;box-sizing:border-box;font-size:14px';
+  const lab='font-size:12px;color:#888;display:block;margin-bottom:4px';
+  const ov=document.createElement('div');
+  ov.id='tempsEditOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px';
+  ov.innerHTML=`
+    <div role="dialog" aria-modal="true" aria-label="Correction d'un relevé de temps" style="background:#1a1a18;border:1px solid #333;border-radius:14px;max-width:560px;width:100%;margin:auto;padding:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-family:sans-serif;font-size:17px;font-weight:800;color:#fff">✎ Corriger le relevé</div>
+        <button onclick="document.getElementById('tempsEditOverlay').remove()" aria-label="Fermer" style="background:#222;border:1px solid #444;color:#ccc;border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
+      </div>
+      <div style="font-size:12px;color:#aaa;margin-bottom:16px">Réservé ER / CH / DC · les analyses (débit m/h, KPI) se recalculent après enregistrement.</div>
+
+      <label style="${lab}">Durée (chrono)</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <input id="teH" inputmode="numeric" value="${dh}" style="${inp};text-align:center"><span style="color:#888;font-size:13px">h</span>
+        <input id="teM" inputmode="numeric" value="${dm}" style="${inp};text-align:center"><span style="color:#888;font-size:13px">min</span>
+        <input id="teS" inputmode="numeric" value="${dss}" style="${inp};text-align:center"><span style="color:#888;font-size:13px">s</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-bottom:14px">
+        <div><label style="${lab}">Date</label><input type="date" id="teDate" value="${dateVal}" style="${inp}"></div>
+        <div><label style="${lab}">Machine</label><select id="teMachine" style="${inp}">${machOpts}</select></div>
+        <div><label style="${lab}">Client</label><input id="teClient" value="${esc(t.client||'')}" style="${inp}"></div>
+        <div><label style="${lab}">Référence</label><input id="teRef" value="${esc(t.ref||'')}" style="${inp}"></div>
+        <div><label style="${lab}">N° commande</label><input id="teNumCmd" value="${esc(t.numCmd||'')}" style="${inp}"></div>
+        <div><label style="${lab}">N° jour</label><input id="teNumJour" value="${esc(t.numJour||'')}" style="${inp}"></div>
+        <div><label style="${lab}">Opérateur</label><select id="teOp" style="${inp}">${_tempsIniOpts(t.operateur||'',false)}</select></div>
+        <div><label style="${lab}">Opérateur 2</label><select id="teOp2" style="${inp}">${_tempsIniOpts(t.operateur2||'',true)}</select></div>
+        <div><label style="${lab}">Op.2 dès bobine</label><input id="teOp2Bob" inputmode="numeric" value="${esc(String(t.op2Bobine||''))}" style="${inp}"></div>
+        <div><label style="${lab}">Total laizes</label><input id="teLaizes" inputmode="numeric" value="${Number(t.totalLaizes)||0}" style="${inp}"></div>
+        <div><label style="${lab}">Bobines mères</label><input id="teBob" inputmode="numeric" value="${Number(t.nbBobines)||0}" style="${inp}"></div>
+        <div><label style="${lab}">Longueur (ml)</label><input id="teLong" value="${esc(String(t.longueur||''))}" style="${inp}"></div>
+        <div><label style="${lab}">Largeur (mm)</label><input id="teLarg" value="${esc(String(t.largeur||''))}" style="${inp}"></div>
+      </div>
+
+      <label style="${lab}">Commentaire</label>
+      <textarea id="teComm" rows="2" style="${inp};resize:vertical;margin-bottom:18px">${esc(t.commentaire||'')}</textarea>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="document.getElementById('tempsEditOverlay').remove()">Annuler</button>
+        <button class="btn" style="background:#1f7a45;color:#fff;border:none" onclick="saveTempsEdit('${id}')">💾 Enregistrer la correction</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+async function saveTempsEdit(id){
+  if(!canManageData()){showToast('Correction réservée au pilotage et aux admins.','err');return;}
+  const t=tempsCache.find(x=>x._id===id);
+  if(!t){alert('Relevé introuvable.');return;}
+  const g=i=>document.getElementById(i);
+  const iv=i=>{const n=parseInt(String(g(i)?.value||'').replace(/[^0-9-]/g,''),10);return isNaN(n)?0:n;};
+  const sv=i=>String(g(i)?.value||'').trim();
+  const duree=Math.max(0, iv('teH')*3600 + iv('teM')*60 + iv('teS'));
+  // Date : on ne change que le JOUR, on conserve l'heure d'origine (bucket KPI = mois).
+  let dateIso=t.date;
+  const dval=sv('teDate');
+  if(dval){
+    const p=dval.split('-').map(Number);
+    if(p.length===3 && p.every(x=>!isNaN(x))){
+      const od=new Date(t.date); const valid=!isNaN(od);
+      const nd=new Date(p[0],p[1]-1,p[2], valid?od.getHours():12, valid?od.getMinutes():0, valid?od.getSeconds():0);
+      if(!isNaN(nd)) dateIso=nd.toISOString();
+    }
+  }
+  const changes={
+    duree, date:dateIso,
+    client:sv('teClient')||'—', ref:sv('teRef')||'—', numCmd:sv('teNumCmd'),
+    machine:sv('teMachine'),
+    operateur:sv('teOp')||'—', operateur2:sv('teOp2'), op2Bobine:sv('teOp2Bob'),
+    totalLaizes:Math.max(0,iv('teLaizes')), nbBobines:Math.max(0,iv('teBob')),
+    longueur:sv('teLong'), largeur:sv('teLarg'),
+    numJour:sv('teNumJour'), commentaire:sv('teComm')
+  };
+  try{
+    await db.collection('temps').doc(id).update(changes);
+    Object.assign(t, changes);
+    await logAudit('edit','temps',id,`Relevé corrigé — ${changes.client} / ${changes.ref} (durée ${fmtTimeFr(duree)})`,{client:changes.client,ref:changes.ref});
+    document.getElementById('tempsEditOverlay')?.remove();
+    renderTemps();
+    showToast('✓ Relevé corrigé','ok');
+  }catch(e){ alert('Erreur enregistrement : '+e.message); }
 }
 async function clearTemps(){
   if(!canManageData()){showToast('Action réservée au pilotage et aux admins.','err');return;}
@@ -8646,27 +8808,64 @@ function updateAllCumuls(){
   });
 }
 // ============================================================
-// BROUILLONS (localStorage) — fiches parquées ou non envoyées (réseau coupé)
+// BROUILLONS — collection Firestore PARTAGÉE entre opérateurs
+// (auto-save + parkings). Tout opérateur voit/charge les brouillons des autres
+// dès qu'il est en ligne ; hors-ligne, la persistance Firestore locale prend le
+// relais et synchronise au retour réseau. Les auto-save sont namespacés par
+// opérateur (d_autosave_<uid>) pour ne pas se télescoper entre postes.
 // ============================================================
-const DRAFTS_KEY='step_drafts';
-function loadDrafts(){try{return JSON.parse(localStorage.getItem(DRAFTS_KEY)||'[]');}catch(e){return [];}}
+let brouillonsCache=[];
+let _brouillonsUnsub=null;
+function _uid(){ try{ return (firebase.auth().currentUser||{}).uid || 'anon'; }catch(e){ return 'anon'; } }
+function _ini(){ return (currentUser&&currentUser.ini)?currentUser.ini:'?'; }
+function autosaveId(){ return 'd_autosave_'+_uid(); }
+function planAutosaveId(){ return 'd_autosave_plan_'+_uid(); }
+// Retire les data: URIs volumineux (photos) avant écriture — limite Firestore 1 Mo.
+function _draftStrip(d){
+  return JSON.parse(JSON.stringify(d,(k,v)=>
+    (typeof v==='string' && v.indexOf('data:')===0 && v.length>10000)?'':v));
+}
+function _draftSet(d){
+  if(!db||!d||!d.id) return;
+  db.collection('brouillons').doc(d.id).set(d).catch(e=>console.warn('Brouillon (écriture) :',e.message));
+}
+function _draftDelete(id){
+  if(!db||!id) return;
+  db.collection('brouillons').doc(id).delete().catch(e=>console.warn('Brouillon (suppression) :',e.message));
+}
+// Écoute temps réel : maintient brouillonsCache à jour (récents d'abord) et
+// rafraîchit la liste si elle est affichée.
+function startBrouillons(){
+  if(!db||_brouillonsUnsub) return;
+  _brouillonsUnsub=db.collection('brouillons').onSnapshot(function(snap){
+    const arr=[]; snap.forEach(doc=>arr.push(Object.assign({id:doc.id},doc.data())));
+    arr.sort((a,b)=>String(b.savedAt||'').localeCompare(String(a.savedAt||'')));
+    brouillonsCache=arr;
+    try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
+  }, function(err){ console.warn('Brouillons (sync) :',err.message); });
+}
+function stopBrouillons(){ if(_brouillonsUnsub){ try{_brouillonsUnsub();}catch(e){} _brouillonsUnsub=null; } brouillonsCache=[]; }
+// Lecture synchrone depuis le cache (compatibilité avec les appelants existants).
+function loadDrafts(){ return Array.isArray(brouillonsCache)?brouillonsCache.slice():[]; }
+// Écriture : diff cache → Firestore (set des modifiés, delete des disparus).
+// On ne réécrit PAS les brouillons inchangés (évite un write par tick d'auto-save).
 function persistDrafts(arr){
-  try{localStorage.setItem(DRAFTS_KEY,JSON.stringify(arr));return true;}
-  catch(e){
-    // Stockage plein (souvent : fichiers base64 embarqués quand Storage était indispo).
-    // 2e tentative : on allège en retirant les data: URI volumineux, on garde le reste.
-    try{
-      const light=JSON.parse(JSON.stringify(arr,(k,v)=>
-        (typeof v==='string'&&v.indexOf('data:')===0&&v.length>10000)?'':v));
-      localStorage.setItem(DRAFTS_KEY,JSON.stringify(light));
-      if(!_draftWarnShown){_draftWarnShown=true;showToast('⚠ Brouillon allégé : photos/fichiers trop lourds non inclus (stockage plein)','err');}
-      return true;
-    }catch(e2){
-      if(!_draftWarnShown){_draftWarnShown=true;showToast('⛔ BROUILLON NON SAUVEGARDÉ : stockage local plein','err');}
-      console.warn('Brouillon non sauvegardé :',e2.message);
-      return false;
-    }
-  }
+  if(!db) return false;
+  try{
+    const next=Array.isArray(arr)?arr:[];
+    const prevById={}; brouillonsCache.forEach(d=>{ prevById[d.id]=d; });
+    const nextIds=new Set(next.map(d=>d.id));
+    brouillonsCache.forEach(d=>{ if(!nextIds.has(d.id)) _draftDelete(d.id); });
+    const optimistic=[];
+    next.forEach(d=>{
+      const stripped=_draftStrip(d);
+      const prev=prevById[d.id];
+      if(!prev || JSON.stringify(prev)!==JSON.stringify(stripped)) _draftSet(stripped);
+      optimistic.push(stripped);
+    });
+    brouillonsCache=optimistic;     // affichage immédiat ; le snapshot reconfirmera
+    return true;
+  }catch(e){ console.warn('persistDrafts (Firestore) :',e); return false; }
 }
 function clearCurrentDraft(){
   // Envoi réussi (fiche en base) : on purge les brouillons AUTO — la fiche
@@ -8674,7 +8873,7 @@ function clearCurrentDraft(){
   // que cet envoi déjà consommé. Les brouillons MANUELS (💾) et "non envoyé"
   // sont conservés : ce sont des parkings volontaires, pas des restes.
   try{
-    persistDrafts(loadDrafts().filter(d=>d.id!==AUTOSAVE_ID && d.id!==PLAN_AUTOSAVE_ID));
+    persistDrafts(loadDrafts().filter(d=>d.id!==autosaveId() && d.id!==planAutosaveId()));
     _planAutosaveLast='';   // ne pas recréer le brouillon plan au prochain tick
   }catch(e){}
 }
@@ -8712,13 +8911,13 @@ function saveDraftFromSend(ficheEntry,tempsEntry,body){
 // Auto-sauvegarde : tant que le chrono tourne, on maintient UN brouillon auto (id fixe)
 // rafraîchi toutes les 60 s. Évite la perte si l'app est fermée en pleine saisie.
 let _autosaveTimer=null;
-const AUTOSAVE_ID='d_autosave';
 function autosaveDraftTick(){
   if(!ficheLines.length) return;
   const st=serializeFicheState();
   const label='🔄 Auto · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
-  const drafts=loadDrafts().filter(d=>d.id!==AUTOSAVE_ID);
-  drafts.unshift({id:AUTOSAVE_ID,savedAt:isoNow(),label,state:st,auto:true});
+  const aid=autosaveId();
+  const drafts=loadDrafts().filter(d=>d.id!==aid);
+  drafts.unshift({id:aid,savedAt:isoNow(),label,state:st,auto:true,owner:_ini()});
   persistDrafts(drafts);
 }
 function startAutosave(){
@@ -8732,21 +8931,26 @@ function stopAutosave(){
 // Au démarrage : si le brouillon auto contient un chrono qui TOURNAIT et que
 // l'écran fiche est vide, propose de reprendre la commande là où elle en était.
 // Le temps actif réel (fermeture comprise) est recalculé par restoreChrono.
-function maybeResumeRunningChrono(){
+async function maybeResumeRunningChrono(){
   try{
     if(ficheLines&&ficheLines.length) return;           // une fiche est déjà à l'écran
     if(typeof chronoRunning!=='undefined'&&chronoRunning) return;
-    const d=loadDrafts().find(x=>x.id===AUTOSAVE_ID);
+    if(!db) return;
+    const aid=autosaveId();
+    let d=loadDrafts().find(x=>x.id===aid);
+    if(!d){ try{ const snap=await db.collection('brouillons').doc(aid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
     if(!d||!d.state||!d.state.chrono) return;
     const c=d.state.chrono;
     if(!c.wasRunning||!c.runStart) return;              // n'était pas en marche
-    const actifSec=Math.max(0,Math.floor((Date.now()-c.runStart)/1000));
+    let actifSec=Math.max(0,Math.floor((Date.now()-c.runStart)/1000));
+    // Si le chrono a traversé l'heure de fin de journée pendant la fermeture, plafonner l'affichage.
+    { const _cut=dayChronoCutoffMs(c.runStart); if(_cut!=null && c.runStart<_cut && Date.now()>=_cut) actifSec=Math.max(0,Math.floor((_cut-c.runStart)/1000)); }
     const lbl=(d.state.fiche&&(d.state.fiche.client||d.state.fiche.numCmd))
       ? ((d.state.fiche.client||'—')+' / '+(d.state.fiche.numCmd||'sans n°'))
       : 'commande en cours';
     if(confirm('⏱ Une commande était en cours quand l\'application a été fermée :\n\n'
       +lbl+'\nChrono actif : '+fmtTimeFr(actifSec)+'\n\nReprendre cette commande (le chrono continue) ?')){
-      resumeDraft(AUTOSAVE_ID);
+      resumeDraft(aid);
     }
   }catch(e){ console.warn('Reprise chrono:',e); }
 }
@@ -8756,7 +8960,6 @@ function maybeResumeRunningChrono(){
 // rafraîchi toutes les 10 s. Écriture uniquement si le contenu a changé.
 // Purgé automatiquement quand le plan est sauvegardé pour de vrai (doSave).
 // ============================================================
-const PLAN_AUTOSAVE_ID='d_autosave_plan';
 let _planAutosaveTimer=null;
 let _planAutosaveLast='';
 let _planAutosaveBound=false;
@@ -8774,8 +8977,9 @@ function planAutosaveTick(){
   const sig=JSON.stringify(st.plan);
   if(sig===_planAutosaveLast) return;   // rien n'a changé depuis le dernier tick
   const label='🔄 Auto plan · '+((st.plan.client||'—')+' / '+(st.plan.numCmd||'sans n°'));
-  const drafts=loadDrafts().filter(d=>d.id!==PLAN_AUTOSAVE_ID);
-  drafts.unshift({id:PLAN_AUTOSAVE_ID,savedAt:isoNow(),label,state:st,auto:true,planDraft:true});
+  const pid=planAutosaveId();
+  const drafts=loadDrafts().filter(d=>d.id!==pid);
+  drafts.unshift({id:pid,savedAt:isoNow(),label,state:st,auto:true,planDraft:true,owner:_ini()});
   if(persistDrafts(drafts)) _planAutosaveLast=sig;
 }
 function startPlanAutosave(){
@@ -8783,7 +8987,7 @@ function startPlanAutosave(){
   _planAutosaveTimer=setInterval(planAutosaveTick,10000);
 }
 function clearPlanAutosaveDraft(){
-  persistDrafts(loadDrafts().filter(d=>d.id!==PLAN_AUTOSAVE_ID));
+  persistDrafts(loadDrafts().filter(d=>d.id!==planAutosaveId()));
   // Mémoriser la signature de l'état courant : le contenu encore à l'écran
   // (déjà en base) ne doit pas recréer le brouillon au tick suivant.
   // Seule une NOUVELLE modification le recréera.
@@ -8978,7 +9182,7 @@ function renderDrafts(){
     return `<div class="save-card">
       <div class="save-info">
         <div class="save-title">${esc(d.label)}${tag}</div>
-        <div class="save-meta">Brouillon du ${ds} · ${meta}</div>
+        <div class="save-meta">Brouillon du ${ds} · ${meta}${d.owner?' · <b style="color:var(--blue)">'+esc(d.owner)+'</b>':''}</div>
       </div>
       <div class="save-actions">
         <button class="btn btn-green btn-sm" onclick="resumeDraft('${d.id}')">▶ Reprendre</button>
