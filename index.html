@@ -1329,7 +1329,7 @@ async function logAudit(action,collection,docId,details,ctx){
     await db.collection('audit').add(entry);
   }catch(e){
     try{ await db.collection('audit').add(entry); }   // 1 retry
-    catch(e2){ console.warn('Audit non enregistré (2 tentatives) :',e2.message); }
+    catch(e2){ console.warn('Audit non enregistré (2 tentatives) :',e2.message); try{showToast('⚠ Action effectuée mais NON tracée (piste d\'audit indisponible).','err');}catch(_){} }
   }
 }
 
@@ -2080,6 +2080,12 @@ function parseNum(v){
   return parseFloat(String(v).replace(',','.')) || 0;
 }
 function fmt(n){const x=Number(n); return Number.isFinite(x)?parseFloat(x.toFixed(2)).toString():'0';}
+// Borne une quantité saisie : une saisie aberrante ne doit pas lancer des
+// dizaines de milliers d'itérations dans le moteur de découpe. Cf. AUDIT F7.
+function clampQ(n,max){return Math.max(0,Math.min(max||9999,Math.floor(n||0)));}
+// Neutralise une URL stockée avant injection dans href/src : seuls http(s),
+// blob: et data:image sont autorisés (bloque javascript:, etc.). Cf. AUDIT F2/F5.
+function safeUrl(u){u=String(u==null?'':u);return /^(https?:|blob:|data:image\/)/i.test(u)?u:'#';}
 function today(){return new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function isoNow(){return new Date().toISOString();}
 function getDayOfYear(){
@@ -2219,7 +2225,7 @@ function refreshPhotoZone(lineId){
   if(!zone) return;
   const data=ficholinePhotos[lineId];
   if(data){
-    zone.innerHTML=`<img src="${data}" class="photo-thumb" onclick="openPhotoViewer('${lineId}')" alt="photo">
+    zone.innerHTML=`<img src="${esc(safeUrl(data))}" class="photo-thumb" onclick="openPhotoViewer('${lineId}')" alt="photo">
       <button class="photo-btn" onclick="triggerPhoto('${lineId}')">🔄 Changer</button>
       <button class="photo-btn" onclick="deletePhoto('${lineId}')" style="border-color:#7a2222;color:var(--red)">🗑</button>`;
   } else {
@@ -2356,7 +2362,7 @@ function blCardBlock(f){
   const complete=ficheBLComplete(f);
   const manage=canValidate();
   const fid=f._id;
-  const blChip=(b)=>`<a href="${b.url}" target="_blank" rel="noopener" style="color:#4ade80;text-decoration:underline">${b.type==='pdf'?'📄':b.type==='image'?'🖼':'📎'} ${esc(b.name||'BL')}</a>`;
+  const blChip=(b)=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;text-decoration:underline">${b.type==='pdf'?'📄':b.type==='image'?'🖼':'📎'} ${esc(b.name||'BL')}</a>`;
   const trash=(i)=>manage?` <button onclick="deleteBLFiche('${fid}',${i})" title="Retirer ce BL" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:13px">🗑</button>`:'';
   const head=complete
     ? `<div style="color:#4ade80;font-weight:700;font-size:12px;margin-bottom:4px">📎 BL complet</div>`
@@ -2456,12 +2462,12 @@ function refreshCommandePhotoZone(){
   commandeFiles.forEach((f,i)=>{
     if(f.type==='image'){
       html+=`<div style="position:relative;display:inline-block">
-        <img src="${f.url}" class="photo-thumb" onclick="openCommandeFileViewer(${i})" alt="${esc(f.name||'image')}" title="${esc(f.name||'')}">
+        <img src="${esc(safeUrl(f.url))}" class="photo-thumb" onclick="openCommandeFileViewer(${i})" alt="${esc(f.name||'image')}" title="${esc(f.name||'')}">
         <button onclick="deleteCommandeFile(${i})" style="position:absolute;top:-6px;right:-6px;background:#7a2222;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1">✕</button>
       </div>`;
     }else{
       html+=`<div style="display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;font-size:12px">
-        <a href="${f.url}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-weight:600">${fileIcon(f.type)} ${esc(f.name||'fichier')}</a>
+        <a href="${esc(safeUrl(f.url))}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-weight:600">${fileIcon(f.type)} ${esc(f.name||'fichier')}</a>
         <button onclick="deleteCommandeFile(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:13px">🗑</button>
       </div>`;
     }
@@ -2848,10 +2854,10 @@ function getOrderRows(){
   const first=document.querySelector('.ref-block .rb-rows');
   const rows=[];
   (first?first.querySelectorAll('.order-row'):[]).forEach(row=>{
-    const qty=Math.floor(parseNum(row.querySelector('[data-type="qty"]').value));
+    const qty=clampQ(parseNum(row.querySelector('[data-type="qty"]').value),9999);
     const w=parseNum(row.querySelector('[data-type="width"]').value);
     const cEl=row.querySelector('[data-type="carton"]');
-    const carton=cEl?Math.floor(parseNum(cEl.value)):0;
+    const carton=cEl?clampQ(parseNum(cEl.value),999):0;
     const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
     if(qty>0&&w>0){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;rows.push(o);}
   });
@@ -3418,10 +3424,10 @@ function getRefGroups(){
       const useful=Math.max(0,mother-edge);
       const rows=[];
       bl.querySelectorAll('.order-row').forEach(row=>{
-        const qty=Math.floor(parseNum(row.querySelector('[data-type="qty"]')?.value));
+        const qty=clampQ(parseNum(row.querySelector('[data-type="qty"]')?.value),9999);
         const w=parseNum(row.querySelector('[data-type="width"]')?.value);
         const cEl=row.querySelector('[data-type="carton"]');
-        const carton=cEl?Math.floor(parseNum(cEl.value)):0;
+        const carton=cEl?clampQ(parseNum(cEl.value),999):0;
         const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
         if(qty>0&&w>0){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;rows.push(o);}
       });
@@ -3429,14 +3435,14 @@ function getRefGroups(){
       const chutes=[];
       bl.querySelectorAll('.rb-chute-row').forEach(cr=>{
         const cw=parseNum(cr.querySelector('[data-ct="cw"]')?.value);
-        const cq=Math.floor(parseNum(cr.querySelector('[data-ct="cq"]')?.value));
+        const cq=clampQ(parseNum(cr.querySelector('[data-ct="cq"]')?.value),9999);
         if(cw>0&&cq>0) chutes.push({width:cw, qty:cq});
       });
       // Rouleaux à recouper pour cette réf : laizes résiduelles recoupées en 1er.
       const recuts=[];
       bl.querySelectorAll('.rb-recut-row').forEach(rr=>{
         const rw=parseNum(rr.querySelector('[data-ct="rw"]')?.value);
-        const rq=Math.floor(parseNum(rr.querySelector('[data-ct="rq"]')?.value));
+        const rq=clampQ(parseNum(rr.querySelector('[data-ct="rq"]')?.value),999);
         if(rw>0&&rq>0) recuts.push({width:rw, qty:rq});
       });
       groups.push({ref,longueur,film,veka,mother,edge,useful,blade,machine,rows,chutes,recuts});
@@ -4452,7 +4458,7 @@ function renderSaves(){
       ? `<div class="save-meta" style="color:var(--blue);white-space:pre-line;line-height:1.5">📋 ${esc(s.refGroups.map(g=>`${g.ref||'?'} → ${(g.rows||[]).map(r=>r.qty+'×'+r.width+'mm').join(' + ')||'—'}`).join('\n'))}</div>`
       : (cmdDetail?'<div class="save-meta" style="color:var(--blue)">📋 '+esc(cmdDetail)+'</div>':'');
     const cf=readCommandeFiles(s);
-    const filesLine=cf.length?`<div class="save-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${cf.map(file=>`<a href="${file.url}" target="_blank" rel="noopener" title="${esc(file.name||'pièce jointe')}" style="color:#60a5fa;text-decoration:none;font-size:16px">📎</a>`).join('')}<span class="u-meta">${cf.length} pièce${cf.length>1?'s':''} jointe${cf.length>1?'s':''}</span></div>`:'';
+    const filesLine=cf.length?`<div class="save-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${cf.map(file=>`<a href="${esc(safeUrl(file.url))}" target="_blank" rel="noopener" title="${esc(file.name||'pièce jointe')}" style="color:#60a5fa;text-decoration:none;font-size:16px">📎</a>`).join('')}<span class="u-meta">${cf.length} pièce${cf.length>1?'s':''} jointe${cf.length>1?'s':''}</span></div>`:'';
     // Film / VEKA : depuis refGroups en priorité, sinon champs plats (rétro-compat)
     const filmLine=(()=>{
       const src=Array.isArray(s.refGroups)&&s.refGroups.length?s.refGroups:[{film:s.film||'',veka:s.veka||'',ref:''}];
@@ -4614,6 +4620,7 @@ function chronoStart(){
   // (Re)démarrage APRÈS l'heure de fin de journée = heures supp assumées :
   // on suspend l'arrêt auto pour le reste de ce jour-là.
   { const _co=dayChronoCutoffMs(Date.now()); if(_co!=null && Date.now()>=_co) _chronoAutoStopOverride=_dateKey(Date.now()); }
+  if(chronoInterval) clearInterval(chronoInterval);   // évite un double-tick (cf. AUDIT F8)
   chronoInterval=setInterval(chronoTick,1000);
   chronoTick();
   document.getElementById('chronoDisplay').className='chrono-display running';
@@ -5878,8 +5885,8 @@ async function loadStock(){
   if(!db||!canViewStock()) return;
   try{
     const r=await Promise.all([
-      db.collection('stockArticles').get(),
-      db.collection('stockMouvements').orderBy('date','desc').get()
+      db.collection('stockArticles').limit(5000).get(),
+      db.collection('stockMouvements').orderBy('date','desc').limit(5000).get()
     ]);
     stockArticlesCache=r[0].docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
     stockMouvementsCache=r[1].docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
@@ -6417,7 +6424,7 @@ async function loadMaintenance(){
   // par les opérateurs). L'écriture/suppression reste gardée plus bas.
   if(!db||!currentUser) return;
   try{
-    const s=await db.collection('maintenance').orderBy('date','desc').get();
+    const s=await db.collection('maintenance').orderBy('date','desc').limit(2000).get();
     maintenanceCache=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
     maintLoaded=true;
   }catch(e){ console.warn('Chargement maintenance:',e); }
@@ -7354,7 +7361,7 @@ function efRenderPhoto(orig){
   if(!z) return;
   const url=efPhotos[orig];
   if(url){
-    z.innerHTML=`<img src="${url}" onclick="efOpenPhoto('${orig}')" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer">
+    z.innerHTML=`<img src="${esc(safeUrl(url))}" onclick="efOpenPhoto('${orig}')" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer">
       <button onclick="efTriggerPhoto('${orig}')" title="Changer la photo" style="background:#1c3a5c;border:1px solid #2b5b8c;color:#9ecbf0;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px">🔄</button>
       <button onclick="efDeletePhoto('${orig}')" title="Supprimer la photo" style="background:#3a1414;border:1px solid #5a2020;color:#f87171;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px">🗑</button>`;
   } else {
@@ -7858,7 +7865,7 @@ function buildFichePrintHTML(d){
   </head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
     <div>
-      <h1>${f.name}</h1>
+      <h1>${esc(f.name)}</h1>
       ${f.client?`<div style="font-size:22px;font-weight:800;color:#1a1a1a;margin:2px 0 6px">👤 ${esc(f.client)}</div>`:''}
       <div style="display:inline-block;margin:8px 0 4px;padding:5px 16px;border-radius:9px;font-size:24px;font-weight:800;letter-spacing:1px;color:#fff;background:${machCol}">⚙ ${machLbl}</div>
       <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.totalBobines} bobines · perte <span class="badge-pct">${f.pct}%</span></div>
@@ -7890,14 +7897,14 @@ function buildFichePrintHTML(d){
       <span>Bobine mère</span><span>${f.mother} mm · utile ${f.useful} mm · lame ${f.blade} mm</span>
       ${(f.mother2||f.edge2||f.blade2)?`<span>Réglages op.2</span><span style="color:#f59e0b">Bobine mère ${esc(String(f.mother2||'—'))} mm · utile ${esc(String(f.useful2||'—'))} mm · bords ${esc(String(f.edge2||'—'))} mm · lame ${esc(String(f.blade2||'—'))} mm</span>`:''}
       <span>Longueur réf.</span><span>${f.longueur} m</span>
-      <span>Lame N°</span><span>${f.lame}</span>
+      <span>Lame N°</span><span>${esc(f.lame)}</span>
       ${f.lameChg?`<span>Lame remplacée</span><span style="color:#f59e0b;font-weight:700">${esc(f.lame)} → ${esc(f.lameNew||'—')} dès la bobine ${esc(String(f.lameChgBob||'?'))}</span>`:''}
       <span>N° Jour</span><span>${f.numJour}</span>
       ${pkgLine}
       ${notesLine}
       <span>Temps</span><span style="color:${f.tempsStr==='non enregistré'?'#888':'#4ade80'}">${f.tempsStr}</span>
-      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:#f87171;font-weight:700">⛔ Aucun BL joint</span>';return bls.map(b=>`<a href="${b.url}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span>
-      <span>Validation</span><span>${f.valide===true?'✓ Validée'+(f.valideBy?' par '+f.valideBy:'')+(f.valideAt?' le '+new Date(f.valideAt).toLocaleDateString('fr-FR'):''):f.valide===false?'✗ Refusée'+(f.valideBy?' par '+f.valideBy:''):'⏳ En attente'}</span>
+      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:#f87171;font-weight:700">⛔ Aucun BL joint</span>';return bls.map(b=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span>
+      <span>Validation</span><span>${f.valide===true?'✓ Validée'+(f.valideBy?' par '+esc(f.valideBy):'')+(f.valideAt?' le '+new Date(f.valideAt).toLocaleDateString('fr-FR'):''):f.valide===false?'✗ Refusée'+(f.valideBy?' par '+esc(f.valideBy):''):'⏳ En attente'}</span>
     </div>
   </div>
   <div class="card">
@@ -7908,8 +7915,8 @@ function buildFichePrintHTML(d){
     const cf=readCommandeFiles(f);
     if(!cf.length) return '';
     const icon=t=>t==='image'?'🖼':t==='pdf'?'📄':t==='doc'?'📝':t==='xls'?'📊':'📎';
-    const imgs=cf.filter(x=>x.type==='image').map(x=>`<a href="${x.url}" target="_blank"><img src="${x.url}" style="max-width:100%;border-radius:8px;border:1px solid #2a2a28;margin-bottom:8px"></a>`).join('');
-    const docs=cf.filter(x=>x.type!=='image').map(x=>`<div style="margin:4px 0"><a href="${x.url}" target="_blank" rel="noopener" style="color:#60a5fa;font-weight:600">${icon(x.type)} ${esc(x.name||'fichier')}</a></div>`).join('');
+    const imgs=cf.filter(x=>x.type==='image').map(x=>`<a href="${esc(safeUrl(x.url))}" target="_blank"><img src="${esc(safeUrl(x.url))}" style="max-width:100%;border-radius:8px;border:1px solid #2a2a28;margin-bottom:8px"></a>`).join('');
+    const docs=cf.filter(x=>x.type!=='image').map(x=>`<div style="margin:4px 0"><a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener" style="color:#60a5fa;font-weight:600">${icon(x.type)} ${esc(x.name||'fichier')}</a></div>`).join('');
     return `<div class="card"><div class="card-title">Fichiers de la commande client</div>${imgs}${docs}</div>`;
   })()}
   <div class="card">
@@ -8026,11 +8033,11 @@ function showFicheDetail(id,autoPrint){
       const actionTag=fd?(fd.actDechet?'<span style="color:#f87171">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':fd.actAccept?'<span style="color:#4ade80">✔ + Acceptable</span>':''):'';
       const test2=fd?(fd.test2nc?('<span style="color:#f87171;font-weight:700">⚠ Non conforme</span>'+((fd.devi||fd.droit)?' <span style="color:#f59e0b;font-size:12px">('+[fd.devi?'Dévidage':'',fd.droit?'Droit':''].filter(Boolean).join(', ')+')</span>':'')):((fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit))?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>')):'';
       const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
-      const photoCell=fd&&fd.photo?`<a href="${fd.photo}" target="_blank"><img src="${fd.photo}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
+      const photoCell=fd&&fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
       rows.push(machBand+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:12px">[SOLDE]</span>':''}</td>
-        <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(labelLegrand(g.label)):g.label}</td>
+        <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(labelLegrand(g.label)):esc(g.label)}</td>
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
         <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${g.waste} mm</td>
         <td style="padding:10px 12px">${etiq}</td>
@@ -8060,11 +8067,11 @@ function showFicheDetail(id,autoPrint){
     const actionTag=fd.actDechet?'<span style="color:#f87171">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':fd.actAccept?'<span style="color:#4ade80">✔ + Acceptable</span>':'';
     const test2=fd.test2nc?('<span style="color:#f87171;font-weight:700">⚠ Non conforme</span>'+((fd.devi||fd.droit)?' <span style="color:#f59e0b;font-size:12px">('+[fd.devi?'Dévidage':'',fd.droit?'Droit':''].filter(Boolean).join(', ')+')</span>':'')):((fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit))?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>');
     const ncDetail=fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
-    const photoCell=fd.photo?`<a href="${fd.photo}" target="_blank"><img src="${fd.photo}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
+    const photoCell=fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
     const etiq=fd.label?`<span style="color:#f59e0b">${esc(fd.label)}</span>`:'';
     return `<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
         <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:11px;background:#3d2a00;color:#f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
-        <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${isLegrandFr?esc(labelLegrand(fd.conf)):(fd.conf||'—')}</td>
+        <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${isLegrandFr?esc(labelLegrand(fd.conf)):esc(fd.conf||'—')}</td>
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
         <td style="padding:10px 12px">${etiq}</td>
@@ -8077,15 +8084,15 @@ function showFicheDetail(id,autoPrint){
 
   const ecartBanner=f.hasEcart?`
     <div style="background:#3d2a00;border:2px solid #f59e0b;color:#f59e0b;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-weight:700">
-      ⚠ ÉCART AVEC LE PLAN — ${f.ecartMsg||''}
+      ⚠ ÉCART AVEC LE PLAN — ${esc(f.ecartMsg||'')}
       <div style="font-weight:400;font-size:12px;color:#fbbf24;margin-top:4px">Plan théorique : ${f.nbPlan||f.totalBobines} bobines · Fiche terrain : ${f.nbFiche||(f.ficheDetail||[]).length} bobines</div>
     </div>`:'';
 
-  const op2Line=f.ini2?`<span>Opérateur 2</span><span>${f.ini2}${f.op2Bob?` — repris dès la bobine ${f.op2Bob}`:''}</span>`:'';
+  const op2Line=f.ini2?`<span>Opérateur 2</span><span>${esc(f.ini2)}${f.op2Bob?` — repris dès la bobine ${esc(f.op2Bob)}`:''}</span>`:'';
   const machLbl=getMachineLabel(f.machine||'');
   const machCol={'FEBA':'#60a5fa','MAVEG':'#4ade80','CEVENINI':'#a78bfa'}[machLbl]||'#a78bfa';
   const cartonStr=cartonRatioStr(f);
-  const pkgLine=`<span>Packaging</span><span>Palette ${f.palette||'—'} · Type ${f.typeCond||f.carton||'—'}${cartonStr?` · ${esc(cartonStr)}`:''} · Étiquetage ${f.etiquetage||f.etiquette||'—'} · Cerclage ${f.cerclage||'—'}</span>`;
+  const pkgLine=`<span>Packaging</span><span>Palette ${esc(f.palette||'—')} · Type ${esc(f.typeCond||f.carton||'—')}${cartonStr?` · ${esc(cartonStr)}`:''} · Étiquetage ${esc(f.etiquetage||f.etiquette||'—')} · Cerclage ${esc(f.cerclage||'—')}</span>`;
   const notesLine=(f.notesEmballage&&f.notesEmballage.trim())?`<span>Notes condit.</span><span style="white-space:pre-line">${esc(f.notesEmballage)}</span>`:'';
 
   const html=buildFichePrintHTML({f,ecartBanner,op2Line,machLbl,machCol,pkgLine,notesLine,planRows,horsPlanRows});
@@ -9148,6 +9155,7 @@ function restoreChrono(c){
     chronoRunStart=c.runStart;
     chronoSec=Math.max(0,Math.floor((Date.now()-chronoRunStart)/1000));
     chronoRunning=true;
+    if(chronoInterval) clearInterval(chronoInterval);   // évite un double-tick (cf. AUDIT F8)
     chronoInterval=setInterval(chronoTick,1000);
     chronoTick();
     document.getElementById('chronoDisplay').className='chrono-display running';
@@ -9216,23 +9224,23 @@ function printFiche(){
     const dechet=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
     const chutes=document.getElementById('act_chutes_'+l.id)?.classList.contains('btn-orange');
     const action=dechet?'Déchet':chutes?'Chutes':'—';
-    const photo=ficholinePhotos[l.id]?`<img src="${ficholinePhotos[l.id]}" style="width:40px;height:40px;object-fit:cover;border-radius:4px">`:'—';
-    rows+=`<tr><td>${label}</td><td style="text-align:center">${photo}</td><td>${conf}</td><td style="text-align:center">${test2}</td>
-      <td style="font-size:12px">${cumText}</td>
-      <td>${ncText}${ncDetail?'<br><em style="font-size:12px">'+ncDetail+'</em>':''}</td>
+    const photo=ficholinePhotos[l.id]?`<img src="${esc(safeUrl(ficholinePhotos[l.id]))}" style="width:40px;height:40px;object-fit:cover;border-radius:4px">`:'—';
+    rows+=`<tr><td>${esc(label)}</td><td style="text-align:center">${photo}</td><td>${esc(conf)}</td><td style="text-align:center">${test2}</td>
+      <td style="font-size:12px">${esc(cumText)}</td>
+      <td>${esc(ncText)}${ncDetail?'<br><em style="font-size:12px">'+esc(ncDetail)+'</em>':''}</td>
       <td>${action}</td></tr>`;
   });
-  const op2Meta=ini2?`<span><b>Opérateur 2 :</b> ${ini2}${op2Bob?` (dès bob.${op2Bob})`:''}</span>`:'';
+  const op2Meta=ini2?`<span><b>Opérateur 2 :</b> ${esc(ini2)}${op2Bob?` (dès bob.${esc(op2Bob)})`:''}</span>`:'';
   openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiche STEP</title>
   <style>body{font-family:Arial,sans-serif;padding:18px;font-size:12px}h2{font-size:16px;margin-bottom:4px}
   .meta{font-size:12px;color:#444;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:14px;line-height:1.8}.meta b{font-weight:700}
   table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:6px 9px;vertical-align:top}
   th{background:#eee;font-size:12px;text-transform:uppercase;letter-spacing:.4px}@media print{body{padding:8px}}</style></head><body>
   <h2>Fiche de découpe — STEP International</h2>
-  <div class="meta"><span><b>Client :</b> ${client}</span><span><b>Réf. :</b> ${ref}</span>
-  <span><b>Machine :</b> ${mn}</span><span><b>Lame N° :</b> ${lame}</span>
-  <span><b>Opérateur 1 :</b> ${ini}</span>${op2Meta}<span><b>N° Jour :</b> ${numJour}</span>
-  <span><b>Longueur réf. :</b> ${document.getElementById('fLongueur').value||'—'} m</span>
+  <div class="meta"><span><b>Client :</b> ${esc(client)}</span><span><b>Réf. :</b> ${esc(ref)}</span>
+  <span><b>Machine :</b> ${esc(mn)}</span><span><b>Lame N° :</b> ${esc(lame)}</span>
+  <span><b>Opérateur 1 :</b> ${esc(ini)}</span>${op2Meta}<span><b>N° Jour :</b> ${esc(numJour)}</span>
+  <span><b>Longueur réf. :</b> ${esc(document.getElementById('fLongueur').value||'—')} m</span>
   <span><b>Date :</b> ${today()}</span></div>
   <table><tr><th>Étiquette bobine mère</th><th>Photo</th><th>Nb bob × Larg.</th><th>Test 2ème</th><th>Cumul laizes</th><th>Non-conformité</th><th>Action</th></tr>
   ${rows}</table></body></html>`);
