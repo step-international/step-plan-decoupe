@@ -65,7 +65,11 @@ button{cursor:pointer;font-family:inherit}
 .machine-btn-fiche.sel-maveg{border-color:var(--green);color:var(--green);background:#142a1a}
 .machine-btn-fiche.sel-cevenini{border-color:var(--violet);color:var(--violet);background:#1f1535}
 /* ORDER */
-.order-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.order-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.step-btn{flex:0 0 auto;min-width:38px;min-height:38px;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:20px;font-weight:800;line-height:1;cursor:pointer;-webkit-appearance:none}
+.step-btn:active{background:#333}
+body.atelier .step-btn{min-width:48px;min-height:48px;font-size:24px}
+.tab-badge{display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;border-radius:9px;background:var(--orange);color:#1c1c1b;font-size:11px;font-weight:800;vertical-align:middle;text-align:center}
 .order-row input{flex:1;min-width:0}
 .order-lbl{font-size:12px;color:var(--muted);white-space:nowrap}
 /* PLAN CARDS — compactes, liseré couleur machine */
@@ -793,7 +797,6 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <button class="tab-btn" id="tabStock" onclick="switchTab('stock')" style="display:none">📦 Stock</button>
     <button class="tab-btn" id="tabAudit" onclick="switchTab('audit')" style="display:none">🛡 Piste d'audit</button>
     <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Lame / Machine</button>
-    <button class="tab-btn" id="tabImpressions" onclick="switchTab('impressions')" style="display:none">🖨 File d'impression</button>
   </div>
   <div style="text-align:center;margin:2px 0 10px">
     <button id="btnLoadFull" class="btn btn-ghost btn-sm" onclick="loadFullHistory(this)">📥 Charger l'historique complet</button>
@@ -809,7 +812,6 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
   <div id="tabContentMaintenance" class="hidden"></div>
 
   <!-- ONGLET FILE D'IMPRESSION (admin + pilotage) -->
-  <div id="tabContentImpressions" class="hidden"></div>
 
   <!-- ONGLET SAUVEGARDES -->
   <div id="tabContentSaves">
@@ -834,6 +836,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
   <!-- ONGLET FICHES -->
   <div id="tabContentFiches" class="hidden">
     <div class="flex-wrap" style="margin-bottom:12px" id="fichesManageBtns">
+      <button class="btn btn-ghost btn-sm" id="btnPendingOnly" onclick="togglePendingOnly()">🕓 À valider</button>
       <button class="btn btn-ghost btn-sm" id="btnToggleValid" onclick="toggleValidatedFiches()">✓ Fiches validées</button>
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
       <button class="btn btn-red btn-sm" onclick="clearFiches()">📦 Tout archiver</button>
@@ -1013,6 +1016,7 @@ var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 const APP_VERSION='2026.06.22-L19';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
+var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
 
 try{
   firebase.initializeApp({
@@ -1419,12 +1423,11 @@ function applyRole(){
   document.getElementById('tabStock').style.display=canViewStock()?'':'none';
   document.getElementById('tabAudit').style.display=canViewAudit()?'':'none';
   document.getElementById('tabMaintenance').style.display=canAccessMaintenance()?'':'none';
-  document.getElementById('tabImpressions').style.display=canManageData()?'':'none';
   const vEl=document.getElementById('verTag'); if(vEl) vEl.textContent='v'+APP_VERSION;
   // Si l'onglet actif n'est plus autorisé, rebascule sur Plans
   const active=document.querySelector('.tab-btn.active');
   if(active){
-    if((active.id==='tabAnalyse'&&!canViewAnalyse())||(active.id==='tabStock'&&!canViewStock())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc'||active.id==='tabImpressions')&&!canManageData())) switchTab('saves');
+    if((active.id==='tabAnalyse'&&!canViewAnalyse())||(active.id==='tabStock'&&!canViewStock())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){
@@ -2502,7 +2505,7 @@ function showPage(i){
   // Au passage sur la Fiche : import auto depuis le Plan (silencieux, ne touche pas si déjà travaillé).
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
   if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); }
-  if(i===2) renderDataPage();
+  if(i===2){ renderDataPage(); if(typeof updateTabBadges==='function') updateTabBadges(); }
 }
 
 // Mode atelier : gros boutons / police agrandie. Réglage mémorisé par appareil.
@@ -2708,17 +2711,17 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine){
 }
 
 function switchTab(tab){
+  if(typeof updateTabBadges==='function') updateTabBadges();
   if(tab==='analyse'&&!canViewAnalyse()) tab='saves';
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
   if(tab==='stock'&&!canViewStock()) tab='saves';
   if(tab==='audit'&&!canViewAudit()) tab='saves';
   if(tab==='maintenance'&&!canAccessMaintenance()) tab='saves';
-  if(tab==='impressions'&&!canManageData()) tab='saves';
-  ['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','impressions'].forEach(t=>{
+  ['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
-  const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance'||tab==='impressions')?'none':'';
+  const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance')?'none':'';
   if(tab==='saves') renderSaves();
   else if(tab==='temps') renderTemps();
   else if(tab==='brouillons') renderDrafts();
@@ -2728,7 +2731,6 @@ function switchTab(tab){
   else if(tab==='stock') renderStock();
   else if(tab==='audit') renderAudit();
   else if(tab==='maintenance') renderMaintenance();
-  else if(tab==='impressions'){ renderImpressions(); autoLoadHistoryThenRerender('impressions'); }
   else renderFiches();
 }
 // Charge l'historique complet en arrière-plan puis ré-affiche l'onglet (NC/Analyse),
@@ -2741,7 +2743,6 @@ function autoLoadHistoryThenRerender(tab){
     if(!active||!active.classList.contains('active')) return;  // l'utilisateur a changé d'onglet entre-temps
     if(tab==='nc') renderNc();
     else if(tab==='analyse') renderAnalyse();
-    else if(tab==='impressions') renderImpressions();
   });
 }
 
@@ -2778,6 +2779,7 @@ function selectMachine(m){
 function onRefMachineChange(sel){
   const block=sel.closest('.ref-block');
   if(!block) return;
+  if(sel.value){ try{localStorage.setItem('step_last_machine',sel.value);}catch(e){} }   // mémorise la dernière machine choisie
   const def=MACHINE_DEFAULTS[sel.value];
   if(def){
     const eEl=block.querySelector('[data-rb="edge"]'); if(eEl) eEl.value=def.edge;
@@ -2869,9 +2871,13 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin=''){
   div.className='order-row';
   if(rattrapage){div.dataset.rattrapage='1';div.style.borderLeft='3px solid var(--orange)';div.style.paddingLeft='6px';}
   div.innerHTML=`<span class="order-lbl">Qté</span>
-    <input type="text" data-type="qty" placeholder="400" value="${qty}" inputmode="decimal" oninput="debouncedRecalcPlan()" style="max-width:90px">
+    <button type="button" class="step-btn" tabindex="-1" aria-label="Diminuer la quantité" onclick="stepField(this,-1)">−</button>
+    <input type="text" data-type="qty" placeholder="400" value="${qty}" inputmode="decimal" oninput="debouncedRecalcPlan()" style="max-width:64px;text-align:center">
+    <button type="button" class="step-btn" tabindex="-1" aria-label="Augmenter la quantité" onclick="stepField(this,1)">+</button>
     <span class="order-lbl">× Larg.</span>
-    <input type="text" data-type="width" placeholder="80" value="${width}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:90px">
+    <button type="button" class="step-btn" tabindex="-1" aria-label="Diminuer la largeur" onclick="stepField(this,-1)">−</button>
+    <input type="text" data-type="width" placeholder="80" value="${width}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:64px;text-align:center">
+    <button type="button" class="step-btn" tabindex="-1" aria-label="Augmenter la largeur" onclick="stepField(this,1)">+</button>
     <span class="order-lbl">mm</span>
     <span class="order-lbl carton-cell" style="display:none">· Carton</span>
     <input type="text" data-type="carton" placeholder="3" value="${carton}" inputmode="numeric" oninput="debouncedRecalcPlan()" class="carton-cell" style="max-width:70px;display:none">
@@ -2879,6 +2885,14 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin=''){
     <input type="text" data-type="mandrin" placeholder="0000" value="${mandrin}" inputmode="numeric" maxlength="4" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,4)" class="mandrin-cell" style="max-width:70px;display:none">
     <button class="btn btn-red btn-sm" style="padding:7px 10px" onclick="this.parentElement.remove();recalcPlan()">✕</button>`;
   return div;
+}
+// Incrémente/décrémente le champ numérique adjacent (steppers Qté/Largeur, tablette).
+function stepField(btn,delta){
+  const input = delta<0 ? btn.nextElementSibling : btn.previousElementSibling;
+  if(!input || input.tagName!=='INPUT') return;
+  const v=Math.max(0,(parseNum(input.value)||0)+delta);
+  input.value=String(v);
+  input.dispatchEvent(new Event('input',{bubbles:true}));   // déclenche recalc + autofill
 }
 // Ajoute une ligne au premier bloc réf (rétro-compat appels existants).
 function addOrderRow(qty='',width='',carton='',rattrapage=false,mandrin=''){
@@ -4605,13 +4619,17 @@ function chronoStart(){
   if(chronoRunning) return;
   const miss=ficheParamMissing();
   if(miss){
-    alert('⚠ Renseigne '+miss.label+' avant de démarrer le chronomètre.');
-    document.getElementById(miss.id)?.focus();
+    // Surligner le champ manquant au lieu d'un alert bloquant.
+    const el=document.getElementById(miss.id);
+    if(el){ try{el.focus();}catch(_){} el.style.borderColor='var(--red)'; setTimeout(()=>{el.style.borderColor='';},2500); }
+    showToast('⚠ Renseigne '+miss.label+' avant de démarrer.','err');
     return;
   }
+  // Démarrage sans friction : si le plan n'a pas encore été (re)validé alors que les 4
+  // params machine sont là, on le valide automatiquement (plus besoin de « Changement plan »).
   if(!fichePlanValidated){
-    alert('⚠ Tu as modifié une dimension (mère / bords / lame / chute).\n\nClique sur « Changement plan » pour recalculer avant de démarrer le chronomètre.');
-    return;
+    applyFichePlanChange();
+    if(!fichePlanValidated) return;   // la validation a échoué → on n'enchaîne pas
   }
   chronoRunning=true;
   chronoStartTs=chronoStartTs||new Date().toISOString();
@@ -4628,6 +4646,8 @@ function chronoStart(){
   document.getElementById('chronoPauseBtn').classList.remove('hidden');
   document.getElementById('chronoStatus').textContent='En cours…';
   startAutosave();
+  persistChronoLive();   // heure de début sauvegardée immédiatement (survit à la veille)
+  acquireWakeLock();
 }
 function chronoPause(){
   if(!chronoRunning) return;
@@ -4642,6 +4662,8 @@ function chronoPause(){
   document.getElementById('chronoPauseBtn').classList.add('hidden');
   document.getElementById('chronoStatus').textContent='En pause — '+fmtTimeFr(chronoSec)+' écoulé';
   stopAutosave();
+  persistChronoLive();   // chrono à l'arrêt → efface la sauvegarde live
+  releaseWakeLock();
 }
 function chronoReset(){
   chronoRunning=false;
@@ -4654,6 +4676,8 @@ function chronoReset(){
   document.getElementById('chronoPauseBtn').classList.add('hidden');
   document.getElementById('chronoStatus').textContent='Prêt — appuie sur Démarrer quand tu commences la commande';
   stopAutosave();
+  persistChronoLive();
+  releaseWakeLock();
 }
 // Au réveil du téléphone / retour d'onglet, recaler immédiatement l'affichage
 // (l'intervalle a pu être suspendu pendant la veille — chronoTick recalcule
@@ -4694,15 +4718,41 @@ function autoStopChrono(){
   const pb=document.getElementById('chronoPauseBtn'); if(pb) pb.classList.add('hidden');
   const st=document.getElementById('chronoStatus'); if(st) st.textContent='Fin de journée — chrono en pause à '+fmtTimeFr(chronoSec)+'. Reprendre = heures supp.';
   stopAutosave();
+  persistChronoLive();   // efface la sauvegarde live (chrono arrêté en fin de journée)
+  releaseWakeLock();
   // Rafraîchir le brouillon auto (wasRunning:false) → une réouverture ne proposera pas une reprise gonflée.
   try{ if(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length) autosaveDraftTick(); }catch(e){}
   try{ showToast('⏸ Fin de journée — chrono mis en pause. Reprends-le pour des heures supplémentaires.','ok'); }catch(e){}
 }
 function chronoCatchUp(){ if(chronoRunning) chronoTick(); }
+// ── Robustesse veille / téléphone dans la poche ──────────────────────────────
+// Le temps est mesuré par horodatage absolu : écran éteint = l'affichage ne bouge
+// pas, mais au rallumage chronoTick recalcule le vrai temps écoulé et le chrono
+// repart. On sécurise ici l'heure de début dans localStorage (synchrone & hors-ligne)
+// pour qu'elle ne soit JAMAIS perdue, même si le téléphone tue l'onglet pendant la
+// veille — et on garde l'écran allumé via Wake Lock tant que le chrono tourne.
+const CHRONO_LS_KEY='step_chrono_live';
+function persistChronoLive(){
+  try{
+    if(chronoRunning && chronoRunStart!=null){
+      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||''}));
+    }else{ localStorage.removeItem(CHRONO_LS_KEY); }
+  }catch(e){}
+}
+function readChronoLive(){ try{ return JSON.parse(localStorage.getItem(CHRONO_LS_KEY)||'null'); }catch(e){ return null; } }
+let _wakeLock=null;
+async function acquireWakeLock(){
+  try{ if('wakeLock' in navigator && chronoRunning && !_wakeLock){ _wakeLock=await navigator.wakeLock.request('screen'); _wakeLock.addEventListener('release',()=>{_wakeLock=null;}); } }catch(e){}
+}
+function releaseWakeLock(){ try{ if(_wakeLock){ _wakeLock.release(); _wakeLock=null; } }catch(e){} }
 if(typeof document!=='undefined' && document.addEventListener){
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) chronoCatchUp(); });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){ persistChronoLive(); }          // capture l'état AVANT que le tél. gèle/tue la page
+    else { chronoCatchUp(); if(chronoRunning) acquireWakeLock(); }
+  });
   window.addEventListener('focus',chronoCatchUp);
   window.addEventListener('pageshow',chronoCatchUp);
+  window.addEventListener('pagehide',persistChronoLive);
 }
 
 // ============================================================
@@ -5125,10 +5175,10 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     const nc=String(numCmd).trim().toLowerCase();
     const dup=(fichesCache||[]).filter(f=>!f.deleted && String(f.numCmd||'').trim().toLowerCase()===nc);
     if(dup.length){
-      const partiel=(typeof fullHistoryLoaded!=='undefined' && !fullHistoryLoaded)?'\n\n(Contrôle sur l\'historique chargé ; l\'historique complet n\'est pas garanti.)':'';
-      if(!confirm(`⚠ Une fiche existe déjà pour la commande N° ${numCmd} (${dup.length} fiche(s)).\n\nC\'est normal si tu enregistres une 2ᵉ partie de cette commande.\nSinon, vérifie que tu ne crées pas un doublon.${partiel}\n\nEnregistrer quand même ?`)){
-        return;   // l'opérateur annule
-      }
+      // Avertissement NON bloquant : plusieurs fiches par commande sont légitimes
+      // (2ᵉ partie, multi-machine). On informe et on enregistre quand même ; en cas
+      // d'erreur la fiche reste archivable depuis Données.
+      showToast(`ℹ️ ${dup.length} fiche(s) déjà enregistrée(s) pour la commande N° ${numCmd} — enregistrée quand même.`,'ok');
     }
   }
 
@@ -6643,76 +6693,10 @@ function exportMaintenance(){
 }
 
 // ============================================================
-// FILE D'IMPRESSION (DC + admins)
-// File = fiches validées non encore imprimées. Déclencheur = validation.
-// Impression « comme avant » via showFicheDetail(id,true). Pas de collection
-// dédiée : champ 'imprime' sur la fiche, aucune règle Firestore à ajouter.
+// (File d'impression retirée — fonctionnalité supprimée à la demande.)
+// Le PDF/impression d'une fiche reste disponible via le bouton « 📄 PDF »
+// de chaque fiche (showFicheDetail). Aucun champ 'imprime' n'est plus utilisé.
 // ============================================================
-function renderImpressions(){
-  const c=document.getElementById('tabContentImpressions'); if(!c) return;
-  if(!canManageData()){ c.innerHTML='<div class="text-muted" style="padding:20px">Accès réservé au pilotage et aux admins.</div>'; return; }
-  const queue=fichesCache.filter(f=>!f.deleted && f.valide===true && !f.imprime)
-    .slice().sort((a,b)=>String(a.valideAt||a.date||'').localeCompare(String(b.valideAt||b.date||'')));
-  const printed=fichesCache.filter(f=>!f.deleted && f.imprime)
-    .slice().sort((a,b)=>String(b.imprimeAt||'').localeCompare(String(a.imprimeAt||''))).slice(0,15);
-  const card=(f,done)=>{
-    const nb=Array.isArray(f.ficheDetail)?f.ficheDetail.length:(Number(f.nbBobines)||0);
-    const vd=f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'';
-    const pd=f.imprimeAt?new Date(f.imprimeAt).toLocaleDateString('fr-FR'):'';
-    const meta=done
-      ? `Imprimée le ${pd}${f.imprimeBy?' par '+esc(f.imprimeBy):''} · validée ${vd}`
-      : `Validée le ${vd}${f.valideBy?' par '+esc(f.valideBy):''} · ${nb} bobine(s)`;
-    const actions=done
-      ? `<button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}',true)" title="Réimprimer">🖨 Réimprimer</button>
-         <button class="btn btn-ghost btn-sm" onclick="impressionRemetEnFile('${f._id}')" aria-label="Remettre dans la file" title="Remettre dans la file">↺</button>`
-      : `<button class="btn btn-green btn-sm" onclick="imprimerFicheFile('${f._id}')" title="Imprimer la fiche">🖨 Imprimer</button>
-         <button class="btn btn-ghost btn-sm" onclick="showFicheDetail('${f._id}',false)" aria-label="Aperçu sans imprimer" title="Aperçu sans imprimer">👁</button>
-         <button class="btn btn-ghost btn-sm" onclick="markImprime('${f._id}',false)" aria-label="Marquer imprimé" title="Marquer imprimé sans lancer l'impression">✓</button>`;
-    return `<div class="save-card" style="border-left:3px solid ${done?'#4ade80':'var(--orange)'}">
-      <div class="save-info">
-        <div class="save-title">${esc(f.client||'—')} — ${esc(f.ref||'—')}${f.numCmd?` · Cmd ${esc(f.numCmd)}`:''}</div>
-        <div class="save-meta">${meta}</div>
-      </div>
-      <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">${actions}</div>
-    </div>`;
-  };
-  c.innerHTML=`${partialDataBanner()}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-      <div style="flex:1;min-width:110px;background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:800;color:${queue.length?'var(--orange)':'#4ade80'}">${queue.length}</div>
-        <div class="u-meta">À imprimer</div></div>
-    </div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">File d'impression</div>
-    ${queue.length?queue.map(f=>card(f,false)).join(''):'<div class="text-muted" style="padding:10px 4px">Aucune fiche en attente d\'impression. Une fiche entre dans la file dès qu\'elle est validée.</div>'}
-    ${printed.length?`<details style="margin-top:18px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Déjà imprimées (${printed.length} récentes)</summary><div style="margin-top:10px">${printed.map(f=>card(f,true)).join('')}</div></details>`:''}`;
-}
-async function imprimerFicheFile(id){
-  showFicheDetail(id,true);          // ouvre + imprime (comportement existant)
-  await markImprime(id,true);
-}
-async function markImprime(id,fromPrint){
-  if(!canManageData()){ showToast('Action réservée au pilotage et aux admins.','err'); return; }
-  const f=fichesCache.find(x=>x._id===id); if(!f){ showToast('Fiche introuvable.','err'); return; }
-  const by=currentUser?(currentUser.nom||currentUser.ini):'?', at=isoNow();
-  try{
-    await db.collection('fiches').doc(id).update({imprime:true,imprimeAt:at,imprimeBy:by});
-    f.imprime=true; f.imprimeAt=at; f.imprimeBy=by;
-    await logAudit('print','fiches',id,`Fiche imprimée ${f.client||''} / ${f.ref||''}`,{client:f.client||'',ref:f.ref||'',dateCmd:f.date||''});
-    renderImpressions();
-    if(!fromPrint) showToast('✓ Marquée imprimée','ok');
-  }catch(e){ alert('Erreur : '+e.message); }
-}
-async function impressionRemetEnFile(id){
-  if(!canManageData()){ showToast('Action réservée au pilotage et aux admins.','err'); return; }
-  const f=fichesCache.find(x=>x._id===id); if(!f) return;
-  try{
-    await db.collection('fiches').doc(id).update({imprime:false});
-    f.imprime=false;
-    await logAudit('edit','fiches',id,`Fiche remise en file d'impression ${f.client||''} / ${f.ref||''}`,{client:f.client||'',ref:f.ref||'',dateCmd:f.date||''});
-    renderImpressions();
-    showToast('Remise dans la file','ok');
-  }catch(e){ alert('Erreur : '+e.message); }
-}
 
 // ============================================================
 // BOÎTE À OUTILS PRODUCTION — débit m/h, estimateur, capacité,
@@ -7142,8 +7126,32 @@ function renderAnalyse(){
 
 function toggleValidatedFiches(){
   showValidatedFiches=!showValidatedFiches;
+  if(showValidatedFiches) fichesPendingOnly=false;
   fichesRenderLimit=30;   // repartir en haut de liste
   renderFiches();
+}
+// Filtre « À valider » (fiches en attente, valide==null).
+function togglePendingOnly(){
+  fichesPendingOnly=!fichesPendingOnly;
+  if(fichesPendingOnly) showValidatedFiches=false;
+  fichesRenderLimit=30;
+  renderFiches();
+}
+// Badges compteurs sur les onglets Données (fiches à valider, NC ouvertes).
+function setTabBadge(tabId,n,show){
+  const btn=document.getElementById(tabId); if(!btn) return;
+  let b=btn.querySelector('.tab-badge');
+  if(!show || !n){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('span'); b.className='tab-badge'; btn.appendChild(b); }
+  b.textContent=n;
+}
+function updateTabBadges(){
+  try{
+    const all=(typeof fichesCache!=='undefined'?fichesCache:[]).filter(f=>!f.deleted);
+    setTabBadge('tabFiches', all.filter(f=>f.valide==null).length, canValidate());
+    const ncOuvertes=(typeof buildNcRows==='function')?buildNcRows().filter(r=>r.statut!=='cloture').length:0;
+    setTabBadge('tabNc', ncOuvertes, canManageData());
+  }catch(e){}
 }
 
 // Construit la chaîne "3×80mm/C · 5×50mm/C" depuis cartonByWidth d'une fiche (rétrocompat : ancien champ bobParCarton)
@@ -7164,7 +7172,9 @@ function debouncedFicheSearch(){
 function renderFiches(){
   const all=fichesCache.filter(f=>!f.deleted);
   const nbValid=all.filter(f=>f.valide===true).length;
-  let fiches=showValidatedFiches?all.filter(f=>f.valide===true):all.filter(f=>f.valide!==true);
+  let fiches=showValidatedFiches?all.filter(f=>f.valide===true)
+            :fichesPendingOnly?all.filter(f=>f.valide==null)
+            :all.filter(f=>f.valide!==true);
   // Recherche texte (client, n° commande, nom de fiche, réf).
   const q=(document.getElementById('ficheSearch')?.value||'').trim().toLowerCase();
   if(q){
@@ -7181,6 +7191,14 @@ function renderFiches(){
     btn.textContent=showValidatedFiches?`← Retour aux fiches en cours`:`✓ Fiches validées (${nbValid})`;
     btn.className='btn btn-sm '+(showValidatedFiches?'btn-green':'btn-ghost');
   }
+  // Bouton « À valider » : compteur des fiches en attente (valide==null).
+  const nbPending=all.filter(f=>f.valide==null).length;
+  const pb=document.getElementById('btnPendingOnly');
+  if(pb){
+    pb.textContent=`🕓 À valider (${nbPending})`;
+    pb.className='btn btn-sm '+(fichesPendingOnly?'btn-orange':'btn-ghost');
+  }
+  updateTabBadges();
   if(!fiches.length){
     if(q){
       list.innerHTML='<div style="text-align:center;padding:24px 16px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">Aucune fiche ne correspond à « '+esc(q)+' ».</div>';
@@ -7222,7 +7240,9 @@ function renderFiches(){
     // Modifier : opérateurs tant que non validée ; pilotage/admin aussi sur fiche validée (ajout photos, etc.).
     const editBtn=(f.valide!==true||canManageData())?`<button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="${f.valide===true?'Modifier (fiche validée — photos, etc.)':'Modifier'}">✏ Modifier</button>`:'';
     // Valider / Refuser : réservés au pilotage/admin.
+    const blOk=ficheBLComplete(f);
     const validBtns=canValidate()?`
+      ${f.valide!==true?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#7a2222'};color:${blOk?'#4ade80':'#f87171'};background:${blOk?'#14371f':'#3d1414'}">${blOk?'📎 BL joint':'⛔ BL manquant'}</span>`:''}
       ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
       <button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser">✗ Refuser</button>`:'';
     return `<div class="fiche-card"${f.modifie?' style="border-color:#caa15a"':f.manqueMatiere?' style="border-color:#f87171"':''}>
@@ -8942,22 +8962,45 @@ async function maybeResumeRunningChrono(){
   try{
     if(ficheLines&&ficheLines.length) return;           // une fiche est déjà à l'écran
     if(typeof chronoRunning!=='undefined'&&chronoRunning) return;
-    if(!db) return;
-    const aid=autosaveId();
-    let d=loadDrafts().find(x=>x.id===aid);
-    if(!d){ try{ const snap=await db.collection('brouillons').doc(aid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
-    if(!d||!d.state||!d.state.chrono) return;
-    const c=d.state.chrono;
-    if(!c.wasRunning||!c.runStart) return;              // n'était pas en marche
-    let actifSec=Math.max(0,Math.floor((Date.now()-c.runStart)/1000));
-    // Si le chrono a traversé l'heure de fin de journée pendant la fermeture, plafonner l'affichage.
-    { const _cut=dayChronoCutoffMs(c.runStart); if(_cut!=null && c.runStart<_cut && Date.now()>=_cut) actifSec=Math.max(0,Math.floor((_cut-c.runStart)/1000)); }
-    const lbl=(d.state.fiche&&(d.state.fiche.client||d.state.fiche.numCmd))
-      ? ((d.state.fiche.client||'—')+' / '+(d.state.fiche.numCmd||'sans n°'))
-      : 'commande en cours';
-    if(confirm('⏱ Une commande était en cours quand l\'application a été fermée :\n\n'
-      +lbl+'\nChrono actif : '+fmtTimeFr(actifSec)+'\n\nReprendre cette commande (le chrono continue) ?')){
-      resumeDraft(aid);
+    const live=readChronoLive();                         // sauvegarde instantanée (localStorage, hors-ligne)
+    const aid=(typeof autosaveId==='function')?autosaveId():null;
+    let d=null;
+    if(db&&aid){
+      d=loadDrafts().find(x=>x.id===aid);
+      if(!d){ try{ const snap=await db.collection('brouillons').doc(aid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
+    }
+    let c=(d&&d.state&&d.state.chrono)?d.state.chrono:null;
+    // Le brouillon n'avait pas (encore) capté le chrono en marche → on complète depuis la sauvegarde live.
+    if(c && (!c.wasRunning||!c.runStart) && live && live.runStart){ c.runStart=live.runStart; c.wasRunning=true; if(live.startTs)c.startTs=live.startTs; }
+
+    if(d && c && c.wasRunning && c.runStart){
+      let actifSec=Math.max(0,Math.floor((Date.now()-c.runStart)/1000));
+      // Si le chrono a traversé l'heure de fin de journée pendant la fermeture, plafonner l'affichage.
+      { const _cut=dayChronoCutoffMs(c.runStart); if(_cut!=null && c.runStart<_cut && Date.now()>=_cut) actifSec=Math.max(0,Math.floor((_cut-c.runStart)/1000)); }
+      const lbl=(d.state.fiche&&(d.state.fiche.client||d.state.fiche.numCmd))
+        ? ((d.state.fiche.client||'—')+' / '+(d.state.fiche.numCmd||'sans n°'))
+        : 'commande en cours';
+      // Reprise AUTOMATIQUE si la commande date d'aujourd'hui (téléphone mis en veille /
+      // dans la poche) : le chrono continue tout seul, sans popup à rater. Pour une commande
+      // d'un jour précédent, on demande confirmation (ne pas ressusciter une vieille commande).
+      if(_dateKey(c.runStart)===_dateKey(Date.now())){
+        if(live&&live.override) _chronoAutoStopOverride=live.override;   // préserve les heures supp AVANT le 1er tick
+        restoreFicheState(d.state); showPage(1);
+        try{ showToast('⏱ Commande reprise — chrono à '+fmtTimeFr(actifSec),'ok'); }catch(e){}
+      } else if(confirm('⏱ Une commande était en cours quand l\'application a été fermée :\n\n'
+        +lbl+'\nChrono actif : '+fmtTimeFr(actifSec)+'\n\nReprendre cette commande (le chrono continue) ?')){
+        restoreFicheState(d.state); showPage(1);
+      }
+      return;
+    }
+
+    // Pas de brouillon exploitable, mais un chrono tournait aujourd'hui (démarré avant toute
+    // bobine) : on relance au moins le chrono là où il en était.
+    if(live && live.runStart && _dateKey(live.runStart)===_dateKey(Date.now())){
+      restoreChrono({startTs:live.startTs, runStart:live.runStart, wasRunning:true,
+        sec:Math.max(0,Math.floor((Date.now()-live.runStart)/1000))});
+      if(live.override) _chronoAutoStopOverride=live.override;
+      try{ showToast('⏱ Chrono repris','ok'); }catch(e){}
     }
   }catch(e){ console.warn('Reprise chrono:',e); }
 }
@@ -9163,6 +9206,8 @@ function restoreChrono(c){
     document.getElementById('chronoPauseBtn').classList.remove('hidden');
     document.getElementById('chronoStatus').textContent='⏱ Chrono repris automatiquement — '+fmtTimeFr(chronoSec)+' (temps actif)';
     startAutosave();
+    persistChronoLive();
+    acquireWakeLock();
     return;
   }
   // Sinon : remis en pause à la valeur figée.
@@ -9251,8 +9296,10 @@ function printFiche(){
 // ============================================================
 (function init(){
   initClientDropdown();
-  selectMachine('feba');
-  document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';});
+  // Présélection de la dernière machine choisie par l'opérateur (sinon champs vides).
+  let _lastM=''; try{_lastM=localStorage.getItem('step_last_machine')||'';}catch(e){}
+  selectMachine(_lastM||'feba');
+  if(!_lastM) document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';});
   initDefaultRows();
   document.getElementById('fNumJour').value=getDayOfYear();
   recalcPlan();
