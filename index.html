@@ -1053,7 +1053,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.06.22-L19';
+const APP_VERSION='2026.06.30-L20';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -4553,6 +4553,7 @@ function renderSaves(){
     })();
     return `<div class="save-card">
       <div class="save-info">
+        ${s.reste?`<div style="display:inline-block;background:#06231c;color:#5eead4;border:1px solid #115e52;border-radius:6px;padding:2px 9px;font-size:12px;font-weight:800;margin-bottom:6px">♻ RESTE manque matière</div>`:''}
         ${titleHtml}
         ${machBadge}
         ${cmdLine}
@@ -7599,6 +7600,20 @@ function renderFiches(){
 function reprendreCommandeManque(id){
   const f=fichesCache.find(x=>x._id===id);
   if(!f){ showToast('Fiche introuvable.','err'); return; }
+  // Plan du reste créé à la validation : on le charge directement (le brouillon
+  // du solde a été supprimé). Repli sur le brouillon si pas (encore) de plan.
+  if(f.restePlanId){
+    const s=savesCache.find(x=>x&&x._id===f.restePlanId&&!x.deleted);
+    if(s){
+      if(!isFicheUntouched()){
+        showToast('Termine ou parque d\'abord la commande en cours (💾) avant de charger le plan du reste.','err');
+        return;
+      }
+      doLoad(s);
+      showToast('▶ Plan du reste chargé — coupe la commande restante.','ok');
+      return;
+    }
+  }
   const drafts=loadDrafts();
   let d=drafts.find(b=>b&&!b.deleted&&b.fromFicheId===id);
   if(!d){
@@ -7614,6 +7629,116 @@ function reprendreCommandeManque(id){
     return;
   }
   resumeDraft(d.id);
+}
+
+// ── PLAN DU RESTE (manque matière) ───────────────────────────────────────────
+// À la validation d'une fiche manque-matière, on crée un plan « du reste »
+// (Données > Plans) = la demande NON encore coupée, RECALCULÉE (ordonné − coupé).
+// Source FIABLE = les bobines COUPÉES (leur conf est renseignée). Les bobines non
+// coupées portent souvent le texte « Non réalisée… » : on ne les parse donc pas.
+// Fonction pure (testable) : renvoie les refGroups du reste, prêts pour un plan.
+function _resteGroupsFromFiche(f){
+  if(!f) return [];
+  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
+  const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+  // Coupé PAR réf : somme des laizes des bobines coupées (conf renseignée).
+  const cutByRef={};            // {nrmRef:{width:qty}}
+  det.forEach(fd=>{
+    if(!fd||fd.coupee!==true) return;
+    const rk=nrm(fd.ref);
+    const m=cutByRef[rk]||(cutByRef[rk]={});
+    parseConf(fd.conf||'').forEach(p=>{ m[p.width]=(m[p.width]||0)+p.qty; });
+  });
+  // Coupé toutes réfs confondues (repli mono-réf : lignes parfois sans ref).
+  const cutAll={};
+  Object.values(cutByRef).forEach(m=>Object.entries(m).forEach(([w,q])=>{cutAll[w]=(cutAll[w]||0)+q;}));
+
+  const multi=Array.isArray(f.refGroups)&&f.refGroups.length>1;
+  let base;
+  if(multi){
+    base=f.refGroups.map(g=>({
+      ref:g.ref||'', longueur:g.longueur||'', film:g.film||'', veka:g.veka||'',
+      mother:parseNum(g.mother), edge:parseNum(g.edge), blade:parseNum(g.blade),
+      machine:String(g.machine||'').trim(), rows:(g.rows||[]), _cut:cutByRef[nrm(g.ref)]||{}
+    }));
+  }else{
+    // Mono-réf : params depuis les champs plats de la fiche + machine d'une ligne.
+    const mother=parseNum(f.mother), useful=parseNum(f.useful);
+    const edge=Math.max(0,mother-useful), blade=parseNum(f.blade);
+    let machine=String((det.find(x=>x&&x.machine)||{}).machine||'').trim().toLowerCase();
+    if(!machine){ const lbl=String(f.machine||'').trim().toLowerCase(); if(['feba','maveg','cevenini'].includes(lbl)) machine=lbl; }
+    const g0=(Array.isArray(f.refGroups)&&f.refGroups[0])?f.refGroups[0]:{};
+    base=[{
+      ref:f.ref||'', longueur:f.longueur||g0.longueur||'', film:f.film||g0.film||'', veka:f.veka||g0.veka||'',
+      mother, edge, blade, machine,
+      rows:(Array.isArray(f.rows)&&f.rows.length)?f.rows:(g0.rows||[]), _cut:cutAll
+    }];
+  }
+  // Reste = ordonné − coupé, clampé ≥ 0. Carton/mandrin repris de la commande.
+  const groups=[];
+  base.forEach(g=>{
+    const ordered={}, extra={};
+    (g.rows||[]).forEach(r=>{
+      const w=Number(r.width);
+      ordered[w]=(ordered[w]||0)+(Number(r.qty)||0);
+      if(!(w in extra)) extra[w]={carton:r.carton, mandrin:r.mandrin};
+    });
+    const rows=[];
+    Object.keys(ordered).forEach(w=>{
+      const rem=Math.max(0,(ordered[w]||0)-((g._cut&&g._cut[w])||0));
+      if(rem>0){
+        const o={qty:rem, width:Number(w)};
+        const ex=extra[w]||{};
+        if(ex.carton) o.carton=ex.carton;
+        if(ex.mandrin) o.mandrin=ex.mandrin;
+        rows.push(o);
+      }
+    });
+    if(rows.length){
+      groups.push({ref:g.ref, longueur:g.longueur, film:g.film, veka:g.veka,
+        mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine,
+        rows, chutes:[], recuts:[]});
+    }
+  });
+  return groups;
+}
+
+async function createRemainingPlan(f){
+  if(!db||!f) return null;
+  const groups=_resteGroupsFromFiche(f);
+  if(!groups.length) return null;     // tout était coupé : rien à reprendre
+  const multi=groups.length>1;
+  const numCmd=(f.numCmd&&f.numCmd!=='—')?f.numCmd:'';
+  const entry={
+    rows:groups[0].rows,
+    machine:groups[0].machine||'',
+    refGroups:groups,
+    mother:String(groups[0].mother||''),
+    blade:String(groups[0].blade||''),
+    edgeLoss:String(groups[0].edge||''),
+    client:f.client||'—',
+    ref:multi?groups.map(g=>g.ref||'?').join(' + '):(groups[0].ref||'—'),
+    numCmd,
+    dateLiv:f.dateLivIso||'',
+    commandeDetail:multi
+      ? groups.map(g=>(g.ref||'?')+': '+g.rows.map(r=>r.qty+'×'+r.width+'mm').join(' + ')).join('  |  ')
+      : groups[0].rows.map(r=>r.qty+'×'+r.width+'mm').join(' + '),
+    largeur:'',
+    longueur:groups[0].longueur||'',
+    palette:f.palette||'', typeCond:f.typeCond||'', etiquetage:f.etiquetage||'',
+    cerclage:f.cerclage||'', notesEmballage:f.notesEmballage||'',
+    commandeFiles:[],
+    planManual:null,
+    reste:true, resteOf:f._id||'',
+    deleted:false, date:isoNow()
+  };
+  try{
+    const docRef=await db.collection('saves').add(entry);
+    savesCache.unshift({_id:docRef.id,...entry});
+    if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
+    try{ await logAudit('create','saves',docRef.id,`Plan du reste — ${entry.client} / ${entry.ref}`); }catch(e){}
+    return docRef.id;
+  }catch(e){ showToast('Erreur création du plan du reste : '+e.message,'err'); return null; }
 }
 
 async function validateFiche(id){
@@ -7653,6 +7778,29 @@ async function validateFiche(id){
     f.valide=true;f.valideBy=by;f.valideAt=at;
     await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
   }catch(e){showToast('Erreur validation : '+e.message,'err');}
+  // Fiche manque-matière validée : proposer de créer le PLAN DU RESTE (recalcul
+  // ordonné − coupé) dans Données > Plans, et remplacer le brouillon du solde.
+  if(f.valide===true && f.manqueMatiere && !f.restePlanId){
+    if(confirm('⛔ Fiche manque matière validée.\n\nCréer le PLAN DU RESTE à couper (la commande non encore coupée) ?\n\nIl ira dans Données > Plans : quand la matière arrive, tu le charges et tu coupes — pas besoin de retaper. Le brouillon du solde sera remplacé par ce plan.')){
+      const pid=await createRemainingPlan(f);
+      if(pid){
+        try{ await db.collection('fiches').doc(id).update({restePlanId:pid}); f.restePlanId=pid; }
+        catch(e){ console.warn('restePlanId update:',e); }
+        // Suppression du brouillon du solde : lien direct fromFicheId, repli label + cmd.
+        try{
+          const keep=loadDrafts().filter(b=>{
+            if(!b) return true;
+            if(b.fromFicheId===id) return false;
+            const sameCmd=b.state&&b.state.fiche&&((b.state.fiche.numCmd||'')===(f.numCmd||''))&&((b.state.fiche.client||'')===(f.client||''));
+            if(String(b.label||'').indexOf('⛔ Solde')===0 && sameCmd) return false;
+            return true;
+          });
+          persistDrafts(keep);
+        }catch(e){ console.warn('suppr. brouillon solde:',e); }
+        showToast('♻ Plan du reste créé (Données > Plans). Brouillon du solde remplacé.','ok');
+      }
+    }
+  }
   renderFiches();
 }
 
