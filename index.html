@@ -881,6 +881,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
   <!-- ONGLET ANALYSE -->
   <div id="tabContentAnalyse" class="hidden">
     <div id="analyseContent"></div>
+    <div id="lameStatsBlock" style="margin-top:20px"></div>
   </div>
 
   <!-- ONGLET BROUILLONS -->
@@ -958,6 +959,45 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     <div class="modal-btns">
       <button class="btn btn-ghost btn-sm" onclick="closeChronoSaveModal()">Annuler</button>
       <button class="btn btn-green btn-sm" onclick="doChronoSave()">✓ Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="newCmdConflictModal">
+  <div class="modal">
+    <h3>⏸ Une commande est déjà en cours</h3>
+    <div id="newCmdConflictInfo" style="background:#242421;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:var(--muted);line-height:1.7"></div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px">Charger une nouvelle commande. Que faire de la commande en cours ?</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-green" style="width:100%;justify-content:center" onclick="newCmdPark()">⏸ Parquer en brouillon puis charger</button>
+      <button class="btn btn-red" style="width:100%;justify-content:center" onclick="newCmdErase()">🗑️ Effacer la commande en cours et charger</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="closeNewCmdConflictModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="lameInstallModal">
+  <div class="modal">
+    <h3 id="lameInstallTitle">Pose d'une lame</h3>
+    <div id="lameInstallHint" class="text-muted" style="margin-bottom:12px;font-size:13px"></div>
+    <div class="field">
+      <label>N° de série / référence de la lame</label>
+      <input type="text" id="lameInstallInput" placeholder="ex : L-2402" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmLameInstall();}">
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost btn-sm" onclick="closeLameInstallModal()">Annuler</button>
+      <button class="btn btn-green btn-sm" onclick="confirmLameInstall()">✓ Poser la lame</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="op2RefModal">
+  <div class="modal">
+    <h3>Opérateur 2 — quelle référence ?</h3>
+    <div class="text-muted" style="margin-bottom:12px;font-size:13px">La 2ᵉ machine reprend la référence choisie.</div>
+    <div id="op2RefList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost btn-sm" onclick="closeOp2RefModal()">Annuler</button>
     </div>
   </div>
 </div>
@@ -1145,7 +1185,7 @@ function partialDataBanner(){
 // Bouton Données : recharge l'historique complet à la demande (le boot ne charge que le récent)
 async function loadFullHistory(btn){
   if(fullHistoryLoaded){showToast('Historique complet déjà chargé','ok');return;}
-  if(!db){alert('Base de données indisponible.');return;}
+  if(!db){showToast('Base de données indisponible.','err');return;}
   if(btn){btn.disabled=true;btn.textContent='⏳ Chargement…';}
   const ok=await ensureFullHistory();
   if(ok){
@@ -1153,7 +1193,7 @@ async function loadFullHistory(btn){
     showToast('✓ Historique complet chargé ('+(savesCache.length+tempsCache.length+fichesCache.length)+' enregistrements)','ok');
     if(btn) btn.style.display='none';
   }else{
-    alert('Erreur chargement : historique complet indisponible.');
+    showToast('Erreur chargement : historique complet indisponible.','err');
     if(btn){btn.disabled=false;btn.textContent='📥 Charger l\'historique complet';}
   }
 }
@@ -1859,7 +1899,9 @@ const CLIENT_DATA = {
   ],
   "DECEUNINCK NV": [
     {ref:"TacFlex® 1056 neutr",largeur:2100,longueur:500},
-    {ref:"TacFlex® KX1056",largeur:2100,longueur:500}
+    {ref:"TacFlex® KX1056",largeur:2100,longueur:500},
+    {ref:"TacFlex® KX1047 DEC",largeur:1250,longueur:1000},
+    {ref:"TacFlex® KX1047 neutr",largeur:1250,longueur:1000}
   ],
   "DEUTSCH REIHENHAUS ALLEMAGNE": [
     {ref:"TacFlex® DH1006 transparent",largeur:2200,longueur:500}
@@ -2042,6 +2084,10 @@ let ficheLines = [];
 let loadTargetIdx = null;
 let loadedSaveId = null; // id du plan sauvegardé chargé par l'opérateur (supprimé après confirmation de la fiche)
 let editingSaveId = null; // id du plan en cours de MODIFICATION (la sauvegarde écrase ce plan)
+let _pendingLoadId = null;   // plan à charger une fois la commande en cours parquée/effacée
+let _newCmdResolved = false; // true le temps d'un doLoad relancé par la modale (bypass de la garde)
+let _lameInstallMachine = null; // machine ciblée par la modale de pose de lame
+let _op2Pending = null;         // contexte {useful2,b2,refKeys} pendant le choix de réf op.2
 let photoTargetId = null; // pour savoir quelle bobine reçoit la photo
 let ficholinePhotos = {}; // id -> Storage URL (ou ancien base64)
 let efPhotos = {};        // édition fiche : index bobine -> URL/base64
@@ -2094,6 +2140,17 @@ function isoNow(){return new Date().toISOString();}
 function getDayOfYear(){
   const now=new Date(),start=new Date(now.getFullYear(),0,1);
   return Math.ceil((now-start)/86400000);
+}
+// N° Jour multi-jours : si on travaille la commande un nouveau jour (et qu'elle
+// n'est pas encore envoyée/validée — elle est dans la fiche en cours), on ajoute
+// le quantième du jour au champ : 152 → 152+153. Idempotent (pas de doublon).
+function updateNumJourForToday(){
+  const el=document.getElementById('fNumJour'); if(!el) return;
+  const today=String(getDayOfYear());
+  const raw=String(el.value||'').trim();
+  if(!raw||raw==='—'){ el.value=today; return; }
+  const set=raw.split('+').map(s=>s.trim()).filter(Boolean);
+  if(set.indexOf(today)===-1){ set.push(today); el.value=set.join('+'); }
 }
 function fmtTime(s){
   const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
@@ -2196,7 +2253,7 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
     }
     if(isCmd){commandePhoto=val;refreshCommandePhotoZone();}
     else{ficholinePhotos[lid]=val;refreshPhotoZone(lid);}
-  }catch(e){alert('Erreur photo : '+e.message);if(isCmd)refreshCommandePhotoZone();else refreshPhotoZone(lid);}
+  }catch(e){showToast('Erreur photo : '+e.message,'err');if(isCmd)refreshCommandePhotoZone();else refreshPhotoZone(lid);}
 });
 // Upload photo en édition de fiche (réutilise Storage, fallback base64).
 (function(){
@@ -2219,7 +2276,7 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
         val=await compressImage(file,800,0.6);
       }
       efPhotos[orig]=val;
-    }catch(e){alert('Erreur photo : '+e.message);}
+    }catch(e){showToast('Erreur photo : '+e.message,'err');}
     efRenderPhoto(orig);
   });
 })();
@@ -2335,7 +2392,7 @@ document.getElementById('blFileInput').addEventListener('change',async function(
     f.bls=bls; if('bl' in f) delete f.bl;
     await logAudit('bl-add','fiches',f._id,`${f.client||''} / ${entry.ref||'global'}`);
     renderFiches();
-  }catch(e){ alert('Erreur BL : '+e.message); }
+  }catch(e){ showToast('Erreur BL : '+e.message,'err'); }
 });
 async function deleteBLFiche(ficheId,idx){
   if(!canValidate()){showToast('Action réservée au pilotage.','err');return;}
@@ -2352,7 +2409,7 @@ async function deleteBLFiche(ficheId,idx){
     f.bls=bls; if('bl' in f) delete f.bl;
     await logAudit('bl-del','fiches',ficheId,`${f.client||''} / ${target.ref||'global'}`);
     renderFiches();
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
 }
 
 // Construit le bloc BL affiché sur la carte fiche (Données).
@@ -2446,7 +2503,7 @@ document.getElementById('commandeFilesInput').addEventListener('change',async fu
         url=storage?await uploadCommandeFile(file,ext,file.type||'application/octet-stream'):await fileToBase64(file);
       }
       commandeFiles.push({url,type:kind,name});
-    }catch(e){ alert('Erreur fichier « '+(file.name||'')+' » : '+e.message); }
+    }catch(e){ showToast('Erreur fichier « '+(file.name||'')+' » : '+e.message,'err'); }
   }
   refreshCommandePhotoZone();
 });
@@ -2549,12 +2606,12 @@ function importPlanToFiche(opts){
   try{
     const computed=packRefGroups(getRefGroups()).filter(c=>c.rows.length);
     if(!computed.length){
-      if(!auto) alert('⚠ Aucune ligne de commande dans le Plan.\n\nRemplis le plan d\'abord.');
+      if(!auto) showToast('⚠ Aucune ligne de commande dans le Plan.\n\nRemplis le plan d\'abord.','err');
       return;
     }
     const tooWide=computed.some(c=>c.oversize.length);
     if(tooWide){
-      if(!auto) alert('⚠ Une largeur dépasse la largeur utile de sa référence.\n\nCorrige le plan avant d\'importer dans la fiche.');
+      if(!auto) showToast('⚠ Une largeur dépasse la largeur utile de sa référence.\n\nCorrige le plan avant d\'importer dans la fiche.','err');
       return;
     }
     const multi=computed.length>1;
@@ -2687,7 +2744,7 @@ function importPlanToFiche(opts){
     }
   }catch(e){
     console.error('importPlanToFiche a échoué :',e);
-    if(!auto) alert('Erreur lors de l\'import : '+(e.message||e)+'\n\nRecharge la page et réessaie.');
+    if(!auto) showToast('Erreur lors de l\'import : '+(e.message||e)+'\n\nRecharge la page et réessaie.','err');
   }
 }
 // Insère une bande de séparation de référence dans la liste des bobines de la fiche.
@@ -3877,9 +3934,9 @@ function togglePlanManual(){
 }
 function enterPlanManual(){
   const computed=packRefGroups(getRefGroups()).filter(c=>c.rows.length);
-  if(!computed.length){ alert('Aucun plan à modifier — saisis d\'abord la commande.'); return; }
+  if(!computed.length){ showToast('Aucun plan à modifier — saisis d\'abord la commande.','err'); return; }
   if(computed.some(c=>(c.recutBobines||[]).length||(c.recuts||[]).length)){
-    alert('✏️ Édition manuelle indisponible quand des rouleaux à recouper sont saisis.\n\nRetire les rouleaux (♻) pour éditer le plan à la main, ou garde le plan automatique.');
+    showToast('✏️ Édition manuelle indisponible quand des rouleaux à recouper sont saisis.\n\nRetire les rouleaux (♻) pour éditer le plan à la main, ou garde le plan automatique.','err');
     return;
   }
   planManual=computed.map((c,ci)=>({
@@ -4110,6 +4167,10 @@ function buildPlanPrintHTML(o){
     ? `Machine : ${o.mn} · ${groups.length} références · Date : ${today()}`
     : `Machine : ${o.mn} · Bobine mère : ${fmt(mono.mother||o.motherFallback||0)} mm · Utile : ${fmt(mono.useful||0)} mm · Lame : ${fmt(mono.blade||0)} mm · Date : ${today()}`;
   const monoAttr=multi?'':filmAttrStr(mono);
+  // Commande globale (laizes commandées agrégées) : pour visualiser le volume total.
+  const _cmdSrc=(o.mandrinGroups&&o.mandrinGroups.length)?o.mandrinGroups:(groups||[]);
+  const _cmdMap={}; _cmdSrc.forEach(g=>(g.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0;if(w&&q)_cmdMap[w]=(_cmdMap[w]||0)+q;}));
+  const _cmdStr=Object.keys(_cmdMap).map(Number).sort((a,b)=>a-b).map(w=>_cmdMap[w]+'×'+w+'mm').join(' + ');
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plan STEP</title>
   <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}h2{font-size:18px;margin-bottom:4px}
@@ -4119,6 +4180,7 @@ function buildPlanPrintHTML(o){
   <h2>Plan de découpe — STEP International</h2>
   <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
   ${metaTech}<br>
+  ${_cmdStr?`Commande : <b>${esc(_cmdStr)}</b><br>`:''}
   Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(o.cerclage)}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
   ${sections}
   ${mandrinRecapHTML(o.mandrinGroups||groups,o.client)}</body></html>`;
@@ -4151,7 +4213,7 @@ function getPlanHTML(){
 // sur des données figées, donc sans toucher au plan en cours.
 function printSavedPlan(id){
   const s=savesCache.find(x=>x._id===id);
-  if(!s){alert('Plan introuvable.');return;}
+  if(!s){showToast('Plan introuvable.','err');return;}
   const arr=(Array.isArray(s.refGroups)&&s.refGroups.length)
     ? s.refGroups
     : [{ref:s.ref,longueur:s.longueur,mother:parseNum(s.mother),edge:parseNum(s.edgeLoss),blade:parseNum(s.blade),rows:s.rows||[]}];
@@ -4303,9 +4365,9 @@ function updateEtiquetteBtn(key){
 }
 function printEtiquetteSolde(key){
   const num=(document.getElementById('etiqNumMere_'+key)?.value||'').trim();
-  if(!num){alert('⚠ Saisis le n° de la bobine mère avant d\'imprimer l\'étiquette.');return;}
+  if(!num){showToast('⚠ Saisis le n° de la bobine mère avant d\'imprimer l\'étiquette.','err');return;}
   const d=getEtiquetteSoldeList().find(x=>x.key===key);
-  if(!d){alert('⚠ Impossible de calculer le solde pour cette référence.');return;}
+  if(!d){showToast('⚠ Impossible de calculer le solde pour cette référence.','err');return;}
   printEtiquette({...d,numBob:num});
 }
 
@@ -4340,7 +4402,7 @@ async function doSave(){
     }
   });
   if(sansMachine.length){
-    alert('⚙ Machine non choisie pour : '+sansMachine.join(', ')+'.\nChoisis une machine pour chaque référence avant d\'enregistrer le plan.');
+    showToast('⚙ Machine non choisie pour : '+sansMachine.join(', ')+'.\nChoisis une machine pour chaque référence avant d\'enregistrer le plan.','err');
     return;
   }
   var rows=getOrderRows();
@@ -4388,7 +4450,7 @@ async function doSave(){
       if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
       if(typeof showToast==='function') showToast('💾 Plan sauvegardé','ok');
     }
-  }catch(e){alert('Erreur sauvegarde : '+e.message);return;}
+  }catch(e){showToast('Erreur sauvegarde : '+e.message,'err');return;}
   if(typeof clearPlanAutosaveDraft==='function') clearPlanAutosaveDraft(); // demande 4 : le plan est en base, le brouillon auto n'a plus lieu d'être
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   closeSaveModal();showPage(2);
@@ -4522,12 +4584,65 @@ function openLoadModal(id){
   document.getElementById('loadModal').classList.add('open');
 }
 function closeLoadModal(){document.getElementById('loadModal').classList.remove('open');loadTargetIdx=null;}
+
+// ── Conflit « commande en cours » au chargement d'un nouveau plan ───────────
+// La Fiche contient déjà du travail terrain. On propose 3 issues : parquer en
+// brouillon (reprenable), effacer, ou annuler. Déclenché par doLoad AVANT que
+// le Plan ne soit écrasé (capture cohérente Plan+Fiche au parking).
+function openNewCmdConflictModal(){
+  const total=ficheLines.length;
+  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  const client=(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'—');
+  const num=(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'sans n°');
+  const info=document.getElementById('newCmdConflictInfo');
+  if(info) info.innerHTML='<div style="color:var(--text);font-weight:600;margin-bottom:2px">'+esc(client+' / '+num)+'</div>'+done+' bobine(s) coupée(s) sur '+total;
+  document.getElementById('newCmdConflictModal').classList.add('open');
+}
+function closeNewCmdConflictModal(){
+  document.getElementById('newCmdConflictModal').classList.remove('open');
+  _pendingLoadId=null; _newCmdResolved=false;
+}
+// Vide la Fiche live (DOM + tableau + photos) et remet le chrono à zéro, pour
+// repartir sur une commande propre. Le travail terrain a déjà été parqué (parc)
+// ou l'opérateur a choisi de l'effacer (erase).
+function _newCmdClearLiveFiche(){
+  const d=document.getElementById('ficheLines'); if(d) d.innerHTML='';
+  ficheLines=[];
+  ficholinePhotos={};
+  try{ chronoReset(); }catch(e){ console.warn('chronoReset:',e); }
+}
+function newCmdPark(){
+  document.getElementById('newCmdConflictModal').classList.remove('open');
+  try{ saveDraftManual(); }catch(e){ console.warn('Parking commande en cours:',e); }
+  _newCmdClearLiveFiche();
+  _newCmdResolved=true;
+  loadTargetIdx=_pendingLoadId; _pendingLoadId=null;
+  doLoad();
+}
+function newCmdErase(){
+  // P3 — traçabilité ISO : effacer une commande en cours détruit du travail terrain
+  // non committé (sans trace sinon). On le journalise AVANT de vider. Le choix
+  // « Parquer » n'est pas tracé : il crée un brouillon récupérable.
+  try{
+    const total=ficheLines.length;
+    const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+    const client=(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'—');
+    const num=(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'sans n°');
+    logAudit('discard','fiches','',`Commande en cours effacée pour charger une nouvelle — ${total} bobine(s), ${done} coupée(s) · ${client} / ${num}`).catch(()=>{});
+  }catch(e){ console.warn('Audit effacement commande:',e); }
+  document.getElementById('newCmdConflictModal').classList.remove('open');
+  _newCmdClearLiveFiche();
+  _newCmdResolved=true;
+  loadTargetIdx=_pendingLoadId; _pendingLoadId=null;
+  doLoad();
+}
 // Charge un plan dans l'éditeur pour le MODIFIER : la prochaine sauvegarde
 // écrasera ce plan au lieu d'en créer un nouveau (voir doSave).
 function editSavedPlan(id){
   const s=savesCache.find(x=>x._id===id);
   if(!s) return;
   loadTargetIdx=id;
+  _newCmdResolved=true; // édition de plan : pas de modale parquer/effacer
   doLoad();            // remplit l'éditeur (et ferme la modale, va sur Plan)
   editingSaveId=id;    // marque le plan comme "en édition"
   loadedSaveId=null;   // on n'est pas dans le flux opérateur→fiche
@@ -4543,6 +4658,16 @@ function doLoad(){
   if(!loadTargetIdx) return;
   const s=savesCache.find(x=>x._id===loadTargetIdx);
   if(!s) return;
+  // Une commande est DÉJÀ en cours dans la Fiche (bobines coupées, photos, NC…).
+  // On tranche AVANT d'écraser le Plan : à cet instant Plan + Fiche affichent
+  // encore la commande en cours → un parking capture un état cohérent.
+  if(!_newCmdResolved && !isFicheUntouched()){
+    _pendingLoadId=loadTargetIdx;   // capturé AVANT closeLoadModal (qui remet loadTargetIdx à null)
+    closeLoadModal();
+    openNewCmdConflictModal();
+    return;
+  }
+  _newCmdResolved=false;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
   editingSaveId=null; // un chargement normal annule un éventuel mode modification
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
@@ -4599,7 +4724,7 @@ async function deleteSave(id){
     await db.collection('saves').doc(id).update({deleted:true,deletedAt:isoNow()});
     const item=savesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderSaves();
 }
 
@@ -4632,6 +4757,7 @@ function chronoStart(){
     if(!fichePlanValidated) return;   // la validation a échoué → on n'enchaîne pas
   }
   chronoRunning=true;
+  updateNumJourForToday();   // commande travaillée un nouveau jour → 152 → 152+153
   chronoStartTs=chronoStartTs||new Date().toISOString();
   // Start virtuel : on retranche le temps déjà cumulé (cas reprise après pause).
   chronoRunStart=Date.now()-chronoSec*1000;
@@ -4780,11 +4906,32 @@ function buildPlanName(){
 // avec le flag manqueMatiere:true.
 // ============================================================
 async function stopManqueMatiere(){
-  if(!ficheLines.length){alert('Aucune fiche en cours.');return;}
+  if(!ficheLines.length){showToast('Aucune fiche en cours.','err');return;}
   const total=ficheLines.length;
   const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
-  if(done===0){alert('⚠ Aucune bobine coupée.\n\nMarque au moins une bobine comme "Coupée" avant de déclarer un manque de matière.');return;}
-  if(!confirm(`⛔ Arrêt manque de matière ?\n\n${done} bobine(s) coupée(s), ${total-done} non réalisée(s).\n\nLes ${total-done} bobines restantes seront marquées "Non réalisée - manque matière".\nLe chrono sera arrêté et la fiche enregistrée.`)) return;
+  if(done===0){showToast('⚠ Aucune bobine coupée.\n\nMarque au moins une bobine comme "Coupée" avant de déclarer un manque de matière.','err');return;}
+  const reste=total-done;
+  if(!confirm(`⛔ Arrêt manque de matière ?\n\n${done} bobine(s) coupée(s), ${reste} non réalisée(s).\n\nLes ${done} bobines coupées et le temps passé sont enregistrés dans la fiche (production comptée).\n\n`+(reste>0?`Le solde (${reste} bobine(s)) est placé en brouillon, reprenable quand la matière arrive.`:`Aucun solde à reprendre.`))) return;
+
+  // 0. Construire le brouillon du SOLDE *avant* toute mutation/envoi : on sérialise
+  //    l'état courant puis on ne garde que les bobines NON coupées, remises à neuf
+  //    (pas de ✓ coupée, pas de NC/photo, pas de flag manque), chrono à zéro.
+  //    La reprise repart sur une fiche propre + un nouveau chrono — le temps déjà
+  //    passé reste dans la fiche partielle envoyée ci-dessous (scénario validé).
+  let soldeState=null, soldeLabel='';
+  if(reste>0){
+    try{
+      const st=serializeFicheState();
+      st.lines=(st.lines||[]).filter(l=>!l.coupee).map(l=>Object.assign({},l,{
+        coupee:false, devi:false, droit:false, conforme:false, test2nc:false,
+        ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false,
+        ncDetail:'', photo:'', actDechet:false, actChutes:false, actAccept:false
+      }));
+      st.chrono={sec:0, startTs:null, wasRunning:false, runStart:null};
+      soldeState=st;
+      soldeLabel='⛔ Solde manque matière · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
+    }catch(e){ console.warn('Construction du solde manque matière :',e); soldeState=null; }
+  }
 
   // 1. Arrêter le chrono
   if(chronoRunning) chronoPause();
@@ -4806,7 +4953,18 @@ async function stopManqueMatiere(){
   const multi=computed.length>1;
   const rows=multi?[].concat(...computed.map(c=>c.rows)):getOrderRows();
   const useful=getUseful(),blade=getBlade();
-  await saveCommandeFiche(rows,useful,blade,{modifié:false,ecartLines:[],manqueMatiere:true});
+  const _ficheId=await saveCommandeFiche(rows,useful,blade,{modifié:false,ecartLines:[],manqueMatiere:true});
+
+  // 4. Parquer le solde APRÈS l'envoi réussi (brouillon manuel : clearCurrentDraft
+  //    ne purge que l'auto, resetAll ne touche pas brouillonsCache).
+  if(soldeState&&soldeState.lines&&soldeState.lines.length){
+    try{
+      const drafts=loadDrafts();
+      drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label:soldeLabel,state:soldeState,owner:_ini(),fromFicheId:_ficheId||''});
+      persistDrafts(drafts);
+      showToast('⛔ Solde ('+soldeState.lines.length+' bobine(s)) placé en brouillon — Données > Brouillons','ok');
+    }catch(e){ console.warn('Parking du solde manque matière :',e); }
+  }
 }
 
 async function confirmCommande(){
@@ -4814,7 +4972,7 @@ async function confirmCommande(){
   const computed=packRefGroups(getRefGroups()).filter(c=>c.rows.length);
   const multi=computed.length>1;
   const rows=multi?[].concat(...computed.map(c=>c.rows)):getOrderRows();
-  if(!rows.length){alert('Aucune commande à confirmer.');return;}
+  if(!rows.length){showToast('Aucune commande à confirmer.','err');return;}
   // Garde-fous quantités aberrantes (zéro en trop, etc.)
   if(getRefGroups().some(g=>(g.rows||[]).some(r=>r.qty>5000))){
     alert('⛔ Envoi bloqué : une ligne dépasse 5 000 pièces.\n\nVérifie la saisie (zéro en trop ?).');
@@ -4833,14 +4991,14 @@ async function confirmCommande(){
     return;
   }
   if(ficheLines.length===0){
-    alert('⚠ La fiche est obligatoire.\n\nVa dans l\'onglet Fiche : les bobines se chargent depuis le plan. Coche-les "coupées".');
+    showToast('⚠ La fiche est obligatoire.\n\nVa dans l\'onglet Fiche : les bobines se chargent depuis le plan. Coche-les "coupées".','err');
     return;
   }
   // Toutes les bobines doivent être coupées
   const total=ficheLines.length;
   const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
   if(done<total){
-    alert(`⚠ ${total-done} bobine(s) non coupée(s) sur ${total}.\n\nMarque toutes les bobines comme "✓ Coupée" avant de confirmer.\n\nSi tu n'as pas assez de matière, utilise le bouton "⛔ Arrêt — Manque de matière".`);
+    showToast(`⚠ ${total-done} bobine(s) non coupée(s) sur ${total}.\n\nMarque toutes les bobines comme "✓ Coupée" avant de confirmer.\n\nSi tu n'as pas assez de matière, utilise le bouton "⛔ Arrêt — Manque de matière".`,'err');
     return;
   }
   // Garde-fou NC sans détail
@@ -4849,7 +5007,11 @@ async function confirmCommande(){
     const fd=ficheCheck[i];
     const hasNC=fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng;
     if(hasNC && !fd.ncDetail.trim()){
-      alert(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité cochée sans explication.\n\nRenseigne le détail avant de confirmer.`);
+      showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité cochée sans explication.\n\nRenseigne le détail avant de confirmer.`,'err');
+      return;
+    }
+    if(hasNC && !(fd.actDechet||fd.actChutes||fd.actAccept)){
+      showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité sans destination.\n\nChoisis l'action — Chutes, Déchet ou + Acceptable — avant de confirmer.`,'err');
       return;
     }
   }
@@ -4873,7 +5035,7 @@ function recalcEcartsFromFiche(opts){
   const op2=opts.op2||null; // {refKey, useful, blade} : re-pack du reste avec la laize op.2
   const force=!!opts.force; // changement de plan op.1 : garde les coupées, recalcule le reste, même chrono à l'arrêt
   if(!op2 && !force && !chronoRunning){
-    alert('⏱ Le chronomètre doit être en marche pour recalculer le plan.');
+    showToast('⏱ Le chronomètre doit être en marche pour recalculer le plan.','err');
     return;
   }
   // Commande RÉF PAR RÉF : chaque référence a sa propre laize utile, sa lame
@@ -5155,13 +5317,26 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   };
   let tempsEntry=null;
   if(chronoSec>0){
-    const totalLaizes=rows.reduce((s,r)=>s+r.qty,0);
+    // P1 — intégrité KPI : sur une fiche « manque de matière », la durée ne couvre
+    // que les bobines RÉELLEMENT coupées. On enregistre donc la production réelle
+    // (bobines coupées + laizes produites), pas le planifié — sinon le débit m/h
+    // est surévalué et le sec/laize sous-évalué. Fiches normales : inchangées.
+    let totalLaizes=rows.reduce((s,r)=>s+r.qty,0);
+    let nbBobinesT=bobines.length;
+    if(opts.manqueMatiere===true){
+      const cut=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee'));
+      nbBobinesT=cut.length;
+      totalLaizes=cut.reduce((s,l)=>{
+        const p=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
+        return s+p.reduce((a,x)=>a+(Number(x.qty)||0),0);
+      },0);
+    }
     tempsEntry={
       date:chronoStartTs||isoNow(),dateEnd:isoNow(),duree:chronoSec,
       operateur:ini,operateur2:ini2||'',op2Bobine:op2Bob||'',
       machine,machine2,client,ref,rows,numCmd,deleted:false,
       commandeDetail:rows.map(r=>`${r.qty}×${r.width}mm`).join(' + '),
-      totalLaizes,nbBobines:bobines.length,
+      totalLaizes,nbBobines:nbBobinesT,
       largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',
       numJour:g('fNumJour')?.value||'',commentaire:''
     };
@@ -5194,6 +5369,14 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       if(fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);
       if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);}
       await logAudit('create','fiches',ficheRef.id,`${client||''} / ${ref||''}${numCmd&&numCmd!=='—'?' / Cmd '+numCmd:''}${lameChg?` / Lame ${lame}→${lameNew} dès bob.${lameChgBob||'?'}`:''}${opts.modifié?' [MODIFIÉE]':''}`,{client:client,ref:ref,dateCmd:ficheEntry.date});
+      // P3 — traçabilité ISO : l'arrêt « manque de matière » est un événement à part
+      // entière (production scindée). On le journalise explicitement, sinon il ne
+      // subsiste que via le flag de la fiche et un brouillon de solde supprimable.
+      if(opts.manqueMatiere===true){
+        const _total=ficheLines.length;
+        const _done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+        try{ await logAudit('split','fiches',ficheRef.id,`Arrêt manque de matière — ${_done} coupée(s) / ${_total-_done} solde · ${client||''} / ${ref||''}${numCmd&&numCmd!=='—'?' / Cmd '+numCmd:''}`,{client:client,ref:ref,dateCmd:ficheEntry.date}); }catch(e){ console.warn('Audit split manque matière:',e); }
+      }
       // Détection lame : si le n° lame de la fiche diffère de la lame courante
       // de la machine, propose la pose. Sur changement de lame en cours de
       // commande, c'est la NOUVELLE lame (lameNew) qui devient courante.
@@ -5228,6 +5411,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   showToast('✓ Commande confirmée et enregistrée'+(opts.modifié?' (fiche modifiée)':''),'ok');
   // Reset complet → Plan vierge
   setTimeout(function(){ resetAll(); }, 300);
+  return ficheRef.id; // permet de lier le brouillon de solde (manque matière) à la fiche
   }finally{
     _sendingFiche=false;
     const _sb2=document.getElementById('sendPlanBtn');
@@ -5366,7 +5550,7 @@ async function doChronoSave(){
     const docRef=await db.collection('temps').add(entry);
     tempsCache.unshift({_id:docRef.id,...entry});
     if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);
-  }catch(e){alert('Erreur enregistrement : '+e.message);return;}
+  }catch(e){showToast('Erreur enregistrement : '+e.message,'err');return;}
   closeChronoSaveModal();
   chronoReset();
   showToast('✓ Temps enregistré : '+fmtTimeFr(entry.duree),'ok');
@@ -5446,7 +5630,7 @@ async function deleteTempo(id){
     await db.collection('temps').doc(id).update({deleted:true,deletedAt:isoNow()});
     const item=tempsCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderTemps();
 }
 // ── Correction d'un relevé de temps (ER/CH/DC) ─────────────────────────────
@@ -5464,7 +5648,7 @@ function _tempsIniOpts(sel, allowEmpty){
 function openTempsEdit(id){
   if(!canManageData()){showToast('Correction réservée au pilotage et aux admins.','err');return;}
   const t=tempsCache.find(x=>x._id===id);
-  if(!t){alert('Relevé introuvable (recharge l\'historique).');return;}
+  if(!t){showToast('Relevé introuvable (recharge l\'historique).','err');return;}
   const sec=Math.max(0,Number(t.duree)||0);
   const dh=Math.floor(sec/3600), dm=Math.floor((sec%3600)/60), dss=sec%60;
   const dateVal=(()=>{ const d=new Date(t.date); return isNaN(d)?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
@@ -5520,7 +5704,7 @@ function openTempsEdit(id){
 async function saveTempsEdit(id){
   if(!canManageData()){showToast('Correction réservée au pilotage et aux admins.','err');return;}
   const t=tempsCache.find(x=>x._id===id);
-  if(!t){alert('Relevé introuvable.');return;}
+  if(!t){showToast('Relevé introuvable.','err');return;}
   const g=i=>document.getElementById(i);
   const iv=i=>{const n=parseInt(String(g(i)?.value||'').replace(/[^0-9-]/g,''),10);return isNaN(n)?0:n;};
   const sv=i=>String(g(i)?.value||'').trim();
@@ -5552,7 +5736,7 @@ async function saveTempsEdit(id){
     document.getElementById('tempsEditOverlay')?.remove();
     renderTemps();
     showToast('✓ Relevé corrigé','ok');
-  }catch(e){ alert('Erreur enregistrement : '+e.message); }
+  }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); }
 }
 async function clearTemps(){
   if(!canManageData()){showToast('Action réservée au pilotage et aux admins.','err');return;}
@@ -5562,7 +5746,7 @@ async function clearTemps(){
     await Promise.all(active.map(t=>db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()})));
     active.forEach(t=>{t.deleted=true;t.deletedAt=isoNow();});
     await logAudit('delete','temps','*',`Archivage global (${active.length} temps)`);
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderTemps();
 }
 async function exportTemps(){
@@ -5847,10 +6031,10 @@ async function ensureMonthlyAggregates(){
   }
 }
 async function recalcMois(ym,btn){
-  if(!db){alert('Base indisponible.');return;}
+  if(!db){showToast('Base indisponible.','err');return;}
   if(btn){btn.disabled=true;btn.textContent='⏳ Calcul…';}
   try{await computeMonthAggregate(ym);renderKpiMois(ym);showToast('✓ KPI '+monthLabelFr(ym)+' recalculés','ok');}
-  catch(e){alert('Erreur recalcul : '+e.message);if(btn){btn.disabled=false;btn.textContent='♻ Recalculer ce mois';}}
+  catch(e){showToast('Erreur recalcul : '+e.message,'err');if(btn){btn.disabled=false;btn.textContent='♻ Recalculer ce mois';}}
 }
 function buildKpiMoisBlock(){
   const cur=currentMonthYM();
@@ -6138,8 +6322,8 @@ function onStockArticleSurface(){
 }
 async function saveStockArticle(btn){
   const ref=(stkEl('saRef').value||'').trim();
-  if(!ref){ alert('Référence obligatoire.'); return; }
-  if(stockArticlesCache.some(a=>a.ref===ref)){ alert('Cet article existe déjà.'); return; }
+  if(!ref){ showToast('Référence obligatoire.','err'); return; }
+  if(stockArticlesCache.some(a=>a.ref===ref)){ showToast('Cet article existe déjà.','err'); return; }
   const larg=parseFloat(stkEl('saLarg').value)||0, long=parseFloat(stkEl('saLong').value)||0;
   const art={ ref, largeur:larg, longueur:long, surfaceUnit:stockSurfaceUnit(larg,long),
     fournisseur:(stkEl('saFour').value||'').trim(),
@@ -6154,7 +6338,7 @@ async function saveStockArticle(btn){
     art.id=r.id; stockArticlesCache.push(art);
     await logAudit('create','stockArticles',r.id,`Article stock ${ref}`);
     renderStock();
-  }catch(e){ alert('Erreur création : '+e.message); if(btn) btn.disabled=false; }
+  }catch(e){ showToast('Erreur création : '+e.message,'err'); if(btn) btn.disabled=false; }
 }
 // Lot 6 — édition d'un article stock (la référence reste la clé de jointure, non modifiable)
 function openStockArticleEdit(id){
@@ -6213,15 +6397,15 @@ async function saveStockArticleEdit(id,btn){
     document.getElementById('saEditOverlay')?.remove();
     renderStock();
     showToast('✓ Article mis à jour','ok');
-  }catch(e){ alert('Erreur : '+e.message); if(btn) btn.disabled=false; }
+  }catch(e){ showToast('Erreur : '+e.message,'err'); if(btn) btn.disabled=false; }
 }
 // Lot 6 — correction tracée : annule un mouvement par contre-écriture liée, sans rien détruire
 async function annulStockMouvement(id){
   if(!canViewStock()){ showToast('Accès réservé.','err'); return; }
   const m=stockMouvementsCache.find(x=>x.id===id);
   if(!m){ showToast('Mouvement introuvable.','err'); return; }
-  if(m.corrigePar){ alert('Ce mouvement est déjà annulé.'); return; }
-  if(m.corrige){ alert('Une écriture de correction ne s\'annule pas.'); return; }
+  if(m.corrigePar){ showToast('Ce mouvement est déjà annulé.','err'); return; }
+  if(m.corrige){ showToast('Une écriture de correction ne s\'annule pas.','err'); return; }
   const ds=m.date?new Date(m.date).toLocaleDateString('fr-FR'):'';
   if(!confirm(`Annuler ce mouvement (${(Number(m.m2)||0)>=0?'+':''}${(Number(m.m2)||0).toLocaleString('fr-FR')} m² · ${m.ref}${ds?' · '+ds:''}) ?\n\nUne écriture de correction inverse sera créée — le mouvement d'origine est conservé.`)) return;
   try{
@@ -6236,7 +6420,7 @@ async function annulStockMouvement(id){
     await logAudit('correction','stockMouvements',id,`Annulation ${(Number(m.m2)||0).toLocaleString('fr-FR')} m² · ${m.ref}`);
     renderStock();
     showToast('✓ Mouvement annulé (correction tracée)','ok');
-  }catch(e){ alert('Erreur : '+e.message); }
+  }catch(e){ showToast('Erreur : '+e.message,'err'); }
 }
 function setStockMvtType(t){
   stockMvtType=t;
@@ -6259,9 +6443,9 @@ function onStockRollsInput(){
 }
 async function saveStockMouvement(btn){
   const ref=stkEl('stockMvtRef')?stkEl('stockMvtRef').value:'';
-  if(!ref){ alert('Choisis un article.'); return; }
+  if(!ref){ showToast('Choisis un article.','err'); return; }
   const raw=parseFloat((stkEl('stockM2').value||'').replace(',','.'));
-  if(isNaN(raw)||raw===0){ alert('Quantité (m²) manquante ou nulle.'); return; }
+  if(isNaN(raw)||raw===0){ showToast('Quantité (m²) manquante ou nulle.','err'); return; }
   const signed = stockMvtType==='entree'?Math.abs(raw):stockMvtType==='sortie'?-Math.abs(raw):raw;
   const mvt={ date:isoNow(), type:stockMvtType, ref, m2:signed,
     rouleaux:parseFloat(stkEl('stockRolls').value)||null,
@@ -6275,7 +6459,7 @@ async function saveStockMouvement(btn){
     mvt.id=r.id; stockMouvementsCache.unshift(mvt);
     await logAudit('create','stockMouvements',r.id,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`);
     renderStock();
-  }catch(e){ alert('Erreur enregistrement : '+e.message); if(btn) btn.disabled=false; }
+  }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); if(btn) btn.disabled=false; }
 }
 
 // ============================================================
@@ -6355,7 +6539,7 @@ async function lameInstall(machine,lameNum,opts){
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
     return true;
-  }catch(e){ alert('Erreur enregistrement lame : '+e.message); return false; }
+  }catch(e){ showToast('Erreur enregistrement lame : '+e.message,'err'); return false; }
 }
 // Affûtage d'une lame courante : enregistre une trace 'affutage' ET réinstalle
 // la même lame datée d'aujourd'hui (réidentifiée neuve). Atomique via batch.
@@ -6382,10 +6566,36 @@ async function lameAffuter(machine,lameNum){
     await logAudit('create','maintenance',nRef.id,`Affûtage lame ${num} sur ${getMachineLabel(machine)} — réidentifiée neuve`);
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
     return true;
-  }catch(e){ alert('Erreur affûtage : '+e.message); return false; }
+  }catch(e){ showToast('Erreur affûtage : '+e.message,'err'); return false; }
 }
-// Détection appelée à la validation de fiche : si la lame saisie diffère de
-// la lame courante de la machine, propose de confirmer la pose.
+// Lot D — affûtage d'une lame HORS MACHINE (réserve) : on ne trace QUE le départ
+// à l'affûtage (pas de réinstallation, la lame n'est sur aucune machine). Quand
+// elle reviendra et sera posée, le flux de pose normal créera la trace d'install.
+async function lameAffuterHorsMachine(lameNum){
+  const num=String(lameNum||'').trim();
+  if(!num){ showToast('N° de lame obligatoire.','err'); return false; }
+  if(!db||!currentUser){ showToast('Connexion requise.','err'); return false; }
+  const now=isoNow(); const who=currentUser?currentUser.ini:'?';
+  const trace={ type:'lame', categorie:'affutage', machine:'', lameNum:num,
+    dateInstall:now, date:now,
+    description:'Lame '+num+' partie à l\'affûtage (hors machine)', responsable:who, echeance:'', note:'',
+    createdAt:now, createdBy:who, deleted:false };
+  try{
+    const ref=db.collection('maintenance').doc(); await ref.set(trace);
+    trace.id=ref.id; maintenanceCache.unshift(trace);
+    await logAudit('create','maintenance',ref.id,`Affûtage lame ${num} (hors machine)`);
+    return true;
+  }catch(e){ showToast('Erreur affûtage : '+e.message,'err'); return false; }
+}
+async function submitAffutageHorsMachine(){
+  if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
+  const inp=document.getElementById('affutHorsNum');
+  const num=(inp?.value||'').trim();
+  if(!num){ showToast('Saisis un n° de lame.','err'); return; }
+  if(!confirm(`Marquer la lame ${num} (hors machine) comme partie à l'affûtage ?`)) return;
+  const ok=await lameAffuterHorsMachine(num);
+  if(ok){ if(inp) inp.value=''; showToast('✓ Lame '+num+' envoyée à l\'affûtage','ok'); renderMaintenance(); }
+}
 async function lameDetectOnFiche(machineKey,lameNum){
   const num=String(lameNum||'').trim();
   if(!num||!machineKey||!LAME_MACHINES.includes(machineKey)) return;
@@ -6534,16 +6744,27 @@ function renderLameEtat(){
   </div>`;
 }
 // Prompt manuel de pose/changement de lame depuis l'encart.
-async function lameInstallPrompt(machine){
+function lameInstallPrompt(machine){
   if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
+  _lameInstallMachine=machine;
   const cur=lameActiveForMachine(machine);
-  const num=prompt(`Pose d'une lame sur ${getMachineLabel(machine)}${cur?'\n(lame courante : '+(cur.lameNum||'—')+')':''}\n\nN° de série / référence de la lame :`,'');
-  if(num===null) return;
-  const n=String(num).trim();
+  const t=document.getElementById('lameInstallTitle'); if(t) t.textContent='Pose d\'une lame · '+getMachineLabel(machine);
+  const hint=document.getElementById('lameInstallHint'); if(hint) hint.textContent=cur?('Lame courante : '+(cur.lameNum||'—')):'Aucune lame courante déclarée.';
+  const inp=document.getElementById('lameInstallInput'); if(inp) inp.value='';
+  document.getElementById('lameInstallModal').classList.add('open');
+  setTimeout(()=>{ try{ inp&&inp.focus(); }catch(e){} },50);
+}
+function closeLameInstallModal(){ document.getElementById('lameInstallModal').classList.remove('open'); _lameInstallMachine=null; }
+async function confirmLameInstall(){
+  const machine=_lameInstallMachine; if(!machine) return;
+  const n=String(document.getElementById('lameInstallInput')?.value||'').trim();
   if(!n){ showToast('N° de lame requis.','err'); return; }
+  const cur=lameActiveForMachine(machine);
   if(cur&&String(cur.lameNum||'').trim().toLowerCase()===n.toLowerCase()){
     showToast('Cette lame est déjà déclarée comme courante.','err'); return;
   }
+  document.getElementById('lameInstallModal').classList.remove('open');
+  _lameInstallMachine=null;
   const ok=await lameInstall(machine,n,{description:'Pose manuelle depuis l\'encart État des lames'});
   if(ok) renderMaintenance();
 }
@@ -6572,6 +6793,13 @@ function maintViewHTML(){
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Coche les lames envoyées à l'affûtage. Elles repartent neuves (âge remis à zéro) et l'opération est tracée dans l'historique.</div>
     <div id="affutageList"></div>
     <div style="margin-top:12px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="submitAffutage(this)">✅ Marquer comme affûtées (neuves)</button></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Ou envoyer à l'affûtage une lame <b>hors machine</b> (réserve, pas en cours d'utilisation) :</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="affutHorsNum" placeholder="N° de lame" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();submitAffutageHorsMachine();}">
+        <button class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="submitAffutageHorsMachine()">🛠 Envoyer à l'affûtage</button>
+      </div>
+    </div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
     <select id="m_filterMachine" onchange="maintRenderList()" class="u-inp" style="flex:1;min-width:110px">
@@ -6613,7 +6841,7 @@ async function saveMaintenance(btn){
   if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
   const machine=document.getElementById('m_machine').value;
   const num=(document.getElementById('m_lameNum').value||'').trim();
-  if(!num){ alert('N° de lame obligatoire.'); return; }
+  if(!num){ showToast('N° de lame obligatoire.','err'); return; }
   const dRaw=document.getElementById('m_date').value;
   const dateInstall=dRaw?new Date(dRaw+'T12:00:00').toISOString():isoNow();
   const resp=document.getElementById('m_resp').value||'';
@@ -6632,7 +6860,7 @@ async function maintDelete(id){
     await logAudit('delete','maintenance',id,rec?`Lame ${esc(rec.lameNum||'')} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel('lame',rec.categorie)}`:'');
     renderMaintenance();
     showToast('Entrée supprimée','ok');
-  }catch(e){ alert('Erreur : '+e.message); }
+  }catch(e){ showToast('Erreur : '+e.message,'err'); }
 }
 function maintFilteredRows(){
   const fM=document.getElementById('m_filterMachine')?.value||'';
@@ -6665,7 +6893,7 @@ function maintRenderList(){
     return `<div class="save-card" style="flex-direction:column;align-items:flex-start;gap:4px;border-left:3px solid ${borderCol}">
       <div style="display:flex;width:100%;justify-content:space-between;align-items:flex-start;gap:10px">
         <div class="save-info">
-          <div class="save-title">${getMachineLabel(r.machine||'')} · Lame ${esc(r.lameNum||'—')}</div>
+          <div class="save-title">${getMachineLabel(r.machine||'')||'Hors machine'} · Lame ${esc(r.lameNum||'—')}</div>
           <div style="margin:4px 0">${catBadge}</div>
           <div class="save-meta">${esc(r.description||'')}</div>
           <div class="save-meta">${ds}${r.responsable?` · Resp. ${esc(r.responsable)}`:''}</div>
@@ -6863,7 +7091,7 @@ function dujAddJob(){
   const longv=parseFloat((document.getElementById('duj_long').value||'').replace(',','.'))||0;
   const nb=parseFloat(document.getElementById('duj_nb').value)||0;
   const mach=document.getElementById('duj_mach').value;
-  if(longv<=0||nb<=0){ alert('Longueur et nb bobines obligatoires.'); return; }
+  if(longv<=0||nb<=0){ showToast('Longueur et nb bobines obligatoires.','err'); return; }
   dujQueue.push({ref:ref||'(sans réf)',longueur:longv,nb,machine:mach});
   document.getElementById('duj_ref').value=''; document.getElementById('duj_long').value=''; document.getElementById('duj_nb').value='';
   dujRenderQueue();
@@ -7025,7 +7253,91 @@ function buildAnalyseDashboard(d){
 
   </div>`;
 }
+// ============================================================
+// LOT F — SUIVI DES LAMES (ISO) : graphiques, lecture seule.
+// Sources : maintenance (poses), fiches (NC + lame), temps (bobineaux).
+// ============================================================
+const _LAME_MCOL={FEBA:'#60a5fa',MAVEG:'#4ade80',CEVENINI:'#a78bfa'};
+const _MOIS_FR=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+function _mcol(lbl){return _LAME_MCOL[lbl]||'#a78bfa';}
+function _inPeriod(dateIso,period){ if(period==='all'||!period) return true; return String(dateIso||'').slice(0,7)===period; }
+function _periodLabel(p){ if(p==='all'||!p) return 'Tout l\'historique'; const a=String(p).split('-'); return (_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0]; }
+// Graphique à barres générique (l'existant svgBarChart est figé en secondes/mm).
+function svgBars(items,opts){
+  opts=opts||{}; const W=opts.W||560,H=opts.H||190,padL=opts.padL||40,padB=opts.padB||22;
+  if(!items||!items.length) return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg"><text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas de données sur la période</text></svg>`;
+  const maxVal=Math.max(...items.map(x=>x.value),1);
+  const n=items.length,gap=(W-padL-10)/n,barW=Math.max(14,gap*0.6),scaleY=(H-padB-18)/maxVal;
+  let out='';
+  for(let i=0;i<=4;i++){ const y=H-padB-i*(H-padB-18)/4; out+=`<line x1="${padL}" x2="${W-4}" y1="${y}" y2="${y}" stroke="#2a2a28" stroke-width="1"/><text x="${padL-4}" y="${y+4}" text-anchor="end" fill="#666" font-size="10">${Math.round(maxVal*i/4)}</text>`; }
+  items.forEach((it,i)=>{ const x=padL+i*gap+gap/2-barW/2,bh=Math.max(2,it.value*scaleY),y=H-padB-bh,col=it.color||opts.color||'#60a5fa';
+    out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="${col}" opacity="0.85"/>`;
+    out+=`<text x="${x+barW/2}" y="${y-4}" text-anchor="middle" fill="#e5e5e3" font-size="10" font-weight="600">${it.value}</text>`;
+    out+=`<text x="${x+barW/2}" y="${H-padB+13}" text-anchor="middle" fill="#888" font-size="10">${esc(String(it.label))}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
+}
+// Mois disponibles (union des dates fiches/temps/maintenance), récents d'abord.
+function _lameStatsMonths(){
+  const set={};
+  const add=arr=>(arr||[]).forEach(x=>{ if(x&&x.deleted) return; const d=String((x&&(x.date||x.dateInstall))||'').slice(0,7); if(/^\d{4}-\d{2}$/.test(d)) set[d]=1; });
+  add(fichesCache); add(tempsCache); add(maintenanceCache);
+  return Object.keys(set).sort().reverse();
+}
+// 1) Changements de lame par machine (poses 'installation', affûtage inclus).
+function lameChangesByMachine(period){
+  const map={};
+  (maintenanceCache||[]).forEach(r=>{ if(!r||r.deleted||r.type!=='lame'||r.categorie!=='installation') return; if(!_inPeriod(r.dateInstall||r.date,period)) return; const lbl=getMachineLabel(r.machine||''); if(!lbl) return; map[lbl]=(map[lbl]||0)+1; });
+  return LAME_MACHINES.map(m=>{const lbl=getMachineLabel(m);return {label:lbl,value:map[lbl]||0,color:_mcol(lbl)};});
+}
+// 2) NC par lame : rattachée à la lame active de la bobine (avant/après lameChgBob).
+function lameNcByBlade(period){
+  const map={};
+  (fichesCache||[]).forEach(f=>{ if(!f||f.deleted) return; if(!_inPeriod(f.date,period)) return;
+    const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[]; const chgAt=(f.lameChg&&f.lameChgBob)?(parseInt(f.lameChgBob,10)||0):0;
+    det.forEach((fd,idx)=>{ if(!fd||!(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng)) return; let blade=f.lame; if(chgAt&&(idx+1)>=chgAt&&f.lameNew) blade=f.lameNew; const k=(blade!=null&&String(blade).trim()!=='')?('Lame '+String(blade).trim()):'Lame ?'; map[k]=(map[k]||0)+1; });
+  });
+  return Object.entries(map).map(([label,value])=>({label,value,color:'#f87171'})).sort((a,b)=>b.value-a.value).slice(0,8);
+}
+// 3) Bobineaux/jour moyen par machine (somme par jour ÷ jours travaillés).
+function lameBobineauxPerDay(period){
+  const byMD={};
+  (tempsCache||[]).forEach(t=>{ if(!t||t.deleted) return; if(!_inPeriod(t.date,period)) return; const m=getMachineLabel(t.machine||'')||'?'; const day=String(t.date||'').slice(0,10); if(!day) return; byMD[m]=byMD[m]||{}; byMD[m][day]=(byMD[m][day]||0)+(Number(t.nbBobines)||0); });
+  return Object.entries(byMD).map(([m,days])=>{ const vals=Object.values(days),sum=vals.reduce((a,b)=>a+b,0); return {label:m,value:vals.length?Math.round(sum/vals.length):0,color:_mcol(m)}; }).sort((a,b)=>b.value-a.value);
+}
+// 4) Bobineaux moyen par lame = total bobineaux machine ÷ nombre de poses machine.
+function lameBobineauxPerBlade(period){
+  const bob={},poses={};
+  (tempsCache||[]).forEach(t=>{ if(!t||t.deleted) return; if(!_inPeriod(t.date,period)) return; const m=getMachineLabel(t.machine||'')||'?'; bob[m]=(bob[m]||0)+(Number(t.nbBobines)||0); });
+  (maintenanceCache||[]).forEach(r=>{ if(!r||r.deleted||r.type!=='lame'||r.categorie!=='installation') return; if(!_inPeriod(r.dateInstall||r.date,period)) return; const lbl=getMachineLabel(r.machine||''); if(!lbl) return; poses[lbl]=(poses[lbl]||0)+1; });
+  return LAME_MACHINES.map(m=>{const lbl=getMachineLabel(m);const p=poses[lbl]||0;return {label:lbl,value:p?Math.round((bob[lbl]||0)/p):0,color:_mcol(lbl)};});
+}
+var _lameStatsPeriod='all';
+function setLameStatsPeriod(v){ _lameStatsPeriod=v||'all'; renderLameStats(); }
+function renderLameStats(){
+  const el=document.getElementById('lameStatsBlock'); if(!el) return;
+  if(typeof canViewAnalyse==='function'&&!canViewAnalyse()){ el.innerHTML=''; return; }
+  // Chargement paresseux de la maintenance (sinon graphiques poses vides).
+  if(typeof maintLoaded!=='undefined'&&!maintLoaded&&typeof loadMaintenance==='function'){
+    loadMaintenance().then(()=>{ try{ renderLameStats(); }catch(e){} });
+  }
+  const period=_lameStatsPeriod, months=_lameStatsMonths(), pl=_periodLabel(period);
+  const opts='<option value="all"'+(period==='all'?' selected':'')+'>Tout l\'historique</option>'+months.map(mo=>{const a=mo.split('-');const lbl=(_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0];return '<option value="'+mo+'"'+(period===mo?' selected':'')+'>'+lbl+'</option>';}).join('');
+  const card=(t,svg,note)=>`<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:16px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">${t}</div>${svg}<div style="font-size:11px;color:var(--muted);margin-top:4px">${note}</div></div>`;
+  el.innerHTML=`<div style="display:flex;flex-direction:column;gap:14px;padding-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--violet)">🔪 Suivi des lames — ISO</div>
+      <select onchange="setLameStatsPeriod(this.value)" style="background:#1c1c1b;border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:6px 10px">${opts}</select>
+    </div>
+    ${card('Changements de lame par machine',svgBars(lameChangesByMachine(period),{}),'Poses de lame, affûtage inclus · '+esc(pl))}
+    ${card('Non-conformités par lame (top)',svgBars(lameNcByBlade(period),{color:'#f87171'}),'NC rattachées à la lame active de la bobine · '+esc(pl))}
+    ${card('Bobineaux / jour moyen par machine',svgBars(lameBobineauxPerDay(period),{color:'#4ade80'}),'Moyenne sur jours travaillés (relevés temps) · '+esc(pl))}
+    ${card('Bobineaux moyen par lame',svgBars(lameBobineauxPerBlade(period),{}),'Bobineaux ÷ nombre de poses, par machine · '+esc(pl))}
+  </div>`;
+}
+
 function renderAnalyse(){
+  try{ renderLameStats(); }catch(e){ console.warn('renderLameStats:',e); }
   const allTemps=tempsCache.filter(t=>!t.deleted);
   const ac=document.getElementById('analyseContent');
   const valid=allTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
@@ -7272,6 +7584,7 @@ function renderFiches(){
       <div class="fc-foot">${ds} · ⏱ ${esc(f.tempsStr||'—')}</div>
       <div class="fc-actions">
         <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',true)">📄 PDF</button>
+        ${f.manqueMatiere?`<button class="fc-btn fc-btn-green" onclick="reprendreCommandeManque('${f._id}')" title="Reprendre le solde non coupé (matière revenue)">▶ Reprendre la commande</button>`:''}
         ${editBtn}
         ${validBtns}
         <button class="fc-btn fc-btn-red-ghost" onclick="deleteFiche('${f._id}')">🗑 Archiver</button>
@@ -7280,8 +7593,31 @@ function renderFiches(){
   }).join('')+moreBtn;
 }
 
+// Reprendre le SOLDE d'une commande arrêtée pour manque de matière : on rouvre
+// le brouillon de solde (créé au moment de l'arrêt) via la machinerie de reprise.
+// Lien direct par fromFicheId, repli par client + n° de commande.
+function reprendreCommandeManque(id){
+  const f=fichesCache.find(x=>x._id===id);
+  if(!f){ showToast('Fiche introuvable.','err'); return; }
+  const drafts=loadDrafts();
+  let d=drafts.find(b=>b&&!b.deleted&&b.fromFicheId===id);
+  if(!d){
+    const sameCmd=b=>b&&b.state&&b.state.fiche&&((b.state.fiche.numCmd||'')===(f.numCmd||''))&&((b.state.fiche.client||'')===(f.client||''));
+    d=drafts.find(b=>b&&!b.deleted&&String(b.label||'').indexOf('⛔ Solde')===0&&sameCmd(b));
+  }
+  if(!d){
+    showToast('Le solde de cette commande n\'est plus en brouillon (déjà repris ou supprimé). Recrée la commande pour le reste.','err');
+    return;
+  }
+  if(!isFicheUntouched()){
+    showToast('Termine ou parque d\'abord la commande en cours (💾) avant de reprendre ce solde.','err');
+    return;
+  }
+  resumeDraft(d.id);
+}
+
 async function validateFiche(id){
-  if(!canValidate()){alert('Validation réservée au pilotage et aux admins.');return;}
+  if(!canValidate()){showToast('Validation réservée au pilotage et aux admins.','err');return;}
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
   if(!ficheBLComplete(f)){
@@ -7289,16 +7625,34 @@ async function validateFiche(id){
     const msg=refs.length>1
       ? '⛔ Validation impossible : il manque un bon de livraison.\n\nJoins soit un BL global (toute la commande), soit un BL pour chaque référence ('+refs.join(', ')+').'
       : '⛔ Validation impossible : aucun bon de livraison (BL) n\'est joint à cette fiche.\n\nJoins le BL avant de valider.';
-    alert(msg);
+    showToast(msg,'err');
     return;
   }
   const by=currentUser?(currentUser.nom||currentUser.ini):'?';
+  // Lot B — on ne valide une commande que si TOUTES les bobines (op.1, op.2, hors
+  // plan) sont coupées ET testées. Même logique que l'affichage de la fiche, donc
+  // le manager ne peut valider rien qui montre « À couper » ou « Non testé ».
+  // Exception : les fiches manque-matière (bobines non coupées = solde légitime).
+  if(!f.manqueMatiere){
+    const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+    const notCut=det.filter(fd=>!fd.coupee).length;
+    if(notCut>0){
+      showToast(`⛔ Validation impossible : ${notCut} bobine(s) non coupée(s).\n\nToutes les bobines (op.1 et op.2) doivent être coupées avant validation.`,'err');
+      return;
+    }
+    const tested=fd=>!!(fd.test2nc||(fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit)));
+    const notTested=det.filter(fd=>!tested(fd)).length;
+    if(notTested>0){
+      showToast(`⛔ Validation impossible : ${notTested} bobine(s) sans test 2ème bobineaux.\n\nChaque bobine doit être testée (conforme, ou non conforme + motif) avant validation.`,'err');
+      return;
+    }
+  }
   try{
     const at=isoNow();
     await db.collection('fiches').doc(id).update({valide:true,valideBy:by,valideAt:at});
     f.valide=true;f.valideBy=by;f.valideAt=at;
     await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
-  }catch(e){alert('Erreur validation : '+e.message);}
+  }catch(e){showToast('Erreur validation : '+e.message,'err');}
   renderFiches();
 }
 
@@ -7313,7 +7667,7 @@ async function rejectFiche(id){
     await db.collection('fiches').doc(id).update({valide:false,valideBy:by,valideAt:at});
     f.valide=false;f.valideBy=by;f.valideAt=at;
     await logAudit('reject','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderFiches();
 }
 
@@ -7471,7 +7825,7 @@ async function saveFicheConfigs(id){
     const photo=(pOrig!=null&&efPhotos[pOrig]!==undefined)?efPhotos[pOrig]:(base.photo||'');
     newDetail.push({...base,label:r.querySelector('.ef-lab').value,conf:r.querySelector('.ef-cf').value,photo});
   });
-  if(!newDetail.length){alert('Il faut au moins une bobine.');return;}
+  if(!newDetail.length){showToast('Il faut au moins une bobine.','err');return;}
   // Régénère le plan (groups) depuis les bobines modifiées → le PDF reflète la modif.
   const useful=parseNum(f.useful)||0, blade=parseNum(f.blade)||0;
   const newGroups=groupsFromDetail(newDetail,useful,blade);
@@ -7491,7 +7845,7 @@ async function saveFicheConfigs(id){
     efPhotos={};
     renderFiches();
     showToast('✓ Fiche modifiée et enregistrée ('+newDetail.length+' bobines)','ok');
-  }catch(e){alert('Erreur enregistrement : '+e.message);}
+  }catch(e){showToast('Erreur enregistrement : '+e.message,'err');}
 }
 
 // === REGISTRE DES NON-CONFORMITÉS (consolidé toutes fiches) ===
@@ -7528,8 +7882,8 @@ async function loadAudit(){
   const snap=await db.collection('audit').orderBy('ts','desc').limit(AUDIT_LOAD_LIMIT).get();
   return snap.docs.map(d=>Object.assign({_id:d.id},d.data()));
 }
-const AUDIT_ACT_LABELS={create:'création',edit:'modification',validate:'validation',reject:'rejet',delete:'archivage',restore:'restauration',permanent_delete:'suppression déf.','bl-add':'ajout BL','bl-del':'retrait BL',aggregate:'figeage KPI'};
-const AUDIT_ACT_COLORS={create:'#4ade80',validate:'#60a5fa',reject:'#f59e0b',edit:'#c0a35e',delete:'#f87171',restore:'#a78bfa',permanent_delete:'#b04545','bl-add':'#5dcaa5','bl-del':'#d4537e',aggregate:'#888'};
+const AUDIT_ACT_LABELS={create:'création',edit:'modification',validate:'validation',reject:'rejet',delete:'archivage',restore:'restauration',permanent_delete:'suppression déf.','bl-add':'ajout BL','bl-del':'retrait BL',aggregate:'figeage KPI',split:'arrêt manque matière',discard:'commande effacée'};
+const AUDIT_ACT_COLORS={create:'#4ade80',validate:'#60a5fa',reject:'#f59e0b',edit:'#c0a35e',delete:'#f87171',restore:'#a78bfa',permanent_delete:'#b04545','bl-add':'#5dcaa5','bl-del':'#d4537e',aggregate:'#888',split:'#fb923c',discard:'#9ca3af'};
 function auditFilter(rows,f){
   const q=(f.q||'').toLowerCase();
   const fromTs=f.from?new Date(f.from).getTime():0;
@@ -7746,7 +8100,7 @@ async function ncArchiveFiche(id){
     await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
     if(f){f.deleted=true;f.deletedAt=isoNow();}
     await logAudit('delete','fiches',id,f?`NC → archive — ${f.client||''} / ${f.ref||''}`:'',{client:f?f.client:'',ref:f?f.ref:'',dateCmd:f?f.date:''});
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderNc();
 }
 // Traitement qualité d'une NC (ISO) : action corrective, responsable, clôture.
@@ -7754,7 +8108,7 @@ async function ncArchiveFiche(id){
 function ncOpenTreat(ficheId,bobIdx){
   if(!canManageData()){showToast('Action réservée au pilotage et aux admins.','err');return;}
   const f=fichesCache.find(x=>x._id===ficheId);
-  if(!f||!f.ficheDetail||!f.ficheDetail[bobIdx]){alert('NC introuvable (recharge l\'historique).');return;}
+  if(!f||!f.ficheDetail||!f.ficheDetail[bobIdx]){showToast('NC introuvable (recharge l\'historique).','err');return;}
   const fd=f.ficheDetail[bobIdx];
   const closed=(fd.ncStatut||'ouvert')==='cloture';
   const opts='<option value="">— Choisir —</option>'+Object.values(USER_PROFILES)
@@ -7803,12 +8157,12 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
     document.getElementById('ncTreatOverlay')?.remove();
     renderNc();
     showToast(mode==='close'?'✓ NC clôturée':mode==='reopen'?'NC rouverte':'✓ Traitement enregistré','ok');
-  }catch(e){alert('Erreur enregistrement : '+e.message);}
+  }catch(e){showToast('Erreur enregistrement : '+e.message,'err');}
 }
 async function exportNc(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!confirm('Historique complet indisponible. Exporter uniquement les données récentes ?')) return; }
   const rows=buildNcRows();
-  if(!rows.length){alert('Aucune non-conformité à exporter.');return;}
+  if(!rows.length){showToast('Aucune non-conformité à exporter.','err');return;}
   const head=['Date','Client','Référence','N° Commande','Bobine','Étiquette','Opérateur','Types NC','Détail','Action','Statut','Action corrective','Responsable','Date traitement'];
   const lines=rows.map(r=>[
     new Date(r.date).toLocaleString('fr-FR'),r.client,r.ref,r.numCmd,'B'+r.bobine,r.label,r.ini,
@@ -8022,6 +8376,18 @@ function showFicheDetail(id,autoPrint){
   if(Array.isArray(f.refGroups)) f.refGroups.forEach(g=>{ if(g) machByRef[(g.ref||'')]=getMachineLabel(g.machine||''); });
   const defMachLbl=f.machine||'';
   let prevMachLbl=null;
+  // Lot C — bannière changement de lame : repérée par le n° de bobine (lameChgBob).
+  const lameChgAt=(f.lameChg&&f.lameChgBob)?(parseInt(f.lameChgBob,10)||0):0;
+  const lameBandHtml=()=>`<tr><td colspan="9" style="padding:0">`
+    +`<div style="height:5px;background:#f59e0b"></div>`
+    +`<div style="background:#3a2e0a;color:#f59e0b;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">🔪 CHANGEMENT DE LAME — ${esc(String(f.lame||'?'))} → ${esc(String(f.lameNew||'—'))}</div>`
+    +`</td></tr>`;
+  // Lot E — bannière relais opérateur : op.2 reprend dès la bobine op2Bob.
+  const op2RelayAt=(f.ini2&&f.op2Bob)?(parseInt(f.op2Bob,10)||0):0;
+  const op2BandHtml=()=>`<tr><td colspan="9" style="padding:0">`
+    +`<div style="height:5px;background:#60a5fa"></div>`
+    +`<div style="background:#102a40;color:#9ecbf0;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">👤 RELAIS OPÉRATEUR — ${esc(String(f.ini||'op.1'))} → ${esc(String(f.ini2||'op.2'))} · dès la bobine ${esc(String(f.op2Bob))}</div>`
+    +`</td></tr>`;
   let bobNum=0;
   const planRows=(liveGroups||[]).map((g,gi)=>{
     const isLast=gi===(liveGroups.length-1);
@@ -8040,6 +8406,8 @@ function showFicheDetail(id,autoPrint){
         }
         prevMachLbl=curMachLbl;
       }
+      const lameBand=(lameChgAt&&bobNum===lameChgAt)?lameBandHtml():'';
+      const op2Band=(op2RelayAt&&bobNum===op2RelayAt)?op2BandHtml():'';
       let ncBadge='<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;background:#14371f;color:#4ade80">✓ RAS</span>';
       if(fd){
         const ncs=[];
@@ -8055,7 +8423,7 @@ function showFicheDetail(id,autoPrint){
       const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
       const photoCell=fd&&fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
-      rows.push(machBand+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
+      rows.push(machBand+lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:12px">[SOLDE]</span>':''}</td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(labelLegrand(g.label)):esc(g.label)}</td>
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
@@ -8089,7 +8457,9 @@ function showFicheDetail(id,autoPrint){
     const ncDetail=fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
     const photoCell=fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
     const etiq=fd.label?`<span style="color:#f59e0b">${esc(fd.label)}</span>`:'';
-    return `<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
+    const lameBand=(lameChgAt&&bn===lameChgAt)?lameBandHtml():'';
+    const op2Band=(op2RelayAt&&bn===op2RelayAt)?op2BandHtml():'';
+    return lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
         <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:11px;background:#3d2a00;color:#f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${isLegrandFr?esc(labelLegrand(fd.conf)):esc(fd.conf||'—')}</td>
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
@@ -8127,7 +8497,7 @@ async function deleteFiche(id){
     const item=fichesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
     await logAudit('delete','fiches',id,item?`${item.client||''} / ${item.ref||''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderFiches();
 }
 
@@ -8139,7 +8509,7 @@ async function clearFiches(){
     await Promise.all(active.map(f=>db.collection('fiches').doc(f._id).update({deleted:true,deletedAt:isoNow()})));
     active.forEach(f=>{f.deleted=true;f.deletedAt=isoNow();});
     await logAudit('delete','fiches','*',`Archivage global (${active.length} fiches)`);
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderFiches();
 }
 
@@ -8210,7 +8580,7 @@ function renderCorbeille(){
 async function permanentDeleteAll(){
   if(!canPermanentDelete()){showToast('Suppression définitive réservée au pilotage et aux admins.','err');return;}
   const items=corbeilleCache.slice();
-  if(!items.length){alert('La corbeille est déjà vide.');return;}
+  if(!items.length){showToast('La corbeille est déjà vide.','err');return;}
   const nbValid=items.filter(it=>it._col==='fiches'&&it.valide===true).length;
   let msg='Vider la corbeille : supprimer DÉFINITIVEMENT les '+items.length+' élément(s) ? Action IRRÉVERSIBLE.';
   if(nbValid>0) msg+='\n\n⚠ Dont '+nbValid+' fiche(s) VALIDÉE(S) (conservation qualité / ISO 2 ans) qui seront aussi supprimées.';
@@ -8242,7 +8612,7 @@ async function restoreItem(collection,id){
       if(caches[collection]&&!caches[collection].some(x=>x._id===id)) caches[collection].unshift(copy);
     }
     await logAudit('restore',collection,id,'');
-  }catch(e){alert('Erreur restauration : '+e.message);}
+  }catch(e){showToast('Erreur restauration : '+e.message,'err');}
   renderCorbeille();
 }
 
@@ -8267,14 +8637,14 @@ async function permanentDelete(collection,id){
     await db.collection(collection).doc(id).delete();
     corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
     await logAudit('permanent_delete',collection,id,'');
-  }catch(e){alert('Erreur : '+e.message);}
+  }catch(e){showToast('Erreur : '+e.message,'err');}
   renderCorbeille();
 }
 
 async function exportFiches(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!confirm('Historique complet indisponible. Exporter uniquement les données récentes ?')) return; }
   const fiches=fichesCache.filter(f=>!f.deleted);
-  if(!fiches.length){alert('Aucune donnée.');return;}
+  if(!fiches.length){showToast('Aucune donnée.','err');return;}
   const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;Perte %;Temps';
   const rows=fiches.map(f=>[
     f.name,new Date(f.date).toLocaleDateString('fr-FR'),f.ini,f.ini2||'',f.op2Bob||'',f.client,f.ref,f.machine,f.machine2||'',
@@ -8356,7 +8726,7 @@ function ficheParamMissing(){
 function applyFichePlanChange(){
   const miss=ficheParamMissing();
   if(miss){
-    alert('⚠ Renseigne '+miss.label+' avant de recalculer le plan.');
+    showToast('⚠ Renseigne '+miss.label+' avant de recalculer le plan.','err');
     document.getElementById(miss.id)?.focus();
     return;
   }
@@ -8400,33 +8770,47 @@ function refreshFicheParams(){
 // coupées sont conservées. En multi-réf, l'op.2 reprend la réf choisie.
 function applyOp2PlanChange(){
   if(!document.getElementById('fOp2Active')?.checked || !document.getElementById('fOp2DiffMachine')?.checked){
-    alert('⚠ Active l\'opérateur 2 et coche « A coupé sur une autre machine » avant de recalculer son plan.');
+    showToast('Active l\'opérateur 2 et coche « A coupé sur une autre machine » avant de recalculer son plan.','err');
     return;
   }
   const m2=parseNum(document.getElementById('fMother2')?.value);
   const e2=parseNum(document.getElementById('fEdge2')?.value);
   const b2=parseNum(document.getElementById('fBlade2')?.value);
-  if(!(m2>0)){ alert('⚠ Renseigne la bobine mère de l\'opérateur 2.'); return; }
+  if(!(m2>0)){ showToast('Renseigne la bobine mère de l\'opérateur 2.','err'); return; }
   const useful2=Math.max(0,m2-e2);
-  if(!(useful2>0)){ alert('⚠ La largeur utile op.2 (mère − bords) est nulle.'); return; }
+  if(!(useful2>0)){ showToast('La largeur utile op.2 (mère − bords) est nulle.','err'); return; }
   const groups=(typeof getRefGroups==='function'?getRefGroups():[]).filter(g=>(g.rows||[]).length);
   if(!groups.length){ showToast('Aucune commande à recalculer.','err'); return; }
   const nrm=v=>String(v==null?'':v).trim().toLowerCase();
-  let refKey;
   if(groups.length>1){
-    const list=groups.map((g,i)=>(i+1)+') '+(g.ref||('Référence '+(i+1)))).join('\n');
-    const sel=prompt('L\'opérateur 2 reprend quelle référence ?\n'+list+'\n\nTape le numéro :','1');
-    if(sel===null) return;
-    const idx=parseInt(sel,10)-1;
-    if(isNaN(idx)||idx<0||idx>=groups.length){ alert('Numéro de référence invalide.'); return; }
-    refKey=nrm(groups[idx].ref);
+    // Choix de la réf par boutons (un par référence) — index sûr, pas de chaîne dans onclick.
+    _op2Pending={useful2,b2,refKeys:groups.map(g=>nrm(g.ref))};
+    const list=document.getElementById('op2RefList');
+    if(list) list.innerHTML=groups.map((g,i)=>{
+      const lbl=g.ref||('Référence '+(i+1));
+      return '<button class="btn" style="width:100%;justify-content:flex-start;text-align:left" onclick="_op2PickRef('+i+')">'+esc(lbl)+'</button>';
+    }).join('');
+    document.getElementById('op2RefModal').classList.add('open');
   }else{
-    refKey=nrm(groups[0].ref);
+    _applyOp2WithRefKey(nrm(groups[0].ref), useful2, b2);
   }
+}
+function closeOp2RefModal(){ document.getElementById('op2RefModal').classList.remove('open'); _op2Pending=null; }
+function _op2PickRef(i){
+  document.getElementById('op2RefModal').classList.remove('open');
+  const p=_op2Pending||{}; _op2Pending=null;
+  const refKey=(p.refKeys||[])[i];
+  if(refKey==null){ showToast('Référence invalide.','err'); return; }
+  _applyOp2WithRefKey(refKey, p.useful2, p.b2);
+}
+function _applyOp2WithRefKey(refKey, useful2, b2){
+  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
+  const groups=(typeof getRefGroups==='function'?getRefGroups():[]).filter(g=>(g.rows||[]).length);
   const tgt=groups.find(g=>nrm(g.ref)===refKey)||groups[0];
+  if(!tgt){ showToast('Référence introuvable.','err'); return; }
   const tooWide=(tgt.rows||[]).filter(r=>r.width>useful2).map(r=>r.width);
   if(tooWide.length){
-    alert('⛔ Recalcul op.2 bloqué : '+tooWide.map(w=>fmt(w)+' mm').join(', ')+' dépasse(nt) la largeur utile op.2 ('+fmt(useful2)+' mm).');
+    showToast('Recalcul op.2 bloqué : '+tooWide.map(w=>fmt(w)+' mm').join(', ')+' dépasse la largeur utile op.2 ('+fmt(useful2)+' mm).','err');
     return;
   }
   recalcEcartsFromFiche({op2:{refKey, useful:useful2, blade:b2}});
@@ -8620,7 +9004,7 @@ function removeFicheLine(id){
   renumberFicheLines();
 }
 function resetFicheBobines(){
-  if(!ficheLines.length){alert('Aucune bobine à réinitialiser.');return;}
+  if(!ficheLines.length){showToast('Aucune bobine à réinitialiser.','err');return;}
   if(!confirm('Remettre toutes les bobines à 0 ? (décoche "Coupée" sur toutes les lignes — les saisies sont conservées)')) return;
   ficheLines.forEach(({id})=>{
     const line=document.getElementById(id);
@@ -8635,7 +9019,7 @@ function toggleCoupee(id){
   const btn=document.getElementById('coupeeBtn_'+id);
   if(!line||!btn) return;
   if(!chronoRunning){
-    alert('⏱ Le chronomètre doit être en marche pour marquer une bobine comme coupée.');
+    showToast('⏱ Le chronomètre doit être en marche pour marquer une bobine comme coupée.','err');
     return;
   }
   const alreadyCoupee=line.classList.contains('coupee');
@@ -8646,9 +9030,9 @@ function toggleCoupee(id){
       const elNC=document.getElementById('flTest2nc_'+id);
       const feba=(ficheMachine==='feba');
       if(elNC&&elNC.checked){
-        alert('⚠ Non conforme coché mais aucun motif sélectionné.\n\nCoche '+(feba?'↔ Dévidage':'au moins ↔ Dévidage ou ➡ Droit')+' avant de valider "Coupée".');
+        showToast('⚠ Non conforme coché mais aucun motif sélectionné.\n\nCoche '+(feba?'↔ Dévidage':'au moins ↔ Dévidage ou ➡ Droit')+' avant de valider "Coupée".','err');
       }else{
-        alert('⚠ Test 2ème bobineaux non validé.\n\n'+(feba?'Coche ↔ Dévidage (conforme)':'Coche Dévidage ET Droit (conforme)')+', ou coche ⚠ Non conforme avec un motif, avant de valider "Coupée".');
+        showToast('⚠ Test 2ème bobineaux non validé.\n\n'+(feba?'Coche ↔ Dévidage (conforme)':'Coche Dévidage ET Droit (conforme)')+', ou coche ⚠ Non conforme avec un motif, avant de valider "Coupée".','err');
       }
       return;
     }
@@ -8657,7 +9041,7 @@ function toggleCoupee(id){
     const dechet=document.getElementById('act_dechet_'+id)?.classList.contains('btn-red');
     const chutes=document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange');
     if(hasNC && !dechet && !chutes){
-      alert('⚠ Bobine non conforme (largeur, quantité, casse ou angle).\n\nImpossible de la valider "Coupée" tant qu\'une action n\'est pas choisie : 🗑 Déchet ou ✂ Chutes.');
+      showToast('⚠ Bobine non conforme (largeur, quantité, casse ou angle).\n\nImpossible de la valider "Coupée" tant qu\'une action n\'est pas choisie : 🗑 Déchet ou ✂ Chutes.','err');
       return;
     }
   }
@@ -8920,7 +9304,7 @@ function serializeFicheState(){
   };
 }
 function saveDraftManual(){
-  if(ficheLines.length===0){alert('Aucune bobine à enregistrer en brouillon.');return;}
+  if(ficheLines.length===0){showToast('Aucune bobine à enregistrer en brouillon.','err');return;}
   const st=serializeFicheState();
   const label=(st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°');
   const drafts=loadDrafts();
@@ -9059,7 +9443,7 @@ function deleteDraft(id){
 }
 function resumeDraft(id){
   const d=loadDrafts().find(x=>x.id===id);
-  if(!d){alert('Brouillon introuvable.');return;}
+  if(!d){showToast('Brouillon introuvable.','err');return;}
   restoreFicheState(d.state);
   if(d.planDraft){
     // Brouillon de saisie plan : on revient sur la page Plan, et la fiche
