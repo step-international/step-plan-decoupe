@@ -65,6 +65,7 @@ button{cursor:pointer;font-family:inherit}
 .machine-btn-fiche.sel-maveg{border-color:var(--green);color:var(--green);background:#142a1a}
 .machine-btn-fiche.sel-cevenini{border-color:var(--violet);color:var(--violet);background:#1f1535}
 .fmm-block{border:1px solid var(--border2);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--card)}
+.fmm-inline-block{margin-top:6px}
 .fmm-block.active{border-color:var(--green)}
 .fmm-block.locked{opacity:.55}
 .fmm-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
@@ -76,8 +77,11 @@ button{cursor:pointer;font-family:inherit}
 .fmm-hint{font-size:12px;margin-top:8px}
 .fmm-order-list{display:flex;flex-direction:column;gap:6px}
 .fmm-order-row{display:flex;align-items:center;gap:10px;background:#1a1a18;border:1px solid var(--border);border-radius:9px;padding:8px 10px}
-.fmm-order-num{width:22px;height:22px;flex:0 0 auto;border-radius:50%;background:#2a2a28;color:var(--muted);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.fmm-order-num{width:26px;height:26px;flex:0 0 auto;border-radius:50%;background:#1e3a5f;color:var(--blue);font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.fmm-order-id{display:flex;flex-direction:column;gap:3px;min-width:0}
 .fmm-order-name{font-size:14px;font-weight:700;color:var(--text)}
+.fmm-order-tags{display:flex;gap:5px;flex-wrap:wrap}
+.fmm-tag{font-size:11px;font-weight:700;color:var(--blue);background:#12283f;border:1px solid #234d78;border-radius:5px;padding:1px 7px}
 .fmm-order-btns{margin-left:auto;display:flex;gap:6px}
 .fmm-order-btns .btn{padding:6px 12px;font-weight:800}
 .fmm-order-btns .btn[disabled]{opacity:.35;pointer-events:none}
@@ -600,9 +604,8 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
   <!-- Machine PAR RÉFÉRENCE (multi-réf) : chaque réf a sa propre bobine mère /
        bords / lame, validée au moment où l'opérateur la coupe (progressive). -->
   <div class="section" id="fMachineMulti" style="display:none">
-    <div class="section-title">Machine — par référence</div>
-    <div id="fmmOrder" style="margin-bottom:14px"></div>
-    <div id="fMachineBlocks"></div>
+    <div class="section-title">Ordre de coupe des références</div>
+    <div id="fmmOrder" style="margin-bottom:6px"></div>
     <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="printFichePlan()">🖨️ Imprimer le plan complet</button>
     <div id="fmmHint" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
   </div>
@@ -1080,7 +1083,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.01-L22';
+const APP_VERSION='2026.07.01-L23';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -5237,6 +5240,7 @@ function recalcEcartsFromFiche(opts){
     refreshOp2BobineList();
     renumberFicheLines();
     refreshEtiquetteSolde();
+    if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
 
     const head=op2
       ? '🔧 Plan re-découpé pour l\'opérateur 2 (laize utile '+fmt(op2.useful)+' mm).'
@@ -8922,8 +8926,17 @@ let ficheRefOrder = [];              // Lot 2 : index plan des réfs productives
 function fmmRawRefs(){
   const groups=(typeof getRefGroups==='function'?getRefGroups():[]);
   const out=[];
-  groups.forEach((g,i)=>{ if((g.rows||[]).length) out.push({idx:i,ref:(g.ref||('Référence '+(i+1))),mother:g.mother,edge:g.edge,blade:g.blade,machine:g.machine||'',useful:g.useful,longueur:g.longueur}); });
+  groups.forEach((g,i)=>{ if((g.rows||[]).length) out.push({idx:i,ref:(g.ref||('Référence '+(i+1))),mother:g.mother,edge:g.edge,blade:g.blade,machine:g.machine||'',useful:g.useful,longueur:g.longueur,film:g.film||'',veka:g.veka||''}); });
   return out;
+}
+// Éléments distinctifs d'une réf (film, longueur, VEKA) pour la différencier
+// des autres dans la liste d'ordre et dans l'en-tête de son bloc machine.
+function fmmRefTags(r){
+  const t=[];
+  if(r.film) t.push(esc(String(r.film)));
+  if(r.longueur!=null && String(r.longueur).trim()!=='') t.push(esc(String(r.longueur))+' ml');
+  if(r.veka && (r.veka==='VEKA'||r.veka==='Profilé')) t.push(esc(String(r.veka)));
+  return t;
 }
 // Ordre de coupe normalisé : les index de ficheRefOrder encore productifs, puis
 // les nouveaux index (réfs ajoutées) en fin. Robuste aux changements de plan.
@@ -8985,9 +8998,10 @@ function renderFicheMachineBlocks(opts){
   opts=opts||{};
   const mono=document.getElementById('fMachineMono');
   const multi=document.getElementById('fMachineMulti');
-  const cont=document.getElementById('fMachineBlocks');
-  if(!mono||!multi||!cont) return;
+  if(!mono||!multi) return;
   const refs=fmmGetRefs();
+  // Nettoie d'éventuels blocs inline d'un rendu précédent.
+  document.querySelectorAll('#ficheLines .fmm-inline-block').forEach(n=>n.remove());
   if(refs.length<=1){
     // MONO-RÉF : comportement historique inchangé.
     mono.style.display='';
@@ -9001,14 +9015,17 @@ function renderFicheMachineBlocks(opts){
   if(opts.fresh) ficheRefValidated.clear();
   if(opts.allValidated) refs.forEach(r=>ficheRefValidated.add(r.idx));
   const activeIdx=fmmActiveIdx();
-  // Lot 2 : liste « Ordre de coupe » (▲▼) — blocs machine + bobines suivent cet ordre.
+  // Liste « Ordre de coupe » (▲▼) — chaque réf est distinguée par film / longueur / VEKA.
   const orderEl=document.getElementById('fmmOrder');
   if(orderEl){
     let oh='<div class="section-title" style="margin:0 0 8px">Ordre de coupe</div><div class="fmm-order-list">';
     refs.forEach((r,pos)=>{
+      const tags=fmmRefTags(r);
       oh+='<div class="fmm-order-row">'
         +'<span class="fmm-order-num">'+(pos+1)+'</span>'
-        +'<span class="fmm-order-name">🎞 '+esc(String(r.ref))+'</span>'
+        +'<span class="fmm-order-id"><span class="fmm-order-name">'+esc(String(r.ref))+'</span>'
+        +(tags.length?'<span class="fmm-order-tags">'+tags.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'')
+        +'</span>'
         +'<span class="fmm-order-btns">'
         +'<button class="btn btn-ghost btn-sm" '+(pos===0?'disabled ':'')+'onclick="fmmMoveRef('+r.idx+',-1)">▲</button>'
         +'<button class="btn btn-ghost btn-sm" '+(pos===refs.length-1?'disabled ':'')+'onclick="fmmMoveRef('+r.idx+',1)">▼</button>'
@@ -9017,21 +9034,26 @@ function renderFicheMachineBlocks(opts){
     oh+='</div>';
     orderEl.innerHTML=oh;
   }
-  let html='';
-  refs.forEach(r=>{
+  // Construit et INSÈRE le bloc machine de chaque réf JUSTE AVANT sa 1re bobine
+  // dans la liste (1re réf = au-dessus de la 1re bobine à couper ; réfs
+  // suivantes = à leur changement de réf). Robuste : ancre sur la bobine, pas
+  // sur le séparateur (qui peut manquer à la reprise d'un brouillon).
+  const cont=document.getElementById('ficheLines');
+  refs.forEach((r,pos)=>{
     const validated=ficheRefValidated.has(r.idx);
     const active=(r.idx===activeIdx) && !validated;
     const locked=!validated && !active;
     const stateCls=active?'active':(locked?'locked':'');
-    const meta='laize '+fmt(r.useful)+' mm'+(r.longueur?(' · '+esc(String(r.longueur))+' ml'):'');
+    const tags=fmmRefTags(r);
+    const tagsHtml=tags.length?'<span class="fmm-meta">'+tags.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'';
     const V=v=>esc(String(v==null?'':v));
     let badge, body, hint;
     if(locked){
       badge='<span class="fmm-badge lock">🔒 à renseigner au passage</span>';
       body='';
-      hint='<div class="fmm-hint" style="color:var(--muted)">Mère / bords / lame pré-remplis ('+V(r.mother||'—')+' / '+V(r.edge||'—')+' / '+V(r.blade||'—')+') — se débloque après validation de la réf précédente.</div>';
+      hint='<div class="fmm-hint" style="color:var(--muted)">Mère / bords / lame pré-remplis ('+V(r.mother||'—')+' / '+V(r.edge||'—')+' / '+V(r.blade||'—')+') — se débloque à la fin de la réf précédente.</div>';
     }else{
-      badge=validated?'<span class="fmm-badge val">✓ validée</span>':'<span class="fmm-badge act">réf en cours</span>';
+      badge=validated?'<span class="fmm-badge val">✓ validée</span>':'<span class="fmm-badge act">à couper maintenant</span>';
       const mopt=m=>`<option value="${m}"${r.machine===m?' selected':''}>${getMachineLabel(m)}</option>`;
       body='<div class="field" style="margin-bottom:10px"><label>Machine de cette référence</label>'
         +'<select data-fmm="machine" onchange="onFmmMachineChange(this)"><option value="">— choisir —</option>'
@@ -9041,37 +9063,46 @@ function renderFicheMachineBlocks(opts){
         +'<div class="field"><label>Perte bords (mm)</label><input type="text" data-fmm="edge" inputmode="decimal" value="'+V(r.edge)+'"></div>'
         +'<div class="field"><label>Perte lame (mm)</label><input type="text" data-fmm="blade" inputmode="decimal" value="'+V(r.blade)+'"></div>'
         +'</div>'
-        +'<button class="btn btn-blue" style="width:100%;margin-top:10px" onclick="applyFicheRefPlanChange('+r.idx+')">🔄 Changement plan — '+esc(String(r.ref))+'</button>';
+        +'<button class="btn btn-blue" style="width:100%;margin-top:10px" onclick="applyFicheRefPlanChange('+r.idx+')">🔄 Valider la bobine mère — '+esc(String(r.ref))+'</button>';
       hint=validated
         ? '<div class="fmm-hint" style="color:var(--green)">✓ Réf validée — tu peux la recorriger si le rouleau change.</div>'
-        : '<div class="fmm-hint" style="color:var(--orange)">⚠ Vérifie la vraie bobine mère puis clique « Changement plan » pour cette réf.</div>';
+        : '<div class="fmm-hint" style="color:var(--orange)">⚠ Vérifie la vraie bobine mère puis valide pour cette réf.</div>';
     }
-    html+='<div class="fmm-block '+stateCls+'" data-ref-idx="'+r.idx+'">'
-      +'<div class="fmm-head">'+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span><span class="fmm-meta">'+meta+'</span></div>'
-      +body+hint+'</div>';
+    const block=document.createElement('div');
+    block.className='fmm-block fmm-inline-block '+stateCls;
+    block.dataset.refIdx=r.idx;
+    block.innerHTML='<div class="fmm-head">'+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
+    // Ancre : 1re ligne bobine de cette réf dans le DOM.
+    const nrm=v=>String(v==null?'':v).trim().toLowerCase();
+    const key=nrm(r.ref);
+    let anchor=null;
+    for(const l of ficheLines){ if(nrm(l.ref)===key){ anchor=document.getElementById(l.id); break; } }
+    if(anchor && anchor.parentNode){
+      // Si un séparateur précède immédiatement la bobine, on garde séparateur → bloc → bobine.
+      anchor.parentNode.insertBefore(block, anchor);
+    }else if(cont){
+      // Pas de bobine (réf entièrement couverte) : on n'insère pas de bloc inutile.
+    }
   });
-  cont.innerHTML=html;
-  // Miroir de la réf en cours vers les champs historiques (fMother/fEdge/fBlade)
-  // pour que la garde chrono / l'impression continuent de fonctionner.
+  // Miroir de la réf en cours vers les champs historiques (garde chrono / impression).
   const act=refs.find(r=>r.idx===activeIdx)||refs[refs.length-1];
   if(act){
     const set=(id,v)=>{const e=document.getElementById(id); if(e) e.value=(v==null?'':v);};
     set('fMother',act.mother); set('fEdge',act.edge); set('fBlade',act.blade);
     if(act.machine) ficheMachine=act.machine;
   }
-  // Verrou chrono : tant qu'aucune réf n'est validée, le plan n'est pas validé.
   if(ficheRefValidated.size===0) fichePlanValidated=false;
   const hintEl=document.getElementById('fmmHint');
   if(hintEl){
-    if(ficheRefValidated.size===0){ hintEl.innerHTML='⚠ Valide la 1<sup>re</sup> référence (sa bobine mère réelle) avant de démarrer le chrono.'; hintEl.style.color='var(--orange)'; }
-    else{ hintEl.textContent='✓ Chrono autorisé. Renseigne chaque réf au moment de la couper.'; hintEl.style.color='var(--green)'; }
+    if(ficheRefValidated.size===0){ hintEl.innerHTML='⚠ Valide la bobine mère de la 1<sup>re</sup> référence (elle est juste au-dessus de la 1<sup>re</sup> bobine) avant de démarrer le chrono.'; hintEl.style.color='var(--orange)'; }
+    else{ hintEl.textContent='✓ Chrono autorisé. Renseigne chaque réf au moment de la couper (bloc au-dessus de sa 1re bobine).'; hintEl.style.color='var(--green)'; }
   }
 }
 // « Changement plan » d'UNE référence : écrit ses dimensions dans le bloc plan
 // correspondant, recalcule uniquement cette réf (les coupées sont conservées),
 // marque la réf validée et débloque la suivante.
 function applyFicheRefPlanChange(idx){
-  const blk=document.querySelector('#fMachineBlocks .fmm-block[data-ref-idx="'+idx+'"]');
+  const blk=document.querySelector('.fmm-block[data-ref-idx="'+idx+'"]');
   if(!blk){ return; }
   const gv=s=>blk.querySelector('[data-fmm="'+s+'"]');
   const mother=(gv('mother')?.value||'').trim();
