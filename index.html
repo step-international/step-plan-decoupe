@@ -64,6 +64,23 @@ button{cursor:pointer;font-family:inherit}
 .machine-btn-fiche.sel-feba{border-color:var(--blue);color:var(--blue);background:#1a2e47}
 .machine-btn-fiche.sel-maveg{border-color:var(--green);color:var(--green);background:#142a1a}
 .machine-btn-fiche.sel-cevenini{border-color:var(--violet);color:var(--violet);background:#1f1535}
+.fmm-block{border:1px solid var(--border2);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--card)}
+.fmm-block.active{border-color:var(--green)}
+.fmm-block.locked{opacity:.55}
+.fmm-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.fmm-badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:6px}
+.fmm-badge.act,.fmm-badge.val{background:#14371f;color:var(--green)}
+.fmm-badge.lock{background:#2a2a28;color:var(--muted)}
+.fmm-name{font-size:15px;font-weight:700;color:var(--text)}
+.fmm-meta{font-size:12px;color:var(--muted);margin-left:auto}
+.fmm-hint{font-size:12px;margin-top:8px}
+.fmm-order-list{display:flex;flex-direction:column;gap:6px}
+.fmm-order-row{display:flex;align-items:center;gap:10px;background:#1a1a18;border:1px solid var(--border);border-radius:9px;padding:8px 10px}
+.fmm-order-num{width:22px;height:22px;flex:0 0 auto;border-radius:50%;background:#2a2a28;color:var(--muted);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.fmm-order-name{font-size:14px;font-weight:700;color:var(--text)}
+.fmm-order-btns{margin-left:auto;display:flex;gap:6px}
+.fmm-order-btns .btn{padding:6px 12px;font-weight:800}
+.fmm-order-btns .btn[disabled]{opacity:.35;pointer-events:none}
 /* ORDER */
 .order-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .step-btn{flex:0 0 auto;min-width:38px;min-height:38px;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:20px;font-weight:800;line-height:1;cursor:pointer;-webkit-appearance:none}
@@ -552,7 +569,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
     </div>
   </div>
 
-  <div class="section">
+  <div class="section" id="fMachineMono">
     <div class="section-title">Machine</div>
     <div class="machine-btns" style="margin-bottom:0">
       <button class="machine-btn-fiche sel-feba" id="fBtnFeba" onclick="selectFicheMachine('feba')">FEBA</button>
@@ -578,6 +595,16 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
       <button class="btn btn-ghost" style="flex:1" onclick="printFichePlan()">🖨️ Imprimer le plan</button>
     </div>
     <div id="fPlanHint" style="font-size:12px;margin-top:6px;color:var(--orange)">⚠ Renseigne les 4 champs machine puis clique « Changement plan » avant de démarrer le chrono.</div>
+  </div>
+
+  <!-- Machine PAR RÉFÉRENCE (multi-réf) : chaque réf a sa propre bobine mère /
+       bords / lame, validée au moment où l'opérateur la coupe (progressive). -->
+  <div class="section" id="fMachineMulti" style="display:none">
+    <div class="section-title">Machine — par référence</div>
+    <div id="fmmOrder" style="margin-bottom:14px"></div>
+    <div id="fMachineBlocks"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="printFichePlan()">🖨️ Imprimer le plan complet</button>
+    <div id="fmmHint" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
   </div>
 
   <div class="section">
@@ -1053,7 +1080,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.06.30-L20';
+const APP_VERSION='2026.07.01-L22';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -2561,7 +2588,7 @@ function showPage(i){
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
   // Au passage sur la Fiche : import auto depuis le Plan (silencieux, ne touche pas si déjà travaillé).
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
-  if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); }
+  if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); }
   if(i===2){ renderDataPage(); if(typeof updateTabBadges==='function') updateTabBadges(); }
 }
 
@@ -2625,6 +2652,9 @@ function importPlanToFiche(opts){
                        'Cliquer OK va TOUT EFFACER et regénérer la fiche depuis le Plan.\n\nContinuer ?');
       if(!ok) return;
     }
+    // Régénération complète = repart de zéro pour le gating multi-réf, SAUF si
+    // l'appel vient d'une revalidation par référence (keepRefValidation).
+    if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); ficheRefOrder=[]; }
 
     // En-têtes : copie depuis le Plan. En multi-réf, fRef liste toutes les réfs.
     const copy=(planId,ficheId)=>{
@@ -2688,10 +2718,13 @@ function importPlanToFiche(opts){
     mandrinByWidthPlan={};
     try{ getRefGroups().forEach(g=>(g.rows||[]).forEach(r=>{ if(r.mandrin) mandrinByWidthPlan[r.width]=r.mandrin; })); }catch(e){}
 
-    // Génération des bobines, réf par réf, avec séparateur visuel entre réfs.
+    // Génération des bobines, réf par réf, dans l'ORDRE DE COUPE (Lot 2), avec
+    // séparateur visuel entre réfs. `ci` reste l'index d'origine (planManual).
     let bi=1;
     let prevMach='';
-    computed.forEach((c,ci)=>{
+    const _genOrder=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
+    _genOrder.forEach(ci=>{
+      const c=computed[ci];
       if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach); if(c.machine) prevMach=c.machine; }
       const man=planManual&&planManual[ci];
       if(man){
@@ -2737,8 +2770,9 @@ function importPlanToFiche(opts){
     // SANS recliquer « Changement plan ». Le verrou ne se réarme que si
     // l'opérateur modifie ensuite une dimension (mère/bords/lame) ou une chute.
     fichePlanValidated=true; updateFPlanHint();
+    if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
 
-    if(!auto){
+    if(!auto && !opts.keepRefValidation){
       showPage(1);
       showToast('✓ Fiche créée — '+ficheLines.length+' bobine(s) à découper'+(multi?' ('+computed.length+' réfs)':''),'ok');
     }
@@ -4754,7 +4788,8 @@ function chronoStart(){
   // Démarrage sans friction : si le plan n'a pas encore été (re)validé alors que les 4
   // params machine sont là, on le valide automatiquement (plus besoin de « Changement plan »).
   if(!fichePlanValidated){
-    applyFichePlanChange();
+    if(typeof fmmIsMulti==='function' && fmmIsMulti()){ applyFicheRefPlanChange(fmmActiveIdx()); }
+    else applyFichePlanChange();
     if(!fichePlanValidated) return;   // la validation a échoué → on n'enchaîne pas
   }
   chronoRunning=true;
@@ -5122,7 +5157,9 @@ function recalcEcartsFromFiche(opts){
     // 3) Reconstruire réf par réf.
     ficheLines=[];
     const recap=[]; let totalAdded=0;
-    computed.forEach((c,ci)=>{
+    const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
+    _genOrderR.forEach(ci=>{
+      const c=computed[ci];
       const k=refKey(c);
       if(multi) insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur);
 
@@ -8868,6 +8905,211 @@ function ficheParamMissing(){
   }
   return null;
 }
+
+// ============================================================
+// MACHINE PAR RÉFÉRENCE (multi-réf) — Lot 1
+// ============================================================
+// En multi-réf, chaque référence a sa PROPRE bobine mère / bords / lame /
+// machine. L'opérateur les valide réf par réf (dévoilement progressif dans
+// l'ordre du plan) : la réf en cours est éditable, les suivantes verrouillées
+// tant que la précédente n'est pas validée. Chaque « Changement plan » recalcule
+// UNIQUEMENT sa réf (les bobines déjà coupées des autres réfs sont conservées).
+// En mono-réf : rien ne change, la section machine historique reste utilisée.
+let ficheRefValidated = new Set();   // index (position plan) des réfs validées par l'opérateur
+let ficheRefOrder = [];              // Lot 2 : index plan des réfs productives, dans l'ordre de coupe choisi
+
+// Liste BRUTE des réfs productives (avec lignes), dans l'ordre du PLAN.
+function fmmRawRefs(){
+  const groups=(typeof getRefGroups==='function'?getRefGroups():[]);
+  const out=[];
+  groups.forEach((g,i)=>{ if((g.rows||[]).length) out.push({idx:i,ref:(g.ref||('Référence '+(i+1))),mother:g.mother,edge:g.edge,blade:g.blade,machine:g.machine||'',useful:g.useful,longueur:g.longueur}); });
+  return out;
+}
+// Ordre de coupe normalisé : les index de ficheRefOrder encore productifs, puis
+// les nouveaux index (réfs ajoutées) en fin. Robuste aux changements de plan.
+function fmmCutOrder(){
+  const prod=fmmRawRefs().map(r=>r.idx);
+  const seen=new Set(), out=[];
+  (ficheRefOrder||[]).forEach(i=>{ if(prod.includes(i)&&!seen.has(i)){out.push(i);seen.add(i);} });
+  prod.forEach(i=>{ if(!seen.has(i)){out.push(i);seen.add(i);} });
+  return out;
+}
+// Réfs productives dans l'ordre de COUPE (utilisé par l'affichage / le gating).
+function fmmGetRefs(){
+  const byIdx={}; fmmRawRefs().forEach(r=>{byIdx[r.idx]=r;});
+  return fmmCutOrder().map(i=>byIdx[i]).filter(Boolean);
+}
+// Positions d'origine dans `computed` (ordre plan) réordonnées en ordre de coupe.
+// Sert à générer les bobines dans l'ordre de coupe SANS casser l'index planManual.
+function fmmGenOrder(computed){
+  const raw=fmmRawRefs();
+  if(!raw.length || raw.length!==computed.length) return computed.map((_,k)=>k);
+  const posByIdx={}; raw.forEach((r,k)=>{posByIdx[r.idx]=k;});
+  return fmmCutOrder().map(idx=>posByIdx[idx]).filter(k=>k!=null);
+}
+// Déplace une réf dans l'ordre de coupe (▲ dir=-1 / ▼ dir=+1).
+function fmmMoveRef(idx,dir){
+  const order=fmmCutOrder();
+  const pos=order.indexOf(idx), to=pos+dir;
+  if(pos<0||to<0||to>=order.length) return;
+  const t=order[pos]; order[pos]=order[to]; order[to]=t;
+  ficheRefOrder=order;
+  // Rien de coupé : on régénère les bobines dans le nouvel ordre.
+  // Sinon : les coupées restent en place, seuls les blocs/gating se réordonnent.
+  if(typeof isFicheUntouched==='function' && isFicheUntouched()){
+    importPlanToFiche({keepRefValidation:true});
+  }
+  renderFicheMachineBlocks();
+}
+function fmmIsMulti(){ return fmmRawRefs().length>1; }
+// Index de la réf « en cours » = 1re réf non encore validée (ordre plan).
+function fmmActiveIdx(){
+  const refs=fmmGetRefs();
+  for(const r of refs){ if(!ficheRefValidated.has(r.idx)) return r.idx; }
+  return refs.length?refs[refs.length-1].idx:0;
+}
+// Choix machine sur un bloc réf de la fiche : applique bords/lame par défaut de
+// la machine DANS CE BLOC uniquement (l'opérateur peut ensuite les corriger).
+function onFmmMachineChange(sel){
+  const blk=sel.closest('.fmm-block'); if(!blk) return;
+  const def=(typeof MACHINE_DEFAULTS!=='undefined')?MACHINE_DEFAULTS[sel.value]:null;
+  if(def){
+    const e=blk.querySelector('[data-fmm="edge"]'); if(e) e.value=def.edge;
+    const b=blk.querySelector('[data-fmm="blade"]'); if(b) b.value=def.blade;
+  }
+}
+// Construit / met à jour les blocs machine par référence.
+// opts.fresh       : import neuf depuis le plan -> repart de zéro (gating actif)
+// opts.allValidated: reprise d'un brouillon -> toutes les réfs déjà validées
+function renderFicheMachineBlocks(opts){
+  opts=opts||{};
+  const mono=document.getElementById('fMachineMono');
+  const multi=document.getElementById('fMachineMulti');
+  const cont=document.getElementById('fMachineBlocks');
+  if(!mono||!multi||!cont) return;
+  const refs=fmmGetRefs();
+  if(refs.length<=1){
+    // MONO-RÉF : comportement historique inchangé.
+    mono.style.display='';
+    multi.style.display='none';
+    ficheRefValidated.clear();
+    return;
+  }
+  // MULTI-RÉF
+  mono.style.display='none';
+  multi.style.display='';
+  if(opts.fresh) ficheRefValidated.clear();
+  if(opts.allValidated) refs.forEach(r=>ficheRefValidated.add(r.idx));
+  const activeIdx=fmmActiveIdx();
+  // Lot 2 : liste « Ordre de coupe » (▲▼) — blocs machine + bobines suivent cet ordre.
+  const orderEl=document.getElementById('fmmOrder');
+  if(orderEl){
+    let oh='<div class="section-title" style="margin:0 0 8px">Ordre de coupe</div><div class="fmm-order-list">';
+    refs.forEach((r,pos)=>{
+      oh+='<div class="fmm-order-row">'
+        +'<span class="fmm-order-num">'+(pos+1)+'</span>'
+        +'<span class="fmm-order-name">🎞 '+esc(String(r.ref))+'</span>'
+        +'<span class="fmm-order-btns">'
+        +'<button class="btn btn-ghost btn-sm" '+(pos===0?'disabled ':'')+'onclick="fmmMoveRef('+r.idx+',-1)">▲</button>'
+        +'<button class="btn btn-ghost btn-sm" '+(pos===refs.length-1?'disabled ':'')+'onclick="fmmMoveRef('+r.idx+',1)">▼</button>'
+        +'</span></div>';
+    });
+    oh+='</div>';
+    orderEl.innerHTML=oh;
+  }
+  let html='';
+  refs.forEach(r=>{
+    const validated=ficheRefValidated.has(r.idx);
+    const active=(r.idx===activeIdx) && !validated;
+    const locked=!validated && !active;
+    const stateCls=active?'active':(locked?'locked':'');
+    const meta='laize '+fmt(r.useful)+' mm'+(r.longueur?(' · '+esc(String(r.longueur))+' ml'):'');
+    const V=v=>esc(String(v==null?'':v));
+    let badge, body, hint;
+    if(locked){
+      badge='<span class="fmm-badge lock">🔒 à renseigner au passage</span>';
+      body='';
+      hint='<div class="fmm-hint" style="color:var(--muted)">Mère / bords / lame pré-remplis ('+V(r.mother||'—')+' / '+V(r.edge||'—')+' / '+V(r.blade||'—')+') — se débloque après validation de la réf précédente.</div>';
+    }else{
+      badge=validated?'<span class="fmm-badge val">✓ validée</span>':'<span class="fmm-badge act">réf en cours</span>';
+      const mopt=m=>`<option value="${m}"${r.machine===m?' selected':''}>${getMachineLabel(m)}</option>`;
+      body='<div class="field" style="margin-bottom:10px"><label>Machine de cette référence</label>'
+        +'<select data-fmm="machine" onchange="onFmmMachineChange(this)"><option value="">— choisir —</option>'
+        +['feba','maveg','cevenini'].map(mopt).join('')+'</select></div>'
+        +'<div class="row3">'
+        +'<div class="field"><label>Bobine mère (mm)</label><input type="text" data-fmm="mother" inputmode="decimal" value="'+V(r.mother)+'"></div>'
+        +'<div class="field"><label>Perte bords (mm)</label><input type="text" data-fmm="edge" inputmode="decimal" value="'+V(r.edge)+'"></div>'
+        +'<div class="field"><label>Perte lame (mm)</label><input type="text" data-fmm="blade" inputmode="decimal" value="'+V(r.blade)+'"></div>'
+        +'</div>'
+        +'<button class="btn btn-blue" style="width:100%;margin-top:10px" onclick="applyFicheRefPlanChange('+r.idx+')">🔄 Changement plan — '+esc(String(r.ref))+'</button>';
+      hint=validated
+        ? '<div class="fmm-hint" style="color:var(--green)">✓ Réf validée — tu peux la recorriger si le rouleau change.</div>'
+        : '<div class="fmm-hint" style="color:var(--orange)">⚠ Vérifie la vraie bobine mère puis clique « Changement plan » pour cette réf.</div>';
+    }
+    html+='<div class="fmm-block '+stateCls+'" data-ref-idx="'+r.idx+'">'
+      +'<div class="fmm-head">'+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span><span class="fmm-meta">'+meta+'</span></div>'
+      +body+hint+'</div>';
+  });
+  cont.innerHTML=html;
+  // Miroir de la réf en cours vers les champs historiques (fMother/fEdge/fBlade)
+  // pour que la garde chrono / l'impression continuent de fonctionner.
+  const act=refs.find(r=>r.idx===activeIdx)||refs[refs.length-1];
+  if(act){
+    const set=(id,v)=>{const e=document.getElementById(id); if(e) e.value=(v==null?'':v);};
+    set('fMother',act.mother); set('fEdge',act.edge); set('fBlade',act.blade);
+    if(act.machine) ficheMachine=act.machine;
+  }
+  // Verrou chrono : tant qu'aucune réf n'est validée, le plan n'est pas validé.
+  if(ficheRefValidated.size===0) fichePlanValidated=false;
+  const hintEl=document.getElementById('fmmHint');
+  if(hintEl){
+    if(ficheRefValidated.size===0){ hintEl.innerHTML='⚠ Valide la 1<sup>re</sup> référence (sa bobine mère réelle) avant de démarrer le chrono.'; hintEl.style.color='var(--orange)'; }
+    else{ hintEl.textContent='✓ Chrono autorisé. Renseigne chaque réf au moment de la couper.'; hintEl.style.color='var(--green)'; }
+  }
+}
+// « Changement plan » d'UNE référence : écrit ses dimensions dans le bloc plan
+// correspondant, recalcule uniquement cette réf (les coupées sont conservées),
+// marque la réf validée et débloque la suivante.
+function applyFicheRefPlanChange(idx){
+  const blk=document.querySelector('#fMachineBlocks .fmm-block[data-ref-idx="'+idx+'"]');
+  if(!blk){ return; }
+  const gv=s=>blk.querySelector('[data-fmm="'+s+'"]');
+  const mother=(gv('mother')?.value||'').trim();
+  const edge=(gv('edge')?.value||'').trim();
+  const blade=(gv('blade')?.value||'').trim();
+  const machine=(gv('machine')?.value||'').trim();
+  if(!machine){ showToast('⚠ Choisis la machine de cette référence.','err'); gv('machine')?.focus(); return; }
+  if(!mother){ showToast('⚠ Renseigne la bobine mère de cette référence.','err'); gv('mother')?.focus(); return; }
+  if(!edge){ showToast('⚠ Renseigne la perte bords de cette référence.','err'); gv('edge')?.focus(); return; }
+  if(blade===''){ showToast('⚠ Renseigne la perte lame de cette référence.','err'); gv('blade')?.focus(); return; }
+  // Écrit dans le bloc plan correspondant (position = index).
+  const planBlock=document.querySelectorAll('.ref-block')[idx];
+  if(planBlock){
+    const set=(s,v)=>{const e=planBlock.querySelector('[data-rb="'+s+'"]'); if(e) e.value=v;};
+    set('machine',machine); set('mother',mother); set('edge',edge); set('blade',blade);
+  }
+  // Miroir champs historiques (garde chrono / impression).
+  const setId=(id,v)=>{const e=document.getElementById(id); if(e) e.value=v;};
+  setId('fMother',mother); setId('fEdge',edge); setId('fBlade',blade);
+  ficheMachine=machine;
+  if(typeof recalcPlan==='function') recalcPlan();
+  const rlbl=String((fmmGetRefs().find(r=>r.idx===idx)||{}).ref||('réf '+(idx+1)));
+  if(isFicheUntouched()){
+    // Rien de coupé : régénération complète (chaque bloc plan a sa propre mère).
+    ficheRefValidated.add(idx);
+    fichePlanValidated=true;
+    importPlanToFiche({keepRefValidation:true});
+    renderFicheMachineBlocks();
+    showToast('✓ Plan recalculé — '+rlbl,'ok');
+  }else{
+    if(!confirm('Des bobines sont déjà coupées.\n\nLes bobines coupées sont CONSERVÉES ; seul le reste des réfs non terminées est recalculé avec les nouvelles dimensions.\n\nContinuer ?')) return;
+    ficheRefValidated.add(idx);
+    fichePlanValidated=true;
+    recalcEcartsFromFiche({force:true});
+    renderFicheMachineBlocks();
+    showToast('✓ Plan recalculé — '+rlbl,'ok');
+  }
+}
 // Bouton « Changement plan » : recalcule le plan de découpe de la fiche avec les
 // valeurs machine réelles saisies par l'opérateur, puis régénère les bobines.
 // Bloqué si le découpage a déjà commencé (protège le travail terrain).
@@ -8898,10 +9140,16 @@ function applyFichePlanChange(){
 // Bouton « Imprimer le plan » : imprime le plan complet recalculé avec les
 // valeurs machine réelles de la fiche (n'affecte ni les bobines ni le verrou chrono).
 function printFichePlan(){
-  [['fMother','motherWidth'],['fEdge','edgeLoss'],['fBlade','bladeWidth']].forEach(([f,p])=>{
-    const fe=document.getElementById(f), pe=document.getElementById(p);
-    if(fe&&pe) pe.value=fe.value;
-  });
+  // En mono-réf, recopier la mère/bords/lame de la fiche vers le bloc plan #1.
+  // En multi-réf, chaque bloc plan porte déjà ses propres valeurs (écrites à
+  // chaque « Changement plan » de réf) : ne rien recopier pour ne pas écraser
+  // la réf #1 avec la valeur miroir de la réf en cours.
+  if(!(typeof fmmIsMulti==='function' && fmmIsMulti())){
+    [['fMother','motherWidth'],['fEdge','edgeLoss'],['fBlade','bladeWidth']].forEach(([f,p])=>{
+      const fe=document.getElementById(f), pe=document.getElementById(p);
+      if(fe&&pe) pe.value=fe.value;
+    });
+  }
   recalcPlan();
   printPlan();
 }
@@ -9446,7 +9694,8 @@ function serializeFicheState(){
       etiquetage:g('planEtiquetage')?.value||'',cerclage:g('planCerclage')?.value||'',notes:g('planNotesEmballage')?.value||'',rows:getOrderRows(),refGroups:serializeRefGroups(),commandeFiles:(migrateCommandePhoto(),commandeFiles.slice())},
     fiche:{machine:ficheMachine,machine2:ficheMachine2,op2DiffMachine:g('fOp2DiffMachine')?.checked||false,mother2:g('fMother2')?.value||'',edge2:g('fEdge2')?.value||'',blade2:g('fBlade2')?.value||'',ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',lameChg:g('fLameChg')?.checked||false,lameNew:g('fLameNew')?.value||'',lameChgBob:g('fLameChgBob')?.value||'',
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
-      numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||''},
+      numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||'',
+      refOrder:(typeof ficheRefOrder!=='undefined'?ficheRefOrder.slice():[]),refValidated:(typeof ficheRefValidated!=='undefined'?Array.from(ficheRefValidated):[])},
     chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning, runStart:chronoRunStart},
     lines:getFicheLinesData()
   };
@@ -9700,6 +9949,14 @@ function restoreFicheState(st){
   // Brouillon repris = plan déjà valide : le chrono peut redémarrer sans
   // recliquer « Changement plan » (sauf si l'opérateur modifie une dimension).
   fichePlanValidated=true; updateFPlanHint();
+  ficheRefOrder=Array.isArray(st.fiche.refOrder)?st.fiche.refOrder.slice():[];
+  if(Array.isArray(st.fiche.refValidated)){
+    ficheRefValidated=new Set(st.fiche.refValidated);
+    if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
+  }else if(typeof renderFicheMachineBlocks==='function'){
+    // Anciens brouillons (avant Lot 1/2) : toutes les réfs considérées validées.
+    renderFicheMachineBlocks({allValidated:true});
+  }
   // Reprise du chrono à la valeur où le brouillon a été créé (remis en pause).
   restoreChrono(st.chrono);
 }
