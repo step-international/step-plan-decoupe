@@ -1091,7 +1091,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.01-L25';
+const APP_VERSION='2026.07.01-L27';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -1272,7 +1272,7 @@ async function loadFirestoreData(){
 async function backfillDeleted(){
   if(!db) return;
   try{
-    const cols=['saves','temps','fiches'];
+    const cols=['saves','temps','fiches','stockArticles','stockMouvements','maintenance'];
     const PAGE=1000;
     let total=0, complete=true;
     for(const col of cols){
@@ -1317,12 +1317,16 @@ async function loadCorbeille(silent){
     const r=await Promise.all([
       db.collection('saves').where('deleted','==',true).limit(500).get(),
       db.collection('temps').where('deleted','==',true).limit(500).get(),
-      db.collection('fiches').where('deleted','==',true).limit(500).get()
+      db.collection('fiches').where('deleted','==',true).limit(500).get(),
+      db.collection('maintenance').where('deleted','==',true).limit(500).get(),
+      db.collection('stockArticles').where('deleted','==',true).limit(500).get()
     ]);
     corbeilleCache=[
       ...r[0].docs.map(d=>Object.assign({_id:d.id,_col:'saves'},d.data())),
       ...r[1].docs.map(d=>Object.assign({_id:d.id,_col:'temps'},d.data())),
-      ...r[2].docs.map(d=>Object.assign({_id:d.id,_col:'fiches'},d.data()))
+      ...r[2].docs.map(d=>Object.assign({_id:d.id,_col:'fiches'},d.data())),
+      ...r[3].docs.map(d=>Object.assign({_id:d.id,_col:'maintenance'},d.data())),
+      ...r[4].docs.map(d=>Object.assign({_id:d.id,_col:'stockArticles'},d.data()))
     ];
     await purgeExpiredItems();
     if(!silent) renderCorbeille();
@@ -1344,6 +1348,8 @@ async function purgeExpiredItems(){
   const retentionFor=item=>{
     // Une fiche validée bénéficie de la rétention longue
     if(item._col==='fiches' && item.valide===true) return RETENTION_VALID_DAYS*dayMs;
+    // INT-1 : le registre des lames est de la traçabilité qualité → rétention longue (2 ans)
+    if(item._col==='maintenance') return RETENTION_VALID_DAYS*dayMs;
     return RETENTION_DRAFT_DAYS*dayMs;
   };
   const isExpired=item=>item.deletedAt&&(now-new Date(item.deletedAt).getTime())>retentionFor(item);
@@ -3872,6 +3878,21 @@ function computePlanAggregate(computed){
   return {totalBobines,totalMat,totalUsed,pct,chuteStockMm,perteMm,resteRouleauxMm,
           perteMereMm,pertePct,chutesUsedAll,chutesPieces,recutCountAll};
 }
+// Mère STANDARD d'une référence d'après CLIENT_DATA (toutes clients confondus),
+// par n° de référence en tête de chaîne. 0 si inconnue. Sert à alerter quand la
+// bobine mère saisie s'écarte fortement du standard (cause du sur-comptage de bobines).
+function refStdMother(refStr){
+  const key=String(refStr||'').trim().toLowerCase();
+  if(!key) return 0;
+  const num=(key.match(/(\d{5,})/)||[])[1]||'';
+  for(const list of Object.values(CLIENT_DATA)){
+    for(const r of (list||[])){
+      const rk=String(r.ref||'').trim().toLowerCase();
+      if(rk===key || (num && rk.indexOf(num)>=0)) return Number(r.largeur)||0;
+    }
+  }
+  return 0;
+}
 function recalcPlan(){
   // Colore chaque select machine selon sa valeur (bleu FEBA / vert MAVEG / violet CEVENINI).
   document.querySelectorAll('[data-rb="machine"]').forEach(el=>{
@@ -3912,6 +3933,16 @@ function recalcPlan(){
   }else if(totalBobChk>150){
     heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+totalBobChk+' bobines mères — on ne dépasse jamais 150 en production. Vérifie les quantités saisies.</div>';
   }
+  // Alerte non bloquante : bobine mère saisie très différente de la mère STANDARD
+  // connue de la référence. Cause typique du "trop de bobines" (ex. VEKA 41313870,
+  // standard 1260 mm, coupé par erreur sur un rouleau 1080 mm → nettement plus de bobines).
+  computed.forEach((c,ci)=>{
+    if(!c.rows.length) return;
+    const std=refStdMother(c.ref), mo=Number(c.mother)||0;
+    if(std>0 && mo>0 && Math.abs(mo-std)>50){
+      heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+esc(c.ref||('Réf '+(ci+1)))+' : bobine mère saisie <b>'+fmt(mo)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(std)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
+    }
+  });
   // planGroups global = concat des configs de toutes les réfs (pour le reste de l'app)
   planGroups=[].concat(...computed.map(c=>c.planGroups));
 
@@ -4198,8 +4229,6 @@ function recutPrintRows(c,blade){
     out+=`<tr style="background:#e6fffa">
       <td style="border-left:4px solid #0d9488;font-weight:700;color:#0f766e">♻ ${g.count>1?g.count+' rouleaux chute':'1 rouleau chute'}</td>
       <td><b>${esc(makeLabel(g.pattern))}</b> — À RECOUPER EN 1ER</td>
-      <td>${st.laizes}</td>
-      <td>${fmt(st.total)} / ${fmt(g.rollW)}</td>
       <td>reste ${fmt(rest)} mm</td></tr>`;
   });
   return out;
@@ -4231,6 +4260,17 @@ function recutPrintRecap(c){
 //   refLabelFallback, motherFallback, typeCond, palette, etiquetage, cerclage,
 //   notesEmb, cmdInfoHtml}. Toutes les valeurs texte sont échappées.
 function buildPlanPrintHTML(o){
+  // Récap "bobines à couper" d'une référence : total + détail qty×largeur.
+  // Source prioritaire : la commande (rows) ; repli : reconstitution depuis les patterns.
+  const _planGroupCmd=c=>{
+    const map={};
+    if(c&&c.rows&&c.rows.length){ c.rows.forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0; if(w&&q) map[w]=(map[w]||0)+q;}); }
+    else { (c&&c.planGroups||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); (g.pattern||[]).forEach(pw=>{ const w=Number(pw)||0; if(w) map[w]=(map[w]||0)+cnt; }); }); }
+    const widths=Object.keys(map).map(Number).sort((a,b)=>a-b);
+    const total=widths.reduce((s,w)=>s+map[w],0);
+    const str=widths.map(w=>map[w]+'×'+w+'mm').join(' + ');
+    return {total,str};
+  };
   const groups=o.groups||[];
   const multi=groups.length>1;
   const mono=groups[0]||{};
@@ -4252,17 +4292,17 @@ function buildPlanPrintHTML(o){
       tRows+=`<tr style="${isLast?'background:#fffbea;font-style:italic':''}">
         <td>${g.count>1?g.count+' bobines':'1 bobine'}</td>
         <td>${chutePrintConfig(g.pattern,g.chute)}</td>
-        <td>${st.laizes}</td>
-        <td>${fmt(st.total)} / ${fmt(useful)}</td>
         <td>${isLast?'Solde '+fmt(waste)+' mm':fmt(waste)+' mm'}</td></tr>`;
     });
     if(multi){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
       sections+=`<h3 style="font-size:14px;margin:18px 0 6px;color:#5b21b6">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;
     }
-    sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Laizes</th><th>Utilisé / Utile</th><th>Chute</th></tr>${tRows}</table>`+chutePrintRecap(c)+recutPrintRecap(c);
+    const _cmd=_planGroupCmd(c);
+    const _cmdLine=_cmd.total?`<div class="cmd-recap">🧾 Bobines à couper${multi?` — ${esc(c.ref||('réf '+(ci+1)))}`:''} : <b>${_cmd.total}</b> bobineaux${_cmd.str?` · ${esc(_cmd.str)}`:''}</div>`:'';
+    sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+chutePrintRecap(c)+recutPrintRecap(c)+_cmdLine;
   });
-  if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Laizes</th><th>Utilisé / Utile</th><th>Chute</th></tr></table>';
+  if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr></table>';
 
   const metaTech=multi
     ? `Machine : ${o.mn} · ${groups.length} références · Date : ${today()}`
@@ -4272,18 +4312,22 @@ function buildPlanPrintHTML(o){
   const _cmdSrc=(o.mandrinGroups&&o.mandrinGroups.length)?o.mandrinGroups:(groups||[]);
   const _cmdMap={}; _cmdSrc.forEach(g=>(g.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0;if(w&&q)_cmdMap[w]=(_cmdMap[w]||0)+q;}));
   const _cmdStr=Object.keys(_cmdMap).map(Number).sort((a,b)=>a-b).map(w=>_cmdMap[w]+'×'+w+'mm').join(' + ');
+  const _cmdTotal=Object.values(_cmdMap).reduce((a,b)=>a+b,0);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plan STEP</title>
   <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}h2{font-size:18px;margin-bottom:4px}
   .meta{color:#555;font-size:12px;margin-bottom:16px;line-height:1.8}
   table{border-collapse:collapse;width:100%;margin-bottom:6px}th,td{border:1px solid #bbb;padding:7px 11px;text-align:left}
-  th{background:#f0f0f0;font-size:12px;text-transform:uppercase}@media print{body{padding:8px}}</style></head><body>
+  th{background:#f0f0f0;font-size:12px;text-transform:uppercase}
+  .cmd-recap{margin:2px 0 14px;padding:9px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:6px;font-size:12.5px;color:#333}
+  .cmd-recap.cmd-total{background:#eef2ff;border-left-color:#4338ca}
+  @media print{body{padding:8px}}</style></head><body>
   <h2>Plan de découpe — STEP International</h2>
   <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
   ${metaTech}<br>
-  ${_cmdStr?`Commande : <b>${esc(_cmdStr)}</b><br>`:''}
   Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(o.cerclage)}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
   ${sections}
+  ${multi&&_cmdStr?`<div class="cmd-recap cmd-total">🧾 Commande totale : <b>${_cmdTotal}</b> bobineaux · ${esc(_cmdStr)}</div>`:''}
   ${mandrinRecapHTML(o.mandrinGroups||groups,o.client)}</body></html>`;
 }
 function getPlanHTML(){
@@ -6232,13 +6276,26 @@ function allKnownRefs(){
 }
 async function loadStock(){
   if(!db||!canViewStock()) return;
+  const migrated=localStorage.getItem(BACKFILL_FLAG)==='1';
+  // CO-3 : quand la migration `deleted` est terminée (backfill complet, stock inclus), on
+  // filtre côté serveur where('deleted','==',false) → moins de lectures. Sinon, ou si l'index
+  // composite (deleted,date) manque, repli non-filtré + filtre client → aucune donnée masquée.
+  const fetchCol=async(name,ordered)=>{
+    if(migrated){
+      try{
+        let q=db.collection(name).where('deleted','==',false);
+        if(ordered) q=q.orderBy('date','desc');
+        const snap=await q.limit(5000).get();
+        return snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+      }catch(e){ if(e.code!=='failed-precondition') console.warn('Stock filtré ('+name+') :',e.message); }
+    }
+    let q=db.collection(name); if(ordered) q=q.orderBy('date','desc');
+    const snap=await q.limit(5000).get();
+    return snap.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
+  };
   try{
-    const r=await Promise.all([
-      db.collection('stockArticles').limit(5000).get(),
-      db.collection('stockMouvements').orderBy('date','desc').limit(5000).get()
-    ]);
-    stockArticlesCache=r[0].docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
-    stockMouvementsCache=r[1].docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
+    const r=await Promise.all([ fetchCol('stockArticles',false), fetchCol('stockMouvements',true) ]);
+    stockArticlesCache=r[0]; stockMouvementsCache=r[1];
     stockLoaded=true;
   }catch(e){ console.warn('Chargement stock:',e); }
 }
@@ -6385,7 +6442,7 @@ function stockViewHTML(){
     </div>
 
     <div id="stockArticleForm" class="hidden" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:10px">Nouvel article</div>
+      <div class="section-title">Nouvel article</div>
       <datalist id="stockRefList">${datalist}</datalist>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div style="grid-column:1/-1"><label class="stk-lbl">Référence</label><input list="stockRefList" id="saRef" oninput="onStockArticleRef()" placeholder="ex : 41319051 - TacFlex® DQ1002" class="stk-inp"></div>
@@ -6405,7 +6462,7 @@ function stockViewHTML(){
 
     <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">🔮 Prévision d'approvisionnement</div>
+        <div class="section-title" style="margin-bottom:0">🔮 Prévision d'approvisionnement</div>
         <label class="u-meta">Horizon&nbsp;<input id="stockHorizonSem" type="number" min="1" value="18" oninput="stockForecastRenderDebounced()" style="width:64px;padding:5px 7px;border-radius:7px;border:1px solid var(--border2);background:var(--card);color:var(--text)"> sem.</label>
       </div>
       <div style="font-size:11px;color:#666;margin-bottom:10px">Consommation déduite des sorties de stock des 90 derniers jours. Indicatif tant que l'historique est court.</div>
@@ -6413,7 +6470,7 @@ function stockViewHTML(){
     </div>
 
     <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:10px">Nouveau mouvement</div>
+      <div class="section-title">Nouveau mouvement</div>
       <div style="display:flex;gap:6px;margin-bottom:10px">
         <button type="button" id="smtEntree" onclick="setStockMvtType('entree')" class="stock-type-btn">+ Entrée</button>
         <button type="button" id="smtSortie" onclick="setStockMvtType('sortie')" class="stock-type-btn">− Sortie</button>
@@ -6424,14 +6481,13 @@ function stockViewHTML(){
         <div><label class="stk-lbl">Nb rouleaux <span id="stockRollM2" style="color:var(--green)"></span></label><input id="stockRolls" inputmode="numeric" oninput="onStockRollsInput()" class="stk-inp"></div>
         <div><label class="stk-lbl">Quantité (m²) <span id="stockM2Hint" style="color:#666;font-size:11px"></span></label><input id="stockM2" inputmode="numeric" class="stk-inp"></div>
         <div><label class="stk-lbl">N° BL / lot</label><input id="stockBl" class="stk-inp"></div>
-        <div><label class="stk-lbl">Prix d'achat (€/m²)</label><input id="stockPrix" inputmode="decimal" class="stk-inp"></div>
         <div><label class="stk-lbl">Note / motif</label><input id="stockNote" class="stk-inp"></div>
       </div>
       <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="saveStockMouvement(this)">✓ Enregistrer le mouvement</button>
     </div>
 
     <div>
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px">Derniers mouvements</div>
+      <div class="section-title" style="margin-bottom:8px">Derniers mouvements</div>
       ${mvts.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
         <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase">
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">Date</th>
@@ -6466,6 +6522,7 @@ async function saveStockArticle(btn){
     seuilM2:parseFloat(stkEl('saSeuil').value)||0,
     qtyMiniM2:parseFloat(stkEl('saQtyMini').value)||0,
     prixM2:parseFloat((stkEl('saPrix').value||'').replace(',','.'))||0,
+    deleted:false,
     createdAt:isoNow(), createdBy:currentUser?currentUser.ini:'?' };
   if(btn) btn.disabled=true;
   try{
@@ -6481,29 +6538,29 @@ function openStockArticleEdit(id){
   const a=stockArticlesCache.find(x=>x.id===id);
   if(!a){ showToast('Article introuvable.','err'); return; }
   const old=document.getElementById('saEditOverlay'); if(old) old.remove();
-  const inp='padding:10px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;width:100%;box-sizing:border-box;font-size:14px';
   const ov=document.createElement('div');
   ov.id='saEditOverlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px';
   ov.innerHTML=`
-    <div role="dialog" aria-modal="true" aria-label="Modifier l'article stock" style="background:#1a1a18;border:1px solid #333;border-radius:14px;max-width:520px;width:100%;margin:auto;padding:22px">
+    <div role="dialog" aria-modal="true" aria-label="Modifier l'article stock" style="background:var(--bg);border:1px solid var(--border);border-radius:14px;max-width:520px;width:100%;margin:auto;padding:22px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div style="font-family:sans-serif;font-size:17px;font-weight:800;color:#fff">✏ Modifier l'article</div>
-        <button onclick="document.getElementById('saEditOverlay').remove()" aria-label="Fermer" style="background:#222;border:1px solid #444;color:#ccc;border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
+        <div style="font-size:17px;font-weight:800;color:var(--text)">✏ Modifier l'article</div>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('saEditOverlay').remove()" aria-label="Fermer">✕</button>
       </div>
-      <div style="font-size:13px;color:#aaa;margin-bottom:16px">${esc(a.ref)} <span style="color:#666">(référence non modifiable)</span></div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">${esc(a.ref)} <span style="color:#666">(référence non modifiable)</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label class="stk-lbl">Largeur (mm)</label><input id="seLarg" inputmode="numeric" value="${a.largeur||''}" oninput="onStockEditSurface()" style="${inp}"></div>
-        <div><label class="stk-lbl">Longueur (m)</label><input id="seLong" inputmode="numeric" value="${a.longueur||''}" oninput="onStockEditSurface()" style="${inp}"></div>
-        <div><label class="stk-lbl">Surface unitaire (m²)</label><input id="seSurf" readonly value="${(Number(a.surfaceUnit)||stockSurfaceUnit(a.largeur,a.longueur)||'').toLocaleString('fr-FR')}" style="${inp};opacity:.7"></div>
-        <div><label class="stk-lbl">Fournisseur</label><input id="seFour" value="${esc(a.fournisseur||'')}" style="${inp}"></div>
-        <div><label class="stk-lbl">Délai appro. (sem.)</label><input id="seDelai" inputmode="numeric" value="${a.delaiSem||''}" style="${inp}"></div>
-        <div><label class="stk-lbl">Seuil mini (m²)</label><input id="seSeuil" inputmode="numeric" value="${a.seuilM2||''}" style="${inp}"></div>
-        <div><label class="stk-lbl">Qté mini commande (m²)</label><input id="seQtyMini" inputmode="numeric" value="${a.qtyMiniM2||''}" style="${inp}"></div>
-        <div><label class="stk-lbl">Prix d'achat (€/m²)</label><input id="sePrix" inputmode="decimal" value="${a.prixM2||''}" style="${inp}"></div>
+        <div><label class="stk-lbl">Largeur (mm)</label><input id="seLarg" inputmode="numeric" value="${a.largeur||''}" oninput="onStockEditSurface()" class="u-inp"></div>
+        <div><label class="stk-lbl">Longueur (m)</label><input id="seLong" inputmode="numeric" value="${a.longueur||''}" oninput="onStockEditSurface()" class="u-inp"></div>
+        <div><label class="stk-lbl">Surface unitaire (m²)</label><input id="seSurf" readonly value="${(Number(a.surfaceUnit)||stockSurfaceUnit(a.largeur,a.longueur)||'').toLocaleString('fr-FR')}" class="u-inp" style="opacity:.7"></div>
+        <div><label class="stk-lbl">Fournisseur</label><input id="seFour" value="${esc(a.fournisseur||'')}" class="u-inp"></div>
+        <div><label class="stk-lbl">Délai appro. (sem.)</label><input id="seDelai" inputmode="numeric" value="${a.delaiSem||''}" class="u-inp"></div>
+        <div><label class="stk-lbl">Seuil mini (m²)</label><input id="seSeuil" inputmode="numeric" value="${a.seuilM2||''}" class="u-inp"></div>
+        <div><label class="stk-lbl">Qté mini commande (m²)</label><input id="seQtyMini" inputmode="numeric" value="${a.qtyMiniM2||''}" class="u-inp"></div>
+        <div><label class="stk-lbl">Prix d'achat (€/m²)</label><input id="sePrix" inputmode="decimal" value="${a.prixM2||''}" class="u-inp"></div>
       </div>
-      <div style="margin-top:18px;text-align:right">
-        <button class="btn" style="background:#1f7a45;color:#fff;border:none" onclick="saveStockArticleEdit('${id}',this)">💾 Enregistrer</button>
+      <div style="margin-top:18px;display:flex;justify-content:space-between;gap:10px">
+        <button class="btn btn-red btn-sm" onclick="archiveStockArticle('${id}')" title="Récupérable ${RETENTION_DRAFT_DAYS} jours via la corbeille">🗑 Archiver</button>
+        <button class="btn btn-green" onclick="saveStockArticleEdit('${id}',this)">💾 Enregistrer</button>
       </div>
     </div>`;
   document.body.appendChild(ov);
@@ -6534,6 +6591,23 @@ async function saveStockArticleEdit(id,btn){
     showToast('✓ Article mis à jour','ok');
   }catch(e){ showToast('Erreur : '+e.message,'err'); if(btn) btn.disabled=false; }
 }
+// INT-2 : archivage d'un article stock (soft-delete). Récupérable via la corbeille
+// pendant RETENTION_DRAFT_DAYS. Les MOUVEMENTS, eux, ne se suppriment volontairement
+// pas : un mouvement erroné s'annule par écriture de correction (stockAnnulerMouvement),
+// ce qui préserve la traçabilité comptable.
+async function archiveStockArticle(id){
+  if(!canManageData()){ showToast('Archivage réservé au pilotage et aux admins.','err'); return; }
+  const a=stockArticlesCache.find(x=>x.id===id); if(!a){ showToast('Article introuvable.','err'); return; }
+  if(!confirm('Archiver l\'article '+a.ref+' ? (récupérable '+RETENTION_DRAFT_DAYS+' jours via la corbeille)\n\nSes mouvements sont conservés.')) return;
+  try{
+    await db.collection('stockArticles').doc(id).update({deleted:true,deletedAt:isoNow()});
+    stockArticlesCache=stockArticlesCache.filter(x=>x.id!==id);
+    await logAudit('delete','stockArticles',id,`Article stock archivé — ${a.ref}`);
+    document.getElementById('saEditOverlay')?.remove();
+    renderStock();
+    showToast('🗑 Article '+a.ref+' archivé','ok');
+  }catch(e){ showToast('Erreur : '+e.message,'err'); }
+}
 // Lot 6 — correction tracée : annule un mouvement par contre-écriture liée, sans rien détruire
 async function annulStockMouvement(id){
   if(!canViewStock()){ showToast('Accès réservé.','err'); return; }
@@ -6547,7 +6621,7 @@ async function annulStockMouvement(id){
     const corr={ date:isoNow(), type:'correction', ref:m.ref, m2:-(Number(m.m2)||0),
       rouleaux:(m.rouleaux!=null?-m.rouleaux:null), bl:m.bl||'',
       note:'Annulation du mouvement du '+(ds||'?')+(m.note?' ('+m.note+')':''),
-      op:currentUser?currentUser.ini:'?', corrige:id };
+      op:currentUser?currentUser.ini:'?', corrige:id, deleted:false };
     const r=await db.collection('stockMouvements').add(corr);
     corr.id=r.id; stockMouvementsCache.unshift(corr);
     await db.collection('stockMouvements').doc(id).update({corrigePar:r.id});
@@ -6585,9 +6659,8 @@ async function saveStockMouvement(btn){
   const mvt={ date:isoNow(), type:stockMvtType, ref, m2:signed,
     rouleaux:parseFloat(stkEl('stockRolls').value)||null,
     bl:(stkEl('stockBl').value||'').trim(),
-    prixM2:parseFloat((stkEl('stockPrix').value||'').replace(',','.'))||null,
     note:(stkEl('stockNote').value||'').trim(),
-    op:currentUser?currentUser.ini:'?' };
+    op:currentUser?currentUser.ini:'?', deleted:false };
   if(btn) btn.disabled=true;
   try{
     const r=await db.collection('stockMouvements').add(mvt);
@@ -6665,7 +6738,6 @@ async function lameInstall(machine,lameNum,opts){
     lameNum:num, dateInstall:pose, date:pose,
     description:opts.description||('Pose lame '+num+' sur '+getMachineLabel(machine)),
     responsable:opts.responsable||(currentUser?currentUser.ini:''),
-    echeance:'', note:'',
     createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
   try{
     const r=await db.collection('maintenance').add(rec);
@@ -6685,11 +6757,11 @@ async function lameAffuter(machine,lameNum){
   const now=isoNow(); const who=currentUser?currentUser.ini:'?';
   const trace={ type:'lame', categorie:'affutage', machine, lameNum:num,
     dateInstall:now, date:now,
-    description:'Lame '+num+' partie à l\'affûtage', responsable:who, echeance:'', note:'',
+    description:'Lame '+num+' partie à l\'affûtage', responsable:who,
     createdAt:now, createdBy:who, deleted:false };
   const neuve={ type:'lame', categorie:'installation', machine, lameNum:num,
     dateInstall:now, date:now,
-    description:'Lame '+num+' réinstallée neuve après affûtage', responsable:who, echeance:'', note:'',
+    description:'Lame '+num+' réinstallée neuve après affûtage', responsable:who,
     createdAt:now, createdBy:who, deleted:false };
   try{
     const batch=db.batch();
@@ -6713,7 +6785,7 @@ async function lameAffuterHorsMachine(lameNum){
   const now=isoNow(); const who=currentUser?currentUser.ini:'?';
   const trace={ type:'lame', categorie:'affutage', machine:'', lameNum:num,
     dateInstall:now, date:now,
-    description:'Lame '+num+' partie à l\'affûtage (hors machine)', responsable:who, echeance:'', note:'',
+    description:'Lame '+num+' partie à l\'affûtage (hors machine)', responsable:who,
     createdAt:now, createdBy:who, deleted:false };
   try{
     const ref=db.collection('maintenance').doc(); await ref.set(trace);
@@ -6818,10 +6890,20 @@ async function loadMaintenance(){
   // Lecture ouverte à tous les connectés (encart « État des lames » visible
   // par les opérateurs). L'écriture/suppression reste gardée plus bas.
   if(!db||!currentUser) return;
+  const migrated=localStorage.getItem(BACKFILL_FLAG)==='1';
   try{
-    const s=await db.collection('maintenance').orderBy('date','desc').limit(2000).get();
-    maintenanceCache=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
-    maintLoaded=true;
+    let docs;
+    if(migrated){
+      try{ // CO-3 : filtrage serveur si migration deleted faite (repli client sinon / index absent)
+        const s=await db.collection('maintenance').where('deleted','==',false).orderBy('date','desc').limit(2000).get();
+        docs=s.docs.map(d=>Object.assign({id:d.id},d.data()));
+      }catch(e){ if(e.code!=='failed-precondition') console.warn('Maintenance filtrée :',e.message); }
+    }
+    if(!docs){
+      const s=await db.collection('maintenance').orderBy('date','desc').limit(2000).get();
+      docs=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
+    }
+    maintenanceCache=docs; maintLoaded=true;
   }catch(e){ console.warn('Chargement maintenance:',e); }
 }
 function renderMaintenance(){
@@ -7939,7 +8021,7 @@ async function createRemainingPlan(f){
     cerclage:f.cerclage||'', notesEmballage:f.notesEmballage||'',
     commandeFiles:[],
     planManual:null,
-    reste:true, resteOf:f._id||'',
+    reste:true,
     deleted:false, date:isoNow()
   };
   try{
@@ -8908,12 +8990,14 @@ function renderCorbeille(){
   // INT-3 : la rétention dépend de l'item — 730 j pour une FICHE VALIDÉE (ISO), 45 j sinon.
   // (miroir de retentionFor() dans purgeExpiredItems ; l'ancien 45 j figé masquait "Restaurer"
   //  dès J46 sur des fiches validées encore conservées jusqu'à J730.)
-  const _retDaysOf=d=>(d.col==='fiches'&&d.valide)?RETENTION_VALID_DAYS:RETENTION_DRAFT_DAYS;
-  const labelOf={saves:'Plan',temps:'Temps',fiches:'Fiche'};
+  const _retDaysOf=d=>((d.col==='fiches'&&d.valide)||d.col==='maintenance')?RETENTION_VALID_DAYS:RETENTION_DRAFT_DAYS;
+  const labelOf={saves:'Plan',temps:'Temps',fiches:'Fiche',maintenance:'Lame',stockArticles:'Article stock'};
   const deleted=corbeilleCache.map(it=>{
     let label;
     if(it._col==='temps') label=(it.client||'')+' — '+(it.ref||'')+' ('+fmtTimeFr(it.duree||0)+')';
     else if(it._col==='fiches') label=it.name||((it.client||'')+' — '+(it.ref||''));
+    else if(it._col==='maintenance') label='Lame '+(it.lameNum||'?')+' — '+(getMachineLabel(it.machine||'')||'hors machine')+(it.categorie==='affutage'?' · affûtage':'');
+    else if(it._col==='stockArticles') label=(it.ref||'?')+(it.fournisseur?' — '+it.fournisseur:'');
     else label=(it.client||'')+' — '+(it.ref||'');
     return {col:it._col,id:it._id,label,date:it.deletedAt||it.date,valide:it.valide===true};
   }).sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -8982,6 +9066,14 @@ async function restoreItem(collection,id){
       if(caches[collection]&&!caches[collection].some(x=>x._id===id)) caches[collection].unshift(copy);
     }
     await logAudit('restore',collection,id,'');
+    // INT-1 : le cache maintenance utilise `id` (pas `_id`) et un rendu dédié → on le recharge proprement.
+    if(collection==='maintenance' && typeof loadMaintenance==='function'){
+      loadMaintenance().then(()=>{ try{ if(typeof renderMaintenance==='function' && document.getElementById('tabContentMaintenance')) renderMaintenance(); if(typeof renderLameStats==='function') renderLameStats(); }catch(_){} });
+    }
+    // INT-2 : idem pour les articles stock (cache dédié à clé `id`).
+    if(collection==='stockArticles' && typeof loadStock==='function'){
+      loadStock().then(()=>{ try{ if(typeof renderStock==='function') renderStock(); }catch(_){} });
+    }
   }catch(e){showToast('Erreur restauration : '+e.message,'err');}
   renderCorbeille();
 }
