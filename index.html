@@ -553,7 +553,7 @@ body.atelier .machine-btn{font-size:17px;padding:16px}
       <button class="btn btn-blue btn-sm" id="planSaveBtn" onclick="openSaveModal()">💾 Sauvegarder</button>
       <button class="btn btn-ghost btn-sm" id="planEditBtn" onclick="togglePlanManual()">✏️ Modifier le plan à la main</button>
     </div>
-    <div id="planManualHint" style="display:none;font-size:12px;color:var(--orange);margin:0 0 8px">✏️ Mode édition manuelle — modifie les bobines ci-dessous. Tout changement d'une donnée du plan (largeur, mère, machine…) régénère le plan automatiquement et efface ces modifs.</div>
+    <div id="planManualHint" style="display:none;font-size:12px;color:var(--orange);margin:0 0 8px">✏️ Mode édition manuelle — modifie les bobines ci-dessous. Ajouter des bobineaux ou des chutes n'efface plus ton plan. Un changement de mère / laize / machine adapte les paramètres sans toucher à tes bobines. Le badge ⚠ signale si le plan ne couvre pas la commande.</div>
     <div id="planCards"></div>
   </div>
 </div>
@@ -1091,7 +1091,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.01-L27';
+const APP_VERSION='2026.07.02-L33';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -1681,7 +1681,7 @@ document.addEventListener('keydown',function(e){
         // Reprise auto d'une commande dont le chrono tournait à la fermeture
         // (app tuée / téléphone éteint). On propose la reprise pour ne pas
         // écraser une éventuelle nouvelle saisie sans le consentement de l'opérateur.
-        setTimeout(maybeResumeRunningChrono,600);
+        setTimeout(function(){ maybeResumeRunningChrono().then(maybeResumePlan).catch(function(){ maybeResumePlan(); }); },600);
       }else{
         // UID non reconnu — déconnecter
         console.warn('UID non reconnu:',user.uid);
@@ -2716,6 +2716,18 @@ function importPlanToFiche(opts){
                        'Cliquer OK va TOUT EFFACER et regénérer la fiche depuis le Plan.\n\nContinuer ?');
       if(!ok) return;
     }
+    // L32 — Contrôle de cohérence plan→fiche : le plan manuel couvre-t-il exactement
+    // les quantités commandées (bobineaux produits + chutes stock) ? Avertissement
+    // NON bloquant (l'opérateur peut continuer) : en auto un toast, au clic une
+    // confirmation. On alerte sur le MANQUE ; le surplus part en HORS PLAN.
+    if(planManual){
+      const _manque=planManualCoherence(planManual,getRefGroups()).filter(x=>x.diff>0);
+      if(_manque.length){
+        const _txt=_manque.map(x=>x.diff+'×'+fmt(x.width)+' mm'+(computed.length>1?' (réf '+x.ref+')':'')).join(', ');
+        if(auto){ try{ showToast('⚠ Plan ≠ commande — il manque : '+_txt+'.\nLa fiche est générée quand même, vérifie les quantités.','err'); }catch(e){} }
+        else if(!confirm('⚠ Plan ≠ commande — il manque : '+_txt+'.\n\nGénérer la fiche quand même ?')) return;
+      }
+    }
     // Régénération complète = repart de zéro pour le gating multi-réf, SAUF si
     // l'appel vient d'une revalidation par référence (keepRefValidation).
     if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); ficheRefOrder=[]; }
@@ -3035,9 +3047,7 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin=''){
   div.className='order-row';
   if(rattrapage){div.dataset.rattrapage='1';div.style.borderLeft='3px solid var(--orange)';div.style.paddingLeft='6px';}
   div.innerHTML=`<span class="order-lbl">Qté</span>
-    <button type="button" class="step-btn" tabindex="-1" aria-label="Diminuer la quantité" onclick="stepField(this,-1)">−</button>
     <input type="text" data-type="qty" placeholder="400" value="${esc(qty)}" inputmode="decimal" oninput="debouncedRecalcPlan()" style="max-width:64px;text-align:center">
-    <button type="button" class="step-btn" tabindex="-1" aria-label="Augmenter la quantité" onclick="stepField(this,1)">+</button>
     <span class="order-lbl">× Larg.</span>
     <button type="button" class="step-btn" tabindex="-1" aria-label="Diminuer la largeur" onclick="stepField(this,-1)">−</button>
     <input type="text" data-type="width" placeholder="80" value="${esc(width)}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:64px;text-align:center">
@@ -3900,6 +3910,17 @@ function recalcPlan(){
     if(['feba','maveg','cevenini'].includes(el.value)) el.classList.add('mach-'+el.value);
   });
   colorVekaSelects();   // Profilé = cyan, VEKA = magenta
+  // L32 — Plan manuel COLLANT : un recalcul (ajout de bobineaux/chutes ou
+  // changement mère/laize/machine) n'efface PLUS le plan fait à la main. On
+  // ADAPTE ses paramètres à la saisie courante, on garde les bobines saisies,
+  // et renderPlanManual affiche un badge de désynchronisation plan↔commande.
+  if(planManual){
+    adaptPlanManualToInputs();
+    if(document.getElementById('usefulDisplay'))
+      document.getElementById('usefulDisplay').textContent='Largeur utile : '+fmt(getUseful())+' mm';
+    renderPlanManual();
+    return;
+  }
   // Tout recalcul automatique repart du plan optimisé : on abandonne une
   // éventuelle édition manuelle en cours (comportement validé).
   planManual=null;
@@ -4080,6 +4101,52 @@ function enterPlanManual(){
   const pmh=document.getElementById('planManualHint'); if(pmh) pmh.style.display='block';
   renderPlanManual();
 }
+// L32 — Adapte les PARAMÈTRES du plan manuel (mère/laize/lame/machine/longueur…)
+// à la saisie courante SANS toucher aux bobines saisies. Appariement par index
+// de référence (l'ordre des ref-blocks est stable). Une réf ajoutée à la commande
+// après passage en manuel n'entre pas dans le plan (signalée par le badge désync).
+function adaptPlanManualToInputs(){
+  if(!planManual) return;
+  const cur=getRefGroups();
+  planManual.forEach((r,i)=>{
+    const c=cur[i]; if(!c) return;
+    r.ref=c.ref; r.useful=c.useful; r.blade=c.blade; r.mother=c.mother;
+    r.edge=c.edge; r.film=c.film; r.veka=c.veka; r.machine=c.machine||''; r.longueur=c.longueur;
+  });
+}
+// L32 — Cohérence plan manuel ↔ commande, par réf et par laize.
+// Couverture d'une laize = bobineaux PRODUITS par le plan (Σ count×qty des confs)
+// + bobineaux EN STOCK (chutes, déjà à la bonne largeur, déduits de la commande).
+// Renvoie [{ref, width, ordered, covered, diff}] uniquement pour les laizes en
+// écart (diff>0 = manque ; diff<0 = surplus / HORS PLAN).
+function planManualCoherence(pm, refGroups){
+  const out=[];
+  (pm||[]).forEach((r,i)=>{
+    const g=(refGroups||[])[i]; if(!g) return;
+    const ordered={}, covered={};
+    (g.rows||[]).forEach(x=>{ if(x.width>0&&x.qty>0) ordered[x.width]=(ordered[x.width]||0)+x.qty; });
+    (g.chutes||[]).forEach(x=>{ if(x.width>0&&x.qty>0) covered[x.width]=(covered[x.width]||0)+x.qty; });
+    (r.bobines||[]).forEach(b=>{
+      const cnt=Math.max(1,parseInt(b.count)||1);
+      parseConf(b.conf).forEach(p=>{ if(p.width>0&&p.qty>0) covered[p.width]=(covered[p.width]||0)+cnt*p.qty; });
+    });
+    new Set([...Object.keys(ordered),...Object.keys(covered)].map(Number)).forEach(w=>{
+      const o=ordered[w]||0, c=covered[w]||0;
+      if(o!==c) out.push({ref:r.ref||('Réf '+(i+1)), width:w, ordered:o, covered:c, diff:o-c});
+    });
+  });
+  return out;
+}
+// Formate les écarts de cohérence en texte court (manque / surplus).
+function planCoherenceText(coh, multi){
+  const tag=x=>x.diff+'×'+fmt(x.width)+(multi?' ('+x.ref+')':'');
+  const manque=coh.filter(x=>x.diff>0).map(tag);
+  const surplus=coh.filter(x=>x.diff<0).map(x=>(-x.diff)+'×'+fmt(x.width)+(multi?' ('+x.ref+')':''));
+  const parts=[];
+  if(manque.length) parts.push('manque '+manque.join(', '));
+  if(surplus.length) parts.push('surplus '+surplus.join(', '));
+  return parts.join(' · ');
+}
 // Recalcule les totaux d'un plan manuel (perte/chute) à l'affichage.
 function planManualStats(){
   let totalBobines=0,totalMat=0,totalUsed=0,chuteStock=0;
@@ -4103,9 +4170,15 @@ function renderPlanManual(){
   const multi=planManual.length>1;
   const s=planManualStats();
   const perteCls=s.pertePct<3?'pct-green':s.pertePct<8?'pct-orange':'pct-red';
+  // L32 — badge désynchronisation plan manuel ↔ commande (par laize/réf).
+  const _coh=planManualCoherence(planManual,getRefGroups());
+  const _cohBadge=_coh.length
+    ? `<div class="stat-chip" style="background:#3a2e14;color:#fcd34d;border-color:var(--orange)">⚠ plan ≠ commande — ${esc(planCoherenceText(_coh,multi))}</div>`
+    : `<div class="stat-chip pct-green">✓ plan = commande</div>`;
   if(statsEl) statsEl.innerHTML=`
     <div class="stat-chip">${s.totalBobines} bobine${s.totalBobines>1?'s':''}</div>
     <div class="stat-chip" style="background:#3a2e14;color:#fcd34d">✏️ plan manuel</div>
+    ${_cohBadge}
     <div class="stat-chip ${perteCls}">🗑 Perte : <span style="font-weight:700">${fmt(Math.round(s.perteMm))} mm · ${s.pertePct.toFixed(1)}%</span></div>
     <div class="stat-chip">✂ Chute stock <span style="font-weight:700;color:var(--orange)">${fmt(Math.round(s.chuteStock))} mm</span></div>`;
   let html='';
@@ -4199,6 +4272,34 @@ function mandrinRecapHTML(groups,client){
   const rows=widths.map(w=>`<tr><td>${fmt(w)} mm</td><td style="font-family:monospace;font-weight:700">${esc(map[w])}</td></tr>`).join('');
   return `<h3 style="font-size:14px;margin:18px 0 6px;color:#b45309">🏷 Codes mandrin (Legrand France)</h3>
   <table><tr><th>Largeur</th><th>Code mandrin (4 chiffres)</th></tr>${rows}</table>`;
+}
+// L29 — Récap "Conditionnement par laize" : généralise l'ancien récap mandrin.
+// Ajoute une colonne UNIQUEMENT quand l'info existe sur au moins une laize
+// (Nb par carton, Code mandrin). Couvre les exceptions saisies par laize,
+// tous clients confondus (carton libre + mandrin Legrand).
+function packagingRecapHTML(groups){
+  const byW={};
+  (groups||[]).forEach(c=>{(c.rows||[]).forEach(r=>{
+    const w=Number(r.width)||0; if(!w) return;
+    const e=byW[w]||(byW[w]={});
+    if(Number(r.carton)>0) e.carton=Number(r.carton);
+    if(r.mandrin) e.mandrin=r.mandrin;
+  });});
+  const widths=Object.keys(byW).map(Number).sort((a,b)=>a-b);
+  if(!widths.length) return '';
+  const hasCarton=widths.some(w=>byW[w].carton>0);
+  const hasMandrin=widths.some(w=>byW[w].mandrin);
+  if(!hasCarton&&!hasMandrin) return '';
+  const head='<th>Largeur</th>'+(hasCarton?'<th>Nb par carton</th>':'')+(hasMandrin?'<th>Code mandrin</th>':'');
+  const rows=widths.map(w=>{
+    const e=byW[w];
+    return '<tr><td>'+fmt(w)+' mm</td>'
+      +(hasCarton?('<td>'+(e.carton>0?e.carton:'—')+'</td>'):'')
+      +(hasMandrin?('<td style="font-family:monospace;font-weight:700">'+(e.mandrin?esc(e.mandrin):'—')+'</td>'):'')
+      +'</tr>';
+  }).join('');
+  return '<h3 style="font-size:14px;margin:18px 0 6px;color:#b45309">📦 Conditionnement par laize</h3>'
+    +'<table><tr>'+head+'</tr>'+rows+'</table>';
 }
 // Config imprimable avec annotation chute (option B) : avant barré → après.
 function chutePrintConfig(pattern,chute){
@@ -4299,7 +4400,8 @@ function buildPlanPrintHTML(o){
       sections+=`<h3 style="font-size:14px;margin:18px 0 6px;color:#5b21b6">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;
     }
     const _cmd=_planGroupCmd(c);
-    const _cmdLine=_cmd.total?`<div class="cmd-recap">🧾 Bobines à couper${multi?` — ${esc(c.ref||('réf '+(ci+1)))}`:''} : <b>${_cmd.total}</b> bobineaux${_cmd.str?` · ${esc(_cmd.str)}`:''}</div>`:'';
+    const _nbMeres=(c.planGroups||[]).reduce((s,g)=>s+Math.max(1,parseInt(g.count)||1),0);
+    const _cmdLine=(_nbMeres||_cmd.str)?`<div class="cmd-recap">🧾 ${multi?esc(c.ref||('réf '+(ci+1)))+' : ':''}<b>${_nbMeres}</b> bobine${_nbMeres>1?'s':''} mère${_nbMeres>1?'s':''} à monter${_cmd.str?` · découpe : ${esc(_cmd.str)}`:''}</div>`:'';
     sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+chutePrintRecap(c)+recutPrintRecap(c)+_cmdLine;
   });
   if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr></table>';
@@ -4313,6 +4415,7 @@ function buildPlanPrintHTML(o){
   const _cmdMap={}; _cmdSrc.forEach(g=>(g.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0;if(w&&q)_cmdMap[w]=(_cmdMap[w]||0)+q;}));
   const _cmdStr=Object.keys(_cmdMap).map(Number).sort((a,b)=>a-b).map(w=>_cmdMap[w]+'×'+w+'mm').join(' + ');
   const _cmdTotal=Object.values(_cmdMap).reduce((a,b)=>a+b,0);
+  const _totMeres=(groups||[]).reduce((s,c)=>s+((c.planGroups||[]).reduce((ss,g)=>ss+Math.max(1,parseInt(g.count)||1),0)),0);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plan STEP</title>
   <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}h2{font-size:18px;margin-bottom:4px}
@@ -4327,8 +4430,8 @@ function buildPlanPrintHTML(o){
   ${metaTech}<br>
   Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(o.cerclage)}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
   ${sections}
-  ${multi&&_cmdStr?`<div class="cmd-recap cmd-total">🧾 Commande totale : <b>${_cmdTotal}</b> bobineaux · ${esc(_cmdStr)}</div>`:''}
-  ${mandrinRecapHTML(o.mandrinGroups||groups,o.client)}</body></html>`;
+  ${multi?`<div class="cmd-recap cmd-total">🧾 Total : <b>${_totMeres}</b> bobine${_totMeres>1?'s':''} mère${_totMeres>1?'s':''}${_cmdStr?` · découpe : ${esc(_cmdStr)}`:''}</div>`:''}
+  ${packagingRecapHTML(o.mandrinGroups||groups)}</body></html>`;
 }
 function getPlanHTML(){
   const autoGroups=packRefGroups(getRefGroups()).filter(c=>c.rows.length);
@@ -5388,7 +5491,11 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     (nbFiche>nbPlan?`+${nbFiche-nbPlan} bobine(s) en plus`:nbFiche<nbPlan?`-${nbPlan-nbFiche} bobine(s) en moins`:'');
 
   const g=id=>document.getElementById(id);
-  const client=g('planClient').value||g('fClient').value||'—';
+  // L31 — client archivé : FICHE d'abord (comme l'affichage : la fiche est la
+  // vérité terrain). Avant, plan d'abord → si le <select> plan avait perdu sa
+  // valeur, la fiche s'archivait à '—' et le nom disparaissait dans Données, le
+  // PDF et le plan « du reste » (qui repart de f.client).
+  const client=g('fClient').value||g('planClient').value||'—';
   const ref=multi?computed.map(c=>c.ref||'?').join(' + '):(g('planRef').value||g('fRef').value||'—');
   const ini=g('fInitiales').value||'—';
   const ini2=g('fOp2Active').checked?(g('fInitiales2').value||'—'):'';
@@ -6264,6 +6371,35 @@ var stockMvtType='entree';
 
 function stkEl(id){return document.getElementById(id);}
 function canViewStock(){ return currentRole==='admin' || currentRole==='pilotage'; }
+// L33 (Lot B1) — 3 emplacements de stock. Les mouvements historiques (sans champ
+// location) sont rattachés à STEP International par défaut (rétro-compatibilité).
+const STOCK_LOCS=[
+  {key:'step',lbl:'STEP International',desc:'matière dispo à couper',col:'#60a5fa'},
+  {key:'bk',  lbl:'Bischof + Klein',  desc:'matière fournisseur (commandée / en attente)',col:'#a78bfa'},
+  {key:'prod',lbl:'En production',    desc:'matière affectée aux commandes en cours',col:'#f59e0b'}
+];
+function stockMvtLocKey(m){ return (m&&(m.location==='bk'||m.location==='prod'))?m.location:'step'; }
+// Solde par emplacement ET par réf, en UN passage : {step:{ref:{m2,rolls}},bk:{…},prod:{…}}.
+// rolls signés par le signe du m² (entrée +, sortie −) : le nb de rouleaux est saisi
+// en valeur absolue mais le solde doit se cumuler avec le sens du mouvement.
+function stockBalancesByLoc(){
+  const bal={step:{},bk:{},prod:{}};
+  for(const m of stockMouvementsCache){
+    if(m.deleted) continue;
+    const loc=stockMvtLocKey(m), m2=Number(m.m2)||0;
+    const e=bal[loc][m.ref]||(bal[loc][m.ref]={m2:0,rolls:0});
+    e.m2+=m2;
+    e.rolls+=(m2<0?-1:1)*(Number(m.rouleaux)||0);
+  }
+  return bal;
+}
+function stockLocTotal(bal,loc){ let m2=0,rolls=0; Object.values((bal&&bal[loc])||{}).forEach(e=>{m2+=e.m2;rolls+=e.rolls;}); return {m2,rolls}; }
+var stockMvtLoc='step';
+function setStockMvtLoc(l){
+  stockMvtLoc=l;
+  STOCK_LOCS.forEach(o=>{ const b=stkEl('sml_'+o.key); if(!b) return; const on=o.key===l;
+    b.style.border='2px solid '+(on?o.col:'#555'); b.style.background=on?'rgba(255,255,255,.05)':'var(--card)'; b.style.color=on?o.col:'#999'; });
+}
 function stockSurfaceUnit(largeur,longueur){ return (Number(largeur)||0)/1000*(Number(longueur)||0); }
 function stockSoldeM2(ref){ return stockMouvementsCache.filter(x=>x.ref===ref).reduce((s,x)=>s+(Number(x.m2)||0),0); }
 function stockRefInfo(ref){
@@ -6323,7 +6459,7 @@ function stockForecastRender(){
   for(const m of stockMouvementsCache){
     if(m.deleted) continue;
     const rf=m.ref, m2=Number(m.m2)||0;
-    _soldeByRef[rf]=(_soldeByRef[rf]||0)+m2;
+    if(stockMvtLocKey(m)!=='bk') _soldeByRef[rf]=(_soldeByRef[rf]||0)+m2;   // B+K non reçu → hors stock dispo
     if(m.type==='sortie'){
       const t=new Date(m.date).getTime();
       if(t>=_cut90){ const e=_conso90[rf]||(_conso90[rf]={total:0,earliest:Infinity,n:0}); e.total+=Math.abs(m2); e.n++; if(t<e.earliest) e.earliest=t; }
@@ -6382,6 +6518,7 @@ async function renderStock(){
   if(!stockLoaded){ c.innerHTML='<div class="text-muted" style="padding:20px">Chargement du stock…</div>'; await loadStock(); }
   c.innerHTML=stockViewHTML();
   setStockMvtType(stockMvtType);
+  setStockMvtLoc(stockMvtLoc);
   onStockMvtRefChange();
   stockForecastRender();
 }
@@ -6413,64 +6550,86 @@ function stockArticleCardHTML(a,soldePre){
 }
 function stockViewHTML(){
   const arts=stockArticlesCache.slice().sort((a,b)=>String(a.ref).localeCompare(String(b.ref)));
-  // PERF-1 : solde par réf en UN passage (O(M)) ; évite un stockSoldeM2 (O(M)) par carte.
-  const _soldeByRef={};
-  for(const m of stockMouvementsCache){ if(m.deleted) continue; const rf=m.ref; _soldeByRef[rf]=(_soldeByRef[rf]||0)+(Number(m.m2)||0); }
+  const bal=stockBalancesByLoc();
+  const suOf=a=>Number(a.surfaceUnit)||stockSurfaceUnit(a.largeur,a.longueur);
+  const nf=n=>Math.round(Number(n)||0).toLocaleString('fr-FR');
+  // Totaux par emplacement + total disponible (STEP + en production ; B+K = pas encore reçu).
+  const tStep=stockLocTotal(bal,'step'), tBk=stockLocTotal(bal,'bk'), tProd=stockLocTotal(bal,'prod');
+  const dispo={m2:tStep.m2+tProd.m2, rolls:tStep.rolls+tProd.rolls};
+  const tile=(lbl,t,col,note)=>`<div style="background:var(--section);border:1px solid var(--border);border-left:4px solid ${col};border-radius:10px;padding:12px 14px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${lbl}</div>
+    <div style="font-size:22px;font-weight:800;margin-top:4px">${nf(t.rolls)} <span style="font-size:12px;color:var(--muted);font-weight:600">rouleaux</span></div>
+    <div style="font-size:12px;color:var(--muted)">≈ ${nf(t.m2)} m²${note?' · '+note:''}</div></div>`;
+  // Section balance par emplacement : articles ayant un solde dans cet emplacement.
+  const section=(o)=>{
+    const t=stockLocTotal(bal,o.key);
+    const rows=arts.filter(a=>{const e=bal[o.key][a.ref]; return e&&(Math.abs(e.m2)>0.5||Math.abs(e.rolls)>=1);}).map(a=>{
+      const e=bal[o.key][a.ref];
+      return `<tr>
+        <td style="padding:7px 9px;border-bottom:1px solid var(--border);font-weight:600">${esc(a.ref)}</td>
+        <td style="padding:7px 9px;border-bottom:1px solid var(--border);color:var(--muted)">${a.largeur?fmt(a.largeur)+' mm':'—'}</td>
+        <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">${nf(e.rolls)}</td>
+        <td style="padding:7px 9px;border-bottom:1px solid var(--border);text-align:right">${nf(e.m2)}</td></tr>`;
+    }).join('');
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:11px;margin-bottom:12px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-left:4px solid ${o.col}">
+        <div style="font-weight:800;font-size:14px">${o.lbl} <span style="color:var(--muted);font-weight:600;font-size:12px">— ${o.desc}</span></div>
+        <div style="font-size:12px;color:var(--muted)">${nf(t.rolls)} rouleaux · ${nf(t.m2)} m²</div>
+      </div>
+      ${rows?`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase">
+        <th style="text-align:left;padding:6px 9px">Réf matière</th><th style="text-align:left;padding:6px 9px">Mère</th>
+        <th style="text-align:right;padding:6px 9px">Rouleaux</th><th style="text-align:right;padding:6px 9px">Solde m²</th></tr></thead><tbody>${rows}</tbody></table>`
+       :'<div class="text-muted" style="padding:10px 14px;font-size:13px">Aucun stock dans cet emplacement.</div>'}
+    </div>`;
+  };
+  // Solde TOTAL par réf (tous emplacements) pour les cartes de définition d'article.
+  const _soldeTot={}; ['step','bk','prod'].forEach(l=>Object.entries(bal[l]).forEach(([rf,e])=>{_soldeTot[rf]=(_soldeTot[rf]||0)+e.m2;}));
   const refOpts=arts.map(a=>`<option value="${esc(a.ref)}">${esc(a.ref)}</option>`).join('');
   const datalist=allKnownRefs().map(r=>`<option value="${esc(r)}"></option>`).join('');
   const mvts=stockMouvementsCache.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,40);
   const typeColor={entree:'#4ade80',sortie:'#f87171',correction:'#999'};
   const typeLabel={entree:'Entrée',sortie:'Sortie',correction:'Correction'};
+  const locLabel={step:'STEP',bk:'B+K',prod:'Prod'};
   const log=mvts.map(m=>{
-    const annule=!!m.corrigePar;
-    const estCorr=!!m.corrige;
+    const annule=!!m.corrigePar, estCorr=!!m.corrige;
     const act=(annule||estCorr)?'':`<button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="annulStockMouvement('${m.id}')" aria-label="Annuler ce mouvement" title="Annuler ce mouvement (contre-écriture tracée)">↺</button>`;
     return `<tr${annule?' style="opacity:.55"':''}>
     <td style="padding:6px">${m.date?new Date(m.date).toLocaleDateString('fr-FR'):'—'}</td>
     <td style="padding:6px">${esc(m.ref)}</td>
+    <td style="padding:6px;color:var(--muted)">${locLabel[stockMvtLocKey(m)]}</td>
     <td style="padding:6px;color:${typeColor[m.type]||'#999'}">${typeLabel[m.type]||esc(m.type)}${annule?' <span style="color:#f87171;font-weight:700;font-size:10px">ANNULÉ</span>':''}${estCorr?' <span style="color:#888;font-size:10px">↺ correction</span>':''}</td>
     <td style="padding:6px;text-align:right;font-weight:700;color:${(Number(m.m2)||0)>=0?'#4ade80':'#f87171'}${annule?';text-decoration:line-through':''}">${(Number(m.m2)||0)>=0?'+':''}${(Number(m.m2)||0).toLocaleString('fr-FR')}</td>
     <td style="padding:6px;color:var(--muted)">${esc(m.bl||'—')}</td>
     <td style="padding:6px">${esc(m.op||'')}</td>
     <td style="padding:6px;text-align:center">${act}</td>
   </tr>`;}).join('');
+  const locBtns=STOCK_LOCS.map(o=>`<button type="button" id="sml_${o.key}" onclick="setStockMvtLoc('${o.key}')" class="stock-type-btn" style="flex:1">${o.lbl}</button>`).join('');
   return `
   <div style="display:flex;flex-direction:column;gap:16px;padding-bottom:20px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">📦 Stock matière (m²)</div>
-      <button class="btn btn-ghost btn-sm" onclick="toggleStockArticleForm()">➕ Nouvel article</button>
-    </div>
 
-    <div id="stockArticleForm" class="hidden" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
-      <div class="section-title">Nouvel article</div>
-      <datalist id="stockRefList">${datalist}</datalist>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="grid-column:1/-1"><label class="stk-lbl">Référence</label><input list="stockRefList" id="saRef" oninput="onStockArticleRef()" placeholder="ex : 41319051 - TacFlex® DQ1002" class="stk-inp"></div>
-        <div><label class="stk-lbl">Largeur (mm)</label><input id="saLarg" inputmode="numeric" oninput="onStockArticleSurface()" class="stk-inp"></div>
-        <div><label class="stk-lbl">Longueur (m)</label><input id="saLong" inputmode="numeric" oninput="onStockArticleSurface()" class="stk-inp"></div>
-        <div><label class="stk-lbl">Surface unitaire (m²)</label><input id="saSurf" readonly class="stk-inp" style="opacity:.7"></div>
-        <div><label class="stk-lbl">Fournisseur</label><input id="saFour" class="stk-inp"></div>
-        <div><label class="stk-lbl">Délai appro. (semaines)</label><input id="saDelai" inputmode="numeric" class="stk-inp"></div>
-        <div><label class="stk-lbl">Seuil mini (m²)</label><input id="saSeuil" inputmode="numeric" class="stk-inp"></div>
-        <div><label class="stk-lbl">Qté mini commande (m²)</label><input id="saQtyMini" inputmode="numeric" class="stk-inp"></div>
-        <div><label class="stk-lbl">Prix d'achat (€/m²)</label><input id="saPrix" inputmode="decimal" class="stk-inp"></div>
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:13px;padding:16px 18px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+        <div style="font-size:15px;font-weight:800">📦 Stock matière</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="background:#1f2a3a;border:1px solid var(--blue);color:var(--blue);font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px">CH</span>
+          <span style="background:#1f2a3a;border:1px solid var(--blue);color:var(--blue);font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px">ER</span>
+          <span style="background:#1f2a3a;border:1px solid var(--blue);color:var(--blue);font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px">DC</span>
+        </div>
       </div>
-      <button class="btn btn-green btn-sm" style="margin-top:10px" onclick="saveStockArticle(this)">✓ Créer l'article</button>
-    </div>
-
-    <div>${arts.length?arts.map(a=>stockArticleCardHTML(a,_soldeByRef[a.ref]||0)).join(''):'<div class="text-muted" style="padding:8px 0">Aucun article. Crée-en un avec ➕ Nouvel article.</div>'}</div>
-
-    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-        <div class="section-title" style="margin-bottom:0">🔮 Prévision d'approvisionnement</div>
-        <label class="u-meta">Horizon&nbsp;<input id="stockHorizonSem" type="number" min="1" value="18" oninput="stockForecastRenderDebounced()" style="width:64px;padding:5px 7px;border-radius:7px;border:1px solid var(--border2);background:var(--card);color:var(--text)"> sem.</label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+        ${tile('STEP International',tStep,'#60a5fa','')}
+        ${tile('Bischof + Klein',tBk,'#a78bfa','en attente')}
+        ${tile('En production',tProd,'#f59e0b','affecté')}
+        ${tile('Total disponible (STEP + prod)',dispo,'#4ade80','')}
       </div>
-      <div style="font-size:11px;color:#666;margin-bottom:10px">Consommation déduite des sorties de stock des 90 derniers jours. Indicatif tant que l'historique est court.</div>
-      <div id="stockForecast"></div>
     </div>
+
+    ${STOCK_LOCS.map(section).join('')}
 
     <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div class="section-title">Nouveau mouvement</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Emplacement</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">${locBtns}</div>
       <div style="display:flex;gap:6px;margin-bottom:10px">
         <button type="button" id="smtEntree" onclick="setStockMvtType('entree')" class="stock-type-btn">+ Entrée</button>
         <button type="button" id="smtSortie" onclick="setStockMvtType('sortie')" class="stock-type-btn">− Sortie</button>
@@ -6486,12 +6645,46 @@ function stockViewHTML(){
       <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="saveStockMouvement(this)">✓ Enregistrer le mouvement</button>
     </div>
 
+    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+        <div class="section-title" style="margin-bottom:0">Articles & réglages appro.</div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleStockArticleForm()">➕ Nouvel article</button>
+      </div>
+      <datalist id="stockRefList">${datalist}</datalist>
+      <div id="stockArticleForm" class="hidden" style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:13px 14px;margin-bottom:10px">
+        <div class="section-title">Nouvel article</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="grid-column:1/-1"><label class="stk-lbl">Référence</label><input list="stockRefList" id="saRef" oninput="onStockArticleRef()" placeholder="ex : 41319051 - TacFlex® DQ1002" class="stk-inp"></div>
+          <div><label class="stk-lbl">Largeur (mm)</label><input id="saLarg" inputmode="numeric" oninput="onStockArticleSurface()" class="stk-inp"></div>
+          <div><label class="stk-lbl">Longueur (m)</label><input id="saLong" inputmode="numeric" oninput="onStockArticleSurface()" class="stk-inp"></div>
+          <div><label class="stk-lbl">Surface unitaire (m²)</label><input id="saSurf" readonly class="stk-inp" style="opacity:.7"></div>
+          <div><label class="stk-lbl">Fournisseur</label><input id="saFour" class="stk-inp"></div>
+          <div><label class="stk-lbl">Délai appro. (semaines)</label><input id="saDelai" inputmode="numeric" class="stk-inp"></div>
+          <div><label class="stk-lbl">Seuil mini (m²)</label><input id="saSeuil" inputmode="numeric" class="stk-inp"></div>
+          <div><label class="stk-lbl">Qté mini commande (m²)</label><input id="saQtyMini" inputmode="numeric" class="stk-inp"></div>
+          <div><label class="stk-lbl">Prix d'achat (€/m²)</label><input id="saPrix" inputmode="decimal" class="stk-inp"></div>
+        </div>
+        <button class="btn btn-green btn-sm" style="margin-top:10px" onclick="saveStockArticle(this)">✓ Créer l'article</button>
+      </div>
+      <div>${arts.length?arts.map(a=>stockArticleCardHTML(a,_soldeTot[a.ref]||0)).join(''):'<div class="text-muted" style="padding:8px 0">Aucun article. Crée-en un avec ➕ Nouvel article.</div>'}</div>
+    </div>
+
+    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <div class="section-title" style="margin-bottom:0">🔮 Prévision d'approvisionnement</div>
+        <label class="u-meta">Horizon&nbsp;<input id="stockHorizonSem" type="number" min="1" value="18" oninput="stockForecastRenderDebounced()" style="width:64px;padding:5px 7px;border-radius:7px;border:1px solid var(--border2);background:var(--card);color:var(--text)"> sem.</label>
+      </div>
+      <div style="font-size:11px;color:#666;margin-bottom:10px">Stock = disponible (STEP International + en production ; B+K non compté tant qu'il n'est pas reçu). Consommation déduite des sorties des 90 derniers jours.</div>
+      <div id="stockForecast"></div>
+    </div>
+
     <div>
       <div class="section-title" style="margin-bottom:8px">Derniers mouvements</div>
       ${mvts.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
         <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase">
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">Date</th>
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">Réf.</th>
+          <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">Empl.</th>
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">Type</th>
           <th style="text-align:right;padding:5px 6px;border-bottom:1px solid var(--border)">m²</th>
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">N° BL</th>
@@ -6499,7 +6692,7 @@ function stockViewHTML(){
           <th style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--border)"></th>
         </tr></thead><tbody>${log}</tbody></table>`:'<div class="text-muted" style="padding:8px 0">Aucun mouvement.</div>'}
     </div>
-    <div style="font-size:12px;color:#666;padding-top:8px;border-top:1px solid var(--border)">Saisie manuelle uniquement. Auto-décrément production + alertes 18 semaines = Phase 2.</div>
+    <div style="font-size:12px;color:#666;padding-top:8px;border-top:1px solid var(--border)">Saisie manuelle. Branchement auto (baisse au démarrage de commande) = lot suivant.</div>
   </div>`;
 }
 function toggleStockArticleForm(){ stkEl('stockArticleForm')?.classList.toggle('hidden'); }
@@ -6656,7 +6849,7 @@ async function saveStockMouvement(btn){
   const raw=parseFloat((stkEl('stockM2').value||'').replace(',','.'));
   if(isNaN(raw)||raw===0){ showToast('Quantité (m²) manquante ou nulle.','err'); return; }
   const signed = stockMvtType==='entree'?Math.abs(raw):stockMvtType==='sortie'?-Math.abs(raw):raw;
-  const mvt={ date:isoNow(), type:stockMvtType, ref, m2:signed,
+  const mvt={ date:isoNow(), type:stockMvtType, ref, m2:signed, location:stockMvtLoc,
     rouleaux:parseFloat(stkEl('stockRolls').value)||null,
     bl:(stkEl('stockBl').value||'').trim(),
     note:(stkEl('stockNote').value||'').trim(),
@@ -10119,6 +10312,34 @@ async function maybeResumeRunningChrono(){
     }
   }catch(e){ console.warn('Reprise chrono:',e); }
 }
+// L28 — Reprise auto du brouillon PLAN. maybeResumeRunningChrono ne restaure QUE
+// le brouillon fiche (et seulement si un chrono tournait). Le brouillon plan
+// (d_autosave_plan_<uid>) était donc écrit mais jamais repris → au rechargement
+// forcé par le version-watcher (à chaque déploiement), la page Plan repartait
+// vierge (client + réf + plan perdus). Ici on reprend une saisie plan interrompue
+// LE JOUR MÊME si rien d'autre (fiche/chrono) n'a été repris.
+async function maybeResumePlan(){
+  try{
+    if(ficheLines&&ficheLines.length) return;                       // une fiche est déjà à l'écran (chrono repris)
+    if(typeof chronoRunning!=='undefined'&&chronoRunning) return;   // un chrono a été repris
+    if(typeof planHasContent==='function' && planHasContent()) return; // une saisie plan est déjà en cours
+    const pid=(typeof planAutosaveId==='function')?planAutosaveId():null;
+    if(!db||!pid) return;
+    let d=loadDrafts().find(x=>x.id===pid);
+    // Le snapshot 'brouillons' peut ne pas être encore arrivé à ce 1er tick → lecture directe.
+    if(!d){ try{ const snap=await db.collection('brouillons').doc(pid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
+    if(!d||!d.state||!d.state.plan) return;
+    // MÊME JOUR uniquement : reprise silencieuse d'une saisie coupée par un rechargement.
+    // Un brouillon plan plus ancien reste dans Données > Brouillons (repris à la main),
+    // pour ne pas ressusciter une saisie abandonnée.
+    if(_dateKey(new Date(d.savedAt).getTime())!==_dateKey(Date.now())) return;
+    restoreFicheState(d.state);
+    // restoreFicheState valide le plan par défaut ; un brouillon PLAN n'est pas validé.
+    fichePlanValidated=false; if(typeof updateFPlanHint==='function') updateFPlanHint();
+    showPage(0);
+    try{ showToast('📝 Saisie de plan reprise','ok'); }catch(e){}
+  }catch(e){ console.warn('Reprise plan:',e); }
+}
 // ============================================================
 // AUTO-SAVE PLAN (demande 4) — dès qu'un utilisateur saisit ou modifie
 // quelque chose sur la page Plan, on maintient UN brouillon auto (id fixe)
@@ -10221,7 +10442,15 @@ function restoreFicheState(st){
   if(g('motherWidth'))g('motherWidth').value=st.plan.mother;
   if(g('bladeWidth'))g('bladeWidth').value=st.plan.blade;
   if(g('edgeLoss'))g('edgeLoss').value=st.plan.edge;
-  if(g('planClient')){g('planClient').value=st.plan.client; if(st.plan.client) onClientChange();}
+  if(g('planClient')){
+    // L30 — restauration TOLÉRANTE du client (même logique que le chargement d'un plan
+    // sauvegardé). Un select.value brut retombait à vide si le client stocké ne matchait
+    // pas exactement une option (casse/espace, catalogue modifié, client « hors liste »
+    // autosauvé) → nom du client disparu au retour sur un brouillon.
+    if(typeof applySavedClient==='function') applySavedClient(g('planClient'),st.plan.client);
+    else g('planClient').value=st.plan.client;
+    if(st.plan.client) onClientChange();
+  }
   if(g('planRef'))g('planRef').value=st.plan.ref;
   if(g('planLargeur'))g('planLargeur').value=st.plan.largeur;
   if(g('planLongueur'))g('planLongueur').value=st.plan.longueur;
