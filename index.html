@@ -394,6 +394,10 @@ body.has-topbanner #nav{top:48px}
 
 <!-- ===== PAGE 1 : PLAN ===== -->
 <div class="page active" id="page0">
+  <div class="plan-topbar" style="display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px">
+    <button id="resumeLastBtn" class="btn btn-green btn-sm hidden" style="margin-right:auto" onclick="resumeLastCommand()" title="Reprendre la commande en cours enregistrée automatiquement sur ce poste">▶ Reprendre ma dernière commande</button>
+    <button class="btn btn-red btn-sm" onclick="resetSiteConfirm()" title="Vider entièrement le plan et la fiche en cours — repartir d'un site vierge">↺ Réinitialiser</button>
+  </div>
   <div class="section">
     <div class="section-title">Client</div>
     <div class="row2">
@@ -1104,7 +1108,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.02-L38';
+const APP_VERSION='2026.07.03-L55';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -1686,7 +1690,8 @@ document.addEventListener('keydown',function(e){
         await refreshAppCheckToken();
         loadFirestoreData();
         startBrouillons();          // sync temps réel des brouillons partagés
-        if(_oncePerDay('step_aggregates_daily')) ensureMonthlyAggregates();   // KPI mensuels : fige le dernier mois clos (idempotent) — au plus 1×/jour/poste
+        try{ flushDraftFallbacks(); }catch(e){}   // DRAFT-1 : repousse les brouillons d'envoi restés en repli local
+        ensureMonthlyAggregates();   // KPI-1/C6 : gère lui-même le « 1×/jour APRÈS succès » + gate isManage (voir la fonction)
         // Refresh périodique tant que la session reste ouverte (TTL App Check = 1 jour),
         // pour qu'un poste atelier laissé ouvert toute la journée ne se bloque jamais.
         startAppCheckRefreshLoop();
@@ -2192,10 +2197,15 @@ let ficheLines = [];
 let loadTargetIdx = null;
 let loadedSaveId = null; // id du plan sauvegardé chargé par l'opérateur (supprimé après confirmation de la fiche)
 let editingSaveId = null; // id du plan en cours de MODIFICATION (la sauvegarde écrase ce plan)
+// TX-doSave édition (B7) : marqueur de version capturé au chargement en édition
+// ({id, date de dernière écriture}), comparé en transaction pour détecter qu'un autre
+// poste a modifié le plan entre-temps.
+let _editSaveBase = null;
 let _pendingLoadId = null;   // plan à charger une fois la commande en cours parquée/effacée
 let _newCmdResolved = false; // true le temps d'un doLoad relancé par la modale (bypass de la garde)
 let _lameInstallMachine = null; // machine ciblée par la modale de pose de lame
 let _op2Pending = null;         // contexte {useful2,b2,refKeys} pendant le choix de réf op.2
+let _recalcPending = false;     // D-4 : garde de ré-entrance — un recalcul (setTimeout ~1s) en cours bloque tout nouveau
 let photoTargetId = null; // pour savoir quelle bobine reçoit la photo
 let ficholinePhotos = {}; // id -> Storage URL (ou ancien base64)
 let efPhotos = {};        // édition fiche : index bobine -> URL/base64
@@ -2497,11 +2507,17 @@ document.getElementById('blFileInput').addEventListener('change',async function(
       type='file';
     }
     const entry={id:'bl_'+Date.now()+'_'+Math.floor(Math.random()*9999),ref:tgt.ref, url, type, name, at:isoNow()};
-    // Plusieurs BL par fiche : on AJOUTE toujours, on ne remplace plus.
-    let bls=ficheBLs(f).slice();
-    bls.push(entry);
-    await db.collection('fiches').doc(f._id).update({bls});
-    f.bls=bls; if('bl' in f) delete f.bl;
+    // TX-BL add (B3) : ajout ATOMIQUE via arrayUnion — fini la lecture-écriture du tableau
+    // complet depuis le cache, qui écrasait un BL ajouté en parallèle par un autre poste.
+    const _ref=db.collection('fiches').doc(f._id);
+    const FV=firebase.firestore.FieldValue;
+    if(!Array.isArray(f.bls) && f.bl && f.bl.url){
+      // Ancien format (bl unique) : on migre l'ancien BL ET on ajoute le nouveau, atomiquement.
+      await _ref.update({bls:FV.arrayUnion({ref:null, ...f.bl}, entry), bl:FV.delete()});
+    }else{
+      await _ref.update({bls:FV.arrayUnion(entry)});
+    }
+    f.bls=ficheBLs(f).slice(); f.bls.push(entry); if('bl' in f) delete f.bl;
     await logAudit('bl-add','fiches',f._id,`${f.client||''} / ${entry.ref||'global'}`);
     renderFiches();
   }catch(e){ showToast('Erreur BL : '+e.message,'err'); }
@@ -2510,15 +2526,29 @@ async function deleteBLFiche(ficheId,idx){
   if(!canValidate()){showToast('Action réservée au pilotage.','err');return;}
   const f=fichesCache.find(x=>x._id===ficheId);
   if(!f) return;
+  const target=ficheBLs(f)[idx];   // résout l'identité stable (id/url) depuis l'index affiché
+  if(!target){ showToast('BL introuvable (recharge l\'historique).','err'); return; }
   if(!confirm('Retirer ce BL ?')) return;
-  let bls=ficheBLs(f).slice();
-  const target=bls[idx];
-  if(!target) return;
-  bls.splice(idx,1);
+  // TX-BL del (B3) : suppression en transaction, par ID stable (pas par index — la liste a
+  // pu bouger sur un autre poste). Le fichier Storage n'est supprimé qu'APRÈS le commit réussi
+  // (sinon fichier orphelin si l'écriture échoue).
+  const ref=db.collection('fiches').doc(ficheId);
+  const FV=firebase.firestore.FieldValue;
+  let newBls=null;
   try{
-    if(target.url) await deletePhotoFromStorage(target.url);
-    await db.collection('fiches').doc(ficheId).update({bls});
-    f.bls=bls; if('bl' in f) delete f.bl;
+    await db.runTransaction(async(tx)=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists) throw new Error('Fiche introuvable.');
+      const data=snap.data()||{};
+      const cur=Array.isArray(data.bls)?data.bls.slice():(data.bl&&data.bl.url?[{ref:null,...data.bl}]:[]);
+      const filtered=target.id?cur.filter(b=>b.id!==target.id):cur.filter(b=>b.url!==target.url);
+      const patch={bls:filtered};
+      if(data.bl!==undefined) patch.bl=FV.delete();
+      tx.update(ref,patch);
+      newBls=filtered;
+    });
+    f.bls=newBls; if('bl' in f) delete f.bl;
+    if(target.url){ try{ await deletePhotoFromStorage(target.url); }catch(e){ console.warn('Suppression fichier BL (Storage) :',e&&e.message); } }
     await logAudit('bl-del','fiches',ficheId,`${f.client||''} / ${target.ref||'global'}`);
     renderFiches();
   }catch(e){showToast('Erreur : '+e.message,'err');}
@@ -2685,6 +2715,7 @@ function showPage(i){
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
   if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); }
   if(i===2){ renderDataPage(); if(typeof updateTabBadges==='function') updateTabBadges(); }
+  if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
 }
 
 // Mode atelier : gros boutons / police agrandie. Réglage mémorisé par appareil.
@@ -2849,7 +2880,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<cnt;k++){
             addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
               conf:(b.conf||'').replace(/x/gi,'×'),
-              ref:c.ref||'', useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
             bi++;
           }
         });
@@ -2861,7 +2892,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', useful:g.rollW, blade:c.blade, machine:c.machine||'',
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm — À RECOUPER EN 1ER (avant les bobines mères)'});
             bi++;
@@ -2872,7 +2903,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote});
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote});
             bi++;
           }
         });
@@ -3705,6 +3736,15 @@ function filmAttrStr(g){
 }
 // VEKA : classe couleur selon la valeur (Profilé = cyan, VEKA = magenta).
 function vekaClass(v){ return v==='Profilé'?'veka-profile':(v==='VEKA'?'veka-veka':''); }
+// D-1 : clé d'IDENTITÉ d'un groupe réf, basée sur le CONTENU (pas la position, pas le
+// nom seul). Deux réfs de même code mais film / VEKA / longueur / laize / lame différents
+// obtiennent des clés distinctes → fini la fusion de commandes et les bobines écrites en
+// double lors du recalcul. Robuste au ré-ordonnancement (aucun index positionnel).
+function _refIdKey(g){
+  const n=v=>String(v==null?'':v).trim().toLowerCase();
+  return [n(g&&g.ref),n(g&&g.film),n(g&&g.veka),String(g&&g.longueur==null?'':g.longueur).trim(),
+          Number(g&&g.useful)||0,Number(g&&g.blade)||0].join('¦');
+}
 // Colore chaque <select> VEKA à la saisie selon son choix.
 function colorVekaSelects(){
   document.querySelectorAll('[data-rb="veka"]').forEach(el=>{
@@ -4741,11 +4781,36 @@ async function doSave(){
   try{
     if(editingSaveId){
       // MODIFICATION : on écrase le plan existant au lieu d'en créer un nouveau.
-      const target=editingSaveId; editingSaveId=null;
-      await db.collection('saves').doc(target).update({...entry,date:isoNow()});
+      const target=editingSaveId;
+      const baseDate=(_editSaveBase&&_editSaveBase.id===target)?(_editSaveBase.date||''):'';
+      const updEntry={...entry,date:isoNow()};
+      // TX-doSave édition (B7) : verrou optimiste. On relit le plan FRAÎCHE en transaction et,
+      // si sa date de dernière écriture a changé depuis le chargement (un AUTRE poste l'a
+      // modifié entre-temps), on AVERTIT avant d'écraser plutôt que d'écraser en silence.
+      let curDate='';
+      try{
+        await db.runTransaction(async(tx)=>{
+          const dref=db.collection('saves').doc(target);
+          const snap=await tx.get(dref);
+          if(!snap.exists) throw new Error('plan introuvable en base (supprimé / archivé ?)');
+          const cur=snap.data()||{};
+          if(baseDate && (cur.date||'')!==baseDate){ curDate=cur.date||''; throw new Error('__DIVERGE__'); }
+          tx.update(dref,updEntry);
+        });
+      }catch(e){
+        if(e.message!=='__DIVERGE__'){ showToast('Erreur sauvegarde : '+e.message,'err'); return; }
+        const when=curDate?new Date(curDate).toLocaleString('fr-FR'):'';
+        if(!confirm('⚠ Ce plan a été modifié ailleurs depuis que tu l\'as ouvert'+(when?' (dernière écriture : '+when+')':'')+'.\n\nÉcraser quand même avec TA version ?\n\n(Annuler = garder la version en base ; recharge-la avec 📂 pour repartir dessus.)')){
+          showToast('Modification abandonnée — recharge le plan (📂) pour repartir de la dernière version.','err');
+          return; // editingSaveId conservé → l'utilisateur peut recharger/réessayer
+        }
+        try{ await db.collection('saves').doc(target).update(updEntry); } // écrasement assumé
+        catch(e2){ showToast('Erreur sauvegarde : '+e2.message,'err'); return; }
+      }
+      editingSaveId=null; _editSaveBase=null;
       const idx=savesCache.findIndex(x=>x._id===target);
-      if(idx>=0) savesCache[idx]={...savesCache[idx],...entry,_id:target};
-      else savesCache.unshift({_id:target,...entry});
+      if(idx>=0) savesCache[idx]={...savesCache[idx],...updEntry,_id:target};
+      else savesCache.unshift({_id:target,...updEntry});
       await logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`);
       if(typeof showToast==='function') showToast('✏️ Plan modifié','ok');
     }else{
@@ -4944,14 +5009,16 @@ function newCmdErase(){
 }
 // Charge un plan dans l'éditeur pour le MODIFIER : la prochaine sauvegarde
 // écrasera ce plan au lieu d'en créer un nouveau (voir doSave).
-function editSavedPlan(id){
+async function editSavedPlan(id){
   const s=savesCache.find(x=>x._id===id);
   if(!s) return;
   loadTargetIdx=id;
-  _newCmdResolved=true; // édition de plan : pas de modale parquer/effacer
-  doLoad();            // remplit l'éditeur (et ferme la modale, va sur Plan)
-  editingSaveId=id;    // marque le plan comme "en édition"
-  loadedSaveId=null;   // on n'est pas dans le flux opérateur→fiche
+  const baseDate=s.date||'';   // version chargée dans l'éditeur = ce qu'on éditera
+  _newCmdResolved=true;        // édition de plan : pas de modale parquer/effacer
+  await doLoad();              // remplit l'éditeur ; doLoad remet editingSaveId=null en fin de course
+  editingSaveId=id;            // ré-affirmé APRÈS doLoad → le mode édition survit à sa remise à zéro
+  _editSaveBase={id:id, date:baseDate}; // B7 : version de référence pour le verrou optimiste
+  loadedSaveId=null;           // on n'est pas dans le flux opérateur→fiche
   updateSaveBtnLabel();
   showToast('✏️ Plan chargé pour modification — enregistre pour écraser l\'ancien','ok');
 }
@@ -4995,7 +5062,7 @@ async function doLoad(){
   }
   _newCmdResolved=false;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
-  editingSaveId=null; // un chargement normal annule un éventuel mode modification
+  editingSaveId=null; _editSaveBase=null; // un chargement normal annule un éventuel mode modification
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   const G=id=>document.getElementById(id);
   const set=(id,v)=>{const el=G(id);if(el)el.value=(v==null?'':v);};
@@ -5401,6 +5468,10 @@ async function confirmCommande(){
 // Ré-exécutable sans doublon.
 function recalcEcartsFromFiche(opts){
   opts=opts||{};
+  // D-4 : un recalcul est appliqué ~1 s après le clic (setTimeout). Sans garde,
+  // un double-clic sur ♻ (ou un op.2 / changement de lame déclenché pendant
+  // l'attente) lançait deux reconstructions concurrentes qui corrompaient la liste.
+  if(_recalcPending){ showToast('♻ Un recalcul est déjà en cours — patiente une seconde.','err'); return; }
   const op2=opts.op2||null; // {refKey, useful, blade} : re-pack du reste avec la laize op.2
   const force=!!opts.force; // changement de plan op.1 : garde les coupées, recalcule le reste, même chrono à l'arrêt
   if(!op2 && !force && !chronoRunning){
@@ -5428,7 +5499,18 @@ function recalcEcartsFromFiche(opts){
   // rangeait le coupé dans une autre case que la commande -> aucune déduction
   // en aval + surproduction. On compare donc toujours sur la clé normalisée.
   const nrmRef=v=>String(v==null?'':v).trim().toLowerCase();
-  const refKey=c=>nrmRef(c.ref);
+  // D-1 : clé d'identité par CONTENU (ref+film+veka+longueur+laize+lame), robuste
+  // aux collisions de nom (deux réfs de même code mais film/laize/longueur
+  // différents) et au ré-ordonnancement. Sert de clé à tous les dictionnaires
+  // internes ; sans elle, deux réfs de même code fusionnaient leurs commandes
+  // et leurs bobines figées étaient écrites en double.
+  const refKey=c=>_refIdKey(c);
+  // Table nom→clé robuste (1re réf portant ce nom) : repli pour les lignes fiche
+  // LEGACY sans refIdKey, rattachées par nom à la 1re réf de ce nom.
+  const nameToKey={};
+  computed.forEach(c=>{ const nm=nrmRef(c.ref); if(!(nm in nameToKey)) nameToKey[nm]=refKey(c); });
+  // Clé d'une ligne fiche existante : son refIdKey si présent, sinon repli nom.
+  const lineKey=l=>l.refIdKey||nameToKey[nrmRef(l.ref)]||nrmRef(l.ref);
 
   // Commande par réf (cible client, fixe)
   const cmdByRef={};
@@ -5436,33 +5518,21 @@ function recalcEcartsFromFiche(opts){
     const m={}; c.rows.forEach(r=>{m[r.width]=(m[r.width]||0)+r.qty;});
     // Chutes en stock déjà prélevées (bobineaux) : retirées du reliquat à recouper.
     Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ if(m[w]!=null) m[w]=Math.max(0,m[w]-q); });
-    cmdByRef[refKey(c)]={command:m, useful:c.useful, blade:c.blade, longueur:c.longueur, ref:c.ref};
+    const k=refKey(c);
+    if(cmdByRef[k]){ // même clé robuste (réf strictement identique) : on SOMME, jamais écraser -> zéro perte
+      const acc=cmdByRef[k].command;
+      Object.entries(m).forEach(([w,q])=>{acc[w]=(acc[w]||0)+q;});
+    } else {
+      cmdByRef[k]={command:m, useful:c.useful, blade:c.blade, longueur:c.longueur, ref:c.ref};
+    }
   });
 
   // Bobines figées (production engagée) ; on garde l'objet meta pour préserver
   // ref/laize/lame/origine et l'éventuelle photo lors de la reconstruction.
-  const frozenSet=new Set(ficheLines.filter(l=>isLineFrozen(l.id)).map(l=>l.id));
-
-  // Coupé figé par réf
-  const committedByRef={};
-  ficheLines.forEach(l=>{
-    if(!frozenSet.has(l.id)) return;
-    const k=nrmRef(l.ref);
-    const m=committedByRef[k]||(committedByRef[k]={});
-    parseConf(document.getElementById('flConf_'+l.id)?.value||'').forEach(p=>{m[p.width]=(m[p.width]||0)+p.qty;});
-  });
-
-  // Reliquat à recouper + surplus (tracé), calculés réf par réf
-  const residualByRef={}, surplusByRef={};
-  Object.keys(cmdByRef).forEach(k=>{
-    const cmd=cmdByRef[k].command, com=committedByRef[k]||{};
-    const res={}, sur={};
-    new Set([...Object.keys(cmd),...Object.keys(com)].map(Number)).forEach(w=>{
-      const c=cmd[w]||0, kk=com[w]||0;
-      if(c>kk) res[w]=c-kk; else if(kk>c) sur[w]=kk-c;
-    });
-    residualByRef[k]=res; surplusByRef[k]=sur;
-  });
+  // D-4 : l'état FIGÉ et le coupé réel sont recapturés à l'INSTANT de l'application
+  // (dans le setTimeout ~1 s plus tard), pas au clic : entre les deux, l'opérateur
+  // peut figer/dé-figer une bobine. Capturer au clic reconstruisait sur un état périmé.
+  let frozenSet, committedByRef, residualByRef, surplusByRef;
 
   // Retour visuel immédiat : l'opérateur voit que le recalcul est lancé.
   const banner=document.getElementById('coupeeBanner');
@@ -5475,8 +5545,33 @@ function recalcEcartsFromFiche(opts){
   // L'application réelle (~1s plus tard) : on conserve les bobines figées de
   // CHAQUE réf, on régénère uniquement le reliquat de CHAQUE réf, et on
   // reconstruit la liste réf par réf (séparateurs + bobines dans l'ordre).
+  _recalcPending=true;
   setTimeout(()=>{
+   try{
     const cont=document.getElementById('ficheLines');
+    // D-4 : recapture de l'état FIGÉ + du coupé réel à l'instant de l'application.
+    frozenSet=new Set(ficheLines.filter(l=>isLineFrozen(l.id)).map(l=>l.id));
+    committedByRef={};
+    ficheLines.forEach(l=>{
+      if(!frozenSet.has(l.id)) return;
+      const k=lineKey(l);
+      const m=committedByRef[k]||(committedByRef[k]={});
+      parseConf(document.getElementById('flConf_'+l.id)?.value||'').forEach(p=>{m[p.width]=(m[p.width]||0)+p.qty;});
+    });
+    residualByRef={}; surplusByRef={};
+    Object.keys(cmdByRef).forEach(k=>{
+      const cmd=cmdByRef[k].command, com=committedByRef[k]||{};
+      const res={}, sur={};
+      new Set([...Object.keys(cmd),...Object.keys(com)].map(Number)).forEach(w=>{
+        const c=cmd[w]||0, kk=com[w]||0;
+        if(c>kk) res[w]=c-kk; else if(kk>c) sur[w]=kk-c;
+      });
+      residualByRef[k]=res; surplusByRef[k]=sur;
+    });
+    // D-3 : mémoriser la bobine physique visée par op.2 / changement de lame
+    // AVANT que la reconstruction ne réordonne les positions.
+    const _op2Lid=_bobineSelLid('fOp2Bobine');
+    const _lameLid=_bobineSelLid('fLameChgBob');
 
     // 1) Détacher (sans détruire) les bobines figées — on les ré-attachera dans l'ordre.
     const frozenMetas=ficheLines.filter(l=>frozenSet.has(l.id));
@@ -5491,17 +5586,25 @@ function recalcEcartsFromFiche(opts){
     ficheLines=[];
     const recap=[]; let totalAdded=0;
     const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
+    const doneKeys=new Set();
     _genOrderR.forEach(ci=>{
       const c=computed[ci];
       const k=refKey(c);
+      // Dédup : si plusieurs groupes computed partagent la même clé robuste (réf
+      // strictement identique), on ne reconstruit qu'une seule fois -> pas de
+      // bobines figées ré-attachées en double, pas de reliquat compté 2×.
+      if(doneKeys.has(k)) return;
+      doneKeys.add(k);
       if(multi) insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur);
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
-      frozenMetas.filter(l=>nrmRef(l.ref)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); ficheLines.push(l); });
+      frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); ficheLines.push(l); });
 
       // 3b) Ré-empaqueter le reliquat de cette réf. Par défaut avec SA laize/lame ;
       // si op.2 est ciblé sur cette réf, on utilise la laize utile / lame de l'op.2.
-      const useOp2=!!(op2 && refKey(c)===op2.refKey);
+      // op.2 est ciblé par NOM de réf (op2.refKey = nrm(ref)) : on compare donc
+      // sur le nom, pas sur la clé robuste interne.
+      const useOp2=!!(op2 && nrmRef(c.ref)===op2.refKey);
       const pu=useOp2?op2.useful:c.useful;
       const pb=useOp2?op2.blade:c.blade;
       const items=[];
@@ -5515,7 +5618,7 @@ function recalcEcartsFromFiche(opts){
         // Les lignes rouleau non figées ont été supprimées à l'étape 2 : elles
         // sont régénérées ici, ré-optimisées sur le reliquat courant.
         const consumed={};
-        frozenMetas.forEach(l=>{ if(l.recut&&nrmRef(l.ref)===k) consumed[l.rollW]=(consumed[l.rollW]||0)+1; });
+        frozenMetas.forEach(l=>{ if(l.recut&&lineKey(l)===k) consumed[l.rollW]=(consumed[l.rollW]||0)+1; });
         const avail=[];
         (c.recuts||[]).forEach(rc=>{
           let q=rc.qty||0; const w=rc.width;
@@ -5531,7 +5634,7 @@ function recalcEcartsFromFiche(opts){
           for(let n=0;n<g.count;n++){
             addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', useful:g.rollW, blade:pb, machine:c.machine||'',
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:pb, machine:c.machine||'',
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm — À RECOUPER EN 1ER (avant les bobines mères)'});
             ri++; recutAdded++;
@@ -5544,7 +5647,7 @@ function recalcEcartsFromFiche(opts){
           for(let n=0;n<g.count;n++){
             addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', useful:pu, blade:pb, machine:c.machine||''});
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:pu, blade:pb, machine:c.machine||''});
             ri++; added++;
           }
         });
@@ -5562,12 +5665,15 @@ function recalcEcartsFromFiche(opts){
 
     // 4) Bobines figées dont la réf n'existe plus dans le plan : conservées en fin de liste.
     const known=new Set(computed.map(c=>refKey(c)));
-    frozenMetas.filter(l=>!known.has(nrmRef(l.ref))).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); ficheLines.push(l); });
+    frozenMetas.filter(l=>!known.has(lineKey(l))).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); ficheLines.push(l); });
 
     recalcPlan();
     updateAllCumuls();
     updateCoupeeStatus();
     refreshOp2BobineList();
+    // D-3 : re-pointer op.2 / changement de lame sur la MÊME bobine physique.
+    _bobineSelRestore('fOp2Bobine',_op2Lid);
+    _bobineSelRestore('fLameChgBob',_lameLid);
     renumberFicheLines();
     refreshEtiquetteSolde();
     if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
@@ -5581,6 +5687,7 @@ function recalcEcartsFromFiche(opts){
          : (totalAdded>0?'♻ Plan ré-optimisé.':'♻ Recalcul terminé — commande couverte.'));
     showToast(head+'\n\n'+recap.join('\n'),'ok');
     if(op2||force){ fichePlanValidated=true; updateFPlanHint(); }
+   }finally{ _recalcPending=false; }
   },1000);
 }
 
@@ -5751,8 +5858,15 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       // brouillon idempotent (même id → renvoi = écrasement), sans figer le bouton ni doublonner.
       const _cr=await _commitRace(batch,8000);
       if(_cr&&_cr.timeout){
-        saveDraftFromSend(ficheEntry,tempsEntry,'');   // filet portant _pendingFicheId (via serializeFicheState)
-        alert('⏳ Réseau lent ou absent : la fiche part en FILE D\'ATTENTE et sera écrite au retour réseau.\n\nElle est aussi sauvegardée dans Données > Brouillons. NE LA RECOUPE PAS — au besoin, renvoie-la depuis Brouillons : ce sera la MÊME fiche (aucun doublon).');
+        // DRAFT-1 : repli FIABLE (localStorage synchrone) + Firestore mis en file sans
+        // attendre (réseau déjà mauvais). Message basé sur ce qui a RÉELLEMENT tenu.
+        const _r=await saveDraftFromSendReliable(ficheEntry,tempsEntry,false);
+        if(_r.local){
+          alert('⏳ Réseau lent/absent : la fiche part en FILE D\'ATTENTE (écrite au retour réseau) et est sauvegardée en LOCAL sur CE poste.\n\nNE LA RECOUPE PAS. Renvoie-la depuis ce poste au retour réseau — même fiche, aucun doublon.');
+        } else {
+          alert('⛔ Réseau absent ET stockage local indisponible : la fiche N\'A PAS pu être sauvegardée.\n\nNOTE la commande sur papier et NE LA COUPE PAS deux fois. Préviens un admin.');
+        }
+        if(_r.photosDropped>0) showToast('⚠ '+_r.photosDropped+' photo(s) trop lourde(s) NON conservée(s) dans le brouillon — reprends-les avant de renvoyer.','err');
         return;
       }
       if(_fstrip.stripped){ try{showToast('⚠ '+_fstrip.stripped+' photo(s) trop lourde(s) NON enregistrée(s) (stockage photos indisponible) — la fiche est sauvegardée sans ces photos, à recompléter quand le stockage est rétabli.','err');}catch(_){} }
@@ -5790,13 +5904,25 @@ async function saveCommandeFiche(rows,useful,blade,opts){
         loadedSaveId=null;
       }
     }catch(e){
-      saveDraftFromSend(ficheEntry,tempsEntry,'');
-      alert('⚠ Enregistrement impossible (réseau ?).\n\nLa fiche a été placée en BROUILLON (Données > Brouillons). Reconnecte-toi puis renvoie-la.\n\nDétail : '+e.message);
+      // DRAFT-1 : ne plus affirmer « placée en BROUILLON » sans preuve. On tente Firestore
+      // (attendu, borné) puis repli localStorage ; message selon le support qui a tenu.
+      const _r=await saveDraftFromSendReliable(ficheEntry,tempsEntry,true);
+      if(_r.firestore){
+        alert('⚠ Enregistrement de la fiche impossible, MAIS elle est bien placée en BROUILLON (Données > Brouillons).\n\nReconnecte-toi puis renvoie-la depuis Brouillons.\n\nDétail : '+e.message);
+      } else if(_r.local){
+        alert('⚠ Enregistrement impossible ET brouillon partagé refusé (droits/App Check ?).\n\nLa fiche est sauvegardée en LOCAL sur CE poste uniquement. NE LA RECOUPE PAS — renvoie-la depuis ce poste après reconnexion. Préviens un admin si ça persiste.\n\nDétail : '+e.message);
+      } else {
+        alert('⛔ ÉCHEC TOTAL de sauvegarde (base ET stockage local).\n\nNOTE la commande sur papier et NE LA COUPE PAS deux fois. Préviens un admin.\n\nDétail : '+e.message);
+      }
+      if(_r.photosDropped>0) showToast('⚠ '+_r.photosDropped+' photo(s) trop lourde(s) NON conservée(s) dans le brouillon — reprends-les avant de renvoyer.','err');
       return;
     }
   } else {
-    saveDraftFromSend(ficheEntry,tempsEntry,'');
-    alert('⚠ Base de données indisponible. Fiche placée en BROUILLON.');
+    // DRAFT-1 : pas de base → au moins le repli local, message honnête.
+    const _r=await saveDraftFromSendReliable(ficheEntry,tempsEntry,false);
+    if(_r.local) alert('⚠ Base de données indisponible. Fiche sauvegardée en BROUILLON LOCAL sur CE poste — renvoie-la depuis ce poste quand la base revient.');
+    else alert('⛔ Base indisponible ET stockage local impossible : fiche NON sauvegardée.\n\nNote-la sur papier et ne la coupe pas deux fois.');
+    if(_r.photosDropped>0) showToast('⚠ '+_r.photosDropped+' photo(s) trop lourde(s) NON conservée(s) dans le brouillon — reprends-les avant de renvoyer.','err');
     return;
   }
 
@@ -5814,10 +5940,21 @@ async function saveCommandeFiche(rows,useful,blade,opts){
 // L34 — Bouton "Nouveau plan" (Plan) : vide plan + fiche pour repartir de zéro.
 function resetSiteConfirm(){
   if(chronoRunning){ showToast('⏱ Arrête d\'abord le chrono (commande en cours).','err'); return; }
-  if(!confirm('🆕 Nouveau plan : vider le plan et la fiche en cours pour repartir de zéro ?\n\n(Les données déjà enregistrées ne sont pas touchées.)')) return;
+  if(!confirm('↺ Réinitialiser : vider entièrement le plan et la fiche en cours pour repartir d\'un site vierge ?\n\n(Les données déjà enregistrées — plans, fiches, brouillons manuels — ne sont pas touchées.)')) return;
   try{ resetAll(); }catch(e){ console.warn('resetSiteConfirm:',e); }
+  // Site VRAIMENT vierge : purge les brouillons AUTO de CE poste (fiche + plan) et
+  // réarme les gardes de signature. Sinon maybeResumeRunningChrono/maybeResumePlan
+  // re-remplirait le formulaire au prochain chargement (les « infos pré-inscrites »
+  // que l'opérateur veut justement voir disparaître). Les brouillons MANUELS restent.
+  try{
+    if(_planAutosaveTimer){ clearInterval(_planAutosaveTimer); _planAutosaveTimer=null; }
+    const _aid=(typeof autosaveId==='function')?autosaveId():null;
+    const _pid=(typeof planAutosaveId==='function')?planAutosaveId():null;
+    persistDrafts(loadDrafts().filter(function(d){ return d.id!==_aid && d.id!==_pid; }));
+    _autosaveLastSig=''; _planAutosaveLast='';
+  }catch(e){ console.warn('resetSiteConfirm purge brouillons auto:',e); }
   try{ if(typeof showPage==='function') showPage(0); }catch(e){}
-  try{ showToast('🆕 Nouveau plan','ok'); }catch(e){}
+  try{ showToast('↺ Site réinitialisé','ok'); }catch(e){}
 }
 function resetAll(){
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
@@ -5903,7 +6040,7 @@ function getFicheLinesData(){
     return {
       label:get('flLabel')?.value||'',
       conf:get('flConf')?.value||'',
-      ref:L.ref||'', useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',
+      ref:L.ref||'', refIdKey:L.refIdKey||null, useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',
       recut:L.recut||false, rollW:L.rollW||0,
       devi:get('flDevi')?.checked||false,
       droit:get('flDroit')?.checked||false,
@@ -6453,12 +6590,24 @@ async function loadAgregats(){
 }
 // Boot (ER/CH) : fige le dernier mois clos s'il ne l'est pas encore. Idempotent.
 async function ensureMonthlyAggregates(){
-  if(!db||!canViewAnalyse()) return;
+  // KPI-1 / C6 :
+  //  (1) Déclencheur gaté à isManage-équivalent (admin + pilotage) — seuls habilités à
+  //      écrire 'agregats'. Un opérateur ne doit pas tenter un write voué au refus.
+  //  (2) Le jeton « 1×/jour » n'est consommé qu'APRÈS un figeage RÉUSSI. Avant, _oncePerDay
+  //      le posait AU DÉMARRAGE, avant le calcul → un échec réseau/permission = aucun
+  //      réessai ce jour, EN SILENCE. Désormais un échec laisse le jeton libre → réessai
+  //      au prochain lancement (par n'importe quel poste isManage habilité).
+  if(!db || !canManageData()) return;
+  const KEY='step_aggregates_daily';
+  const today=new Date().toISOString().slice(0,10);
+  try{ if(localStorage.getItem(KEY)===today) return; }catch(e){}
   await loadAgregats();
   const ym=lastClosedYM();
-  if(!agregatsCache.some(a=>a.mois===ym)){
-    try{await computeMonthAggregate(ym);}catch(e){console.warn('Figeage '+ym+' impossible:',e);}
-  }
+  if(agregatsCache.some(a=>a.mois===ym)){ try{localStorage.setItem(KEY,today);}catch(e){} return; }   // déjà figé → rien à recalculer, on marque le jour
+  try{
+    await computeMonthAggregate(ym);
+    try{ localStorage.setItem(KEY,today); }catch(e){}   // succès → jeton posé APRÈS coup
+  }catch(e){ console.warn('Figeage '+ym+' impossible (réessai au prochain lancement) :',e); }   // échec → jeton NON posé
 }
 async function recalcMois(ym,btn){
   if(!db){showToast('Base indisponible.','err');return;}
@@ -6979,10 +7128,23 @@ async function annulStockMouvement(id){
       rouleaux:(m.rouleaux!=null?-m.rouleaux:null), bl:m.bl||'',
       note:'Annulation du mouvement du '+(ds||'?')+(m.note?' ('+m.note+')':''),
       op:currentUser?currentUser.ini:'?', corrige:id, deleted:false };
-    const r=await db.collection('stockMouvements').add(corr);
-    corr.id=r.id; stockMouvementsCache.unshift(corr);
-    await db.collection('stockMouvements').doc(id).update({corrigePar:r.id});
-    m.corrigePar=r.id;
+    // TX-annulStockMouvement (B8) : contre-écriture + marquage corrigePar dans la MÊME
+    // transaction, sur relecture FRAÎCHE du mouvement d'origine. ABANDON si corrigePar est
+    // déjà posé (annulation concurrente sur un autre poste) — sinon on créerait une 2e
+    // contre-écriture qui doublerait l'inversion du stock.
+    const origRef=db.collection('stockMouvements').doc(id);
+    const corrRef=db.collection('stockMouvements').doc();   // id auto, pas encore écrit
+    await db.runTransaction(async(tx)=>{
+      const snap=await tx.get(origRef);
+      if(!snap.exists) throw new Error('mouvement introuvable en base (supprimé ?)');
+      const cur=snap.data()||{};
+      if(cur.corrigePar) throw new Error('déjà annulé ailleurs — recharge le stock');
+      if(cur.corrige) throw new Error('une écriture de correction ne s\'annule pas');
+      tx.set(corrRef,corr);
+      tx.update(origRef,{corrigePar:corrRef.id});
+    });
+    corr.id=corrRef.id; stockMouvementsCache.unshift(corr);
+    m.corrigePar=corrRef.id;
     await logAudit('correction','stockMouvements',id,`Annulation ${(Number(m.m2)||0).toLocaleString('fr-FR')} m² · ${m.ref}`);
     renderStock();
     showToast('✓ Mouvement annulé (correction tracée)','ok');
@@ -8435,6 +8597,23 @@ async function createRemainingPlan(f){
   }catch(e){ showToast('Erreur création du plan du reste : '+e.message,'err'); return null; }
 }
 
+// TX-validateFiche (B5) : garde de validation réévaluable sur une fiche FRAÎCHE.
+// Retourne null si la fiche est validable, sinon un motif court (BL / coupe / test).
+// Réutilisée par le pré-check cache (UX rapide) ET par la relecture en transaction
+// (autoritaire : un opérateur a pu dé-couper une bobine ou détacher un BL entre-temps).
+function _ficheValidBlockReason(data){
+  if(!data) return 'fiche introuvable';
+  if(!ficheBLComplete(data)) return 'bon de livraison manquant';
+  if(!data.manqueMatiere){
+    const det=Array.isArray(data.ficheDetail)?data.ficheDetail:[];
+    const notCut=det.filter(fd=>!fd.coupee).length;
+    if(notCut>0) return notCut+' bobine(s) non coupée(s)';
+    const tested=fd=>!!(fd.test2nc||(fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit)));
+    const notTested=det.filter(fd=>!tested(fd)).length;
+    if(notTested>0) return notTested+' bobine(s) non testée(s)';
+  }
+  return null;
+}
 async function validateFiche(id){
   if(!canValidate()){showToast('Validation réservée au pilotage et aux admins.','err');return;}
   const f=fichesCache.find(x=>x._id===id);
@@ -8466,9 +8645,28 @@ async function validateFiche(id){
       return;
     }
   }
+  const priorValide=(f.valide===undefined?null:f.valide);
   try{
     const at=isoNow();
-    await db.collection('fiches').doc(id).update({valide:true,valideBy:by,valideAt:at});
+    // TX-validateFiche (B5) : écriture transactionnelle. On relit la fiche FRAÎCHE et on
+    // ABANDONNE si un autre poste l'a déjà traitée (champ valide changé depuis l'affichage)
+    // — sinon un validate écraserait silencieusement un reject concurrent (ou l'inverse).
+    // Les gardes coupe/test/BL sont RÉÉVALUÉES sur la version relue (un opérateur a pu
+    // dé-couper une bobine ou détacher un BL entre-temps).
+    await db.runTransaction(async(tx)=>{
+      const dref=db.collection('fiches').doc(id);
+      const snap=await tx.get(dref);
+      if(!snap.exists) throw new Error('fiche introuvable en base (supprimée ?)');
+      const cur=snap.data()||{};
+      const curValide=(cur.valide===undefined?null:cur.valide);
+      if(curValide!==priorValide){
+        const who=cur.valideBy?' par '+cur.valideBy:'';
+        throw new Error('déjà traitée'+who+' ('+(curValide===true?'validée':curValide===false?'refusée':'remise en attente')+') — recharge l\'historique');
+      }
+      const blk=_ficheValidBlockReason(cur);
+      if(blk) throw new Error('validation impossible sur la version à jour : '+blk+' — recharge l\'historique');
+      tx.update(dref,{valide:true,valideBy:by,valideAt:at});
+    });
     f.valide=true;f.valideBy=by;f.valideAt=at;
     await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
   }catch(e){showToast('Erreur validation : '+e.message,'err');}
@@ -8504,15 +8702,37 @@ async function rejectFiche(id){
   if(!f) return;
   if(!confirm('Refuser cette fiche ? Elle sera marquée comme non conforme.')) return;
   const by=currentUser?(currentUser.nom||currentUser.ini):'?';
+  const priorValide=(f.valide===undefined?null:f.valide);
   try{
     const at=isoNow();
-    await db.collection('fiches').doc(id).update({valide:false,valideBy:by,valideAt:at});
+    // TX-rejectFiche (B5) : idem validateFiche — abandon si déjà traitée ailleurs.
+    await db.runTransaction(async(tx)=>{
+      const dref=db.collection('fiches').doc(id);
+      const snap=await tx.get(dref);
+      if(!snap.exists) throw new Error('fiche introuvable en base (supprimée ?)');
+      const cur=snap.data()||{};
+      const curValide=(cur.valide===undefined?null:cur.valide);
+      if(curValide!==priorValide){
+        const who=cur.valideBy?' par '+cur.valideBy:'';
+        throw new Error('déjà traitée'+who+' ('+(curValide===true?'validée':curValide===false?'refusée':'remise en attente')+') — recharge l\'historique');
+      }
+      tx.update(dref,{valide:false,valideBy:by,valideAt:at});
+    });
     f.valide=false;f.valideBy=by;f.valideAt=at;
     await logAudit('reject','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
   }catch(e){showToast('Erreur : '+e.message,'err');}
   renderFiches();
 }
 
+// TX-saveFicheConfigs : verrou optimiste basé sur le CONTENU. La signature capturée à
+// l'ouverture de la modale (hors blobs photo) est comparée à la version FRAÎCHE en base
+// au moment d'enregistrer : si un autre poste a modifié la fiche entre-temps (clôture NC,
+// validation, autre édition), on REFUSE l'écrasement au lieu de perdre sa modif.
+let _editFicheBaseSig=null;
+function _ficheEditSig(data){
+  const fd=(Array.isArray(data.ficheDetail)?data.ficheDetail:[]).map(x=>{ const c=Object.assign({},x); delete c.photo; return c; });
+  return JSON.stringify({client:data.client||'',ref:data.ref||'',numCmd:data.numCmd||'',dateLiv:data.dateLiv||'',lame:data.lame||'',valide:data.valide===true,fd:fd});
+}
 // Édition du plan de découpe par Dominique : modifie en-tête + configuration des bobines
 function editFicheConfigs(id){
   const f=fichesCache.find(x=>x._id===id);
@@ -8524,6 +8744,8 @@ function editFicheConfigs(id){
     if(!canManageData()){ showToast('🔒 Fiche validée — modification réservée au pilotage et aux admins.','err'); return; }
     if(!confirm('⚠ Cette fiche est validée (BL posé).\n\nLa modifier peut affecter la traçabilité. Tu peux notamment ajouter des photos.\n\nContinuer ?')) return;
   }
+  // TX-saveFicheConfigs : base de comparaison du verrou optimiste (état vu à l'ouverture).
+  _editFicheBaseSig={id:id, sig:_ficheEditSig(f)};
   // Map de travail des photos par bobine, indexée sur l'index d'origine.
   efPhotos={};
   (f.ficheDetail||[]).forEach((fd,i)=>{ if(fd.photo) efPhotos[i]=fd.photo; });
@@ -8682,8 +8904,22 @@ async function saveFicheConfigs(id){
     // M5 : garde-fou 1 Mo — retire les photos base64 lourdes avant l'update.
     const _fstrip=_ficheStripHeavyPhotos(upd);
     const updSafe=_fstrip.clean;
-    await db.collection('fiches').doc(id).update(updSafe);
+    updSafe.updatedAt=isoNow();   // marqueur de version (utile aux futurs verrous)
+    // TX-saveFicheConfigs (verrou optimiste) : relit la fiche FRAÎCHE et REFUSE si elle a
+    // changé depuis l'ouverture de la modale (une autre modif — NC, validation, édition —
+    // serait sinon écrasée par ce rewrite complet). Refus plutôt que fusion : l'admin a pu
+    // ajouter/retirer/réordonner des bobines, une fusion par index serait non fiable.
+    const base=(_editFicheBaseSig&&_editFicheBaseSig.id===id)?_editFicheBaseSig.sig:null;
+    await db.runTransaction(async(tx)=>{
+      const ref=db.collection('fiches').doc(id);
+      const snap=await tx.get(ref);
+      if(!snap.exists) throw new Error('Fiche introuvable en base (supprimée ?).');
+      if(base!==null && _ficheEditSig(snap.data()||{})!==base)
+        throw new Error('Fiche modifiée ailleurs depuis l\'ouverture — recharge l\'historique et recommence.');
+      tx.update(ref,updSafe);
+    });
     Object.assign(f,updSafe);
+    _editFicheBaseSig=null;
     if(_fstrip.stripped){ try{showToast('⚠ '+_fstrip.stripped+' photo(s) trop lourde(s) NON enregistrée(s) (stockage photos indisponible) — modification sauvegardée sans ces photos.','err');}catch(_){} }
     const who=(typeof currentUser!=='undefined'&&currentUser)?(currentUser.nom||currentUser.ini||''):'';
     logAudit('edit','fiches',id,`Fiche modifiée${who?' par '+who:''} — ${client} / ${ref} (${newDetail.length} bobines)`);
@@ -8994,14 +9230,32 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
   const changes={ncActionCorr:actionCorr,ncResp:resp};
   if(mode==='close'){ changes.ncStatut='cloture'; changes.ncDateTraite=isoNow(); }
   else if(mode==='reopen'){ changes.ncStatut='ouvert'; changes.ncDateTraite=''; }
-  const newDetail=f.ficheDetail.map((x,j)=>j===bobIdx?Object.assign({},x,changes):x);
+  const expectLabel=(f.ficheDetail[bobIdx]&&f.ficheDetail[bobIdx].label)||'';
   try{
-    // M5 : garde-fou 1 Mo (défense en profondeur pour toute fiche ancienne contenant encore du base64).
-    const _fstrip=_ficheStripHeavyPhotos(newDetail);
-    const detailSafe=_fstrip.clean;
-    await db.collection('fiches').doc(ficheId).update({ficheDetail:detailSafe});
-    f.ficheDetail=detailSafe;
-    if(_fstrip.stripped){ try{showToast('⚠ '+_fstrip.stripped+' photo(s) trop lourde(s) retirée(s) (stockage indisponible) — traitement NC enregistré.','err');}catch(_){} }
+    // TX-ncSaveTreat (B2) : lecture-modification-écriture ATOMIQUE. Avant, on réécrivait TOUT
+    // le tableau ficheDetail depuis le CACHE local → une clôture NC d'une AUTRE bobine faite
+    // par un autre poste entre-temps était écrasée (dernier qui écrit gagne). Ici on relit
+    // ficheDetail FRAIS dans la transaction, on patche UNIQUEMENT la bobine ciblée (par index,
+    // seule identité stable — les bobines ne sont ni réordonnées ni retirées après création,
+    // + garde de cohérence sur le label), et Firestore réessaie en cas de conflit → les modifs
+    // des autres bobines sont préservées.
+    let finalDetail=null, strippedCount=0;
+    await db.runTransaction(async(tx)=>{
+      const ref=db.collection('fiches').doc(ficheId);
+      const snap=await tx.get(ref);
+      if(!snap.exists) throw new Error('Fiche introuvable en base (supprimée ?).');
+      const data=snap.data()||{};
+      const det=Array.isArray(data.ficheDetail)?data.ficheDetail.slice():[];
+      if(bobIdx<0 || bobIdx>=det.length) throw new Error('Bobine absente de la version à jour — recharge l\'historique.');
+      const cur=det[bobIdx]||{};
+      if(expectLabel && (cur.label||'')!==expectLabel) throw new Error('Fiche modifiée ailleurs — recharge l\'historique et recommence.');
+      det[bobIdx]=Object.assign({},cur,changes);          // patch de la SEULE bobine ciblée, sur la version fraîche
+      const _fstrip=_ficheStripHeavyPhotos(det);           // M5 : garde-fou 1 Mo (défense en profondeur)
+      strippedCount=_fstrip.stripped; finalDetail=_fstrip.clean;
+      tx.update(ref,{ficheDetail:_fstrip.clean});
+    });
+    if(finalDetail) f.ficheDetail=finalDetail;             // cache = version fraîche + patch (inclut les modifs concurrentes)
+    if(strippedCount){ try{showToast('⚠ '+strippedCount+' photo(s) trop lourde(s) retirée(s) (stockage indisponible) — traitement NC enregistré.','err');}catch(_){} }
     const verbe=mode==='close'?'clôturée':mode==='reopen'?'rouverte':'mise à jour';
     await logAudit('edit','fiches',ficheId,`NC ${verbe} — bobine ${bobIdx+1}${resp?' · resp. '+resp:''}`,{client:f.client||'',ref:f.ref||'',dateCmd:f.date});
     document.getElementById('ncTreatOverlay')?.remove();
@@ -9973,8 +10227,12 @@ function buildFicheBobineOptions(){
   const n=ficheLines.length;
   let opts='<option value="">— Choisir une bobine —</option>';
   for(let i=1;i<=n;i++){
-    const lbl=document.getElementById('flLabel_'+ficheLines[i-1].id)?.value||('Bobine '+i);
-    opts+=`<option value="${i}">Bobine ${i}${lbl&&lbl!==('Bobine '+i)?' — '+esc(lbl):''}</option>`;
+    const id=ficheLines[i-1].id;
+    const lbl=document.getElementById('flLabel_'+id)?.value||('Bobine '+i);
+    // D-3 : la valeur reste la POSITION (1..n) — consommée numériquement partout
+    // (bannières, temps, CSV, historique). data-lid porte l'id de ligne STABLE
+    // pour remapper la position après un recalcul qui réordonne les bobines.
+    opts+=`<option value="${i}" data-lid="${esc(id)}">Bobine ${i}${lbl&&lbl!==('Bobine '+i)?' — '+esc(lbl):''}</option>`;
   }
   return opts;
 }
@@ -9986,6 +10244,23 @@ function fillBobineSelect(id){
   if(cur) sel.value=cur;
 }
 function refreshOp2BobineList(){ fillBobineSelect('fOp2Bobine'); fillBobineSelect('fLameChgBob'); }
+// D-3 : capture l'id de ligne STABLE derrière la position sélectionnée d'un select
+// bobine (op.2 / changement de lame), pour survivre à un réordonnancement au recalcul.
+function _bobineSelLid(id){
+  const sel=document.getElementById(id); if(!sel||!sel.value) return null;
+  const opt=sel.selectedOptions&&sel.selectedOptions[0];
+  if(opt&&opt.dataset&&opt.dataset.lid) return opt.dataset.lid;
+  const pos=parseInt(sel.value,10); // repli : position -> id courant
+  return (pos>=1&&pos<=ficheLines.length)?ficheLines[pos-1].id:null;
+}
+// D-3 : remappe la position vers la MÊME bobine physique après reconstruction.
+// Bobine disparue (reliquat re-empaqueté) -> on efface la sélection périmée.
+function _bobineSelRestore(id,lid){
+  const sel=document.getElementById(id); if(!sel) return;
+  if(!lid) return;
+  const idx=ficheLines.findIndex(l=>l.id===lid);
+  sel.value=(idx>=0)?String(idx+1):'';
+}
 function toggleLameChg(){
   const on=document.getElementById('fLameChg').checked;
   document.getElementById('lameChgZone').classList.toggle('hidden',!on);
@@ -10000,6 +10275,9 @@ function addFicheLine(data){
   data=data||{};
   ficheLines.push({id,rattrapage:!!data.rattrapage,origConf:(data.conf||'').replace(/x/gi,'×').trim(),
     ref:data.ref||'', useful:data.useful||0, blade:data.blade||0, machine:data.machine||'',
+    // D-1 : identité stable du groupe réf porté par la bobine (clé par contenu). Permet au
+    // recalcul de rattacher chaque bobine figée à SA réf même si deux réfs ont le même code.
+    refIdKey:(data.refIdKey||null),
     // Marqueur bobine ROULEAU CHUTE : permet au ♻ Recalculer de savoir quels
     // rouleaux saisis sont déjà consommés par des bobines figées (coupées).
     recut:!!data.recut, rollW:data.rollW||0});
@@ -10330,18 +10608,44 @@ function updateAllCumuls(){
 // (auto-save + parkings). Tout opérateur voit/charge les brouillons des autres
 // dès qu'il est en ligne ; hors-ligne, la persistance Firestore locale prend le
 // relais et synchronise au retour réseau. Les auto-save sont namespacés par
-// opérateur (d_autosave_<uid>) pour ne pas se télescoper entre postes.
+// opérateur ET par POSTE (d_autosave_<uid>_<device>) — B6/B9 : deux postes
+// connectés au MÊME compte partageaient l'id d_autosave_<uid>, donc s'écrasaient
+// mutuellement et pouvaient reprendre le chrono/la commande de l'autre poste
+// (→ double découpe). Le <device> est un id persistant tiré UNE fois par
+// navigateur (localStorage). La reprise auto (maybeResume*) passe par ces mêmes
+// fonctions : elle est donc bornée au poste courant, sans autre modification.
 // ============================================================
 let brouillonsCache=[];
 let _brouillonsUnsub=null;
 function _uid(){ try{ return (firebase.auth().currentUser||{}).uid || 'anon'; }catch(e){ return 'anon'; } }
 function _ini(){ return (currentUser&&currentUser.ini)?currentUser.ini:'?'; }
-function autosaveId(){ return 'd_autosave_'+_uid(); }
-function planAutosaveId(){ return 'd_autosave_plan_'+_uid(); }
+// B6/B9 : identifiant de POSTE stable (tiré une fois par navigateur, persisté en
+// localStorage). Repli mémoire si localStorage indisponible (mode privé/quota) :
+// stable pour la session, non partagé entre deux navigateurs.
+let _deviceIdCache=null;
+function _deviceId(){
+  if(_deviceIdCache) return _deviceIdCache;
+  let d='';
+  try{ d=localStorage.getItem('step_device_id')||''; }catch(e){}
+  if(!d){
+    try{ d=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():''; }catch(e){}
+    if(!d) d='dev-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
+    try{ localStorage.setItem('step_device_id',d); }catch(e){}
+  }
+  _deviceIdCache=d;
+  return d;
+}
+function autosaveId(){ return 'd_autosave_'+_uid()+'_'+_deviceId(); }
+function planAutosaveId(){ return 'd_autosave_plan_'+_uid()+'_'+_deviceId(); }
 // Retire les data: URIs volumineux (photos) avant écriture — limite Firestore 1 Mo.
+let _draftStripLastCount=0;   // DRAFT-3 : nb de photos lourdes retirées au dernier _draftStrip
 function _draftStrip(d){
-  const clean=JSON.parse(JSON.stringify(d,(k,v)=>
-    (typeof v==='string' && v.indexOf('data:')===0 && v.length>10000)?'':v));
+  let _n=0;
+  const clean=JSON.parse(JSON.stringify(d,(k,v)=>{
+    if(typeof v==='string' && v.indexOf('data:')===0 && v.length>10000){ _n++; return ''; }
+    return v;
+  }));
+  _draftStripLastCount=_n;   // DRAFT-3 : exposé aux appelants explicites (manuel/envoi) pour alerter, sans changer la signature
   // RULES-1 : uid réel du déposant, stampé sur l'objet comparé ET écrit (pas de réécriture parasite au diff).
   try{ clean.ownerUid=_uid(); }catch(e){}
   return clean;
@@ -10381,6 +10685,7 @@ function startBrouillons(){
     arr.sort((a,b)=>String(b.savedAt||'').localeCompare(String(a.savedAt||'')));
     brouillonsCache=arr;
     try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
+    try{ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }catch(e){}
   }, function(err){ console.warn('Brouillons (sync) :',err.message); });
 }
 function stopBrouillons(){ if(_brouillonsUnsub){ try{_brouillonsUnsub();}catch(e){} _brouillonsUnsub=null; } brouillonsCache=[]; }
@@ -10450,14 +10755,34 @@ function serializeFicheState(){
     pendingFicheId:_pendingFicheId||null, pendingTempsId:_pendingTempsId||null   // ENVOI-1 : renvoi idempotent
   };
 }
-function saveDraftManual(){
+async function saveDraftManual(){
   if(ficheLines.length===0){showToast('Aucune bobine à enregistrer en brouillon.','err');return;}
   const st=serializeFicheState();
   const label=(st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°');
-  const drafts=loadDrafts();
-  drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label,state:st});
-  persistDrafts(drafts);
-  showToast('💾 Brouillon enregistré — Données > Brouillons','ok');
+  const draft={id:'d_'+Date.now(),savedAt:isoNow(),label,state:st};
+  const stripped=_draftStrip(draft);
+  const _photosDropped=_draftStripLastCount;   // DRAFT-3 : capturé AVANT tout await (un autosave concurrent réécrit _draftStripLastCount)
+  // DRAFT-2 : avant, persistDrafts (fire-and-forget) renvoyait true même si tous les
+  // set() échouaient → toast « Brouillon enregistré » mensonger. Désormais : repli LOCAL
+  // synchrone (durable même si Firestore refuse) + affichage optimiste, puis écriture
+  // Firestore ATTENDUE ; le toast reflète le support qui a RÉELLEMENT tenu.
+  const local=_draftFallbackPush(stripped);
+  try{ brouillonsCache=[stripped].concat((Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(x){return x.id!==stripped.id;}));
+    if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
+  let firestore=false;
+  if(db){
+    try{
+      await Promise.race([
+        db.collection('brouillons').doc(draft.id).set(stripped),
+        new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('timeout')); },6000); })
+      ]);
+      firestore=true; _draftFallbackRemove(draft.id);
+    }catch(e){ console.warn('Brouillon manuel (Firestore) :',e&&e.message); }
+  }
+  if(firestore) showToast('💾 Brouillon enregistré — Données > Brouillons','ok');
+  else if(local) showToast('💾 Brouillon gardé en LOCAL sur ce poste (base indisponible) — il partira au retour réseau.','ok');
+  else showToast('⛔ Échec : brouillon NON enregistré (base ET stockage local indisponibles).','err');
+  if(_photosDropped>0) showToast('⚠ '+_photosDropped+' photo(s) trop lourde(s) NON conservée(s) dans le brouillon — reprends-les avant de renvoyer la commande.','err');
 }
 function saveDraftFromSend(ficheEntry,tempsEntry,body){
   const st=serializeFicheState();
@@ -10465,6 +10790,62 @@ function saveDraftFromSend(ficheEntry,tempsEntry,body){
   const drafts=loadDrafts();
   drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,fromSend:true});
   persistDrafts(drafts);
+}
+// ── DRAFT-1 : repli localStorage + sauvegarde brouillon FIABLE à l'envoi ─────
+// Avant : saveDraftFromSend écrivait via _draftSet (fire-and-forget) puis on
+// affichait « placée en BROUILLON ». Sur rejet NON-réseau (permission/App Check),
+// l'écriture échouait EN SILENCE → l'opérateur croyait la fiche sauvée = perte.
+// Désormais : support LOCAL synchrone (quasi toujours durable) + Firestore
+// attendu/borné ; on ne prétend « sauvegardée » que si un support a RÉELLEMENT
+// tenu. Un flush au démarrage repousse les replis locaux vers Firestore.
+const DRAFT_FALLBACK_LS='step_draft_fallback';
+function _draftFallbackLoad(){ try{ return JSON.parse(localStorage.getItem(DRAFT_FALLBACK_LS)||'[]')||[]; }catch(e){ return []; } }
+function _draftFallbackSave(arr){ try{ localStorage.setItem(DRAFT_FALLBACK_LS, JSON.stringify(arr)); return true; }catch(e){ return false; } }
+function _draftFallbackPush(d){ try{ const arr=_draftFallbackLoad().filter(function(x){return x.id!==d.id;}); arr.unshift(d); return _draftFallbackSave(arr.slice(0,50)); }catch(e){ return false; } }
+function _draftFallbackRemove(id){ try{ _draftFallbackSave(_draftFallbackLoad().filter(function(x){return x.id!==id;})); }catch(e){} }
+async function saveDraftFromSendReliable(ficheEntry,tempsEntry,waitFirestore){
+  if(waitFirestore===undefined) waitFirestore=true;
+  const st=serializeFicheState();
+  const label=(ficheEntry.client||'—')+' / '+(ficheEntry.numCmd||'sans n°');
+  const draft={id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,fromSend:true};
+  const stripped=_draftStrip(draft);
+  const photosDropped=_draftStripLastCount;   // DRAFT-3 : capturé AVANT tout await (autosave concurrent réécrit _draftStripLastCount)
+  // 1) Support LOCAL d'abord (synchrone) → garantit « au moins un support ».
+  const local=_draftFallbackPush(stripped);
+  // 2) Support Firestore.
+  let firestore=false;
+  if(db){
+    if(waitFirestore){
+      try{
+        await Promise.race([
+          db.collection('brouillons').doc(draft.id).set(stripped),
+          new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('timeout')); },6000); })
+        ]);
+        firestore=true;
+      }catch(e){ console.warn('Brouillon envoi (Firestore) :',e&&e.message); }
+    } else {
+      // Réseau déjà établi comme mauvais : on N'ATTEND PAS — la persistance Firestore
+      // met l'écriture en file et la rejouera au retour réseau (idempotent, même id).
+      try{ db.collection('brouillons').doc(draft.id).set(stripped).then(function(){ _draftFallbackRemove(draft.id); }).catch(function(){}); }catch(e){}
+    }
+    if(firestore){
+      _draftFallbackRemove(draft.id);
+      try{ brouillonsCache=[stripped].concat((Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(x){return x.id!==stripped.id;}));
+        if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
+    }
+  }
+  return {local:local, firestore:firestore, id:draft.id, photosDropped:photosDropped};
+}
+// Au démarrage : repousse les brouillons d'envoi restés en repli local vers Firestore
+// (réseau/droits revenus). Idempotent : même id → set écrase, pas de doublon.
+async function flushDraftFallbacks(){
+  if(!db) return;
+  const arr=_draftFallbackLoad();
+  if(!arr.length) return;
+  for(const d of arr){
+    try{ await db.collection('brouillons').doc(d.id).set(_draftStrip(d)); _draftFallbackRemove(d.id); }
+    catch(e){ /* on conserve le repli local, réessai au prochain démarrage */ }
+  }
 }
 // Auto-sauvegarde : tant que le chrono tourne, on maintient UN brouillon auto (id fixe)
 // rafraîchi toutes les 60 s. Évite la perte si l'app est fermée en pleine saisie.
@@ -10507,6 +10888,12 @@ async function maybeResumeRunningChrono(){
       d=loadDrafts().find(x=>x.id===aid);
       if(!d){ try{ const snap=await db.collection('brouillons').doc(aid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
     }
+    // Bug « commande validée reproposée » : un brouillon AUTO marqué consumed = commande
+    // DÉJÀ produite (envoi OK mais delete du brouillon échoué hors-ligne → repli consumed).
+    // resumeDraft/renderDrafts le filtraient déjà, PAS la reprise auto → il était reproposé
+    // au démarrage avec un chrono recalculé aberrant. On l'ignore ici : jamais de matière/réf/
+    // commande ressuscitée. (Le repli chrono-du-jour plus bas ne relance que l'horloge.)
+    if(d && d.consumed) d=null;
     let c=(d&&d.state&&d.state.chrono)?d.state.chrono:null;
     // Le brouillon n'avait pas (encore) capté le chrono en marche → on complète depuis la sauvegarde live.
     if(c && (!c.wasRunning||!c.runStart) && live && live.runStart){ c.runStart=live.runStart; c.wasRunning=true; if(live.startTs)c.startTs=live.startTs; }
@@ -10515,9 +10902,17 @@ async function maybeResumeRunningChrono(){
       let actifSec=Math.max(0,Math.floor((Date.now()-c.runStart)/1000));
       // Si le chrono a traversé l'heure de fin de journée pendant la fermeture, plafonner l'affichage.
       { const _cut=dayChronoCutoffMs(c.runStart); if(_cut!=null && c.runStart<_cut && Date.now()>=_cut) actifSec=Math.max(0,Math.floor((_cut-c.runStart)/1000)); }
-      const lbl=(d.state.fiche&&(d.state.fiche.client||d.state.fiche.numCmd))
-        ? ((d.state.fiche.client||'—')+' / '+(d.state.fiche.numCmd||'sans n°'))
-        : 'commande en cours';
+      // Libellé enrichi (client · référence · n° cmd · date de livraison) pour que
+      // l'opérateur reconnaisse sa commande d'un coup d'œil avant de confirmer la reprise.
+      const _f=(d.state&&d.state.fiche)||{}, _p=(d.state&&d.state.plan)||{};
+      const _cli=_f.client||_p.client||'—';
+      const _ref=_f.ref||_p.ref||'';
+      const _cmd=_f.numCmd||_p.numCmd||'';
+      const _liv=_f.dateLiv||_p.dateLiv||'';
+      const lbl=_cli
+        +(_ref?(' · '+_ref):'')
+        +(_cmd?(' · Cmd '+_cmd):'')
+        +(_liv?('\nÀ livrer le : '+_liv):'');
       // Reprise AUTOMATIQUE si la commande date d'aujourd'hui (téléphone mis en veille /
       // dans la poche) : le chrono continue tout seul, sans popup à rater. Pour une commande
       // d'un jour précédent, on demande confirmation (ne pas ressusciter une vieille commande).
@@ -10559,6 +10954,7 @@ async function maybeResumePlan(){
     // Le snapshot 'brouillons' peut ne pas être encore arrivé à ce 1er tick → lecture directe.
     if(!d){ try{ const snap=await db.collection('brouillons').doc(pid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
     if(!d||!d.state||!d.state.plan) return;
+    if(d.consumed) return;   // même garde : un plan consommé (fiche produite) n'est pas reproposé
     // MÊME JOUR uniquement : reprise silencieuse d'une saisie coupée par un rechargement.
     // Un brouillon plan plus ancien reste dans Données > Brouillons (repris à la main),
     // pour ne pas ressusciter une saisie abandonnée.
@@ -10569,6 +10965,45 @@ async function maybeResumePlan(){
     showPage(0);
     try{ showToast('📝 Saisie de plan reprise','ok'); }catch(e){}
   }catch(e){ console.warn('Reprise plan:',e); }
+}
+// ── Bouton « Reprendre ma dernière commande » (demande opérateur) ───────────
+// Règle unique : une commande mise en PAUSE (chrono arrêté, non envoyée) reste
+// dans le brouillon AUTO de CE poste (id = autosaveId(), rafraîchi ~15 s). Au
+// retour sur l'app, pas de popup subi : un bouton VERT sur Plan propose de la
+// reprendre (client · réf · date de livraison). maybeResumeRunningChrono ne
+// couvre QUE le cas « chrono qui tournait » ; ce bouton couvre « en pause ».
+function updateResumeLastBtn(){
+  try{
+    const btn=document.getElementById('resumeLastBtn');
+    if(!btn) return;
+    let show=false;
+    // Pas déjà dans une commande à l'écran (sinon « reprendre » n'a pas de sens).
+    if(!(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length)){
+      const aid=(typeof autosaveId==='function')?autosaveId():null;
+      const d=aid?loadDrafts().find(function(x){return x.id===aid;}):null;
+      if(d && !d.consumed && d.state &&
+         ((d.state.lines && d.state.lines.length) ||
+          (d.state.fiche && (d.state.fiche.client||d.state.fiche.ref)))) show=true;
+    }
+    btn.classList.toggle('hidden', !show);
+  }catch(e){}
+}
+async function resumeLastCommand(){
+  try{
+    const aid=(typeof autosaveId==='function')?autosaveId():null;
+    let d=aid?loadDrafts().find(function(x){return x.id===aid;}):null;
+    // Le snapshot 'brouillons' peut ne pas être arrivé : lecture directe en secours.
+    if(!d && db && aid){ try{ const snap=await db.collection('brouillons').doc(aid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
+    if(!d || d.consumed || !d.state){ showToast('Aucune commande en cours à reprendre sur ce poste.','err'); updateResumeLastBtn(); return; }
+    const _f=d.state.fiche||{}, _p=d.state.plan||{};
+    const cli=_f.client||_p.client||'—', ref=_f.ref||_p.ref||'', cmd=_f.numCmd||_p.numCmd||'', liv=_f.dateLiv||_p.dateLiv||'';
+    const lbl=cli+(ref?(' · '+ref):'')+(cmd?(' · Cmd '+cmd):'')+(liv?('\nÀ livrer le : '+liv):'');
+    if(!confirm('▶ Reprendre ta dernière commande ?\n\n'+lbl)) return;
+    restoreFicheState(d.state);
+    showPage(1);
+    updateResumeLastBtn();
+    try{ showToast('Commande reprise','ok'); }catch(e){}
+  }catch(e){ console.warn('resumeLastCommand:',e); }
 }
 // ============================================================
 // AUTO-SAVE PLAN (demande 4) — dès qu'un utilisateur saisit ou modifie
@@ -10642,7 +11077,7 @@ function resumeDraft(id){
   }
 }
 function restoreFicheLineFromData(ld){
-  addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',
+  addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',refIdKey:ld.refIdKey||null,useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',
     recut:!!ld.recut, rollW:ld.rollW||0,
     // La note turquoise des bobines rouleau est reconstruite (déterministe depuis rollW).
     chuteNote:ld.recut?('♻ ROULEAU CHUTE '+fmt(ld.rollW||ld.useful||0)+' mm — À RECOUPER EN 1ER (avant les bobines mères)'):''});
