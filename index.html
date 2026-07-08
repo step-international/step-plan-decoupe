@@ -3424,7 +3424,7 @@ function switchTab(tab){
   });
   const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance')?'none':'';
   if(tab==='saves') renderSaves();
-  else if(tab==='temps') renderTemps();
+  else if(tab==='temps'){ renderTemps(); autoLoadHistoryThenRerender('temps'); }   // [L79·AN-1] les totaux Temps ne doivent pas rester sur un cache tronqué
   else if(tab==='brouillons') renderDrafts();
   else if(tab==='analyse'){ renderAnalyse(); autoLoadHistoryThenRerender('analyse'); }
   else if(tab==='corbeille'){ loadCorbeille(); }
@@ -3444,6 +3444,7 @@ function autoLoadHistoryThenRerender(tab){
     if(!active||!active.classList.contains('active')) return;  // l'utilisateur a changé d'onglet entre-temps
     if(tab==='nc') renderNc();
     else if(tab==='analyse') renderAnalyse();
+    else if(tab==='temps') renderTemps();
   });
 }
 
@@ -7384,7 +7385,7 @@ async function doChronoSave(){
   const entry={
     date:chronoStartTs||isoNow(),dateEnd:isoNow(),duree:chronoSec,
     operateur:ini,operateur2:ini2,op2Bobine:op2Bob,
-    machine:getMachineLabel(ficheMachine),client,ref,rows,
+    machine:getMachineLabel(ficheMachine),machine2:((document.getElementById('fOp2Active')?.checked&&document.getElementById('fOp2DiffMachine')?.checked)?getMachineLabel(ficheMachine2):''),client,ref,rows,   // [L79·AN-2] 2e machine du relais (ventilation stats)
     numCmd:document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'',
     commandeDetail:agg.commandeDetail,
     totalLaizes,nbBobines,
@@ -7446,7 +7447,7 @@ function renderTemps(){
   const fClient=document.getElementById('filterClient')?.value||'';
   const fOp=document.getElementById('filterOp')?.value||'';
   const temps=allTemps.filter(t=>
-    (!fMachine||(t.machine||'').toUpperCase()===fMachine.toUpperCase())&&
+    (!fMachine||(t.machine||'').toUpperCase()===fMachine.toUpperCase()||(t.machine2||'').toUpperCase()===fMachine.toUpperCase())&&   // [L79·AN-2] machine2 (relais) incluse
     (!fClient||t.client===fClient)&&
     (!fOp||t.operateur===fOp||t.operateur2===fOp)
   );
@@ -7455,9 +7456,24 @@ function renderTemps(){
   empty.classList[temps.length?'add':'remove']('hidden');
   if(temps.length===0){list.innerHTML='<div style="color:var(--muted);padding:12px 0;font-size:13px">Aucun résultat pour ces filtres.</div>';summary.innerHTML='';return;}
 
-  const avgSec=Math.round(temps.reduce((s,t)=>s+t.duree,0)/temps.length);
-  const totalH=Math.round(temps.reduce((s,t)=>s+t.duree,0)/3600*10)/10;
-  summary.innerHTML=`<div class="stats-summary">
+  // [L79·AN-2] Ventilation op.2 / machine2 : quand la vue est filtrée par OPÉRATEUR ou MACHINE et que
+  // la commande est un RELAIS (op2Bobine/nbBobines), on ne compte que la PART attribuable au filtre —
+  // sinon le temps du relais était compté à 100 % pour les DEUX (double-comptage). Formule validée :
+  // part op.1 = (op2Bobine−1)/nbBobines, part op.2 = reste. Sans filtre op/machine : durée entière.
+  const _shareSec=t=>{
+    const dur=Number(t.duree)||0, nb=Number(t.nbBobines)||0, cut=Number(t.op2Bobine)||0;
+    const relais=(t.operateur2||t.machine2)&&cut>1&&nb>0&&cut<=nb;
+    const f1=relais?(cut-1)/nb:1, f2=relais?(nb-cut+1)/nb:0;
+    const part=(is1,is2)=>(is1&&is2)?1:is2?f2:is1?(relais?f1:1):0;
+    let f=1;
+    if(fOp) f=part(t.operateur===fOp, t.operateur2===fOp);
+    if(fMachine){ const M=fMachine.toUpperCase(); const fm=part((t.machine||'').toUpperCase()===M,(t.machine2||'').toUpperCase()===M); f=fOp?Math.min(f,fm):fm; }
+    return dur*f;
+  };
+  const _sumSec=temps.reduce((s,t)=>s+_shareSec(t),0);
+  const avgSec=Math.round(_sumSec/temps.length);
+  const totalH=Math.round(_sumSec/3600*10)/10;
+  summary.innerHTML=partialDataBanner()+`<div class="stats-summary">
     <div><div class="sv">${temps.length}</div><div class="sl">Commandes${fMachine||fClient||fOp?' (filtrées)':''}</div></div>
     <div><div class="sv">${fmtTime(avgSec)}</div><div class="sl">Temps moyen</div></div>
     <div><div class="sv">${totalH}h</div><div class="sl">Total prod.</div></div>
@@ -7735,13 +7751,22 @@ function buildFicheAnalytics(){
   const machItems=Object.entries(machStat).filter(([,d])=>d.tot>0).map(([m,d])=>({label:m,value:d.tot?d.nc/d.tot*100:0,color:machColors[m]||'#a78bfa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
   const clientItems=Object.entries(clientPct).map(([c,arr])=>({label:c,value:avgArr(arr),color:'#34d399',sub:`(${arr.length} cmd)`})).sort((a,b)=>b.value-a.value);
   const globalNcRate=totBob?Math.round(ncBob/totBob*1000)/10:0;
+  // [L79 · AN-5] Objectif qualité STEP : ≤ 3% de bobines non-conformes. On affiche le réel VS la cible,
+  // couleur + écart en points, pour piloter l'amélioration continue (ISO 9001 §6.2 objectifs / §9.1 surveillance).
+  const NC_CIBLE=3;
+  const ncOk=globalNcRate<=NC_CIBLE, ncEcart=Math.round((globalNcRate-NC_CIBLE)*10)/10;
+  const ncObjHTML=totBob?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px">
+        <span style="background:${ncOk?'#14371f':'#3a1414'};color:${ncOk?'#4ade80':'#f87171'};font-weight:800;padding:3px 9px;border-radius:20px">${ncOk?'✓ OBJECTIF TENU':'✗ OBJECTIF DÉPASSÉ'}</span>
+        <span style="color:#aaa">Cible ≤ <strong>${NC_CIBLE}%</strong> · réel <strong style="color:${ncOk?'#4ade80':'#f87171'}">${globalNcRate}%</strong> <span style="color:#777">(${ncEcart>0?'+':''}${ncEcart} pt)</span></span>
+      </div>`:'';
 
   const ncBlock=ncTotal===0
-    ?`<div style="text-align:center;padding:24px;color:var(--green);font-weight:700">✓ Aucune non-conformité enregistrée sur ${totBob} bobines</div>`
+    ?`<div style="text-align:center;padding:24px;color:var(--green);font-weight:700">✓ Aucune non-conformité enregistrée sur ${totBob} bobines<div style="font-size:12px;font-weight:600;color:#4ade80;margin-top:6px">Objectif qualité ≤ ${NC_CIBLE}% : ✓ tenu</div></div>`
     :`<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
         <svg viewBox="0 0 120 120" style="width:120px;height:120px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">${svgPie(ncSlices,120)}</svg>
         <div style="flex:1;min-width:160px">${ncLegend}
           <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2a2a28;font-size:12px;color:#888">Total NC : <strong style="color:#f87171">${ncTotal}</strong> sur ${totBob} bobines · taux ${globalNcRate}%</div>
+          ${ncObjHTML}
         </div>
       </div>`;
 
@@ -7862,18 +7887,23 @@ function fmtHm(sec){sec=Math.max(0,Math.round(sec));const h=Math.floor(sec/3600)
 // PUR : calcule les KPI d'un mois depuis des tableaux fiches/temps. Testable sans Firebase.
 // Perte = moyenne PONDÉRÉE par le nombre de bobines (une grosse commande pèse plus).
 function buildMonthlyKpi(ym,fiches,temps){
-  const F=(fiches||[]).filter(f=>!f.deleted&&String(f.date||'').slice(0,7)===ym);
+  const F=(fiches||[]).filter(f=>!f.deleted&&f.valide!==false&&String(f.date||'').slice(0,7)===ym);   // [L79·AN-1] exclure les fiches REFUSÉES (valide===false) des KPI mensuels (bobines/perte gonflées sinon)
   const T=(temps||[]).filter(t=>!t.deleted&&String(t.date||'').slice(0,7)===ym);
   const MACH=['FEBA','MAVEG','CEVENINI'];
   const mach={};MACH.forEach(m=>mach[m]={bobines:0,wpNum:0,wpDen:0,dur:0,laizes:0});
   let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0;
+  const cliVol={},refVol={};   // [L79·AN-3] volume (bobines) par client / par réf → top 5 stockés dans l'agrégat
   F.forEach(f=>{
     const b=Number(f.totalBobines)||0,p=parseFloat(f.pct);
     totalBobines+=b;
     if(!isNaN(p)){wpNum+=p*b;wpDen+=b;}
     const m=String(f.machine||'').toUpperCase();
     if(mach[m]){mach[m].bobines+=b;if(!isNaN(p)){mach[m].wpNum+=p*b;mach[m].wpDen+=b;}}
+    const c=String(f.client||'—').trim()||'—'; cliVol[c]=(cliVol[c]||0)+b;
+    const rf=String(f.ref||'—').trim()||'—'; refVol[rf]=(refVol[rf]||0)+b;
   });
+  const topClients=Object.entries(cliVol).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:e[1]}));
+  const topRefs=Object.entries(refVol).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:e[1]}));
   T.forEach(t=>{
     const dur=Number(t.duree)||0;tempsSec+=dur;
     const m=String(t.machine||'').toUpperCase();
@@ -7881,7 +7911,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   });
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
-  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines};
+  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs};
 }
 
 // Fige un mois : requête datée DIRECTE (indépendante du cache boot allégé), filtre deleted client.
@@ -7934,6 +7964,38 @@ async function recalcMois(ym,btn){
   try{await computeMonthAggregate(ym);renderKpiMois(ym);showToast('✓ KPI '+monthLabelFr(ym)+' recalculés','ok');}
   catch(e){showToast('Erreur recalcul : '+e.message,'err');if(btn){btn.disabled=false;btn.textContent='♻ Recalculer ce mois';}}
 }
+// [L79 · AN-6] Impression THÈME CLAIR du KPI mensuel = artefact « revue de direction » ISO 9001,
+// lisible sur papier/PDF (le tableau de bord à l'écran est en thème sombre, illisible imprimé).
+// Passe par l'overlay openPrintWindow (pas de window.open → pas d'éjection Safari sur PWA iOS).
+function printKpiMois(ym){
+  ym=ym||(document.getElementById('kpiMoisSel')&&document.getElementById('kpiMoisSel').value)||currentMonthYM();
+  const kpi=(ym===currentMonthYM())?buildMonthlyKpi(ym,fichesCache,tempsCache):(agregatsCache.find(a=>a.mois===ym)||buildMonthlyKpi(ym,fichesCache,tempsCache));
+  const rendement=Math.round((100-(Number(kpi.pertePct)||0))*10)/10;
+  const M=kpi.machines||{};
+  const td='padding:6px 8px;border:1px solid #ccc';
+  const th='text-align:right;padding:5px 8px;border:1px solid #ccc;background:#f2f2f2';
+  const machRows=['FEBA','MAVEG','CEVENINI'].map(n=>{const x=M[n]||{};return `<tr><td style="${td}">${n}</td><td style="${td};text-align:right">${(x.bobines||0).toLocaleString('fr-FR')}</td><td style="${td};text-align:right">${(x.pertePct||0)} %</td><td style="${td};text-align:right">${x.secLaize||0} s</td></tr>`;}).join('');
+  const topRows=arr=>((arr||[]).map(x=>`<tr><td style="${td}">${esc(x.k)}</td><td style="${td};text-align:right;font-weight:700">${Number(x.v).toLocaleString('fr-FR')}</td></tr>`).join('')||`<tr><td style="${td}" colspan="2">—</td></tr>`);
+  const html=`<div style="font-family:system-ui,-apple-system,sans-serif;color:#111;padding:6mm;max-width:190mm">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:14px">
+      <h1 style="font-size:20px;margin:0">STEP · KPI mensuels</h1><div style="font-size:15px;font-weight:700">${monthLabelFr(ym)}</div></div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:18px">
+      <tr><td style="${td}">Fiches</td><td style="${td};text-align:right;font-weight:700">${kpi.nbFiches||0}</td><td style="${td}">Bobines</td><td style="${td};text-align:right;font-weight:700">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</td></tr>
+      <tr><td style="${td}">Rendement matière</td><td style="${td};text-align:right;font-weight:700">${rendement} %</td><td style="${td}">Perte moyenne (pondérée)</td><td style="${td};text-align:right;font-weight:700">${kpi.pertePct||0} %</td></tr>
+      <tr><td style="${td}">Temps total production</td><td style="${td};text-align:right;font-weight:700" colspan="3">${fmtHm(kpi.tempsSec||0)}</td></tr>
+    </table>
+    <h2 style="font-size:15px;margin:0 0 6px">Par machine</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
+      <thead><tr><th style="text-align:left;padding:5px 8px;border:1px solid #ccc;background:#f2f2f2">Machine</th><th style="${th}">Bobines</th><th style="${th}">Perte</th><th style="${th}">Temps/laize</th></tr></thead>
+      <tbody>${machRows}</tbody></table>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px"><h2 style="font-size:15px;margin:0 0 6px">Top clients (bobines)</h2><table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>${topRows(kpi.topClients)}</tbody></table></div>
+      <div style="flex:1;min-width:220px"><h2 style="font-size:15px;margin:0 0 6px">Top références (bobines)</h2><table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>${topRows(kpi.topRefs)}</tbody></table></div>
+    </div>
+    <div style="margin-top:22px;font-size:11px;color:#666;border-top:1px solid #ccc;padding-top:6px">Édité le ${new Date().toLocaleString('fr-FR')} — STEP International · Revue de direction ISO 9001</div>
+  </div>`;
+  openPrintWindow(html,true);
+}
 function buildKpiMoisBlock(){
   const cur=currentMonthYM();
   const opts=prevMonthsYM(12).map(ym=>{
@@ -7943,7 +8005,10 @@ function buildKpiMoisBlock(){
   return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">📊 KPI mensuels</div>
-      <select id="kpiMoisSel" onchange="renderKpiMois(this.value)" style="width:auto;max-width:220px">${opts}</select>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="kpiMoisSel" onchange="renderKpiMois(this.value)" style="width:auto;max-width:200px">${opts}</select>
+        <button onclick="printKpiMois(document.getElementById('kpiMoisSel').value)" class="btn btn-ghost btn-sm" title="Imprimer / PDF — revue de direction ISO 9001" aria-label="Imprimer les KPI du mois">🖨</button>
+      </div>
     </div>
     <div id="kpiMoisContent">${kpiMoisInnerHTML(cur)}</div>
   </div>`;
@@ -7975,16 +8040,45 @@ function kpiMoisInnerHTML(ym){
   const evo=agregatsCache.slice().sort((a,b)=>a.mois<b.mois?-1:1).slice(-4);
   const evoRows=evo.map(a=>`<tr><td style="padding:5px 8px">${monthLabelFr(a.mois)}</td><td style="text-align:right">${(a.totalBobines||0).toLocaleString('fr-FR')}</td><td style="text-align:right">${a.nbFiches||0}</td><td style="text-align:right;color:var(--orange)">${(a.pertePct||0).toLocaleString('fr-FR')}</td></tr>`).join('');
   const recalcBtn=(!isLive&&canViewAnalyse())?`<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button onclick="recalcMois('${ym}',this)" style="background:#2a1f3d;color:var(--violet);border:1px solid #4a3a70;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">♻ Recalculer ce mois</button></div>`:'';
+  // [L79 · AN-3] Rendement matière (= 100 − perte pondérée : part de la bobine mère réellement utilisée)
+  // + Δ vs mois précédent (agrégat figé) sur Bobines et Perte. La perte qui BAISSE s'affiche en vert (goodDown).
+  const _prevYM=(m)=>{const y=+m.slice(0,4),mo=+m.slice(5,7);return mo===1?(y-1)+'-12':y+'-'+String(mo-1).padStart(2,'0');};
+  const prevKpi=agregatsCache.find(a=>a.mois===_prevYM(ym))||null;
+  const rendement=Math.round((100-(Number(kpi.pertePct)||0))*10)/10;
+  const _delta=(cur,prev,unit,goodDown)=>{
+    if(prev==null||!isFinite(Number(prev))) return '';
+    const d=Math.round((Number(cur)-Number(prev))*10)/10;
+    if(d===0) return `<div style="font-size:11px;color:#777;margin-top:3px">= mois préc.</div>`;
+    const up=d>0, good=goodDown?!up:up, col=good?'#4ade80':'#f87171';
+    return `<div style="font-size:11px;font-weight:700;color:${col};margin-top:3px">${up?'▲':'▼'} ${up?'+':''}${d.toLocaleString('fr-FR')}${unit} vs mois préc.</div>`;
+  };
+  const _topRows=(arr,col)=>{
+    const list=(arr||[]).filter(x=>x&&Number(x.v)>0);
+    if(!list.length) return '<div style="font-size:12px;color:#666;padding:4px 0">—</div>';
+    const max=Number(list[0].v)||1;
+    return list.map(x=>`<div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:2px"><span style="color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.k)}</span><span style="font-weight:700;color:#fff;flex-shrink:0">${Number(x.v).toLocaleString('fr-FR')}</span></div>
+      <div style="height:6px;background:#222;border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round(Number(x.v)/max*100)}%;background:${col}"></div></div>
+    </div>`).join('');
+  };
+  const topBlock=((kpi.topClients&&kpi.topClients.length)||(kpi.topRefs&&kpi.topRefs.length))?`
+    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Top volumes du mois</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px">
+      <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px"><div style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:8px">🏭 Clients (bobines)</div>${_topRows(kpi.topClients,'#60a5fa')}</div>
+      <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px"><div style="font-size:12px;font-weight:700;color:#4ade80;margin-bottom:8px">🎞️ Références (bobines)</div>${_topRows(kpi.topRefs,'#4ade80')}</div>
+    </div>`:'';
   return `${recalcBtn}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px">
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Fiches</div><div style="font-size:24px;font-weight:800">${kpi.nbFiches||0}</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobines</div><div style="font-size:24px;font-weight:800">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#666">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobines</div><div style="font-size:24px;font-weight:800">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</div>${_delta(kpi.totalBobines,prevKpi&&prevKpi.totalBobines,'',false)}</div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Rendement matière</div><div style="font-size:24px;font-weight:800;color:var(--green)">${rendement.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#777;margin-top:3px">utile ÷ mère</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#666">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
     </div>
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#60a5fa')}${machCard('MAVEG','#4ade80')}${machCard('CEVENINI','#a78bfa')}</div>
-    ${evo.length?`<div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Évolution</div>
+    ${topBlock}
+    ${evo.length?`<div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Évolution</div>`+`
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">
       <thead><tr style="color:#888;font-size:12px;text-transform:uppercase"><th style="text-align:left;padding:5px 8px;border-bottom:1px solid #333">Mois</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Bobines</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Fiches</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Perte %</th></tr></thead>
       <tbody>${evoRows}</tbody></table>`:''}
@@ -9179,14 +9273,17 @@ function dujBest(){
   const rows=DUJ_MACHINES.map(k=>{ const r=dujDebit(k,''); return {k,d:r.d,n:r.n,sec:r.d?metres/r.d*3600:Infinity}; })
     .filter(x=>x.d>0).sort((a,b)=>a.sec-b.sec);
   if(!rows.length){ out.innerHTML='<span style="color:#f87171">Pas de données.</span>'; return; }
+  const SEUIL=3;   // [L79·AN-4] échantillon minimal pour COURONNER une machine (sinon « indicatif »)
+  const best=rows.find(x=>x.n>=SEUIL)||null;   // 1re machine FIABLE (assez de relevés), pas juste la + rapide sur 1 mesure
   out.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
     <thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
-      <th style="text-align:left;padding:6px">Machine</th><th style="text-align:right;padding:6px">Débit m/h</th><th style="text-align:right;padding:6px">Durée estimée</th></tr></thead>
-    <tbody>${rows.map((x,i)=>`<tr style="border-top:1px solid var(--border)${i===0?';background:rgba(74,222,128,.08)':''}">
-      <td style="padding:8px 6px;font-weight:${i===0?'800':'600'}">${i===0?'🏆 ':''}${getMachineLabel(x.k)}</td>
+      <th style="text-align:left;padding:6px">Machine</th><th style="text-align:right;padding:6px">Débit m/h</th><th style="text-align:right;padding:6px">Relevés</th><th style="text-align:right;padding:6px">Durée estimée</th></tr></thead>
+    <tbody>${rows.map(x=>{const crowned=(x===best);const faible=x.n<SEUIL;return `<tr style="border-top:1px solid var(--border)${crowned?';background:rgba(74,222,128,.08)':''}">
+      <td style="padding:8px 6px;font-weight:${crowned?'800':'600'}">${crowned?'🏆 ':''}${getMachineLabel(x.k)}${faible?' <span style="color:var(--orange);font-size:11px;font-weight:400">indicatif</span>':''}</td>
       <td style="padding:8px 6px;text-align:right">${Math.round(x.d).toLocaleString('fr-FR')}</td>
-      <td style="padding:8px 6px;text-align:right;font-weight:700;color:${i===0?'#4ade80':'var(--text)'}">${dujSecToTxt(x.sec)}</td></tr>`).join('')}</tbody></table>
-    <div style="font-size:12px;color:var(--muted);margin-top:6px">${metres.toLocaleString('fr-FR')} m · médiane par machine.</div>`;
+      <td style="padding:8px 6px;text-align:right;color:${faible?'var(--orange)':'var(--muted)'}">${x.n}</td>
+      <td style="padding:8px 6px;text-align:right;font-weight:700;color:${crowned?'#4ade80':'var(--text)'}">${dujSecToTxt(x.sec)}</td></tr>`;}).join('')}</tbody></table>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px">${metres.toLocaleString('fr-FR')} m · médiane par machine.${best?'':` <span style="color:var(--orange)">Aucune machine avec ≥${SEUIL} relevés — classement indicatif.</span>`}</div>`;
 }
 function dujAddJob(){
   const ref=(document.getElementById('duj_ref').value||'').trim();
@@ -9253,7 +9350,7 @@ function buildAnalyseDashboard(d){
         <div style="font-size:12px;color:var(--muted);margin-top:2px">Débit médian global · ${Math.round(avgArr(valid.map(t=>t.duree/t.totalLaizes)))} s/laize</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
-        <div style="font-size:26px;font-weight:800;color:var(--orange)">${Math.round(valid.reduce((s,t)=>s+t.duree,0)/3600*10)/10}h</div>
+        <div style="font-size:26px;font-weight:800;color:var(--orange)">${Math.round(valid.reduce((s,t)=>s+(Number(t.duree)||0),0)/3600*10)/10}h</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px">Production totale</div>
       </div>
     </div>
@@ -10116,9 +10213,17 @@ async function rejectFiche(id){
 // au moment d'enregistrer : si un autre poste a modifié la fiche entre-temps (clôture NC,
 // validation, autre édition), on REFUSE l'écrasement au lieu de perdre sa modif.
 let _editFicheBaseSig=null;
+function _canonStringify(v){
+  if(v===null||typeof v!=='object') return JSON.stringify(v);
+  if(Array.isArray(v)) return '['+v.map(_canonStringify).join(',')+']';
+  return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+_canonStringify(v[k])).join(',')+'}';
+}
 function _ficheEditSig(data){
   const fd=(Array.isArray(data.ficheDetail)?data.ficheDetail:[]).map(x=>{ const c=Object.assign({},x); delete c.photo; return c; });
-  return JSON.stringify({client:data.client||'',ref:data.ref||'',numCmd:data.numCmd||'',dateLiv:data.dateLiv||'',lame:data.lame||'',valide:data.valide===true,fd:fd});
+  // [L79] Signature CANONIQUE (clés triées récursivement) : deux lectures Firestore du même doc
+  // renvoient parfois les clés dans un ORDRE différent → un JSON.stringify simple produisait deux
+  // signatures ≠ = faux « Fiche modifiée ailleurs » qui BLOQUAIT l'enregistrement d'une simple modif.
+  return _canonStringify({client:data.client||'',ref:data.ref||'',numCmd:data.numCmd||'',dateLiv:data.dateLiv||'',lame:data.lame||'',valide:data.valide===true,fd:fd});
 }
 // Édition du plan de découpe par Dominique : modifie en-tête + configuration des bobines
 async function editFicheConfigs(id){   // [L74 · Design Lot E] async (appelée uniquement par onclick)
@@ -10138,7 +10243,7 @@ async function editFicheConfigs(id){   // [L74 · Design Lot E] async (appelée 
   // (« Fiche modifiée ailleurs ») alors qu'aucun autre poste n'avait touché la fiche — bug bloquant
   // l'ajout de photos en édition. On garde le repli cache si la lecture serveur échoue (hors-ligne).
   _editFicheBaseSig={id:id, sig:_ficheEditSig(f)};
-  try{ const _snap=await db.collection('fiches').doc(id).get(); if(_snap&&_snap.exists) _editFicheBaseSig={id:id, sig:_ficheEditSig(_snap.data()||{})}; }catch(e){}
+  try{ const _snap=await Promise.race([ db.collection('fiches').doc(id).get({source:'server'}), new Promise((_,rej)=>setTimeout(()=>rej(new Error('t')),6000)) ]); if(_snap&&_snap.exists) _editFicheBaseSig={id:id, sig:_ficheEditSig(_snap.data()||{})}; }catch(e){}   // [L79] borné + source:'server' AUTORITATIF : la sauvegarde relit le serveur (transaction) ; lire la base ailleurs (cache) créait une divergence = faux « Fiche modifiée ailleurs ». Repli sur la signature cache si hors-ligne/lent.
   // Map de travail des photos par bobine, indexée sur l'index d'origine.
   efPhotos={};
   (f.ficheDetail||[]).forEach((fd,i)=>{ if(fd.photo) efPhotos[i]=fd.photo; });
@@ -10321,14 +10426,24 @@ async function saveFicheConfigs(id){
     // ouverture, save précédent…), on REFUSE d'écrire au lieu de sauter le contrôle
     // anti-écrasement (sinon : dernier-écrivain-gagne intégral).
     if(base===null){ showToast('⚠ Session d\'édition périmée — ferme et rouvre la fiche (✏️) puis recommence.','err'); return; }
-    await Promise.race([ db.runTransaction(async(tx)=>{
-      const ref=db.collection('fiches').doc(id);
-      const snap=await tx.get(ref);
-      if(!snap.exists) throw new Error('Fiche introuvable en base (supprimée ?).');
-      if(base!==null && _ficheEditSig(snap.data()||{})!==base)
-        throw new Error('Fiche modifiée ailleurs depuis l\'ouverture — recharge l\'historique et recommence.');
-      tx.update(ref,updSafe);
-    }), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),12000)) ]);   // [L79] BORNÉ : une transaction Firestore exige un aller-retour serveur → sans timeout elle GELAIT le bouton « Enregistrer » sur réseau lent/coupé (bug photo AFEXTRUSION)
+    try{
+      await Promise.race([ db.runTransaction(async(tx)=>{
+        const ref=db.collection('fiches').doc(id);
+        const snap=await tx.get(ref);
+        if(!snap.exists) throw new Error('Fiche introuvable en base (supprimée ?).');
+        if(base!==null && _ficheEditSig(snap.data()||{})!==base) throw new Error('__DIVERGE__');
+        tx.update(ref,updSafe);
+      }), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),12000)) ]);   // [L79] BORNÉ : une transaction Firestore exige un aller-retour serveur → sans timeout elle GELAIT le bouton « Enregistrer » sur réseau lent/coupé (bug photo AFEXTRUSION)
+    }catch(e){
+      if(String(e&&e.message)==='__TIMEOUT__'){ showToast('⏳ Réseau lent/coupé — enregistrement impossible pour l\'instant. Réessaie près d\'une bonne connexion (la photo reste à l\'écran).','err'); return; }
+      if(String(e&&e.message)!=='__DIVERGE__'){ showToast('Erreur enregistrement : '+e.message,'err'); return; }
+      // [L79] Divergence de signature = souvent un FAUX positif (la fiche n'a pas réellement changé).
+      // On NE BLOQUE PLUS : on PROPOSE d'écraser — un admin/pilotage doit toujours pouvoir enregistrer
+      // sa modif (ex. ajout d'une photo oubliée). En cas de vraie modif concurrente, l'avertissement laisse le choix.
+      if(!(await confirmDlg('⚠ Cette fiche a peut-être été modifiée ailleurs depuis que tu l\'as ouverte.\n\nEnregistrer TA version quand même ? (elle remplacera l\'autre)',{ok:'Enregistrer ma version'}))){ showToast('Modification abandonnée — recharge la fiche (✏️) pour repartir de la dernière version.','err'); return; }
+      try{ await Promise.race([ db.collection('fiches').doc(id).update(updSafe), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),12000)) ]); }
+      catch(e2){ showToast(String(e2&&e2.message)==='__TIMEOUT__'?'⏳ Réseau lent/coupé — réessaie.':('Erreur enregistrement : '+e2.message),'err'); return; }
+    }
     Object.assign(f,updSafe);
     _editFicheBaseSig=null;
     if(_fstrip.stripped){ try{showToast('⚠ '+_fstrip.stripped+' photo(s) trop lourde(s) NON enregistrée(s) (stockage photos indisponible) — modification sauvegardée sans ces photos.','err');}catch(_){} }
@@ -10340,7 +10455,7 @@ async function saveFicheConfigs(id){
     efPhotos={};
     renderFiches();
     showToast('✓ Fiche modifiée et enregistrée ('+newDetail.length+' bobines)','ok');
-  }catch(e){showToast('Erreur enregistrement : '+e.message,'err');}
+  }catch(e){showToast(String(e&&e.message)==='__TIMEOUT__'?'⏳ Réseau lent/coupé — enregistrement impossible pour l\'instant. Réessaie près d\'une bonne connexion (la photo reste à l\'écran).':('Erreur enregistrement : '+e.message),'err');}
 }
 
 // === REGISTRE DES NON-CONFORMITÉS (consolidé toutes fiches) ===
