@@ -272,8 +272,10 @@ body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 .photo-overlay img{max-width:100%;max-height:90vh;border-radius:10px}
 .photo-overlay .close-x{position:absolute;top:18px;right:22px;font-size:34px;color:#fff;cursor:pointer;font-weight:700;line-height:1}
 /* INITIALES */
-.ini-btns{display:flex;gap:8px;flex-wrap:wrap}
-.ini-btn{padding:8px 16px;border-radius:8px;border:2px solid var(--border);background:var(--card);color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s}
+.ini-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}  /* [L79] les 5 opérateurs tiennent sur UNE ligne */
+.ini-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:var(--card);color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center;min-width:0}
+/* [L79] Barre d'actions fiche (+ Ligne / Reset / Brouillon) : boutons à largeur égale sur une ligne */
+.flex-wrap.mt12>.btn{flex:1 1 0;min-width:0;white-space:nowrap;padding-left:8px;padding-right:8px}
 .ini-btn.sel{border-color:var(--blue);color:var(--blue);background:#1a2e47}
 .ini-btn.sel2{border-color:var(--orange);color:var(--orange);background:#3d2a00}
 /* SAVES / ANALYTICS */
@@ -290,6 +292,9 @@ body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 .save-refrow .rdot{color:var(--ref-accent);font-weight:800;margin-right:5px}
 .save-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
 .save-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+/* [L79] Cartes Plans (Données) : boutons en 2×2 (deux en haut, deux en bas) */
+#savesList .save-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;width:auto;max-width:260px}
+#savesList .save-actions .btn{width:100%;min-height:46px;justify-content:center}
 .save-actions .btn{min-width:44px;min-height:44px;font-size:17px;justify-content:center}
 /* [L66] Ergonomie téléphone : cartes empilées (le texte garde toute la largeur au lieu
    d'être écrasé par la colonne de boutons) + boutons d'action en grille pleine largeur,
@@ -727,9 +732,9 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
   <div class="section" id="fMachineMono">
     <div class="section-title">Machine</div>
     <div class="machine-btns" style="margin-bottom:0">
-      <button class="machine-btn-fiche sel-feba" id="fBtnFeba" onclick="selectFicheMachine('feba')">FEBA</button>
-      <button class="machine-btn-fiche" id="fBtnMaveg" onclick="selectFicheMachine('maveg')">MAVEG</button>
-      <button class="machine-btn-fiche" id="fBtnCevenini" onclick="selectFicheMachine('cevenini')">CEVENINI</button>
+      <button class="machine-btn-fiche sel-feba" id="fBtnFeba" onclick="pickFicheMachine('feba')">FEBA</button>
+      <button class="machine-btn-fiche" id="fBtnMaveg" onclick="pickFicheMachine('maveg')">MAVEG</button>
+      <button class="machine-btn-fiche" id="fBtnCevenini" onclick="pickFicheMachine('cevenini')">CEVENINI</button>
     </div>
     <div class="row3" style="margin-top:12px">
       <div class="field">
@@ -841,7 +846,7 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
         <div class="text-muted" style="font-size:12px;margin-top:6px">Les bobines à partir de ce n° passent sur la nouvelle machine : couleur de la carte, test 2ᵉ bobineaux adapté (FEBA = Dévidage seul), bandeau ⚙ sur le PDF de la fiche. Si la nouvelle machine impose d'autres bords/lame, ajuste les champs Machine ci-dessus puis « 🔄 Changement plan » pour ré-empaqueter le reste.</div>
       </div>
     </div>
-    <div class="row2">
+    <div class="row2" style="display:none"><!-- [L79] « Longueur réf. » (auto depuis plan) masquée — input conservé dans le DOM pour PDF/export/sérialisation -->
       <div class="field">
         <label>Longueur réf. (m) <span style="color:var(--green);font-size:12px">auto depuis plan</span></label>
         <input type="text" id="fLongueur" placeholder="ex : 600" inputmode="decimal">
@@ -1091,7 +1096,7 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
       <button class="btn btn-ghost btn-sm" id="btnPendingOnly" onclick="togglePendingOnly()">🕓 À valider</button>
       <button class="btn btn-ghost btn-sm" id="btnToggleValid" onclick="toggleValidatedFiches()">✓ Fiches validées</button>
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
-      <button class="btn btn-red btn-sm" onclick="clearFiches()">📦 Tout archiver</button>
+      <!-- [L79] « Tout archiver » retiré (action de masse dangereuse) — clearFiches conservée sans accès UI -->
     </div>
     <input type="text" id="ficheSearch" oninput="debouncedFicheSearch()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
     <div id="fichesList"></div>
@@ -1124,7 +1129,7 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
     </div>
     <div class="flex-wrap" style="margin-bottom:12px" id="tempsManageBtns">
       <button class="btn btn-ghost btn-sm" onclick="exportTemps()">⬇️ Exporter CSV</button>
-      <button class="btn btn-red btn-sm" onclick="clearTemps()">📦 Tout archiver</button>
+      <!-- [L79] « Tout archiver » retiré (action de masse dangereuse) — clearTemps conservée sans accès UI -->
     </div>
     <div id="tempsList"></div>
     <div id="tempsEmpty" class="text-muted hidden" style="padding:8px 0">Aucune donnée de temps enregistrée.</div>
@@ -1537,21 +1542,24 @@ async function loadFullHistory(btn){
   if(fullHistoryLoaded){showToast('Historique complet déjà chargé','ok');return;}
   if(!db){showToast('Base de données indisponible.','err');return;}
   if(btn){btn.disabled=true;btn.textContent='⏳ Chargement…';}
-  const ok=await ensureFullHistory();
+  // [L79] BORNÉ (25 s) : sans ça, si ensureFullHistory gèle (réseau), le bouton reste « ⏳ Chargement… »
+  // à vie (disabled). On réactive TOUJOURS le bouton sur tout chemin non-succès (timeout inclus).
+  let ok=false,_timedOut=false;
+  try{
+    ok=await Promise.race([ ensureFullHistory(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),25000)) ]);
+  }catch(e){ _timedOut=(String(e&&e.message)==='__TIMEOUT__'); }
   if(ok){
     renderDataPage();
     showToast('✓ Historique complet chargé ('+(savesCache.length+tempsCache.length+fichesCache.length)+' enregistrements)','ok');
     if(btn) btn.style.display='none';
-  }else if(_fullHistoryTruncatedCount){
-    // [L73 · Lot 5 · B34] plafond de pagination atteint : les données chargées (partielles) sont
-    // quand même affichées, partialDataBanner reste visible et le bouton reste actif.
-    renderDataPage();
-    showToast('⚠ Historique tronqué à '+_fullHistoryTruncatedCount+' enregistrements (plafond de sécurité atteint)','err');
-    if(btn){btn.disabled=false;btn.textContent='📥 Charger l\'historique complet';}
-  }else{
-    showToast('Erreur chargement : historique complet indisponible.','err');
-    if(btn){btn.disabled=false;btn.textContent='📥 Charger l\'historique complet';}
+    return;
   }
+  // Échec / troncature / timeout : afficher ce qu'on a et RÉACTIVER le bouton (jamais mort).
+  renderDataPage();
+  if(_timedOut) showToast('⏳ Réseau lent — chargement interrompu, réessaie.','err');
+  else if(_fullHistoryTruncatedCount) showToast('⚠ Historique tronqué à '+_fullHistoryTruncatedCount+' enregistrements (plafond de sécurité atteint)','err');
+  else showToast('Erreur chargement : historique complet indisponible.','err');
+  if(btn){btn.disabled=false;btn.textContent='📥 Charger l\'historique complet';}
 }
 async function loadFirestoreData(){
   if(!db) return;
@@ -2819,8 +2827,16 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
       let val;
       if(storage){
         const blob=await compressImageBlob(file,800,0.6);
-        if(oldUrl) await deletePhotoFromStorage(oldUrl);
-        val=await uploadPhotoToStorage(blob,'edit_'+Date.now());
+        if(oldUrl){ try{ await Promise.race([deletePhotoFromStorage(oldUrl),new Promise(r=>setTimeout(r,4000))]); }catch(e){} }   // [L79] delete borné (4 s)
+        // [L79] upload BORNÉ (10 s) : sans ça un réseau lent gelait l'édition (spinner ⏳ à vie). Repli photo LOCALE.
+        val=await Promise.race([
+          uploadPhotoToStorage(blob,'edit_'+Date.now()),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),10000))
+        ]).catch(async function(err){
+          if(String(err&&err.message)!=='__TIMEOUT__') throw err;
+          try{ showToast('📡 Réseau lent : photo gardée en LOCAL.','err'); }catch(_){}
+          return await compressImage(file,800,0.6);
+        });
       } else {
         val=await compressImage(file,800,0.6);
       }
@@ -3127,8 +3143,30 @@ function openCommandeFileViewer(i){
     document.getElementById('photoOverlayImg').src=f.url;
     document.getElementById('photoOverlay').classList.add('open');
   }else{
-    window.open(f.url,'_blank','noopener');
+    openFileOverlay(f.url);   // [L79] overlay in-app au lieu de window.open('_blank') (évitait sortie Safari + reload page 0)
   }
+}
+// [L79] Aperçu d'une pièce jointe (PDF / doc) DANS la PWA : overlay plein écran + iframe same-page.
+// La croix « ✕ Fermer » revient sur la page courante (pas de sortie Safari ni de rechargement page 0).
+// Bouton « ↗ Navigateur » = ouverture externe explicite (au choix de l'opérateur) si l'iframe ne rend pas le format.
+function openFileOverlay(url){
+  try{
+    let ov=document.getElementById('fileOverlay');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='fileOverlay';
+      ov.style.cssText='position:fixed;inset:0;z-index:9400;background:#111;display:flex;flex-direction:column';
+      ov.innerHTML='<div style="display:flex;gap:8px;align-items:center;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;background:#1c1c1b;border-bottom:1px solid #444;flex:0 0 auto">'
+        +'<span style="color:#999;font-size:12px">Pièce jointe</span>'
+        +'<a id="fileOverlayExt" href="#" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="text-decoration:none">↗ Navigateur</a>'
+        +'<button id="fileOverlayClose" class="btn btn-ghost btn-sm" style="margin-left:auto">✕ Fermer</button></div>'
+        +'<iframe id="fileOverlayFrame" title="Pièce jointe" style="flex:1 1 auto;width:100%;border:0;background:#fff"></iframe>';
+      document.body.appendChild(ov);
+      document.getElementById('fileOverlayClose').onclick=function(){ ov.style.display='none'; try{ document.getElementById('fileOverlayFrame').src='about:blank'; }catch(e){} };
+    }
+    ov.style.display='flex';
+    const ext=document.getElementById('fileOverlayExt'); if(ext) ext.href=url;
+    document.getElementById('fileOverlayFrame').src=url;
+  }catch(e){ try{ window.open(url,'_blank','noopener'); }catch(_){} }
 }
 
 // ============================================================
@@ -4765,6 +4803,18 @@ function mergeDuplicateRefBlocks(){
   }
   return merged>0;
 }
+// [L79] Ordre d'AFFICHAGE du plan : grandes laizes d'abord (clé = pattern[0].width, garanti en tête
+// par bestPattern), en épinglant le SOLDE (dernier motif du packing) en dernier. Renvoie une COPIE —
+// c.planGroups n'est JAMAIS muté (computePlanAggregate et la fiche relisent [length-1] pour le
+// solde/chute-stock). Utilisé pour l'affichage écran ET l'impression, avec l'attribution multi-clients
+// alignée sur le même ordre pour rester cohérent.
+function _planGroupsByLaize(pg){
+  if(!Array.isArray(pg)||pg.length<3) return pg||[];
+  const _sol=pg[pg.length-1];
+  const _s=pg.slice(0,-1).sort((a,b)=>((b.pattern&&b.pattern[0]&&b.pattern[0].width)||0)-((a.pattern&&a.pattern[0]&&a.pattern[0].width)||0));
+  _s.push(_sol);
+  return _s;
+}
 function recalcPlan(){
   // Colore chaque select machine (bleu FEBA / vert MAVEG / violet CEVENINI) ET [L79] force la perte
   // lame du bloc = défaut de sa machine (FEBA=5, MAVEG/CEVENINI=0). Lame DÉTERMINISTE (le champ est
@@ -4888,6 +4938,7 @@ function recalcPlan(){
   computed.forEach((c,ci)=>{
     if(!c.rows.length) return;
     const useful=c.useful, blade=c.blade;
+    const _pgDisp=_planGroupsByLaize(c.planGroups);   // [L79] motifs triés grandes laizes d'abord (solde en dernier) — COPIE, c.planGroups intact
     const mc=machineCls(c.machine);            // classe couleur machine
     const mLbl=getMachineLabel(c.machine||'');
     // [L64 · Lot 6] attribution client par bobine de CETTE réf (multi-clients seulement).
@@ -4898,7 +4949,7 @@ function recalcPlan(){
       try{
         const seq=[];
         (c.recutGroups||[]).forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});
-        (c.planGroups||[]).forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});
+        _pgDisp.forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});   // [L79] même ordre d'affichage → attribution cohérente
         _cliAllocs=cliAttribute(seq,c.rows,c.chutesUsed||{});
       }catch(e){ console.warn('Attribution clients (plan) :',e); _cliAllocs=null; }
     }
@@ -4951,11 +5002,11 @@ function recalcPlan(){
     if(c.recutUnused>0){
       html+=`<div class="recut-band">♻ ${c.recutUnused} rouleau${c.recutUnused>1?'x':''} à recouper non utilisé${c.recutUnused>1?'s':''} — demande déjà couverte (bobineaux stock / autres rouleaux) ou aucune laize ne rentre. Rouleau conservé en stock.</div>`;
     }
-    c.planGroups.forEach((g,gi)=>{
+    _pgDisp.forEach((g,gi)=>{
       const st=calcStats(g.pattern,blade);
       const waste=useful-st.total;
       const hasChute=!!g.chute;
-      const isLast=(gi===c.planGroups.length-1)&&!hasChute;  // une bobine portant une chute n'est jamais le « solde »
+      const isLast=(gi===_pgDisp.length-1)&&!hasChute;  // une bobine portant une chute n'est jamais le « solde »
       const cls='bobine-card'+mc+(isLast?' solde':'');
       const wLabel=isLast
         ?`<span class="badge-solde">solde conservé ${fmt(waste)} mm</span>`
@@ -5215,34 +5266,33 @@ async function removeManualBobine(ri,bi){   // [L74 · Design Lot E] async (appe
 // PRINT / DOWNLOAD
 // ============================================================
 function openPrintWindow(html,autoPrint){
-  // L'impression est déclenchée DEPUIS la fenêtre enfant (script injecté), jamais
-  // depuis le parent : appeler w.print() depuis le parent bloque son thread JS
-  // tant que la boîte de dialogue reste ouverte (freeze de l'app). En laissant
-  // l'enfant gérer son propre print(), le parent reste réactif quoi qu'il arrive.
-  const autoScript=(autoPrint!==false)
-    ? `<script>window.addEventListener('load',function(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},300);});<\/script>`
-    : '';
-  // Injecte le script juste avant </body> (ou en fin si absent).
-  let doc=html;
-  if(autoScript){
-    if(/<\/body>/i.test(doc)) doc=doc.replace(/<\/body>/i,autoScript+'</body>');
-    else doc=doc+autoScript;
-  }
+  // [L79] Impression/aperçu DANS la PWA via un overlay plein écran + iframe same-origin (srcdoc),
+  // au lieu de window.open('_blank') qui, sur PWA iOS standalone, ÉJECTAIT l'opérateur dans Safari →
+  // au retour l'app rechargeait à froid sur la PAGE 0 (Fiche perdue = bug signalé). Ici la croix
+  // « ✕ Fermer » referme l'overlay et REVIENT sur la page courante (Fiche/Plan/Données), sans reload
+  // ni sortie. contentWindow.print() ne bloque le thread que le temps du dialogue natif (borné, l'opérateur
+  // interagit avec AirPrint) — aucun freeze permanent. autoPrint!==false → impression auto au chargement.
   try{
-    const blob=new Blob([doc],{type:'text/html'});
-    const url=URL.createObjectURL(blob);
-    const w=window.open(url,'_blank');
-    if(w){
-      // On NE touche plus à w depuis le parent (pas de w.print()).
-      setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},60000);
-      return;
+    let ov=document.getElementById('printOverlay');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='printOverlay';
+      ov.style.cssText='position:fixed;inset:0;z-index:9500;background:#111;display:flex;flex-direction:column';
+      ov.innerHTML='<div style="display:flex;gap:8px;align-items:center;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;background:#1c1c1b;border-bottom:1px solid #444;flex:0 0 auto">'
+        +'<button id="printOverlayPrint" class="btn btn-blue btn-sm">🖨️ Imprimer</button>'
+        +'<span style="color:#999;font-size:12px">Aperçu impression</span>'
+        +'<button id="printOverlayClose" class="btn btn-ghost btn-sm" style="margin-left:auto">✕ Fermer</button></div>'
+        +'<iframe id="printOverlayFrame" title="Aperçu impression" style="flex:1 1 auto;width:100%;border:0;background:#fff"></iframe>';
+      document.body.appendChild(ov);
+      document.getElementById('printOverlayClose').onclick=function(){ ov.style.display='none'; try{ document.getElementById('printOverlayFrame').srcdoc='<!doctype html><meta charset=utf-8>'; }catch(e){} };
+      document.getElementById('printOverlayPrint').onclick=function(){ try{ const w=document.getElementById('printOverlayFrame').contentWindow; w.focus(); w.print(); }catch(e){} };
     }
-    // Pop-up bloqué : repli téléchargement
-    const a=document.createElement('a');a.href=url;a.download='impression_STEP.html';a.click();
-    setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(e){}},60000);
+    ov.style.display='flex';
+    const fr=document.getElementById('printOverlayFrame');
+    fr.onload=function(){ if(autoPrint!==false){ setTimeout(function(){ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){} },350); } };
+    fr.srcdoc=html;
   }catch(e){
-    const w=window.open('','_blank');
-    if(w){w.document.open();w.document.write(doc);w.document.close();}
+    // Repli ultime (desktop / navigateur non-standalone) : nouvelle fenêtre.
+    try{ const w=window.open('','_blank'); if(w){ w.document.open(); w.document.write(html); w.document.close(); } }catch(_){}
   }
 }
 // Récap "Code mandrin par largeur" — uniquement Legrand France, si des codes existent.
@@ -5383,6 +5433,7 @@ function buildPlanPrintHTML(o){
     // clients apparaît donc aussi sur le plan imprimé en mode ✏️ (cohérent avec la fiche).
     let _rowsSrc=(Array.isArray(c.rows)&&c.rows.length)?c.rows:null;
     let _chutesSrc=c.chutesUsed||{};
+    const _pgDisp=_planGroupsByLaize(c.planGroups);   // [L79] impression : grandes laizes d'abord (solde en dernier) — COPIE
     if(!_rowsSrc&&cliXtra&&Array.isArray(o.mandrinGroups)){
       const _m=o.mandrinGroups.find(g=>String(g.ref||'').trim().toLowerCase()===String(c.ref||'').trim().toLowerCase());
       if(_m&&Array.isArray(_m.rows)&&_m.rows.length){ _rowsSrc=_m.rows; _chutesSrc=_m.chutesUsed||{}; }
@@ -5391,14 +5442,14 @@ function buildPlanPrintHTML(o){
       try{
         const seq=[];
         (c.recutGroups||[]).forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});
-        (c.planGroups||[]).forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});
+        _pgDisp.forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});   // [L79] même ordre → attribution cohérente
         _cliAllocs=cliAttribute(seq,_rowsSrc,_chutesSrc);
         _cliIdx=(c.recutGroups||[]).reduce((s,g)=>s+(g.count||0),0);   // rouleaux chute servis d'abord (non annotés)
       }catch(e){ _cliAllocs=null; }
     }
     let tRows=recutPrintRows(c,blade);
-    c.planGroups.forEach((g,gi)=>{
-      const st=calcStats(g.pattern,blade),waste=useful-st.total,isLast=gi===c.planGroups.length-1;
+    _pgDisp.forEach((g,gi)=>{
+      const st=calcStats(g.pattern,blade),waste=useful-st.total,isLast=gi===_pgDisp.length-1;
       let cliNote='';
       if(_cliAllocs){
         const allocs=_cliAllocs.slice(_cliIdx,_cliIdx+g.count); _cliIdx+=g.count;
@@ -5750,38 +5801,38 @@ async function doSave(){
       // modifié entre-temps), on AVERTIT avant d'écraser plutôt que d'écraser en silence.
       let curDate='';
       try{
-        await db.runTransaction(async(tx)=>{
+        await Promise.race([ db.runTransaction(async(tx)=>{
           const dref=db.collection('saves').doc(target);
           const snap=await tx.get(dref);
           if(!snap.exists) throw new Error('plan introuvable en base (supprimé / archivé ?)');
           const cur=snap.data()||{};
           if(baseDate && (cur.date||'')!==baseDate){ curDate=cur.date||''; throw new Error('__DIVERGE__'); }
           tx.update(dref,updEntry);
-        });
+        }), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),10000)) ]);   // [L79] borné : anti bouton-mort (verrou _savingPlan)
       }catch(e){
-        if(e.message!=='__DIVERGE__'){ showToast('Erreur sauvegarde : '+e.message,'err'); return; }
+        if(e.message!=='__DIVERGE__'){ showToast(e.message==='__TIMEOUT__'?'⏳ Réseau lent — sauvegarde interrompue, réessaie.':('Erreur sauvegarde : '+e.message),'err'); return; }
         const when=curDate?new Date(curDate).toLocaleString('fr-FR'):'';
         if(!confirm('⚠ Ce plan a été modifié ailleurs depuis que tu l\'as ouvert'+(when?' (dernière écriture : '+when+')':'')+'.\n\nÉcraser quand même avec TA version ?\n\n(Annuler = garder la version en base ; recharge-la avec 📂 pour repartir dessus.)')){
           showToast('Modification abandonnée — recharge le plan (📂) pour repartir de la dernière version.','err');
           return; // editingSaveId conservé → l'utilisateur peut recharger/réessayer
         }
-        try{ await db.collection('saves').doc(target).update(updEntry); } // écrasement assumé
-        catch(e2){ showToast('Erreur sauvegarde : '+e2.message,'err'); return; }
+        try{ await Promise.race([ db.collection('saves').doc(target).update(updEntry), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),10000)) ]); } // écrasement assumé [L79] borné
+        catch(e2){ showToast(String(e2&&e2.message)==='__TIMEOUT__'?'⏳ Réseau lent — réessaie.':('Erreur sauvegarde : '+e2.message),'err'); return; }
       }
       editingSaveId=null; _editSaveBase=null;
       const idx=savesCache.findIndex(x=>x._id===target);
       if(idx>=0) savesCache[idx]={...savesCache[idx],...updEntry,_id:target};
       else savesCache.unshift({_id:target,...updEntry});
-      await logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`);
+      logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
       if(typeof showToast==='function') showToast('✏️ Plan modifié','ok');
     }else{
-      const docRef=await db.collection('saves').add(entry);
+      const docRef=await Promise.race([ db.collection('saves').add(entry), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),10000)) ]);   // [L79] borné : anti bouton-mort
       savesCache.unshift({_id:docRef.id,...entry});
       if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
-      await logAudit('create','saves',docRef.id,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`);
+      logAudit('create','saves',docRef.id,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
       if(typeof showToast==='function') showToast('💾 Plan sauvegardé','ok');
     }
-  }catch(e){showToast('Erreur sauvegarde : '+e.message,'err');return;}
+  }catch(e){showToast(String(e&&e.message)==='__TIMEOUT__'?'⏳ Réseau lent — sauvegarde interrompue, réessaie.':('Erreur sauvegarde : '+e.message),'err');return;}
   if(typeof clearPlanAutosaveDraft==='function') clearPlanAutosaveDraft(); // demande 4 : le plan est en base, le brouillon auto n'a plus lieu d'être
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   closeSaveModal();showPage(2);
@@ -5897,7 +5948,6 @@ function renderSaves(){
         ${cmdLine}
         <div class="save-meta">${ds} · Bobine ${s.mother} mm</div>
         ${filmLine}
-        ${pkgLine}
         ${filesLine}
       </div>
       <div class="save-actions">
@@ -6132,13 +6182,17 @@ function chronoStart(){
     showToast('⚠ Renseigne '+miss.label+' avant de démarrer.','err');
     return;
   }
-  // Démarrage sans friction : si le plan n'a pas encore été (re)validé alors que les 4
-  // params machine sont là, on le valide automatiquement (plus besoin de « Changement plan »).
+  // [L79] BLOQUER le démarrage si une DIMENSION (mère / bords) a été modifiée sans « 🔄 Changement
+  // plan » (fichePlanValidated=false). Le changement de MACHINE, lui, ré-applique tout seul
+  // (pickFicheMachine) ; une fiche fraîchement importée est déjà validée (importPlanToFiche). On force
+  // ainsi l'opérateur à re-valider consciemment le plan après un changement de mère/bords.
   if(!fichePlanValidated){
-    if(typeof fmmIsMulti==='function' && fmmIsMulti()){ applyFicheRefPlanChange(fmmActiveIdx()); }
-    else applyFichePlanChange();
-    if(!fichePlanValidated) return;   // la validation a échoué → on n'enchaîne pas
+    showToast('⚠ Tu as modifié une dimension (mère / bords) — clique « 🔄 Changement plan » avant de démarrer le chrono.','err');
+    const _h=document.getElementById('fPlanHint'); if(_h){ _h.style.color='var(--red)'; setTimeout(function(){ if(typeof updateFPlanHint==='function') updateFPlanHint(); },3000); }
+    return;
   }
+  // [L79] Rappel STOCK avant de démarrer : chutes / bobineaux déjà en stock à déduire de la commande.
+  if(typeof confirm==='function' && !confirm('Avez-vous des chutes ou des bobineaux EN STOCK à utiliser pour cette commande ?\n\nSi oui, ajoute-les au plan (✂ Bobineaux en stock / ♻ Chute) AVANT de démarrer.\n\nOK = démarrer · Annuler = les ajouter d\'abord')) return;
   chronoRunning=true;
   updateNumJourForToday();   // commande travaillée un nouveau jour → 152 → 152+153
   chronoStartTs=chronoStartTs||new Date().toISOString();
@@ -7340,15 +7394,25 @@ async function doChronoSave(){
     commentaire:document.getElementById('chronoComment').value||'',
     deleted:false
   };
+  let _queued=false;
   try{
-    const docRef=await db.collection('temps').add(entry);
+    // [L79] add() BORNÉ (8 s) : sans ça un réseau lent gelait l'await → le finally ne libérait jamais
+    // _savingChrono (bouton « Enregistrer » mort). La persistance offline Firestore rend l'écriture
+    // durable même sur timeout, donc on considère le relevé « mis en file » et on libère l'UI.
+    const docRef=await Promise.race([
+      db.collection('temps').add(entry),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),8000))
+    ]);
     tempsCache.unshift({_id:docRef.id,...entry});
     if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);
-    await logAudit('create','temps',docRef.id,`Relevé enregistré — ${client} / ${ref} (durée ${fmtTimeFr(entry.duree)})`,{client:client,ref:ref,dateCmd:entry.date});
-  }catch(e){showToast('Erreur enregistrement : '+e.message,'err');return;}
+    logAudit('create','temps',docRef.id,`Relevé enregistré — ${client} / ${ref} (durée ${fmtTimeFr(entry.duree)})`,{client:client,ref:ref,dateCmd:entry.date}).catch(function(){});   // [L79] non bloquant
+  }catch(e){
+    if(String(e&&e.message)!=='__TIMEOUT__'){ showToast('Erreur enregistrement : '+e.message,'err'); return; }
+    _queued=true;
+  }
   closeChronoSaveModal();
   chronoReset(true);   // [L79] reset forcé (relevé temps déjà archivé)
-  showToast('✓ Temps enregistré : '+fmtTimeFr(entry.duree),'ok');
+  showToast(_queued?'⏳ Réseau lent — temps mis en file (il sera enregistré dès que possible).':('✓ Temps enregistré : '+fmtTimeFr(entry.duree)), _queued?'err':'ok');
   }finally{_savingChrono=false;}
 }
 
@@ -8768,17 +8832,8 @@ function maintViewHTML(){
   const today=new Date().toISOString().slice(0,10);
   const machOpts=['feba','maveg','cevenini'].map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
   return `
-  <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Suivi des lames de découpe — preuve ISO 9001. L'alerte de changement se déclenche selon la machine : FEBA 15 jours, MAVEG et CEVENINI 10 jours après la pose.</div>
-  <div class="u-panel" style="margin-bottom:14px">
-    <div class="u-eyebrow" style="margin-bottom:12px">🔪 Installer / déclarer une lame</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label class="stk-lbl">Machine</label><select id="m_machine" class="u-inp">${machOpts}</select></div>
-      <div><label class="stk-lbl">Lame N°</label><input id="m_lameNum" placeholder="ex. L-204" class="u-inp"></div>
-      <div><label class="stk-lbl">Posée le <span style="color:#666">(date de pose)</span></label><input type="date" id="m_date" value="${today}" max="${today}" class="u-inp"></div>
-      <div><label class="stk-lbl">Responsable</label><select id="m_resp" class="u-inp">${maintRespOpts('')}</select></div>
-    </div>
-    <div style="margin-top:14px;text-align:right"><button class="btn" style="background:#1f7a45;color:#fff;border:none" onclick="saveMaintenance(this)">💾 Enregistrer la lame</button></div>
-  </div>
+  <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Suivi des lames de découpe — preuve ISO 9001. L'alerte de changement se déclenche selon la machine : FEBA 15 jours, MAVEG et CEVENINI 10 jours après la pose. <span style="color:var(--green)">Installe / change une lame directement sur la machine concernée ci-dessous (« 🔄 Changer la lame »).</span></div>
+  <!-- [L79] Formulaire « Installer / déclarer une lame » du haut RETIRÉ (redondant) : l'installation/changement se fait par machine dans « État des lames » via lameInstallPrompt. saveMaintenance conservée sans accès UI. -->
   <div id="lameEtat"></div>
   <div class="u-panel" style="margin-bottom:14px">
     <div class="u-eyebrow" style="margin-bottom:8px">🛠 Lames parties à l'affûtage</div>
@@ -9657,7 +9712,7 @@ function renderFiches(){
     const numCmdHas=(f.numCmd&&f.numCmd!=='—');
     // Badge statut
     let statusBadge,statusColor;
-    if(f.valide===true){statusBadge=`✓ Validée${f.valideBy?' · '+esc(f.valideBy):''}`;statusColor='background:#1e3a5f;color:#60a5fa';}
+    if(f.valide===true){statusBadge=`✓ Validée${f.valideBy?' · '+esc(f.valideBy):''}`;statusColor='background:#14371f;color:#4ade80';}   // [L79] validée en VERT (séparation nette)
     else if(f.valide===false){statusBadge=`✗ Refusée${f.valideBy?' · '+esc(f.valideBy):''}`;statusColor='background:#3d1414;color:#f87171';}
     else{statusBadge=`⏳ En attente`;statusColor='background:#3d2a00;color:#f59e0b';}
     const mmBadge=f.manqueMatiere?`<div style="margin:6px 0;padding:6px 10px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid #f87171;color:#f87171;font-size:12px;font-weight:700">⛔ Arrêt manque de matière</div>`:'';
@@ -9674,7 +9729,9 @@ function renderFiches(){
     const validBtns=canValidate()?`
       ${f.valide!==true?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#7a2222'};color:${blOk?'#4ade80':'#f87171'};background:${blOk?'#14371f':'#3d1414'}">${blOk?'📎 BL joint':'⛔ BL manquant'}</span>`:''}
       ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}`:'';
-    return `<div class="fiche-card"${f.modifie?' style="border-color:#caa15a"':f.manqueMatiere?' style="border-color:#f87171"':''}>
+    // [L79] Bordure gauche colorée par ÉTAT (séparation nette) : vert=validée · orange=à valider · rouge=refusée/manque matière.
+    const _stateBorder=(f.valide===true)?'#4ade80':(f.valide===false)?'#f87171':(f.manqueMatiere?'#f87171':'#f59e0b');
+    return `<div class="fiche-card" style="border-left-color:${_stateBorder};border-left-width:6px">
       <div class="fc-header">
         <div class="fc-title">${esc(f.name)}${f.client?` <span style="color:var(--muted);font-weight:600">· ${esc(f.client)}</span>`:''}</div>
         <div class="fc-status" style="${statusColor}">${statusBadge}</div>
@@ -10264,14 +10321,14 @@ async function saveFicheConfigs(id){
     // ouverture, save précédent…), on REFUSE d'écrire au lieu de sauter le contrôle
     // anti-écrasement (sinon : dernier-écrivain-gagne intégral).
     if(base===null){ showToast('⚠ Session d\'édition périmée — ferme et rouvre la fiche (✏️) puis recommence.','err'); return; }
-    await db.runTransaction(async(tx)=>{
+    await Promise.race([ db.runTransaction(async(tx)=>{
       const ref=db.collection('fiches').doc(id);
       const snap=await tx.get(ref);
       if(!snap.exists) throw new Error('Fiche introuvable en base (supprimée ?).');
       if(base!==null && _ficheEditSig(snap.data()||{})!==base)
         throw new Error('Fiche modifiée ailleurs depuis l\'ouverture — recharge l\'historique et recommence.');
       tx.update(ref,updSafe);
-    });
+    }), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),12000)) ]);   // [L79] BORNÉ : une transaction Firestore exige un aller-retour serveur → sans timeout elle GELAIT le bouton « Enregistrer » sur réseau lent/coupé (bug photo AFEXTRUSION)
     Object.assign(f,updSafe);
     _editFicheBaseSig=null;
     if(_fstrip.stripped){ try{showToast('⚠ '+_fstrip.stripped+' photo(s) trop lourde(s) NON enregistrée(s) (stockage photos indisponible) — modification sauvegardée sans ces photos.','err');}catch(_){} }
@@ -11223,6 +11280,15 @@ async function exportFiches(){
 // ============================================================
 // PAGE 2 — FICHE
 // ============================================================
+// [L79] Clic MACHINE de la fiche (bouton opérateur) : applique la machine, FORCE la lame installée
+// de cette machine (données maintenance), puis ré-empaquette le plan/la fiche AUTOMATIQUEMENT
+// (applyFichePlanChange) — plus besoin de « Changement plan », et le chrono n'est pas bloqué par un
+// simple changement de machine. Les appels programmatiques / de restauration passent par selectFicheMachine.
+function pickFicheMachine(m){
+  selectFicheMachine(m);
+  try{ const _el=document.getElementById('fNumLame'); const _cur=(typeof lameActiveForMachine==='function')?lameActiveForMachine(m):null; const _num=_cur?String(_cur.lameNum||'').trim():''; if(_el&&_num) _el.value=_num; }catch(e){}   // [L79] lame associée à la machine, forcée au changement
+  try{ if(typeof applyFichePlanChange==='function') applyFichePlanChange(); }catch(e){}   // [L79] auto-application (comme « Changement plan »)
+}
 function selectFicheMachine(m,opts){
   ficheMachine=m;
   document.getElementById('fBtnFeba').className='machine-btn-fiche'+(m==='feba'?' sel-feba':'');
@@ -11595,9 +11661,9 @@ function applyOp2PlanChange(){
   }
   const m2=parseNum(document.getElementById('fMother2')?.value);
   const e2=parseNum(document.getElementById('fEdge2')?.value);
-  const b2=parseNum(document.getElementById('fBlade2')?.value);
+  const b2=clampBlade(parseNum(document.getElementById('fBlade2')?.value));   // [L79] borné : sinon mère op.2 énorme → allocation DP géante dans bestPattern = freeze
   if(!(m2>0)){ showToast('Renseigne la bobine mère de l\'opérateur 2.','err'); return; }
-  const useful2=Math.max(0,m2-e2);
+  const useful2=clampUseful(m2-e2);   // [L79] borné (MAX_USEFUL_MM) — anti-freeze bestPattern (aligné sur getUseful)
   if(!(useful2>0)){ showToast('La largeur utile op.2 (mère − bords) est nulle.','err'); return; }
   const groups=(typeof getRefGroups==='function'?getRefGroups():[]).filter(g=>(g.rows||[]).length);
   if(!groups.length){ showToast('Aucune commande à recalculer.','err'); return; }
