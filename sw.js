@@ -48,7 +48,7 @@ self.addEventListener('message',function(e){
       }).then(function(){
         if(e.source) e.source.postMessage({type:'INDEX_REFRESHED'});
       }).catch(function(){
-        if(e.source) e.source.postMessage({type:'INDEX_REFRESHED'});   // repli : la page recharge (réseau direct)
+        if(e.source) e.source.postMessage({type:'INDEX_REFRESH_FAILED'});   // [L96 · vérif #9] échec réseau EXPLICITE : la page prévient au lieu de recharger l'ancienne version en silence
       })
     );
   }

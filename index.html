@@ -486,11 +486,7 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
   <span style="display:inline-block;animation:dbspin 1s linear infinite">&#x21BB;</span> Chargement des données…
 </div>
 <div id="dbErrorMsg" style="display:none;position:fixed;bottom:14px;right:14px;background:#3d1414;color:#f87171;border:1px solid #7a2222;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;cursor:pointer" onclick="this.style.display='none'">&#9888; Erreur base de données (clique pour fermer)</div>
-<div id="newVersionBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:#10391f;color:#86efac;border-bottom:1px solid #1f7a45;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-size:14px;font-weight:600;z-index:6000;align-items:center;justify-content:center;gap:14px;text-align:center">
-  <span>&#128260; Nouvelle version disponible.</span>
-  <button onclick="location.reload()" style="background:#1f7a45;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer">Recharger</button>
-  <button onclick="document.getElementById('newVersionBanner').style.display='none';_syncTopBanner()" title="Ignorer" style="background:transparent;color:#86efac;border:none;font-size:18px;font-weight:700;cursor:pointer;line-height:1">&times;</button>
-</div>
+<!-- [L96 · vérif #1] bannière verte de veille (L87) SUPPRIMÉE : son « Recharger » (location.reload nu) resservait la version ÉPINGLÉE par le gel L89 → clic sans effet + 2 bannières concurrentes. La bannière bleue updBanner (gel de version) est la seule voie de mise à jour. -->
 <div id="lameAlertBanner" style="display:none;position:fixed;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-size:14px;font-weight:700;z-index:5999;align-items:center;justify-content:center;gap:12px;text-align:center;flex-wrap:wrap"></div>
 
 <!-- ÉCRAN DE CONNEXION -->
@@ -1331,7 +1327,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L95';
+const APP_VERSION='2026.07.09-L96';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1358,17 +1354,25 @@ function updReload(){
   const btn=document.querySelector('#updBanner .btn-blue'); if(btn){btn.disabled=true;btn.textContent='⏳…';}
   const ctl=navigator.serviceWorker&&navigator.serviceWorker.controller;
   if(ctl){
-    const done=function(e){ if(e.data&&e.data.type==='INDEX_REFRESHED'){ try{navigator.serviceWorker.removeEventListener('message',done);}catch(_){} location.reload(); } };
+    const done=function(e){
+      if(e.data&&e.data.type==='INDEX_REFRESHED'){ try{navigator.serviceWorker.removeEventListener('message',done);}catch(_){} location.reload(); }
+      else if(e.data&&e.data.type==='INDEX_REFRESH_FAILED'){   // [L96 · vérif #9] coupure réseau : on N'EMBARQUE PAS l'opérateur sur un faux rechargement
+        try{navigator.serviceWorker.removeEventListener('message',done);}catch(_){}
+        _updReloading=false;
+        const btn2=document.querySelector('#updBanner .btn-blue'); if(btn2){btn2.disabled=false;btn2.textContent='Recharger';}
+        showToast('📡 Réseau indisponible — impossible de télécharger la nouvelle version. Réessaie quand la connexion revient (tu restes sur ta version actuelle).','err');
+      }
+    };
     navigator.serviceWorker.addEventListener('message',done);
     ctl.postMessage({type:'REFRESH_INDEX'});
-    setTimeout(function(){ location.reload(); },6000);   // repli si le SW ne répond pas
+    setTimeout(function(){ location.reload(); },25000);   // [L96 · vérif #2] repli si le SW ne répond pas — 25 s : sur 4G lente le re-téléchargement (~1 Mo) dépasse 6 s et le reload prématuré resservait l'ancienne version (clic « sans effet »)
   } else location.reload();
 }
 async function checkAppUpdate(){
   try{
     const r=await fetch('index.html?vchk='+Date.now(),{cache:'no-store'});   // no-store + marqueur ?vchk : le SW laisse passer même sur vieux iOS (vraie version en ligne)
     if(!r.ok) return;
-    const m=(await r.text()).match(/APP_VERSION='([^']+)'/);
+    const m=(await r.text()).match(/const APP_VERSION\s*=\s*'([^']+)'/);   // [L96 · vérif #3] ancrée sur la déclaration (et espaces tolérés → ne peut pas se matcher elle-même) ; la constante doit rester déclarée AVANT ce code
     if(m&&m[1]&&m[1]!==APP_VERSION) _updBanner(m[1]);
   }catch(e){}
 }
@@ -2071,47 +2075,7 @@ function stopAppCheckRefreshLoop(){
 // octets, compatible 4G). Si elle change, on confirme par un GET unique qui lit
 // l'APP_VERSION embarqué : le bandeau ne s'affiche QUE si la version a réellement
 // changé — aucun faux positif lié au CDN.
-let _verTimer=null, _verBaseline=null, _verLastCheck=0, _verShown=false;
-function _appUrl(){ return location.origin+location.pathname; }
-function _verSig(resp){ return resp.headers.get('ETag')||resp.headers.get('Last-Modified')||null; }
-async function _checkNewVersion(){
-  if(_verShown||!navigator.onLine) return;
-  const now=Date.now();
-  if(now-_verLastCheck<30000) return;   // throttle (focus + interval ne se cumulent pas)
-  _verLastCheck=now;
-  try{
-    const head=await fetch(_appUrl()+'?_v='+now,{method:'HEAD',cache:'no-store'});
-    if(!head.ok) return;
-    const sig=_verSig(head);
-    if(_verBaseline===null){ _verBaseline=sig; return; }       // 1re mesure = référence
-    if(sig===null||sig===_verBaseline) return;                  // pas de changement détecté
-    // Signature différente : on confirme en lisant l'APP_VERSION déployé.
-    const get=await fetch(_appUrl()+'?_vc='+now,{cache:'no-store'});
-    if(!get.ok){ return; }
-    const txt=await get.text();
-    const m=txt.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
-    _verBaseline=sig;                                           // recaler pour ne pas reboucler
-    if(m&&m[1]&&m[1]!==APP_VERSION){
-      _verShown=true;
-      const b=document.getElementById('newVersionBanner'); if(b) b.style.display='flex';
-      if(typeof _syncTopBanner==='function') _syncTopBanner();
-      stopVersionWatcher();
-    }
-  }catch(e){ /* hors-ligne / réseau : on réessaiera au prochain cycle */ }
-}
-function startVersionWatcher(){
-  if(_verTimer) return;
-  _checkNewVersion();                                  // capture la référence au lancement
-  _verTimer=setInterval(_checkNewVersion,5*60*1000);   // toutes les 5 min
-  document.addEventListener('visibilitychange',_onVisVer);
-  window.addEventListener('focus',_checkNewVersion);
-}
-function stopVersionWatcher(){
-  if(_verTimer){ clearInterval(_verTimer); _verTimer=null; }
-  document.removeEventListener('visibilitychange',_onVisVer);
-  window.removeEventListener('focus',_checkNewVersion);
-}
-function _onVisVer(){ if(document.visibilityState==='visible') _checkNewVersion(); }
+// [L96 · vérif #1] veille de version héritée (L87) SUPPRIMÉE — remplacée par checkAppUpdate/updBanner (gel de version L89) : une seule bannière, un seul chemin de rechargement (updReload → REFRESH_INDEX).
 
 // Échap ferme les modales custom (accessibilité clavier)
 document.addEventListener('keydown',function(e){
@@ -2141,7 +2105,6 @@ document.addEventListener('keydown',function(e){
         // Refresh périodique tant que la session reste ouverte (TTL App Check = 1 jour),
         // pour qu'un poste atelier laissé ouvert toute la journée ne se bloque jamais.
         startAppCheckRefreshLoop();
-        startVersionWatcher();   // veille nouvelle version (poste atelier laissé ouvert)
         // Suivi lame : charge le registre puis affiche le bandeau d'alerte (>=19/21 j).
         loadMaintenance().then(()=>{ renderLameAlertBanner(); startLameAlertCycle(); }).catch(e=>console.warn('Alerte lame:',e));
         // Reprise auto d'une commande dont le chrono tournait à la fermeture
@@ -7009,7 +6972,11 @@ function recalcEcartsFromFiche(opts){
       if(!frozenSet.has(l.id)) return;
       if(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')) return;
       const raw=(document.getElementById('flConf_'+l.id)?.value||'').trim();
-      if(!raw) return;
+      if(!raw){   // [L96 · vérif #6] conf VIDE sur une bobine engagée non-déchet : BLOQUER — sinon ses laizes comptaient 0 produit et étaient re-produites EN SILENCE (l'opérateur doit écrire ce qu'il a réellement coupé, ou marquer la bobine Déchet)
+        const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id);
+        _illisibles.push(lbl+' (config VIDE — écris la découpe réelle ou marque 🗑 Déchet)');
+        return;
+      }
       // [L92 · Audit #5] contrôle par COMPTAGE DE CHIFFRES consommés : « 2×300 3×200 » (espace au
       // lieu de +) n'échappe plus — parseConf ne lisait que la 1re paire et perdait la 2e EN SILENCE.
       if(/\d[.]\d*\s*×/.test(normConf(raw).replace(/(\d+(?:\.\d+)?)×/g,m0=>m0.includes('.')?m0:'#×'))&&/\d\.\d*×/.test(normConf(raw))){ const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id); _illisibles.push(lbl+' (« '+raw+' » — quantité décimale ?)'); return; }   // [L94] « 6,5×502 » : parseConf lisait qty 5 EN SILENCE
@@ -9164,8 +9131,11 @@ function _bkParseTable(text){
 function bkFillSample(){ const el=stkEl('bkImportText'); if(el){ el.value=BK_CSV_20260701; bkAnalyseImport(); } }
 // [L84] REMPLACEMENT : annule TOUS les mouvements d'import B+K existants (jetons [BK/[BKCO) par
 // contre-écritures tracées (jamais de suppression), puis charge l'état Excel du 26/05 pour import.
+let _bkReplaceBusy=false;
 async function bkRemplacerParXls(){
   if(!canViewStock()){ showToast('Accès réservé.','err'); return; }
+  if(_bkReplaceBusy){ showToast('⏳ Remplacement déjà en cours — patiente.','err'); return; }
+  _bkReplaceBusy=true; try{
   const doomed=stockMouvementsCache.filter(m=>!m.deleted&&!m.corrige&&!m.corrigePar&&String(m.note||'').includes('[BK'));
   if(doomed.length){
     if(!(await confirmDlg(`Remplacer l'import B+K existant ?\n\n${doomed.length} mouvement(s) seront annulés par contre-écritures tracées (rien n'est supprimé), puis l'état Excel du 26/05 sera proposé à l'import.`,{danger:true,ok:'Remplacer'}))) return;
@@ -9188,6 +9158,7 @@ async function bkRemplacerParXls(){
   const el=stkEl('bkImportText'); if(el){ el.value=BK_XLS_20260526; bkAnalyseImport(); }
   renderStock();
   setTimeout(function(){ const el2=stkEl('bkImportText'); if(el2){ el2.value=BK_XLS_20260526; bkAnalyseImport(); } },50);   // re-render efface le panneau : on re-remplit après
+  }finally{ _bkReplaceBusy=false; }   // [L96 · vérif #8] verrou relâché quoi qu'il arrive
 }
 let _bkPlanned=null;
 function bkAnalyseImport(){
