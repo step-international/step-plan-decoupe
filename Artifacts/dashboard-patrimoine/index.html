@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Dashboard Patrimoine",
+  "schemaVersion": 1,
+  "description": "Dashboard patrimoine détaillé : KPIs, répartition par catégorie/établissement, gains latents en €, flux mensuels, tableau éditable avec descriptions, et simulateur de projections à intérêts composés (scénarios 3/5/7/9 %, horizon réglable, versements modulables)."
+}
+</script>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Patrimoine</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+:root { color-scheme: light;
+  --ink: #15202b; --mut: #5a6b7b; --soft: #8595a5;
+  --bg: #eef2f7; --card: #ffffff; --accent: #2563eb; --accent2: #1f4e5f;
+  --shadow: 0 1px 2px rgba(16,30,54,.06), 0 4px 14px rgba(16,30,54,.07);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "Segoe UI", Inter, Roboto, Arial, sans-serif; background:
+  radial-gradient(1100px 380px at 15% -50px, #dbe7ff 0%, rgba(238,242,247,0) 60%), var(--bg);
+  color: var(--ink); padding: 18px; }
+.hero { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+h1 { font-size: 22px; letter-spacing: -.02em;
+  background: linear-gradient(90deg, var(--accent2), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.badge { font-size: 11px; font-weight: 600; color: var(--accent2); background: #e3edf5; border: 1px solid #cfe0ec; padding: 2px 10px; border-radius: 999px; }
+.sub { color: var(--mut); font-size: 12px; margin-bottom: 18px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.kpi { background: var(--card); border-radius: 14px; padding: 13px 15px; box-shadow: var(--shadow); border-top: 3px solid #d7e3f4; }
+.kpi:first-child { border-top-color: var(--accent); }
+.kpi .lbl { font-size: 10.5px; color: var(--mut); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.kpi .val { font-size: 22px; font-weight: 750; margin-top: 3px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.kpi .det { font-size: 11px; color: var(--soft); margin-top: 3px; }
+.neg { color: #c0392b !important; } .pos { color: #1e7e34 !important; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--card); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; transition: box-shadow .15s; }
+.card:hover { box-shadow: 0 2px 4px rgba(16,30,54,.07), 0 8px 22px rgba(16,30,54,.10); }
+.grid .card { margin-bottom: 0; }
+.card h2 { font-size: 12.5px; color: var(--accent2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.chartbox { position: relative; height: 260px; }
+.chartbox.tall { height: 320px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: right; font-size: 10.5px; color: #5a6b7b; text-transform: uppercase; padding: 6px 6px; border-bottom: 2px solid #e3e8ee; white-space: nowrap; }
+th:first-child { text-align: left; }
+td { padding: 5px 6px; border-bottom: 1px solid #eef1f5; vertical-align: top; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.cat td { background: #eef3f9; font-weight: 700; font-size: 12px; }
+.desc { font-size: 11px; color: #7c8a98; margin-top: 1px; max-width: 420px; }
+.flag { display: inline-block; background: #fff3cd; color: #856404; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 5px; }
+input.edit { width: 84px; text-align: right; border: 1px solid #d6dde5; border-radius: 6px; padding: 3px 5px; font-size: 12.5px; background: #fbfdff; }
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+button { border: 1px solid #c8d2dc; background: #fff; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+button:hover { background: #eef3f9; }
+button.chip { border-radius: 14px; background: #eef3f9; border-color: #d6e2ee; }
+.note { font-size: 11px; color: #8595a5; margin-top: 10px; }
+.controls { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
+.ctrl label { display: block; font-size: 11px; color: #5a6b7b; margin-bottom: 3px; }
+.ctrl input { width: 110px; border: 1px solid #d6dde5; border-radius: 6px; padding: 5px 7px; font-size: 13px; }
+.projtbl td, .projtbl th { text-align: right; }
+.projtbl td:first-child, .projtbl th:first-child { text-align: left; }
+.fun { background: #f0f7ff; border-left: 3px solid #4472c4; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #34495e; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="hero"><h1>Patrimoine — Dashboard</h1><span class="badge">Juin 2026</span></div>
+<div class="sub">Montants « Investi » et « Valeur » modifiables directement dans le tableau — sauvegardés sur cet appareil.</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="lbl">Patrimoine net</div><div class="val" id="kNet"></div><div class="det" id="kNetDet"></div></div>
+  <div class="kpi"><div class="lbl">Patrimoine brut</div><div class="val" id="kBrut"></div><div class="det">avant dette immobilière</div></div>
+  <div class="kpi"><div class="lbl">Plus-value latente</div><div class="val" id="kGain"></div><div class="det">sur lignes au prix de revient connu</div></div>
+  <div class="kpi"><div class="lbl">Cash mobilisable</div><div class="val pos" id="kCash"></div><div class="det">comptes + livrets</div></div>
+  <div class="kpi"><div class="lbl">Sortie nette / mois</div><div class="val" id="kFlux"></div><div class="det">DCA PEA + déficit immo</div></div>
+</div>
+
+<div class="grid">
+  <div class="card"><h2>Répartition du patrimoine brut</h2><div class="chartbox"><canvas id="cAlloc"></canvas></div></div>
+  <div class="card"><h2>Gains / pertes latents (€) — survol = perf %</h2><div class="chartbox"><canvas id="cGain"></canvas></div></div>
+  <div class="card"><h2>Par établissement</h2><div class="chartbox"><canvas id="cEtab"></canvas></div></div>
+  <div class="card"><h2>Flux mensuels (€)</h2><div class="chartbox"><canvas id="cFlux"></canvas></div></div>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0;flex:1">Détail des lignes</h2>
+    <button id="btnReset">Réinitialiser les valeurs d'origine</button>
+  </div>
+  <table id="tbl"><thead><tr>
+    <th>Ligne</th><th>Investi (€)</th><th>Valeur (€)</th><th>+/- (€)</th><th>Perf</th><th>% brut</th><th>% net</th>
+  </tr></thead><tbody></tbody></table>
+  <div class="note">« — » : prix de revient inconnu ou sans objet. Étiquette jaune = à confirmer/actualiser. % brut = part du patrimoine brut · % net = part du patrimoine net (dette déduite).</div>
+</div>
+
+<div class="card">
+  <h2>Projections — intérêts composés (hors impôts et inflation)</h2>
+  <div class="controls">
+    <div class="ctrl"><label>Capital de départ (€)</label><input type="number" id="pCap" step="1000"></div>
+    <div class="ctrl"><label>Versement mensuel (€)</label><input type="number" id="pDca" step="50"></div>
+    <div class="ctrl"><label>+ Revenus business investis (€/mois)</label><input type="number" id="pBiz" step="100"></div>
+    <div class="ctrl"><label>Horizon (années) : <span id="pHzLbl"></span></label><input type="range" id="pHz" min="5" max="40" step="1" style="width:160px"></div>
+  </div>
+  <div class="toolbar">
+    <span style="font-size:11px;color:#5a6b7b">Et si… :</span>
+    <button class="chip" data-dca="530" data-biz="0">DCA actuel 530 €</button>
+    <button class="chip" data-dca="800" data-biz="0">DCA 800 €</button>
+    <button class="chip" data-dca="530" data-biz="500">SaaS +500 €/mois</button>
+    <button class="chip" data-dca="800" data-biz="1500">Mode entrepreneur 2 300 €/mois</button>
+  </div>
+  <div class="chartbox tall"><canvas id="cProj"></canvas></div>
+  <table class="projtbl" id="projTbl" style="margin-top:12px"><thead><tr>
+    <th>Scénario (rendement/an)</th><th>Dans 10 ans (31 ans)</th><th>Dans 20 ans (41 ans)</th><th>Dans 30 ans (51 ans)</th>
+  </tr></thead><tbody></tbody></table>
+  <div class="fun" id="funFact"></div>
+  <div class="note">Hypothèses de rendement brutes et constantes — la réalité sera volatile. Capital de départ par défaut = patrimoine financier (hors immobilier). Capitalisation mensuelle. Ceci est une simulation, pas une prédiction.</div>
+</div>
+
+<script>
+const KEY = 'patrimoine-dash-v3';
+const DEFAULTS = {
+  lignes: [
+    {cat:'Liquidités', label:"Caisse d'Épargne — compte courant", etab:"Caisse d'Épargne", val:1000,
+     desc:"Compte du quotidien."},
+    {cat:'Liquidités', label:'CIC — compte courant', etab:'CIC', val:6000,
+     desc:"Cash dormant à 0 % — à déployer (DCA vers PEA et/ou enveloppe projet business)."},
+    {cat:'Liquidités', label:'Revolut — compte courant', etab:'Revolut', val:680,
+     desc:"Dépenses quotidiennes, paiements à l'étranger — utile pour le Japon."},
+    {cat:'Liquidités', label:'Bricks — cash disponible', etab:'Bricks', val:600,
+     desc:"Liquidités en attente sur la plateforme."},
+    {cat:'Liquidités', label:'Mon Petit Placement — compte', etab:'Mon Petit Placement', val:900, flag:'à confirmer',
+     desc:"Dicté « Sur Mon, 900 € en compte courant »."},
+    {cat:'Livrets', label:'Livret A', etab:"Caisse d'Épargne", val:5675,
+     desc:"Épargne de précaution : exonérée d'impôt, disponible immédiatement. Cœur du matelas de sécurité."},
+    {cat:'Livrets', label:'Livret Jeune', etab:"Caisse d'Épargne", val:1600,
+     desc:"Réservé aux moins de 26 ans, taux ≥ Livret A, exonéré. À utiliser tant que tu y as droit."},
+    {cat:'Livrets', label:'Revolut Instant Access Savings', etab:'Revolut', val:7300,
+     desc:"2,25 % brut/an, intérêts versés quotidiennement, retrait instantané. Bonne poche « opportunité » pour acheter les baisses."},
+    {cat:'Assurance vie', label:'Millevie Premium 2', etab:"Caisse d'Épargne", val:20000,
+     desc:"AV bancaire — demander le détail des frais (gestion, UC, versement)."},
+    {cat:'Assurance vie', label:'Contrat euros + UC', etab:'CIC', val:58000,
+     desc:"Ta plus grosse ligne (~29 % du brut). Frais à auditer en priorité : 1 % de frais en trop = ~580 €/an."},
+    {cat:'Assurance vie', label:'Contrat GMF', etab:'GMF', val:500, flag:'à confirmer',
+     desc:"Ligne issue de l'ancien fichier."},
+    {cat:'PEA', label:'PEA — portefeuille ETF', etab:'PEA', val:13000, investi:11111, flag:'valeur dictée',
+     desc:"DCA 530 €/mois. MSCI World ~50 %, Emerging Markets ~20 %, S&P 500 + Nasdaq ~30 %. Perf globale +17 %. Enveloppe fiscale prioritaire : 17,2 % de prélèvements après 5 ans (vs 30 % en CTO)."},
+    {cat:'Compte-titres', label:'Novo Nordisk', etab:'Trade Republic', val:1300,
+     desc:"Action pharma danoise (Ozempic/Wegovy). Perf non communiquée — prix de revient à renseigner."},
+    {cat:'Compte-titres', label:'Nasdaq 100 x2 Leverage EUR Acc', etab:'Trade Republic', val:1000, investi:1149,
+     desc:"ETF à levier ×2 : produit de trading, pas d'investissement long terme (érosion par volatilité). Perf -13 %."},
+    {cat:'Compte-titres', label:'MSCI Semiconductors ESG Acc', etab:'Trade Republic', val:1000, investi:649,
+     desc:"Ta meilleure ligne : +54 %. Thématique semi-conducteurs (IA, data centers)."},
+    {cat:'Compte-titres', label:'AI & Big Data USD Acc', etab:'Trade Republic', val:900, investi:900,
+     desc:"Investi récemment, perf ~0 %. Attention au cumul thématiques tech : recoupe le Nasdaq et les semis."},
+    {cat:'Compte-titres', label:'BYD', etab:'Trade Republic', val:400, investi:482,
+     desc:"Constructeur EV chinois. Perf -17 %."},
+    {cat:'Crypto', label:'Bitcoin', etab:'Bitstack', val:4000, investi:5000,
+     desc:"5 000 € investis → 4 000 € (-20 %, dicté -18 %). DCA possible directement sur l'app."},
+    {cat:'Crypto', label:'Altcoins', etab:'—', val:6000, investi:17000,
+     desc:"Near, Sui, Solana, Render, Injective, Fetch… 17 000 € investis il y a ~3 ans → 6 000 € (-65 %). La leçon la plus chère du portefeuille : les altcoins ne sont pas du Bitcoin. Plateforme à préciser."},
+    {cat:'Crowdfunding immo', label:'Bricks — capital investi', etab:'Bricks', val:7000,
+     desc:"≈400 € d'intérêts reçus depuis janvier (montée en charge depuis 300 €). Illiquide : ne pas dépasser ~5 % du patrimoine — tu y es."},
+    {cat:'Immobilier', label:'Appartement LMNP', etab:'—', val:60000, flag:'valeur estimée',
+     desc:"Estimation : apport 20 000 + prêt 40 000. Loyer 400 €/mois, mensualité 375 € (1,98 %), charges 38 € → cashflow -13 €/mois. CRD 33 000 € → equity nette 27 000 €."}
+  ],
+  dette: 33000,
+  flux: [
+    {label:'Loyer LMNP', v:400},
+    {label:'Mensualité prêt (1,98 %)', v:-375},
+    {label:'Charges immo', v:-38},
+    {label:'DCA PEA', v:-530}
+  ],
+  proj: { cap: null, dca: 530, biz: 0, hz: 20 }
+};
+
+let data;
+try { data = JSON.parse(localStorage.getItem(KEY)) || structuredClone(DEFAULTS); }
+catch(e) { data = structuredClone(DEFAULTS); }
+if (!data.lignes || data.lignes.length !== DEFAULTS.lignes.length || !data.proj) data = structuredClone(DEFAULTS);
+
+const eur = n => Math.round(n).toLocaleString('fr-FR') + ' €';
+const eurS = n => (n >= 0 ? '+' : '') + Math.round(n).toLocaleString('fr-FR') + ' €';
+const pct = n => (n*100).toFixed(1).replace('.', ',') + ' %';
+const COLORS = ['#4472c4','#5b9bd5','#70ad47','#ffc000','#ed7d31','#a05195','#264478','#9e480e'];
+const save = () => localStorage.setItem(KEY, JSON.stringify(data));
+
+let charts = {};
+function agg() {
+  const cats = {}, etabs = {};
+  let brut = 0, gain = 0;
+  data.lignes.forEach(l => {
+    cats[l.cat] = (cats[l.cat]||0) + l.val;
+    etabs[l.etab] = (etabs[l.etab]||0) + l.val;
+    brut += l.val;
+    if (l.investi != null && l.cat !== 'Immobilier') gain += l.val - l.investi;
+  });
+  const net = brut - data.dette;
+  const cash = data.lignes.filter(l=>l.cat==='Liquidités'||l.cat==='Livrets').reduce((a,l)=>a+l.val,0);
+  const financier = brut - (cats['Immobilier']||0);
+  return { cats, etabs, brut, net, cash, gain, financier };
+}
+
+function buildCharts() {
+  const a = agg();
+  const fluxNet = data.flux.reduce((s,f)=>s+f.v,0);
+  document.getElementById('kNet').textContent = eur(a.net);
+  document.getElementById('kNetDet').textContent = `dont financier ${eur(a.financier)} · immo net ${eur((a.cats['Immobilier']||0) - data.dette)}`;
+  document.getElementById('kBrut').textContent = eur(a.brut);
+  const kg = document.getElementById('kGain');
+  kg.textContent = eurS(a.gain); kg.className = 'val ' + (a.gain >= 0 ? 'pos' : 'neg');
+  document.getElementById('kCash').textContent = eur(a.cash);
+  const kf = document.getElementById('kFlux');
+  kf.textContent = eur(fluxNet) + ' /mois'; kf.className = 'val ' + (fluxNet < 0 ? 'neg' : 'pos');
+
+  Object.values(charts).forEach(c => c.destroy()); charts = {};
+
+  charts.alloc = new Chart(document.getElementById('cAlloc'), {
+    type: 'doughnut',
+    data: { labels: Object.keys(a.cats), datasets: [{ data: Object.values(a.cats), backgroundColor: COLORS }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${eur(ctx.parsed)} (${(ctx.parsed/a.brut*100).toFixed(1)} %)` } } } }
+  });
+
+  const gl = data.lignes.filter(l => l.investi != null && l.cat !== 'Immobilier' && l.investi !== l.val)
+    .map(l => ({ label: l.label.replace(/ —.*/, ''), g: l.val - l.investi, p: l.val/l.investi - 1 }))
+    .sort((x,y) => y.g - x.g);
+  charts.gain = new Chart(document.getElementById('cGain'), {
+    type: 'bar',
+    data: { labels: gl.map(x=>x.label), datasets: [{ data: gl.map(x=>x.g), backgroundColor: gl.map(x=>x.g>=0?'#70ad47':'#c0392b') }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${eurS(ctx.parsed.x)} (${pct(gl[ctx.dataIndex].p)})` } } },
+      scales: { x: { ticks: { callback: v => v + ' €' } } } }
+  });
+
+  const eSorted = Object.entries(a.etabs).filter(e=>e[0]!=='—').sort((x,y)=>y[1]-x[1]);
+  charts.etab = new Chart(document.getElementById('cEtab'), {
+    type: 'bar',
+    data: { labels: eSorted.map(e=>e[0]), datasets: [{ data: eSorted.map(e=>e[1]), backgroundColor: '#4472c4' }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + eur(ctx.parsed.y) } } },
+      scales: { y: { ticks: { callback: v => (v/1000) + ' k€' } } } }
+  });
+
+  const fluxNet2 = data.flux.reduce((s,f)=>s+f.v,0);
+  charts.flux = new Chart(document.getElementById('cFlux'), {
+    type: 'bar',
+    data: { labels: [...data.flux.map(f=>f.label), 'Net'],
+      datasets: [{ data: [...data.flux.map(f=>f.v), fluxNet2],
+        backgroundColor: [...data.flux.map(f=>f.v>=0?'#70ad47':'#ed7d31'), fluxNet2>=0?'#70ad47':'#c0392b'] }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + eur(ctx.parsed.y) } } } }
+  });
+
+  buildProj(a);
+}
+
+function buildTable() {
+  const a = agg();
+  const tb = document.querySelector('#tbl tbody');
+  tb.innerHTML = '';
+  let lastCat = null;
+  data.lignes.forEach((l, i) => {
+    if (l.cat !== lastCat) {
+      lastCat = l.cat;
+      const sum = data.lignes.filter(x=>x.cat===l.cat).reduce((s,x)=>s+x.val,0);
+      const tr = document.createElement('tr');
+      tr.className = 'cat';
+      tr.innerHTML = `<td>${l.cat}</td><td></td><td class="num">${eur(sum)}</td><td></td><td></td>
+        <td class="num">${pct(sum/a.brut)}</td><td class="num">${pct(sum/a.net)}</td>`;
+      tb.appendChild(tr);
+    }
+    const hasInv = l.investi != null && l.cat !== 'Immobilier';
+    const g = hasInv ? l.val - l.investi : null;
+    const p = hasInv && l.investi > 0 ? l.val/l.investi - 1 : null;
+    const flag = l.flag ? `<span class="flag">${l.flag}</span>` : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${l.label}${flag}<div class="desc">${l.desc||''}</div></td>
+      <td class="num">${l.investi != null ? `<input class="edit" type="number" step="50" value="${l.investi}" data-i="${i}" data-f="investi">` : '—'}</td>
+      <td class="num"><input class="edit" type="number" step="50" value="${l.val}" data-i="${i}" data-f="val"></td>
+      <td class="num ${g==null?'':(g>=0?'pos':'neg')}">${g==null?'—':eurS(g)}</td>
+      <td class="num ${p==null?'':(p>=0?'pos':'neg')}">${p==null?'—':pct(p)}</td>
+      <td class="num">${pct(l.val/a.brut)}</td><td class="num">${pct(l.val/a.net)}</td>`;
+    tb.appendChild(tr);
+  });
+  const trD = document.createElement('tr');
+  trD.innerHTML = `<td><b>Dette immobilière (capital restant dû)</b><div class="desc">Prêt 40 000 € à 1,98 % — 375 €/mois. Taux très bas : aucune raison de rembourser par anticipation.</div></td>
+    <td class="num">—</td>
+    <td class="num"><input class="edit" type="number" step="100" value="${data.dette}" data-i="dette" data-f="dette"></td>
+    <td></td><td></td><td></td><td></td>`;
+  tb.appendChild(trD);
+
+  tb.querySelectorAll('input.edit').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const v = Math.max(0, Number(inp.value) || 0);
+      if (inp.dataset.i === 'dette') data.dette = v;
+      else data.lignes[Number(inp.dataset.i)][inp.dataset.f] = v;
+      save(); buildTable(); buildCharts();
+    });
+  });
+}
+
+const SCEN = [
+  { label: 'Prudent (3 %)', r: 0.03, color: '#8595a5' },
+  { label: 'Modéré (5 %)', r: 0.05, color: '#5b9bd5' },
+  { label: 'Dynamique (7 %)', r: 0.07, color: '#70ad47' },
+  { label: 'Agressif (9 %)', r: 0.09, color: '#ed7d31' }
+];
+function fv(cap, monthly, r, years) {
+  const rm = Math.pow(1 + r, 1/12) - 1;
+  const n = years * 12;
+  return cap * Math.pow(1 + rm, n) + (rm === 0 ? monthly * n : monthly * ((Math.pow(1 + rm, n) - 1) / rm));
+}
+function buildProj(a) {
+  const p = data.proj;
+  if (p.cap == null) p.cap = Math.round(a.financier);
+  document.getElementById('pCap').value = p.cap;
+  document.getElementById('pDca').value = p.dca;
+  document.getElementById('pBiz').value = p.biz;
+  document.getElementById('pHz').value = p.hz;
+  document.getElementById('pHzLbl').textContent = p.hz + ' ans (' + (21 + p.hz) + ' ans)';
+  const monthly = p.dca + p.biz;
+  const years = [...Array(p.hz + 1).keys()];
+
+  if (charts.proj) charts.proj.destroy();
+  charts.proj = new Chart(document.getElementById('cProj'), {
+    type: 'line',
+    data: { labels: years.map(y => 2026 + y),
+      datasets: SCEN.map(s => ({ label: s.label, data: years.map(y => fv(p.cap, monthly, s.r, y)),
+        borderColor: s.color, backgroundColor: s.color, pointRadius: 0, borderWidth: 2, tension: .25 })) },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { boxWidth: 14, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${eur(ctx.parsed.y)}` } } },
+      scales: { y: { ticks: { callback: v => (v/1000).toLocaleString('fr-FR') + ' k€' } } } }
+  });
+
+  const tb = document.querySelector('#projTbl tbody');
+  tb.innerHTML = '';
+  SCEN.forEach(s => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.label}</td><td class="num">${eur(fv(p.cap, monthly, s.r, 10))}</td>
+      <td class="num">${eur(fv(p.cap, monthly, s.r, 20))}</td><td class="num">${eur(fv(p.cap, monthly, s.r, 30))}</td>`;
+    tb.appendChild(tr);
+  });
+
+  const v7_20 = fv(p.cap, monthly, 0.07, 20);
+  const versé = p.cap + monthly * 12 * 20;
+  document.getElementById('funFact').innerHTML =
+    `À 7 %/an avec ${eur(monthly)}/mois : tu verses ${eur(versé)} en tout sur 20 ans, et les intérêts composés ajoutent ` +
+    `<b>${eur(v7_20 - versé)}</b> par-dessus. Commencer à 21 ans plutôt qu'à 31 vaut ≈ ${eur(fv(p.cap, monthly, .07, 30) - fv(p.cap, monthly, .07, 20))} de plus à 51 ans : ton meilleur atout, c'est le temps.`;
+}
+
+['pCap','pDca','pBiz','pHz'].forEach(id => {
+  document.getElementById(id).addEventListener('input', e => {
+    const map = { pCap: 'cap', pDca: 'dca', pBiz: 'biz', pHz: 'hz' };
+    data.proj[map[id]] = Math.max(0, Number(e.target.value) || 0);
+    save(); buildProj(agg());
+  });
+});
+document.querySelectorAll('button.chip').forEach(b => {
+  b.addEventListener('click', () => {
+    data.proj.dca = Number(b.dataset.dca); data.proj.biz = Number(b.dataset.biz);
+    save(); buildProj(agg());
+  });
+});
+document.getElementById('btnReset').addEventListener('click', () => {
+  localStorage.removeItem(KEY);
+  data = structuredClone(DEFAULTS);
+  buildTable(); buildCharts();
+});
+
+buildTable();
+buildCharts();
+</script>
+</body>
+</html>

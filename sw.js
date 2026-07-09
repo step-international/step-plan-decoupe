@@ -47,8 +47,8 @@ self.addEventListener('message',function(e){
 
 self.addEventListener('fetch',function(e){
   const req=e.request;
-  if(req.cache==='no-store') return;                       // vérification de version de la page : NE PAS intercepter
   const url=new URL(req.url);
+  if(req.cache==='no-store'||url.searchParams.has('vchk')) return;   // vérification de version : NE PAS intercepter (double marqueur — request.cache absent sur vieux iOS)
   const isIndex=req.mode==='navigate'||(url.origin===self.location.origin&&/\/(index\.html)?$/.test(url.pathname));
   if(!isIndex) return;                                      // Firebase/gstatic/photos : réseau normal
   e.respondWith(
