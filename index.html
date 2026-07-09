@@ -46,7 +46,7 @@ select option{background:#1a1a18}
 label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
 .field{margin-bottom:9px}
 /* [L79] En-tête fiche compact : Client/Réf (auto depuis plan) moins encombrants */
-.hdr-mini{margin-bottom:8px}.hdr-mini input{font-size:13px;padding:6px 10px}.hdr-mini label{font-size:11px;margin-bottom:2px}
+.hdr-mini{margin-bottom:8px}.hdr-mini input{font-size:13px;padding:6px 10px}.hdr-mini label{font-size:12px;margin-bottom:2px}   /* [L83 · Audit #33] plancher 12px (L74) */
 /* [L79] Boîtes « changement en cours » (lame / machine / op.2) regroupées sous le bouton « Changements » */
 .chg-section{background:#1a1a18;border:1px solid var(--border2);border-radius:10px;padding:12px}
 #changementsZone .chg-section{margin:0 0 9px}
@@ -287,9 +287,7 @@ body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 .save-info{flex:1;min-width:0}
 .save-title{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .save-title-wrap{font-size:15px;font-weight:700;white-space:normal;word-break:break-word;line-height:1.35}
-.save-refs{margin-top:4px;display:flex;flex-direction:column;gap:2px}
-.save-refrow{font-size:13px;color:var(--text);font-weight:600;word-break:break-word}
-.save-refrow .rdot{color:var(--ref-accent);font-weight:800;margin-right:5px}
+/* [L83 · Audit #28] .save-refs/.save-refrow/.rdot supprimés (ne matchaient plus aucun HTML) */
 .save-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
 .save-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
 /* [L79] Cartes Plans (Données) : boutons en 2×2 (deux en haut, deux en bas) */
@@ -363,6 +361,14 @@ body.atelier [id^="coupeeBtn_"]{font-size:18px !important;padding:16px !importan
 body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
 body.atelier .machine-btn{font-size:17px;padding:16px}
+/* [L83 · Audit #29] contrôles qualité ISO tapables/lisibles en mode atelier */
+body.atelier .nc-check,body.atelier .test2-sub,body.atelier .test2-nc{font-size:15px;min-height:48px;padding:10px 14px}
+body.atelier .test2-main{font-size:14px}
+body.atelier .test2-main input[type=checkbox],body.atelier .test2-nc input[type=checkbox]{width:22px;height:22px}
+/* [L83 · Audit #30] l'info n°1 de l'opérateur (config de coupe / titre bobine) agrandie aussi */
+body.atelier .card-config{font-size:18px}
+body.atelier .bc-count{font-size:16px}
+body.atelier .fl-pos,body.atelier .fl-title{font-size:18px}
 #roleTag{font-size:12px;font-weight:700;padding:2px 5px;border-radius:4px;margin-right:2px;white-space:nowrap;letter-spacing:.02em}   /* [L74 · Design Lot A] plancher 12px (était 9px) */
 @media(max-width:600px){#roleTag{font-size:12px;padding:2px 4px}#logoutBtn,#atelierBtn{padding:4px 7px !important;font-size:12px !important}}   /* [L74 · Design Lot A] plancher 12px (était 8px/11px) */
 /* F2 — bannières fixes (nouvelle version / alerte lame) : pousser nav + contenu pour ne pas recouvrir les onglets */
@@ -754,7 +760,7 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
       <button class="btn btn-blue" style="flex:1" onclick="applyFichePlanChange()">🔄 Changement plan</button>
       <button class="btn btn-ghost" style="flex:1" onclick="printFichePlan()">🖨️ Imprimer le plan</button>
     </div>
-    <div id="fPlanHint" style="font-size:12px;margin-top:6px;color:var(--orange)">⚠ Renseigne les 4 champs machine puis clique « Changement plan » avant de démarrer le chrono.</div>
+    <div id="fPlanHint" style="font-size:14px;font-weight:600;margin-top:6px;color:var(--orange)">⚠ Renseigne les 4 champs machine puis clique « Changement plan » avant de démarrer le chrono.</div>
   </div>
 
   <!-- Machine PAR RÉFÉRENCE (multi-réf) : chaque réf a sa propre bobine mère /
@@ -1320,7 +1326,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L82';
+const APP_VERSION='2026.07.09-L83';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -2574,8 +2580,14 @@ function esc(v){
 // Cellule CSV sûre : neutralise l'injection de formule Excel + échappe les guillemets
 function csvCell(v){
   let s=String(v==null?'':v);
-  if(/^[=+\-@]/.test(s)) s="'"+s;        // neutralise =SUM(), +, -, @ interprétés comme formule
+  if(/^[=+\-@\t\r]/.test(s)) s="'"+s;   // [L83 · Audit #18] neutralise =SUM(), +, -, @, TAB, CR interprétés comme formule
   return '"'+s.replace(/"/g,'""')+'"';
+}
+// [L83 · Audit #35-#39] Écriture Firestore BORNÉE : plus aucun bouton/flux ne gèle à vie hors-ligne.
+// En timeout, l'erreur (en français) remonte aux catch existants ; la persistance offline Firestore
+// fera partir l'écriture au retour du réseau — d'où le message « mise en file, ne re-saisis pas ».
+function boundedWrite(p,ms){
+  return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.')),ms||10000))]);
 }
 
 // ============================================================
@@ -2740,25 +2752,11 @@ function compressImageBlob(file,maxDim,quality){
 }
 // Garde l'ancienne version pour compatibilité (impression, etc.)
 function compressImage(file,maxDim,quality){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const img=new Image();
-      img.onload=()=>{
-        let w=img.width,h=img.height;
-        if(w>h){if(w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}}
-        else{if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}}
-        const canvas=document.createElement('canvas');
-        canvas.width=w;canvas.height=h;
-        canvas.getContext('2d').drawImage(img,0,0,w,h);
-        resolve(canvas.toDataURL('image/jpeg',quality));
-      };
-      img.onerror=reject;
-      img.src=e.target.result;
-    };
-    reader.onerror=reject;
-    reader.readAsDataURL(file);
-  });
+  // [L83 · Audit #26] enveloppe de compressImageBlob (le corps était dupliqué à l'identique,
+  // seule la sortie différait : dataURL au lieu de Blob).
+  return compressImageBlob(file,maxDim,quality).then(b=>new Promise((res,rej)=>{
+    const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(b);
+  }));
 }
 async function uploadPhotoToStorage(blob,lineId){
   const ts=Date.now();
@@ -2982,7 +2980,7 @@ async function deleteBLFiche(ficheId,idx){
   const FV=firebase.firestore.FieldValue;
   let newBls=null;
   try{
-    await db.runTransaction(async(tx)=>{
+    await boundedWrite(db.runTransaction(async(tx)=>{
       const snap=await tx.get(ref);
       if(!snap.exists) throw new Error('Fiche introuvable.');
       const data=snap.data()||{};
@@ -2992,7 +2990,7 @@ async function deleteBLFiche(ficheId,idx){
       if(data.bl!==undefined) patch.bl=FV.delete();
       tx.update(ref,patch);
       newBls=filtered;
-    });
+    }),12000);   // [L83 · Audit #38] borné
     f.bls=newBls; if('bl' in f) delete f.bl;
     if(target.url){ try{ await deletePhotoFromStorage(target.url); }catch(e){ console.warn('Suppression fichier BL (Storage) :',e&&e.message); } }
     await logAudit('bl-del','fiches',ficheId,`${f.client||''} / ${target.ref||'global'}`);
@@ -3111,7 +3109,7 @@ function refreshCommandePhotoZone(){
     if(f.type==='image'){
       html+=`<div style="position:relative;display:inline-block">
         <img src="${esc(safeUrl(f.url))}" class="photo-thumb" onclick="openCommandeFileViewer(${i})" alt="${esc(f.name||'image')}" title="${esc(f.name||'')}">
-        <button onclick="deleteCommandeFile(${i})" aria-label="Supprimer ce fichier" style="position:absolute;top:-6px;right:-6px;background:#7a2222;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1">✕</button>
+        <button onclick="deleteCommandeFile(${i})" aria-label="Supprimer ce fichier" style="position:absolute;top:-10px;right:-10px;background:#7a2222;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;line-height:1;box-shadow:0 0 0 2px var(--card)">✕</button><!-- [L83 · Audit #31] cible tactile ≥32px -->
       </div>`;
     }else{
       html+=`<div style="display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;font-size:12px">
@@ -3661,7 +3659,7 @@ function cliAllocText(list){
 function cliStockByRef(){
   const stock={};
   try{ getRefGroups().forEach(g=>{
-    const rk=_refIdKey(g);   // [L71 · Audit B13] même clé robuste que cliPartsFromGroups
+    const rk=_cliQKey(_refIdKey(g),g.machine);   // [L83 · Audit #1] même clé (machine incluse) que les files — la chute d'un bloc ne débite plus les clients de l'autre
     const u=computeChutesUsed(g);
     const acc=stock[rk]||(stock[rk]={});
     Object.entries(u).forEach(([w,q])=>{acc[w]=(acc[w]||0)+q;});
@@ -3673,13 +3671,27 @@ function cliStockByRef(){
 // PURE hors parseConf. Retour : [ par ligne : [{w,c,q}] ].
 // [L71 · Audit B13] Clé de référence ROBUSTE aux homonymes : identité par contenu
 // (_refIdKey) + repli par nom pour les données legacy (1re réf portant ce nom).
+// [L83 · Audit #1] Clé de FILE CLIENT = _refIdKey + MACHINE. Deux blocs de la même réf sur deux
+// machines différentes (PAS fusionnés par mergeDuplicateRefBlocks, dont la clé inclut la machine)
+// fusionnaient leurs files FIFO et leurs chutes stock → bobineaux attribués au MAUVAIS client sur
+// la fiche (le plan écran, attribué bloc par bloc, était juste). Suffixe LOCAL aux files : ne touche
+// ni _refIdKey ni le refIdKey persisté des lignes (repli homonymes B13/B22 intact).
+function _cliQKey(refIdKey,machine){ return String(refIdKey)+'¦'+String(machine==null?'':machine).trim().toLowerCase(); }
 function _cliKeyTables(groups){
   const nrm=v=>String(v==null?'':v).trim().toLowerCase();
-  const keys=new Set(); const nameToKey={};
-  (groups||[]).forEach(g=>{ const k=_refIdKey(g); keys.add(k); const nm=nrm(g.ref); if(!(nm in nameToKey)) nameToKey[nm]=k; });
-  return {keys,nameToKey,nrm};
+  const keys=new Set(); const nameToKey={}; const bareToKey={};
+  (groups||[]).forEach(g=>{ const bare=_refIdKey(g); const k=_cliQKey(bare,g.machine); keys.add(k);
+    if(!(bare in bareToKey)) bareToKey[bare]=k;
+    const nm=nrm(g.ref); if(!(nm in nameToKey)) nameToKey[nm]=k; });
+  return {keys,nameToKey,bareToKey,nrm};
 }
-function _cliLineKey(e,T){ return (e&&e.refIdKey&&T.keys.has(e.refIdKey))?e.refIdKey:(T.nameToKey[T.nrm(e&&e.ref)]||T.nrm(e&&e.ref)); }
+function _cliLineKey(e,T){
+  if(e&&e.refIdKey){
+    const mk=_cliQKey(e.refIdKey,e.machine); if(T.keys.has(mk)) return mk;          // ligne avec machine → bloc EXACT
+    if(T.bareToKey[e.refIdKey]) return T.bareToKey[e.refIdKey];                      // legacy sans machine → 1er bloc de cette identité (comportement d'avant)
+  }
+  return T.nameToKey[T.nrm(e&&e.ref)]||T.nrm(e&&e.ref);
+}
 // [L71 · Audit B14] consomme qty pièces d'une largeur pour UN client précis (FIFO parmi
 // SES lignes) — sert à pré-consommer les files avec les attributions figées au ✂.
 function cliConsumeFor(q,width,cli,qty){
@@ -3695,7 +3707,7 @@ function cliPartsFromGroups(lines,groups,stockByRef){
   const T=_cliKeyTables(groups);
   const rowsByRef={};
   (groups||[]).forEach(g=>{
-    const rk=_refIdKey(g);
+    const rk=_cliQKey(_refIdKey(g),g.machine);   // [L83 · Audit #1] file PAR BLOC (machine incluse)
     (rowsByRef[rk]=rowsByRef[rk]||[]).push(...(g.rows||[]).map(r=>({qty:Number(r.qty)||0,width:Number(r.width)||0,cli:r.cli||'A'})));
   });
   const qByRef={};
@@ -3723,7 +3735,7 @@ function cliPartsFromGroups(lines,groups,stockByRef){
 // [L71] entrées d'attribution des lignes fiche courantes (réf + clé + conf + figé/déchet).
 function _cliLineEntries(){
   return (Array.isArray(ficheLines)?ficheLines:[]).map(l=>({
-    ref:l.ref||'', refIdKey:l.refIdKey||null,
+    ref:l.ref||'', refIdKey:l.refIdKey||null, machine:l.machine||'',   // [L83 · Audit #1]
     dechet:!!(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')),
     frozen:(Array.isArray(l.cliParts)&&l.cliParts.length)?l.cliParts:null,
     conf:(document.getElementById('flConf_'+l.id)?.value||'')
@@ -5107,7 +5119,7 @@ function recalcPlan(){
           <span class="rb-m">laize ${fmt(useful)} mm</span>${mlPart}${filmPart}${vekaPart}
           <span class="rb-m">${c.stats.totalBobines} bobine${c.stats.totalBobines>1?'s':''}</span>
           ${(c.recutBobines||[]).length?`<span class="rb-m" style="color:#5eead4">♻ ${c.recutBobines.length} rouleau${c.recutBobines.length>1?'x':''}</span>`:''}
-          <span class="rb-m">perte ${c.stats.pct.toFixed(1)}%</span>
+          <span class="rb-m">perte ${(function(){const pg=c.planGroups||[];const last=pg[pg.length-1];const solde=last?Math.max(0,c.useful-calcStats(last.pattern,c.blade).total):0;return (c.stats.totalMat>0?Math.max(0,c.stats.totalMat-c.stats.totalUsed-solde)/c.stats.totalMat*100:0).toFixed(1);})()}%</span><!-- [L83 · Audit #2] solde exclu : même définition que le chip global « Perte » -->
         </span>
       </div>`;
     }
@@ -5146,7 +5158,7 @@ function recalcPlan(){
       const st=calcStats(g.pattern,blade);
       const waste=useful-st.total;
       const hasChute=!!g.chute;
-      const isLast=(gi===_pgDisp.length-1)&&!hasChute;  // une bobine portant une chute n'est jamais le « solde »
+      const isLast=(gi===_pgDisp.length-1);  // [L83 · Audit #3] la DERNIÈRE bobine est le solde MÊME si elle porte une annotation chute — la carte affichait « chute » ROUGE (déchet) un reste que les compteurs/PDF/fiche comptent en « Chute stock » verte
       const cls='bobine-card'+mc+(isLast?' solde':'');
       const wLabel=isLast
         ?`<span class="badge-solde">solde conservé ${fmt(waste)} mm</span>`
@@ -5437,16 +5449,7 @@ function openPrintWindow(html,autoPrint){
 }
 // Récap "Code mandrin par largeur" — uniquement Legrand France, si des codes existent.
 // `groups` = sortie de packRefGroups (chaque c a c.rows avec éventuellement r.mandrin).
-function mandrinRecapHTML(groups,client){
-  if(!isLegrandFrName(client)) return ''; // [L73 · Lot 5 · B60] (fonction non branchée à ce jour)
-  const map={};
-  (groups||[]).forEach(c=>{(c.rows||[]).forEach(r=>{ if(r.mandrin){ map[r.width]=r.mandrin; } });});
-  const widths=Object.keys(map).map(Number).sort((a,b)=>a-b);
-  if(!widths.length) return '';
-  const rows=widths.map(w=>`<tr><td>${fmt(w)} mm</td><td style="font-family:monospace;font-weight:700">${esc(map[w])}</td></tr>`).join('');
-  return `<h3 style="font-size:14px;margin:18px 0 6px;color:#b45309">🏷 Codes mandrin (Legrand France)</h3>
-  <table><tr><th>Largeur</th><th>Code mandrin (4 chiffres)</th></tr>${rows}</table>`;
-}
+// [L83 · Audit #25] mandrinRecapHTML supprimée (morte — recouverte par packagingRecapHTML, L29)
 // L29 — Récap "Conditionnement par laize" : généralise l'ancien récap mandrin.
 // Ajoute une colonne UNIQUEMENT quand l'info existe sur au moins une laize
 // (Nb par carton, Code mandrin). Couvre les exceptions saisies par laize,
@@ -6300,7 +6303,7 @@ async function doLoad(){
 async function deleteSave(id){
   if(!(await confirmDlg('Archiver cette sauvegarde ? (récupérable 45 jours)',{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
-    await db.collection('saves').doc(id).update({deleted:true,deletedAt:isoNow()});
+    await boundedWrite(db.collection('saves').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   // [L83 · Audit #39] borné
     const item=savesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
     await logAudit('delete','saves',id,item?`Sauvegarde archivée — ${item.client||''} / ${item.ref||''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
@@ -7142,16 +7145,10 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   // Données est trop grande. Identique au calcul de la vue Plan (ligne ~2943).
   // [L70 · Audit B26] mêmes chiffres que l'écran Plan pour TOUS les cas (mono compris) :
   // c.stats intègre chutes stock et rouleaux, l'ancien calcul mono les ignorait.
-  const totalMat=computed.reduce((s,c)=>s+c.stats.totalMat,0);
-  const totalUsed=computed.reduce((s,c)=>s+c.stats.totalUsed,0);
-  let chuteStockMm=0;
-  computed.forEach(c=>{
-    const pg=c.planGroups||[];
-    if(!pg.length) return;
-    const last=pg[pg.length-1];
-    chuteStockMm+=Math.max(0,c.useful-calcStats(last.pattern,c.blade).total); // 1 solde par réf
-  });
-  const pct=totalMat>0?(Math.max(0,totalMat-totalUsed-chuteStockMm)/totalMat*100):0;
+  // [L83 · Audit #40] SOURCE UNIQUE : computePlanAggregate (la fonction pure qui alimente le chip
+  // « Perte » de l'écran Plan). L'ancien recalcul dupliqué ici omettait le reste des ROULEAUX
+  // recoupés → dès qu'un rouleau était utilisé, le pct archivé dans la fiche ≠ pct affiché au Plan.
+  const pct=computePlanAggregate(computed).pertePct;
   const tempsStr=chronoSec>0
     ?`${fmtTimeFr(chronoSec)} (${ini} — ${today()})`
     :(()=>{const m=tempsCache.find(t=>t.client===client && t.ref===ref);return m?`${fmtTimeFr(m.duree)} (${m.operateur} — ${new Date(m.date).toLocaleDateString('fr-FR')})`:'non enregistré';})();
@@ -7167,7 +7164,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   let _cliParts=null;
   if(typeof cliMulti==='function'&&cliMulti()){
     // [L71 · Audit B13+B14] entrées riches : clé robuste + snapshots figés + déchets exclus.
-    try{ _cliParts=cliPartsFromGroups(ficheData.map(fd=>({ref:fd.ref,refIdKey:fd.refIdKey||null,dechet:!!fd.actDechet,frozen:(Array.isArray(fd.cliParts)&&fd.cliParts.length)?fd.cliParts:null,conf:fd.conf})),getRefGroups(),cliStockByRef()); }
+    try{ _cliParts=cliPartsFromGroups(ficheData.map(fd=>({ref:fd.ref,refIdKey:fd.refIdKey||null,machine:fd.machine||'',dechet:!!fd.actDechet,frozen:(Array.isArray(fd.cliParts)&&fd.cliParts.length)?fd.cliParts:null,conf:fd.conf})),getRefGroups(),cliStockByRef()); }
     catch(e){ console.warn('Archive multi-clients :',e); _cliParts=null; }
   }
   const ficheDetailTagged=ficheData.map((fd,i)=>{
@@ -7239,6 +7236,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       machine,machine2,client,ref,rows,numCmd,deleted:false,
       commandeDetail:rows.map(r=>`${r.qty}×${r.width}mm`).join(' + '),
       totalLaizes,nbBobines:nbBobinesT,
+      nbLignes:(Array.isArray(ficheLines)?ficheLines.length:0),   // [L83 · Audit #5] même dénominateur que « Op.2 dès bobine »
       largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',
       numJour:g('fNumJour')?.value||'',commentaire:''
     };
@@ -7320,7 +7318,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       // #5 : si la fiche vient d'un plan sauvegardé chargé, on retire ce plan de Données→Plans (archive douce)
       if(loadedSaveId){
         try{
-          await db.collection('saves').doc(loadedSaveId).update({deleted:true,deletedAt:isoNow()});
+          await boundedWrite(db.collection('saves').doc(loadedSaveId).update({deleted:true,deletedAt:isoNow()}),8000);   // [L83 · Audit #35] borné : le catch ci-dessous alerte et le flux CONTINUE (fiche déjà enregistrée)
           const sv=savesCache.find(x=>x._id===loadedSaveId);
           if(sv){sv.deleted=true;sv.deletedAt=isoNow();}
           logAudit('delete','saves',loadedSaveId,`Plan consommé (fiche créée) — ${client||''} / ${ref||''}`).catch(function(){});   // [L72 · Audit B47] non bloquant
@@ -7529,6 +7527,9 @@ async function doChronoSave(){
   const ini=document.getElementById('fInitiales').value||'—';
   const ini2=document.getElementById('fOp2Active').checked?(document.getElementById('fInitiales2').value||''):'';
   const op2Bob=document.getElementById('fOp2Active').checked?(document.getElementById('fOp2Bobine').value||''):'';
+  // [L83 · Audit #10] Op.2 activé SANS bobine de reprise → relevé inexploitable (op.2 invisible de
+  // toutes les stats). Même garde que l'envoi de fiche : on bloque AVANT d'écrire.
+  if(document.getElementById('fOp2Active').checked&&!op2Bob){ showToast('⚠ Op.2 activé : choisis « Op.2 dès bobine » avant d\'enregistrer le temps.','err'); return; }
   const agg=getOrderAggregate();                 // multi-réf : toutes les réfs
   const rows=agg.rows;
   const totalLaizes=agg.totalLaizes;
@@ -7540,6 +7541,7 @@ async function doChronoSave(){
     numCmd:document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'',
     commandeDetail:agg.commandeDetail,
     totalLaizes,nbBobines,
+    nbLignes:(Array.isArray(ficheLines)?ficheLines.length:0),   // [L83 · Audit #5] dénominateur COHÉRENT avec « Op.2 dès bobine » (positions de LIGNES de fiche, rouleaux chute inclus — nbBobines ne compte que les mères)
     largeur:document.getElementById('planLargeur').value||'',
     longueur:document.getElementById('planLongueur').value||'',
     numJour:document.getElementById('fNumJour').value||'',
@@ -7609,6 +7611,25 @@ function resetTempsFilters(){
   tempsRenderLimit=50;
   renderTemps();
 }
+// [L83 · Audit op.2 #4/#5/#6/#9] Ventilation d'un relevé temps en SEGMENTS {op, machine, fraction}.
+// Relais op.2 (reprise à la ligne k sur den lignes) : seg1 = lignes 1..k-1 (op.1/machine1),
+// seg2 = lignes k..den (op.2 ; machine2 VIDE = même machine que l'op.1 → elle porte 100 %).
+// den = nbLignes (lignes de fiche, rouleaux chute inclus — écrit depuis L83) sinon nbBobines
+// (anciens relevés, unités mères) avec op2Bobine borné à den (unités mélangées legacy).
+// HELPER UNIQUE partagé par renderTemps (_shareSec), buildMonthlyKpi et dujSamples : plus de
+// divergence possible entre l'écran Temps, le KPI figé et les débits machines.
+function tempsShareParts(t){
+  const den=Number(t.nbLignes)||Number(t.nbBobines)||0;
+  let cut=Number(t.op2Bobine)||0;
+  if(cut>den&&den>0) cut=den;
+  const relais=!!(t.operateur2||t.machine2)&&cut>=1&&den>0;   // cut=1 légitime : l'op.2 a TOUT coupé
+  const f1=relais?(cut-1)/den:1, f2=relais?1-(cut-1)/den:0;
+  const m1=String(t.machine||'').toUpperCase();
+  const m2=String(t.machine2||'').toUpperCase()||m1;
+  const segs=[]; if(f1>0) segs.push({op:t.operateur||'', mach:m1, f:f1});
+  if(f2>0) segs.push({op:t.operateur2||t.operateur||'', mach:m2, f:f2});
+  return segs;
+}
 function renderTemps(){
   const allTemps=tempsCache.filter(t=>!t.deleted);
   const list=document.getElementById('tempsList');
@@ -7635,19 +7656,13 @@ function renderTemps(){
   empty.classList[temps.length?'add':'remove']('hidden');
   if(temps.length===0){list.innerHTML='<div style="color:var(--muted);padding:12px 0;font-size:13px">Aucun résultat pour ces filtres.</div>';summary.innerHTML='';return;}
 
-  // [L79·AN-2] Ventilation op.2 / machine2 : quand la vue est filtrée par OPÉRATEUR ou MACHINE et que
-  // la commande est un RELAIS (op2Bobine/nbBobines), on ne compte que la PART attribuable au filtre —
-  // sinon le temps du relais était compté à 100 % pour les DEUX (double-comptage). Formule validée :
-  // part op.1 = (op2Bobine−1)/nbBobines, part op.2 = reste. Sans filtre op/machine : durée entière.
+  // [L83 · Audit #4/#6/#9] Ventilation par SEGMENTS (tempsShareParts) : chaque segment op×machine
+  // ne compte que s'il matche LES DEUX filtres — fini le Math.min qui créditait du temps à un couple
+  // opérateur/machine n'ayant jamais existé, le relais nié quand op2Bobine=1, et la part op.2 perdue
+  // quand le relais reste sur la même machine (machine2 vide).
   const _shareSec=t=>{
-    const dur=Number(t.duree)||0, nb=Number(t.nbBobines)||0, cut=Number(t.op2Bobine)||0;
-    const relais=(t.operateur2||t.machine2)&&cut>1&&nb>0&&cut<=nb;
-    const f1=relais?(cut-1)/nb:1, f2=relais?(nb-cut+1)/nb:0;
-    const part=(is1,is2)=>(is1&&is2)?1:is2?f2:is1?(relais?f1:1):0;
-    let f=1;
-    if(fOp) f=part(t.operateur===fOp, t.operateur2===fOp);
-    if(fMachine){ const M=fMachine.toUpperCase(); const fm=part((t.machine||'').toUpperCase()===M,(t.machine2||'').toUpperCase()===M); f=fOp?Math.min(f,fm):fm; }
-    return dur*f;
+    const dur=Number(t.duree)||0, M=fMachine?fMachine.toUpperCase():'';
+    return dur*tempsShareParts(t).reduce((s,g)=>s+(((!fOp||g.op===fOp)&&(!M||g.mach===M))?g.f:0),0);
   };
   const _sumSec=temps.reduce((s,t)=>s+_shareSec(t),0);
   const avgSec=Math.round(_sumSec/temps.length);
@@ -7681,7 +7696,7 @@ function renderTemps(){
 async function deleteTempo(id){
   if(!(await confirmDlg('Archiver ce relevé de temps ? (récupérable 45 jours)',{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
-    await db.collection('temps').doc(id).update({deleted:true,deletedAt:isoNow()});
+    await boundedWrite(db.collection('temps').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   // [L83 · Audit #39] borné
     const item=tempsCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
     await logAudit('delete','temps',id,item?`Relevé archivé — ${item.client||''} / ${item.ref||''}${item.duree?` (durée ${fmtTimeFr(item.duree)})`:''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
@@ -7779,7 +7794,7 @@ async function saveTempsEdit(id){
     duree, date:dateIso,
     client:sv('teClient')||'—', ref:sv('teRef')||'—', numCmd:sv('teNumCmd'),
     machine:sv('teMachine'),
-    operateur:sv('teOp')||'—', operateur2:sv('teOp2'), op2Bobine:sv('teOp2Bob'),
+    operateur:sv('teOp')||'—', operateur2:sv('teOp2'), op2Bobine:(function(){const v=parseInt(sv('teOp2Bob'),10);return (isNaN(v)||v<1)?'':String(v);})(),   // [L83 · Audit #10] normalisé : « 3,5 » ou texte libre ne casse plus la ventilation
     totalLaizes:Math.max(0,iv('teLaizes')), nbBobines:Math.max(0,iv('teBob')),
     longueur:sv('teLong'), largeur:sv('teLarg'),
     numJour:sv('teNumJour'), commentaire:sv('teComm')
@@ -7892,7 +7907,7 @@ function svgHBars(items,unit,W,padL){
   return `<svg viewBox="0 0 ${W} ${padT+n*gap}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
 }
 function buildFicheAnalytics(){
-  const fiches=fichesCache.filter(f=>!f.deleted);
+  const fiches=fichesCache.filter(f=>!f.deleted&&f.valide!==false);   // [L83 · Audit #42] fiches REFUSÉES exclues — même règle que le KPI mensuel (le taux NC vs cible 3% était calculé sur un périmètre différent selon l'écran)
   if(!fiches.length) return '';
   let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,totBob=0,ncBob=0;
   const opStat={},machStat={},clientPct={};
@@ -8070,14 +8085,15 @@ function buildMonthlyKpi(ym,fiches,temps){
   const T=(temps||[]).filter(t=>!t.deleted&&String(t.date||'').slice(0,7)===ym);
   const MACH=['FEBA','MAVEG','CEVENINI'];
   const mach={};MACH.forEach(m=>mach[m]={bobines:0,wpNum:0,wpDen:0,dur:0,laizes:0});
-  let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0;
+  let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0;   // [L83 · Audit #44]
   const cliVol={},refVol={};   // [L79·AN-3] volume (bobines) par client / par réf → top 5 stockés dans l'agrégat
   F.forEach(f=>{
     const b=Number(f.totalBobines)||0,p=parseFloat(f.pct);
     totalBobines+=b;
     if(!isNaN(p)){wpNum+=p*b;wpDen+=b;}
-    const m=String(f.machine||'').toUpperCase();
+    const m=String(f.machine||'').trim().toUpperCase();   // [L83 · Audit #44] trim : « FEBA  » ne disparaît plus
     if(mach[m]){mach[m].bobines+=b;if(!isNaN(p)){mach[m].wpNum+=p*b;mach[m].wpDen+=b;}}
+    else autresBobines+=b;   // [L83 · Audit #44] machine hors FEBA/MAVEG/CEVENINI : comptée à part (total = machines + autres)
     const c=String(f.client||'—').trim()||'—'; cliVol[c]=(cliVol[c]||0)+b;
     const rf=String(f.ref||'—').trim()||'—'; refVol[rf]=(refVol[rf]||0)+b;
   });
@@ -8085,12 +8101,14 @@ function buildMonthlyKpi(ym,fiches,temps){
   const topRefs=Object.entries(refVol).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:e[1]}));
   T.forEach(t=>{
     const dur=Number(t.duree)||0;tempsSec+=dur;
-    const m=String(t.machine||'').toUpperCase();
-    if(mach[m]&&dur>0&&Number(t.totalLaizes)>0){mach[m].dur+=dur;mach[m].laizes+=Number(t.totalLaizes);}
+    const laizes=Number(t.totalLaizes)||0;
+    // [L83 · Audit #8] relais op.2 : temps ET laizes ventilés par segment (même helper que l'écran
+    // Temps) — avant : 100 % sur machine1 → secLaize des DEUX machines faussé dans l'agrégat figé.
+    if(dur>0&&laizes>0) tempsShareParts(t).forEach(g=>{ if(mach[g.mach]&&g.f>0){ mach[g.mach].dur+=dur*g.f; mach[g.mach].laizes+=laizes*g.f; } });
   });
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
-  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs};
+  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines};   // [L83 · Audit #44]
 }
 
 // Fige un mois : requête datée DIRECTE (indépendante du cache boot allégé), filtre deleted client.
@@ -8148,7 +8166,10 @@ async function recalcMois(ym,btn){
 // Passe par l'overlay openPrintWindow (pas de window.open → pas d'éjection Safari sur PWA iOS).
 function printKpiMois(ym){
   ym=ym||(document.getElementById('kpiMoisSel')&&document.getElementById('kpiMoisSel').value)||currentMonthYM();
-  const kpi=(ym===currentMonthYM())?buildMonthlyKpi(ym,fichesCache,tempsCache):(agregatsCache.find(a=>a.mois===ym)||buildMonthlyKpi(ym,fichesCache,tempsCache));
+  // [L83 · Audit #43] mois ANCIEN non figé : le cache boot est tronqué (200 fiches récentes) → la
+  // « revue de direction » serait imprimée avec des chiffres partiels sans avertissement. On bloque.
+  if(ym!==currentMonthYM()&&!agregatsCache.find(a=>a.mois===ym)){ showToast('⚠ Mois non figé — clique « ♻ Figer ce mois » avant d\'imprimer (sinon chiffres partiels).','err'); return; }
+  const kpi=(ym===currentMonthYM())?buildMonthlyKpi(ym,fichesCache,tempsCache):agregatsCache.find(a=>a.mois===ym);
   const rendement=Math.round((100-(Number(kpi.pertePct)||0))*10)/10;
   const M=kpi.machines||{};
   const td='padding:6px 8px;border:1px solid #ccc';
@@ -8256,12 +8277,13 @@ function kpiMoisInnerHTML(ym){
     </div>
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#60a5fa')}${machCard('MAVEG','#4ade80')}${machCard('CEVENINI','#a78bfa')}</div>
+    ${(kpi.autresBobines>0)?`<div style="font-size:12px;color:var(--orange);margin:-8px 0 14px">⚠ ${Number(kpi.autresBobines).toLocaleString('fr-FR')} bobine(s) sur machine hors FEBA/MAVEG/CEVENINI — comptées dans le total, non ventilées ci-dessus.</div>`:''}
     ${topBlock}
     ${evo.length?`<div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Évolution</div>`+`
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px">
       <thead><tr style="color:#888;font-size:12px;text-transform:uppercase"><th style="text-align:left;padding:5px 8px;border-bottom:1px solid #333">Mois</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Bobines</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Fiches</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Perte %</th></tr></thead>
       <tbody>${evoRows}</tbody></table>`:''}
-    <div style="font-size:12px;color:#666;padding-top:8px;border-top:1px solid #2a2a28">${statusNote}</div>`;
+    <div style="font-size:12px;color:var(--muted);padding-top:8px;border-top:1px solid #2a2a28">${statusNote}</div><!-- [L83 · Audit #34] contraste -->`;
 }
 
 // ============================================================
@@ -8341,16 +8363,7 @@ async function loadStock(){
   }catch(e){ console.warn('Chargement stock:',e); }
 }
 // Prévision d'appro : consommation déduite des sorties, couverture vs délai appro.
-function stockConsoPerDay(ref,windowDays){
-  const now=Date.now(), cut=now-windowDays*86400000;
-  const sorties=stockMouvementsCache.filter(m=>!m.deleted && m.ref===ref && m.type==='sortie' && new Date(m.date).getTime()>=cut);
-  if(!sorties.length) return {perDay:0,n:0,days:0};
-  const total=sorties.reduce((s,m)=>s+Math.abs(Number(m.m2)||0),0);
-  const earliest=Math.min.apply(null,sorties.map(m=>new Date(m.date).getTime()));
-  const span=Math.max(1,(now-earliest)/86400000);
-  const days=Math.min(windowDays,span);
-  return {perDay:total/days,n:sorties.length,days:Math.round(days)};
-}
+// [L83 · Audit #23] stockConsoPerDay supprimée (morte — la conso 90 j est calculée en un passage dans stockForecastRender, cf. PERF-1)
 function stockForecastRender(){
   const box=document.getElementById('stockForecast'); if(!box) return;
   const horizonSem=Math.max(1,parseFloat(document.getElementById('stockHorizonSem')?.value)||18);
@@ -8593,7 +8606,7 @@ function stockViewHTML(){
         <div class="section-title" style="margin-bottom:0">🔮 Prévision d'approvisionnement</div>
         <label class="u-meta">Horizon&nbsp;<input id="stockHorizonSem" type="number" min="1" value="18" oninput="stockForecastRenderDebounced()" style="width:64px;padding:5px 7px;border-radius:7px;border:1px solid var(--border2);background:var(--card);color:var(--text)"> sem.</label>
       </div>
-      <div style="font-size:12px;color:#666;margin-bottom:10px">Stock = disponible (STEP International + en production ; B+K non compté tant qu'il n'est pas reçu). Consommation déduite des sorties des 90 derniers jours.</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Stock = disponible (STEP International + en production ; B+K non compté tant qu'il n'est pas reçu). Consommation déduite des sorties des 90 derniers jours.</div>
       <div id="stockForecast"></div>
     </div>
 
@@ -8638,7 +8651,7 @@ async function saveStockArticle(btn){
     createdAt:isoNow(), createdBy:currentUser?currentUser.ini:'?' };
   if(btn) btn.disabled=true;
   try{
-    const r=await db.collection('stockArticles').add(art);
+    const r=await boundedWrite(db.collection('stockArticles').add(art),10000);   // [L83 · Audit #36] borné
     art.id=r.id; stockArticlesCache.push(art);
     await logAudit('create','stockArticles',r.id,`Article stock ${ref}`);
     renderStock();
@@ -8740,7 +8753,7 @@ async function annulStockMouvement(id){
     // contre-écriture qui doublerait l'inversion du stock.
     const origRef=db.collection('stockMouvements').doc(id);
     const corrRef=db.collection('stockMouvements').doc();   // id auto, pas encore écrit
-    await db.runTransaction(async(tx)=>{
+    await boundedWrite(db.runTransaction(async(tx)=>{
       const snap=await tx.get(origRef);
       if(!snap.exists) throw new Error('mouvement introuvable en base (supprimé ?)');
       const cur=snap.data()||{};
@@ -8748,7 +8761,7 @@ async function annulStockMouvement(id){
       if(cur.corrige) throw new Error('une écriture de correction ne s\'annule pas');
       tx.set(corrRef,corr);
       tx.update(origRef,{corrigePar:corrRef.id});
-    });
+    }),12000);   // [L83 · Audit #38] borné
     corr.id=corrRef.id; stockMouvementsCache.unshift(corr);
     m.corrigePar=corrRef.id;
     await logAudit('correction','stockMouvements',id,`Annulation ${(Number(m.m2)||0).toLocaleString('fr-FR')} m² · ${m.ref}`);
@@ -8788,7 +8801,7 @@ async function saveStockMouvement(btn){
     op:currentUser?currentUser.ini:'?', deleted:false };
   if(btn) btn.disabled=true;
   try{
-    const r=await db.collection('stockMouvements').add(mvt);
+    const r=await boundedWrite(db.collection('stockMouvements').add(mvt),10000);   // [L83 · Audit #36] borné
     mvt.id=r.id; stockMouvementsCache.unshift(mvt);
     await logAudit('create','stockMouvements',r.id,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`);
     renderStock();
@@ -9055,7 +9068,7 @@ async function lameInstall(machine,lameNum,opts){
     responsable:opts.responsable||(currentUser?currentUser.ini:''),
     createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
   try{
-    const r=await db.collection('maintenance').add(rec);
+    const r=await boundedWrite(db.collection('maintenance').add(rec),10000);   // [L83 · Audit #37] borné
     rec.id=r.id; maintenanceCache.unshift(rec);
     await logAudit('create','maintenance',r.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${String(pose).slice(0,10)})`);
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
@@ -9082,10 +9095,10 @@ async function lameAffuter(machine,lameNum){
     const batch=db.batch();
     const tRef=db.collection('maintenance').doc(); batch.set(tRef,trace);
     const nRef=db.collection('maintenance').doc(); batch.set(nRef,neuve);
-    await batch.commit();
+    await boundedWrite(batch.commit(),10000);   // [L83 · Audit #37] borné
     trace.id=tRef.id; neuve.id=nRef.id;
     maintenanceCache.unshift(trace); maintenanceCache.unshift(neuve);
-    await logAudit('create','maintenance',nRef.id,`Affûtage lame ${num} sur ${getMachineLabel(machine)} — réidentifiée neuve`);
+    logAudit('create','maintenance',nRef.id,`Affûtage lame ${num} sur ${getMachineLabel(machine)} — réidentifiée neuve`).catch(function(){});   // [L83 · Audit #37] non bloquant
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
     return true;
   }catch(e){ showToast('Erreur affûtage : '+e.message,'err'); return false; }
@@ -9103,7 +9116,7 @@ async function lameAffuterHorsMachine(lameNum){
     description:'Lame '+num+' partie à l\'affûtage (hors machine)', responsable:who,
     createdAt:now, createdBy:who, deleted:false };
   try{
-    const ref=db.collection('maintenance').doc(); await ref.set(trace);
+    const ref=db.collection('maintenance').doc(); await boundedWrite(ref.set(trace),10000);   // [L83 · Audit #37] borné
     trace.id=ref.id; maintenanceCache.unshift(trace);
     await logAudit('create','maintenance',ref.id,`Affûtage lame ${num} (hors machine)`);
     return true;
@@ -9301,10 +9314,7 @@ async function confirmLameInstall(){
   const ok=await lameInstall(machine,n,{description:'Pose manuelle depuis l\'encart État des lames'});
   if(ok) renderMaintenance();
 }
-function maintRespOpts(sel){
-  return '<option value="">— Responsable —</option>'+Object.values(USER_PROFILES)
-    .map(p=>`<option value="${esc(p.ini)}"${sel===p.ini?' selected':''}>${esc(p.ini)} — ${esc(p.nom||'')}</option>`).join('');
-}
+// [L83 · Audit #24] maintRespOpts supprimée (morte — le formulaire « Installer/déclarer une lame » a été retiré au L79)
 function maintViewHTML(){
   const today=new Date().toISOString().slice(0,10);
   const machOpts=['feba','maveg','cevenini'].map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
@@ -9379,7 +9389,7 @@ async function maintDelete(id){
   const rec=maintenanceCache.find(x=>x.id===id);
   if(!(await confirmDlg('Supprimer cette entrée de l\'historique ?',{danger:true,ok:'Supprimer'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
-    await db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow()});
+    await boundedWrite(db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   // [L83 · Audit #39] borné
     maintenanceCache=maintenanceCache.filter(x=>x.id!==id);
     await logAudit('delete','maintenance',id,rec?`Lame ${esc(rec.lameNum||'')} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel('lame',rec.categorie)}`:'');
     renderMaintenance();
@@ -9464,13 +9474,21 @@ function dujPctile(arr,p){ if(!arr.length) return 0; const s=arr.slice().sort((a
 function dujSecToTxt(sec){ if(!isFinite(sec)||sec<=0) return '—'; const h=Math.floor(sec/3600), m=Math.round((sec%3600)/60); return h>0?(h+' h'+(m?' '+String(m).padStart(2,'0'):'')):(m+' min'); }
 // Échantillons de débit (m/h) exploitables
 function dujSamples(){
-  return tempsCache.filter(t=>!t.deleted).map(t=>{
+  // [L83 · Audit #7] relais op.2 : l'échantillon est SCINDÉ par segment (machine/opérateur réels,
+  // au prorata des lignes coupées — même helper tempsShareParts que l'écran Temps et le KPI).
+  // Avant : 100 % des mètres et du temps sur machine1/op.1 → débits m/h des deux machines faussés.
+  const out=[];
+  tempsCache.filter(t=>!t.deleted).forEach(t=>{
     const longueur=parseFloat(String(t.longueur).replace(',','.'))||0;
     const nb=Number(t.nbBobines)||0, sec=Number(t.duree)||0;
-    if(longueur<=0||nb<=0||sec<=0) return null;
+    if(longueur<=0||nb<=0||sec<=0) return;
     const metres=longueur*nb;
-    return { machine:dujMachKey(t.machine), op:t.operateur||'', metres, sec, debit:metres*3600/sec };
-  }).filter(Boolean);
+    tempsShareParts(t).forEach(g=>{
+      if(g.f<=0) return;
+      out.push({ machine:dujMachKey(g.mach), op:g.op||'', metres:metres*g.f, sec:sec*g.f, debit:metres*3600/sec });
+    });
+  });
+  return out;
 }
 // Débit médian (m/h) : opérateur sur machine > machine > global
 function dujDebit(machineKey,op){
@@ -9653,9 +9671,9 @@ function dujBest(){
   const nb=parseFloat(document.getElementById('best_nb').value)||0;
   if(longv<=0||nb<=0){ out.innerHTML='Renseigne longueur et nb bobines.'; return; }
   const metres=longv*nb;
-  const rows=DUJ_MACHINES.map(k=>{ const r=dujDebit(k,''); return {k,d:r.d,n:r.n,sec:r.d?metres/r.d*3600:Infinity}; })
-    .filter(x=>x.d>0).sort((a,b)=>a.sec-b.sec);
-  if(!rows.length){ out.innerHTML='<span style="color:#f87171">Pas de données.</span>'; return; }
+  const rows=DUJ_MACHINES.map(k=>{ const r=dujDebit(k,''); return {k,d:r.d,n:r.n,src:r.src,sec:r.d?metres/r.d*3600:Infinity}; })
+    .filter(x=>x.d>0&&x.src!=='global').sort((a,b)=>a.sec-b.sec);   // [L83 · Audit #41] le repli GLOBAL est exclu : une machine sans AUCUN relevé n'apparaît plus (elle était couronnée 🏆 avec le débit moyen des autres)
+  if(!rows.length){ out.innerHTML='<span style="color:#f87171">Pas de données machine (aucun relevé chronométré).</span>'; return; }
   const SEUIL=3;   // [L79·AN-4] échantillon minimal pour COURONNER une machine (sinon « indicatif »)
   const best=rows.find(x=>x.n>=SEUIL)||null;   // 1re machine FIABLE (assez de relevés), pas juste la + rapide sur 1 mesure
   out.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -10213,7 +10231,8 @@ function renderFiches(){
     const blOk=ficheBLComplete(f);
     const validBtns=canValidate()?`
       ${f.valide!==true?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#7a2222'};color:${blOk?'#4ade80':'#f87171'};background:${blOk?'#14371f':'#3d1414'}">${blOk?'📎 BL joint':'⛔ BL manquant'}</span>`:''}
-      ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}`:'';
+      ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
+      ${(f.valide==null)?`<button class="fc-btn" style="background:#3a1414;color:#f87171;border:1px solid #5a2020" onclick="rejectFiche('${f._id}')" title="Refuser la fiche (non-conformité process)">✗ Refuser</button>`:''}`:'';   // [L83 · Audit #21] le circuit « refusée » existait partout (KPI, exports, couleurs) mais le bouton avait disparu
     // [L79] Bordure gauche colorée par ÉTAT (séparation nette) : vert=validée · orange=à valider · rouge=refusée/manque matière.
     const _stateBorder=(f.valide===true)?'#4ade80':(f.valide===false)?'#f87171':(f.manqueMatiere?'#f87171':'#f59e0b');
     return `<div class="fiche-card" style="border-left-color:${_stateBorder};border-left-width:6px">
@@ -10525,7 +10544,7 @@ async function validateFiche(id){
     // — sinon un validate écraserait silencieusement un reject concurrent (ou l'inverse).
     // Les gardes coupe/test/BL sont RÉÉVALUÉES sur la version relue (un opérateur a pu
     // dé-couper une bobine ou détacher un BL entre-temps).
-    await db.runTransaction(async(tx)=>{
+    await boundedWrite(db.runTransaction(async(tx)=>{
       const dref=db.collection('fiches').doc(id);
       const snap=await tx.get(dref);
       if(!snap.exists) throw new Error('fiche introuvable en base (supprimée ?)');
@@ -10538,7 +10557,7 @@ async function validateFiche(id){
       const blk=_ficheValidBlockReason(cur);
       if(blk) throw new Error('validation impossible sur la version à jour : '+blk+' — recharge l\'historique');
       tx.update(dref,{valide:true,valideBy:by,valideAt:at});
-    });
+    }),12000);   // [L83 · Audit #38] borné
     f.valide=true;f.valideBy=by;f.valideAt=at;
     await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
   }catch(e){showToast('Erreur validation : '+e.message,'err');}
@@ -10578,7 +10597,7 @@ async function rejectFiche(id){
   try{
     const at=isoNow();
     // TX-rejectFiche (B5) : idem validateFiche — abandon si déjà traitée ailleurs.
-    await db.runTransaction(async(tx)=>{
+    await boundedWrite(db.runTransaction(async(tx)=>{
       const dref=db.collection('fiches').doc(id);
       const snap=await tx.get(dref);
       if(!snap.exists) throw new Error('fiche introuvable en base (supprimée ?)');
@@ -10589,7 +10608,7 @@ async function rejectFiche(id){
         throw new Error('déjà traitée'+who+' ('+(curValide===true?'validée':curValide===false?'refusée':'remise en attente')+') — recharge l\'historique');
       }
       tx.update(dref,{valide:false,valideBy:by,valideAt:at});
-    });
+    }),12000);   // [L83 · Audit #38] borné
     f.valide=false;f.valideBy=by;f.valideAt=at;
     await logAudit('reject','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
   }catch(e){showToast('Erreur : '+e.message,'err');}
@@ -10798,7 +10817,11 @@ async function saveFicheConfigs(id){
     // nbPlan=nbFiche rendait le bandeau PDF contradictoire (« ÉCART — +2 bobines » mais
     // « Plan théorique : 12 · Fiche terrain : 12 »). Seul consommateur de nbPlan : cet affichage.
     if(f.hasEcart!==true) upd.nbPlan=newDetail.length;                 // [L76 · B53] (était inconditionnel)
-    upd.pct=(totalMat>0?((totalMat-totalUsed)/totalMat*100):0).toFixed(1);   // [L73 · Lot 5 · B53]
+    // [L83 · Audit #13] même règle qu'à la CRÉATION : le solde (chute de la dernière bobine,
+    // conservé en stock) est EXCLU de la perte — un simple ré-enregistrement admin gonflait le pct.
+    const _lastG=newGroups[newGroups.length-1];
+    const _chuteStock=_lastG?Math.max(0,useful-parseNum(_lastG.total)):0;
+    upd.pct=(totalMat>0?(Math.max(0,totalMat-totalUsed-_chuteStock)/totalMat*100):0).toFixed(1);   // [L73 · Lot 5 · B53]
   }
   try{
     // M5 : garde-fou 1 Mo — retire les photos base64 lourdes avant l'update.
@@ -10851,6 +10874,7 @@ function buildNcRows(){
   const rows=[];
   fichesCache.filter(f=>!f.deleted).forEach(f=>{
     (f.ficheDetail||[]).forEach((fd,i)=>{
+      if(!fd) return;   // [L83 · Audit #15] entrée null/undefined dans ficheDetail (fiche corrompue) : on saute la bobine au lieu de PLANTER tout le registre NC (onglet vide sans message)
       const types=[];
       if(fd.ncLarg) types.push('larg');
       if(fd.ncQty) types.push('qty');
@@ -10858,7 +10882,7 @@ function buildNcRows(){
       if(fd.ncAng) types.push('ang');
       if(types.length){
         rows.push({
-          ficheId:f._id,bobIdx:i,date:f.date,client:f.client||'—',ref:f.ref||'—',numCmd:f.numCmd||'',
+          ficheId:f._id,bobIdx:i,date:f.date,client:f.client||'—',ref:(fd.ref||f.ref||'—'),numCmd:f.numCmd||'',   // [L83 · Audit #17] multi-réf : la réf RÉELLE de la bobine (fd.ref) prime sur l'en-tête de fiche
           bobine:i+1,label:fd.label||'',types,detail:fd.ncDetail||'',ini:f.ini||'',
           action:fd.actDechet?'Déchet':fd.actChutes?'Chutes':fd.actAccept?'+ Acceptable':'',
           statut:fd.ncStatut||'ouvert',actionCorr:fd.ncActionCorr||'',resp:fd.ncResp||'',dateTraite:fd.ncDateTraite||''
@@ -11089,6 +11113,7 @@ function renderNc(){
       </div>
     </div>`;
   }).join('');
+  if(typeof updateTabBadges==='function') updateTabBadges();   // [L83 · Audit #19] badge NC à jour après clôture/réouverture/archivage
 }
 async function ncArchiveFiche(id){
   if(!canManageData()){showToast('Action réservée au pilotage et aux admins.','err');return;}
@@ -11162,7 +11187,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
     // + garde de cohérence sur le label), et Firestore réessaie en cas de conflit → les modifs
     // des autres bobines sont préservées.
     let finalDetail=null, strippedCount=0;
-    await db.runTransaction(async(tx)=>{
+    await boundedWrite(db.runTransaction(async(tx)=>{
       const ref=db.collection('fiches').doc(ficheId);
       const snap=await tx.get(ref);
       if(!snap.exists) throw new Error('Fiche introuvable en base (supprimée ?).');
@@ -11178,7 +11203,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
       const _fstrip=_ficheStripHeavyPhotos(det);           // M5 : garde-fou 1 Mo (défense en profondeur)
       strippedCount=_fstrip.stripped; finalDetail=_fstrip.clean;
       tx.update(ref,{ficheDetail:_fstrip.clean});
-    });
+    }),12000);   // [L83 · Audit #38] borné
     if(finalDetail) f.ficheDetail=finalDetail;             // cache = version fraîche + patch (inclut les modifs concurrentes)
     if(strippedCount){ try{showToast('⚠ '+strippedCount+' photo(s) trop lourde(s) retirée(s) (stockage indisponible) — traitement NC enregistré.','err');}catch(_){} }
     const verbe=mode==='close'?'clôturée':mode==='reopen'?'rouverte':'mise à jour';
@@ -11767,13 +11792,14 @@ async function exportFiches(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
   const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length){showToast('Aucune donnée.','err');return;}
-  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;Perte %;Temps';
+  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;Perte %;Temps;Statut validation;Validée par;Validée le';   // [L83 · Audit #20] statut ISO en fin de ligne
   const rows=fiches.map(f=>[
     f.name,new Date(f.date).toLocaleDateString('fr-FR'),f.ini,f.ini2||'',f.op2Bob||'',f.client,f.ref,f.machine,f.machine2||'',
     f.mother,f.useful,f.blade,f.longueur,f.lame,(f.lameChg?(f.lameNew||''):''),(f.lameChg?(f.lameChgBob||''):''),f.numJour,
     f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
     (f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'),
-    f.totalBobines,f.pct,f.tempsStr
+    f.totalBobines,f.pct,f.tempsStr,
+    (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'')
   ].map(csvCell).join(';')).join('\n');
   const b=new Blob(['\ufeff'+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');{const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
@@ -13768,13 +13794,7 @@ async function saveDraftManual(){
   if(_photosDropped>0) showToast('⚠ '+_photosDropped+' photo(s) trop lourde(s) NON conservée(s) dans le brouillon — reprends-les avant de renvoyer la commande.','err');
   }finally{ _savingDraftManual=false; if(_btnDM) _btnDM.disabled=false; }   // [L73 · Lot 5 · B41] libération du verrou sur TOUS les chemins (succès, timeout 6 s, exception)
 }
-function saveDraftFromSend(ficheEntry,tempsEntry,body){
-  const st=serializeFicheState();
-  const label=(ficheEntry.client||'—')+' / '+(ficheEntry.numCmd||'sans n°');
-  const drafts=loadDrafts();
-  drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,fromSend:true});
-  persistDrafts(drafts);
-}
+// [L83 · Audit #22] saveDraftFromSend supprimée (morte — remplacée par saveDraftFromSendReliable, cf. DRAFT-1)
 // ── DRAFT-1 : repli localStorage + sauvegarde brouillon FIABLE à l'envoi ─────
 // Avant : saveDraftFromSend écrivait via _draftSet (fire-and-forget) puis on
 // affichait « placée en BROUILLON ». Sur rejet NON-réseau (permission/App Check),
