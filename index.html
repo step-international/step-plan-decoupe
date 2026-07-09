@@ -240,7 +240,7 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 /* [L62 · Lot 4] Bobine coupée par un COLLÈGUE (commande partagée) : verrouillée, code couleur partagé */
 .fiche-line.coupee.coupee-other{border-color:#8a2857;background:#241019;border-left-color:var(--shared)}
 /* [L62] Masquage des bobines coupées sur la fiche (moins de défilement pendant la coupe) */
-#ficheLines.hide-coupees .fiche-line.coupee{display:none}
+#ficheLines.hide-coupees .fiche-line.coupee:not(.flash-cut){display:none}   /* [L102 · M2-D] la carte reste visible le temps du flash de confirmation (~0,9 s) avant d'être masquée */
 .fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .fl-pos{font-size:15px;font-weight:800;color:var(--mc,var(--blue));background:rgba(255,255,255,.05);border-radius:8px;padding:6px 12px;white-space:nowrap}
 .fl-title{flex:1;font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -484,6 +484,74 @@ body.has-topbanner{padding-top:calc(48px + env(safe-area-inset-top,0px))}
 body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-top:0}
 .modal-overlay{padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px))}
 .modal{max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+
+/* === [L102 · Design M2 A→I] Hiérarchie de boutons & ergonomie opérateur =====
+   A/B — UN SEUL bouton « vif » à la fois = l'action du moment (.next-action,
+   posée par updateNextAction : ▶ Démarrer → ✂ bobine en cours → ✓ Confirmer).
+   C — l'ambre #f5b301 est la SEULE teinte libre de la palette (vert=coupée/
+   MAVEG, orange=chutes, rouge=NC, bleu=FEBA, violet=CEVENINI, cyan=VEKA,
+   rose=partage) : réservée STRICTEMENT au « prochain geste ». Les 3 niveaux :
+   primaire=.next-action (plein ambre + halo pulsé) · secondaire=.btn-blue/
+   -green/-orange (plein léger, inchangés) · tertiaire=.btn-ghost (fantôme).
+   !important nécessaire : ✂ Coupée / Confirmer portent des styles INLINE. */
+:root{--action:#f5b301}
+.next-action{background:var(--action)!important;border-color:#b8860b!important;color:#141310!important;
+  font-weight:800!important;animation:actionPulse 1.8s ease-out infinite}
+.next-action:hover{background:#ffc21a!important}
+@keyframes actionPulse{0%{box-shadow:0 0 0 0 rgba(245,179,1,.55)}70%{box-shadow:0 0 0 11px rgba(245,179,1,0)}100%{box-shadow:0 0 0 0 rgba(245,179,1,0)}}
+@media(prefers-reduced-motion:reduce){.next-action,#abBtn.ab-primary{animation:none;box-shadow:0 0 0 3px rgba(245,179,1,.45)}}
+/* D — confirmation forte au ✂ : flash vert bref sur la carte (+ vibration +
+   bip togglable via _cutFeedback). Avec « Masquer les coupées » actif, la
+   carte reste visible le temps du flash (:not(.flash-cut) sur la règle L62). */
+@keyframes flashCut{0%{box-shadow:0 0 0 4px var(--green);background:#1e4d2b;opacity:1}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+.fiche-line.flash-cut{animation:flashCut .85s ease-out}
+/* E/nav — repère « où couper » quand la barre du bas fait défiler vers la bobine en cours */
+@keyframes flSpot{0%{box-shadow:0 0 0 4px var(--action)}100%{box-shadow:0 0 0 0 rgba(245,179,1,0)}}
+.fiche-line.fl-spot{animation:flSpot 1.4s ease-out}
+/* D — barre de progression (bannière coupées + barre d'action) */
+.cut-progress{height:8px;border-radius:5px;background:#101010;border:1px solid var(--border);overflow:hidden;margin-top:8px}
+.cut-progress>div{height:100%;background:var(--green);border-radius:5px;transition:width .35s ease}
+/* E — barre d'action fixe en bas (zone du pouce, TÉLÉPHONE ≤700px uniquement).
+   Safe-area L74 respecté ; la page se padde pour ne rien masquer ; toast et
+   spinner base remontent au-dessus (!important : leurs bottom sont inline). */
+#actionBar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:3000;background:rgba(28,28,27,.97);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border2);
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}
+@media(max-width:700px){
+  body.has-actionbar #actionBar{display:block}
+  body.has-actionbar #page1{padding-bottom:126px}
+  body.has-actionbar #globalToast{bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
+  body.has-actionbar #dbLoadingBanner{bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
+}
+#abBtn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:15px 16px;min-height:56px;
+  border-radius:12px;border:2px solid var(--border2);background:#1a1a18;color:var(--text);font-size:16px;font-weight:800}
+#abBtn.ab-primary{background:var(--action);border-color:#b8860b;color:#141310;animation:actionPulse 1.8s ease-out infinite}
+#abBtn.ab-nav{border-color:#7a5f10;color:var(--action);background:#241d05}
+#abBtn svg{flex:0 0 auto}
+#actionBar .cut-progress{margin:0 0 9px}
+/* F — carte bobine épurée : contrôles secondaires (photo · test 2ᵉ · NC ·
+   action) repliés derrière « ⋯ Contrôles ». S'ouvre AUTOMATIQUEMENT si un
+   contrôle est requis (✂ bloqué par le test 2ᵉ) ou si une NC est cochée —
+   rien d'alarmant ne reste caché (H : redondance forme + texte, statut dans
+   le résumé). Les inputs restent dans le DOM : sérialisation / partage /
+   restauration / PDF strictement inchangés. */
+.fl-more{grid-column:1/-1;border:1px solid var(--border);border-radius:9px;background:#1f1f1d}
+.fl-more>summary{list-style:none;cursor:pointer;padding:11px 12px;font-size:13.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:8px;min-height:44px;-webkit-tap-highlight-color:transparent}
+.fl-more>summary::-webkit-details-marker{display:none}
+.fl-more[open]>summary{color:var(--text);border-bottom:1px solid var(--border)}
+.fl-more-body{padding:10px 12px 12px}
+.fl-more-stat{margin-left:auto;font-weight:800;font-size:12.5px;white-space:nowrap}
+.fl-more-stat .st-ok{color:var(--green)} .fl-more-stat .st-todo{color:var(--orange)} .fl-more-stat .st-nc{color:var(--red)}
+body.atelier .fl-more>summary{font-size:15px;min-height:50px}
+/* G — grand écran : Fiche en 2 colonnes (chrono/machine/en-tête à gauche,
+   liste des bobines + Confirmer à droite) — tout se voit sans défiler.
+   ≥1100px uniquement ; en dessous, strictement aucun changement (règle L74). */
+@media(min-width:1100px){
+  #page1.active{display:grid;grid-template-columns:minmax(400px,480px) 1fr;gap:0 18px;align-items:start;align-content:start}
+  #page1.active>*{grid-column:1;min-width:0}
+  #page1.active>#ficheLines{grid-column:2;grid-row:1/span 40}
+  #page1.active>div:has(#sendPlanBtn){grid-column:2;grid-row:41}
+}
 </style>
 </head>
 <body>
@@ -988,6 +1056,7 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
       <button class="btn btn-ghost btn-sm" onclick="addFicheLine()">+ Ligne manuelle</button>
       <!-- [L62] Bascule d'affichage : les bobines coupées disparaissent de la liste (moins de défilement) -->
       <button class="btn btn-ghost btn-sm" id="hideCoupeesBtn" onclick="toggleHideCoupees()">🙈 Masquer les coupées</button>
+      <button class="btn btn-ghost btn-sm" id="beepCoupeeBtn" onclick="toggleBeepCoupee()" title="Bip sonore à chaque bobine marquée coupée (préférence par poste)">🔕 Bip coupée : OFF</button><!-- [L102 · M2-D] -->
       <button class="btn btn-ghost btn-sm" onclick="resetFicheBobines()">↺ Reset bobines</button>
       <button class="btn btn-ghost btn-sm" id="btnDraftManual" onclick="saveDraftManual()">💾 Brouillon</button><!-- [L73 · Lot 5 · B41] id pour désactivation pendant l'écriture (anti double-tap) -->
     </div><!-- [L79] « Imprimer fiche » retiré de la barre (printFiche conservée, sans accès UI) -->
@@ -1044,13 +1113,24 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
   <div style="padding:16px 0 8px">
     <div id="coupeeBanner" style="display:none;position:sticky;top:56px;z-index:110;margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#1a1a18;border:1px solid var(--border2);font-size:14px;font-weight:600;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
     <button id="sendPlanBtn" class="btn btn-green" disabled style="width:100%;justify-content:center;font-size:15px;opacity:.4;cursor:not-allowed" onclick="confirmCommandeRecap()">
-      ✓ Confirmer la commande &amp; enregistrer
-    </button>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg> Confirmer la commande &amp; enregistrer
+    </button><!-- [L102 · M2-I] coche SVG inline (rendu identique iOS/Android) — aucun JS n'écrit textContent sur ce bouton -->
+
     <div style="text-align:center;margin-top:6px;font-size:12px;color:var(--muted)" id="sendPlanHint">Marque toutes les bobines comme Coupées pour pouvoir confirmer</div>
     <button id="manqueMatiereBtn" class="btn" style="width:100%;justify-content:center;font-size:14px;margin-top:10px;background:#3d1414;border:1px solid #f87171;color:#f87171;display:none" onclick="stopManqueMatiere()">
       ⛔ Arrêt — Manque de matière
     </button>
   </div>
+</div>
+
+<!-- [L102 · Design M2-E] Barre d'action fixe en bas (téléphone, zone du pouce) :
+     l'action du moment y est collée — ▶ Démarrer / bobine en cours (défilement,
+     PAS de marquage à distance : le ✂ reste sur la carte avec ses contrôles) /
+     ✓ Confirmer. Gérée par _syncActionBar() via updateNextAction ; masquée hors
+     page Fiche et au-delà de 700px. -->
+<div id="actionBar">
+  <div class="cut-progress" id="abProgress" style="display:none;margin-top:0"><div id="abProgressFill" style="width:0%"></div></div>
+  <button id="abBtn" onclick="actionBarTap()"></button>
 </div>
 
 <!-- ===== PAGE 3 : DONNÉES ===== -->
@@ -1334,7 +1414,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L101';
+const APP_VERSION='2026.07.10-L102';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3210,6 +3290,7 @@ function showPage(i){
   if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
+  try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement
 }
 
 // Mode atelier : gros boutons / police agrandie. Réglage mémorisé par appareil.
@@ -3224,6 +3305,7 @@ function initAtelier(){
   try{ if(localStorage.getItem('step_atelier')==='0') on=false; }catch(e){}
   document.body.classList.toggle('atelier',on);
   const btn=document.getElementById('atelierBtn'); if(btn) btn.classList.toggle('on',on);
+  try{ if(typeof _syncBeepBtn==='function') _syncBeepBtn(); }catch(e){}   // [L102 · M2-D] libellé 🔔/🔕 selon la préférence du poste
 }
 // F2 — état de décalage des bannières fixes (nouvelle version / alerte lame) pour ne pas masquer la nav.
 function _syncTopBanner(){
@@ -6502,6 +6584,7 @@ function chronoStart(){
   startAutosave();
   persistChronoLive();   // heure de début sauvegardée immédiatement (survit à la veille)
   acquireWakeLock();
+  try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B] chrono lancé → le « vif » passe au ✂ de la bobine en cours
 }
 function chronoPause(){
   if(!chronoRunning) return;
@@ -6521,6 +6604,7 @@ function chronoPause(){
   try{ autosaveDraftTick(true); }catch(_){}
   persistChronoLive();   // chrono à l'arrêt → efface la sauvegarde live
   releaseWakeLock();
+  try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B] chrono en pause → le « vif » revient sur ▶ Reprendre
 }
 function chronoReset(force){
   // [L65] Reset MANUEL (bouton ↺) : confirmation anti-glissé de doigt (relevé de prod perdu sinon).
@@ -6541,6 +6625,7 @@ function chronoReset(force){
   stopAutosave();
   persistChronoLive();
   releaseWakeLock();
+  try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B]
 }
 // Au réveil du téléphone / retour d'onglet, recaler immédiatement l'affichage
 // (l'intervalle a pu être suspendu pendant la veille — chronoTick recalcule
@@ -7717,7 +7802,7 @@ function getFicheLinesData(){
       label:get('flLabel')?.value||'',
       conf:get('flConf')?.value||'',
       ref:L.ref||'', refIdKey:L.refIdKey||null, useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',
-      origConf:(L.origConf!==undefined?L.origConf:undefined), rattrapage:L.rattrapage||undefined, label:L.label||undefined,   // [L97 · relecture #19] le gel « conf modifiée » et le flag rattrapage survivent au brouillon/partage
+      origConf:(L.origConf!==undefined?L.origConf:undefined), rattrapage:L.rattrapage||undefined, autoLabel:String(L.label||''),   // [L97 · relecture #19] le gel « conf modifiée » et le flag rattrapage survivent au brouillon/partage — [L102 · BUG L97] la clé meta s'appelait « label » : DOUBLON avec l'étiquette saisie (ligne du dessus), la dernière gagnait → l'archive/PDF/brouillon portaient l'étiquette AUTO au lieu du vrai n° de bobine tapé par l'opérateur, et le retour de brouillon dé-gelait la ligne. Clé renommée autoLabel, toujours émise (même vide : le gel d'une ligne manuelle survit aussi au round-trip).
       recut:L.recut||false, rollW:L.rollW||0,
       cliParts:(Array.isArray(L.cliParts)&&L.cliParts.length)?L.cliParts:undefined,   // [L71 · Audit B14] snapshot figé (undefined = retiré au JSON)
       devi:get('flDevi')?.checked||false,
@@ -12838,7 +12923,7 @@ function addFicheLine(data){
   }
   const id='fl_'+Date.now()+'_'+Math.floor(Math.random()*9999);
   data=data||{};
-  ficheLines.push({id,label:String(data.label||''),rattrapage:!!data.rattrapage,origConf:(data.origConf!==undefined?String(data.origConf):normConf(data.conf)),   // [L97 · relecture #18/#19] label en meta (le correctif L94 « étiquette auto ne gèle plus » était INOPÉRANT sans lui) + origConf restauré prioritaire (round-trip brouillon/partage)
+  ficheLines.push({id,label:String(((data.autoLabel!==undefined)?data.autoLabel:data.label)||''),rattrapage:!!data.rattrapage,origConf:(data.origConf!==undefined?String(data.origConf):normConf(data.conf)),   // [L97 · relecture #18/#19] label en meta (le correctif L94 « étiquette auto ne gèle plus » était INOPÉRANT sans lui) + origConf restauré prioritaire — [L102 · BUG L97] au round-trip brouillon/partage, la meta vient d'autoLabel (étiquette AUTO du gel) et l'input de label (saisie réelle de l'opérateur) ; anciens brouillons sans autoLabel : comportement inchangé
     ref:data.ref||'', useful:data.useful||0, blade:data.blade||0, machine:data.machine||'',
     // D-1 : identité stable du groupe réf porté par la bobine (clé par contenu). Permet au
     // recalcul de rattacher chaque bobine figée à SA réf même si deux réfs ont le même code.
@@ -12864,9 +12949,6 @@ function addFicheLine(data){
     <div class="fiche-grid">
       <div class="field" style="grid-column:1/-1"><label>Étiquette bobine mère</label>
         <input type="text" id="flLabel_${id}" value="${esc(data.label||'')}" placeholder="BOB-001" inputmode="text" oninput="refreshOp2BobineList()">
-        <div class="photo-zone" id="photoZone_${id}">
-          <button class="photo-btn" onclick="triggerPhoto('${id}')">📷 Ajouter photo</button>
-        </div>
       </div>
       <div class="field" style="grid-column:1/-1"><label>Nb bob. × Largeur</label>
         <input type="text" id="flConf_${id}" value="${esc(data.conf||'')}" placeholder="5×80 + 3×50"
@@ -12878,7 +12960,10 @@ function addFicheLine(data){
         <label>Cumul bobineaux par laize</label>
         <div class="cumul-box" id="flCumul_${id}"><span style="color:var(--muted);font-size:13px">—</span></div>
       </div>
-      <div class="field" style="grid-column:1/-1">
+      <details class="fl-more" id="flMore_${id}"><!-- [L102 · M2-F] contrôles secondaires repliés — flux principal épuré : config → ✂. Ouverture auto par syncFlMore (NC) et toggleCoupee (test 2ᵉ requis). Tous les id/handlers inchangés. -->
+        <summary>⋯ Contrôles — test 2ᵉ · NC · photo <span class="fl-more-stat" id="flMoreStat_${id}"><span class="st-todo">test 2ᵉ à faire</span></span></summary>
+        <div class="fl-more-body">
+      <div class="field">
         <label>Test 2ème bobineaux</label>
         <div class="test2-block">
           <div class="test2-main">
@@ -12898,7 +12983,7 @@ function addFicheLine(data){
           </div>
         </div>
       </div>
-      <div class="field" style="grid-column:1/-1">
+      <div class="field">
         <label>Non-conformité</label>
         <div class="nc-checks">
           <label class="nc-check ras sel" id="nc_ras_${id}"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ RAS</label>
@@ -12910,6 +12995,12 @@ function addFicheLine(data){
         <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" style="margin-top:8px"></textarea>
       </div>
       <div class="field">
+        <label>Photo bobine</label>
+        <div class="photo-zone" id="photoZone_${id}">
+          <button class="photo-btn" onclick="triggerPhoto('${id}')">📷 Ajouter photo</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0">
         <label>Action</label>
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1">🗑 Déchet</button>
@@ -12919,6 +13010,8 @@ function addFicheLine(data){
                archivées avec actAccept continuent de s'afficher normalement. -->
         </div>
       </div>
+        </div>
+      </details>
     </div>`;
   document.getElementById('ficheLines').appendChild(div);
   refreshPhotoZone(id);
@@ -12983,6 +13076,34 @@ function resetFicheBobines(){
   updateAllCumuls();   // [L97 · relecture #20] compteurs clients recalculés sans les snapshots purgés
   updateCoupeeStatus();
 }
+// [L102 · Design M2-D] Confirmation FORTE au ✂ : flash vert bref sur la carte
+// + vibration (navigator.vibrate — absent sur iOS : silencieux) + bip optionnel
+// togglable (🔔 #beepCoupeeBtn, préférence par poste). L'opérateur sait que le
+// marquage est enregistré sans regarder l'écran. Pur affichage, zéro métier.
+let _audioCtxCut=null;
+function _beepCutOn(){ try{ return localStorage.getItem('step_beep_coupee')==='1'; }catch(e){ return false; } }
+function _syncBeepBtn(){ const b=document.getElementById('beepCoupeeBtn'); if(b) b.textContent=_beepCutOn()?'🔔 Bip coupée : ON':'🔕 Bip coupée : OFF'; }
+function toggleBeepCoupee(){
+  const on=!_beepCutOn();
+  try{ localStorage.setItem('step_beep_coupee',on?'1':'0'); }catch(e){}
+  _syncBeepBtn();
+  if(on) _playCutBeep();   // aperçu immédiat — et l'AudioContext se déverrouille DANS le geste utilisateur (règle autoplay iOS)
+}
+function _playCutBeep(){
+  try{
+    _audioCtxCut=_audioCtxCut||new (window.AudioContext||window.webkitAudioContext)();
+    if(_audioCtxCut.state==='suspended') _audioCtxCut.resume();
+    const t=_audioCtxCut.currentTime, o=_audioCtxCut.createOscillator(), g=_audioCtxCut.createGain();
+    o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_audioCtxCut.destination);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.2,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+    o.start(t); o.stop(t+0.3);
+  }catch(e){}
+}
+function _cutFeedback(line){
+  try{ line.classList.remove('flash-cut'); void line.offsetWidth; line.classList.add('flash-cut'); setTimeout(function(){ line.classList.remove('flash-cut'); },900); }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate(120); }catch(e){}
+  if(_beepCutOn()) _playCutBeep();
+}
 // [L73 · Lot 5 · B40] anti-rebond ✂ : instant du dernier MARQUAGE (tous boutons confondus).
 // Couvre aussi le double-tap dont le 2e tap atterrit sur la bobine SUIVANTE remontée
 // sous le doigt quand le masquage des coupées est actif (reflow après display:none).
@@ -13033,6 +13154,7 @@ function toggleCoupee(id){
     // Le test 2ème bobineaux doit être tranché : Conforme (Dévidage+Droit)
     // OU Non conforme avec au moins un motif (Dévidage ou Droit).
     if(!test2Resolved(id)){
+      const _det=document.getElementById('flMore_'+id); if(_det) _det.open=true;   // [L102 · M2-F] le contrôle requis s'ouvre tout seul sous le doigt
       const elNC=document.getElementById('flTest2nc_'+id);
       const feba=(_flMachineOf(id)==='feba');   // [L65] machine de la ligne
       if(elNC&&elNC.checked){
@@ -13047,6 +13169,7 @@ function toggleCoupee(id){
     const dechet=document.getElementById('act_dechet_'+id)?.classList.contains('btn-red');
     const chutes=document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange');
     if(hasNC && !dechet && !chutes){
+      const _det2=document.getElementById('flMore_'+id); if(_det2) _det2.open=true;   // [L102 · M2-F] l'action à choisir est dans le volet
       showToast('⚠ Bobine non conforme (largeur, quantité, casse ou angle).\n\nImpossible de la valider "Coupée" tant qu\'une action n\'est pas choisie : 🗑 Déchet ou ✂ Chutes.','err');
       return;
     }
@@ -13059,6 +13182,7 @@ function toggleCoupee(id){
   btn.style.color=isCoupee?'var(--green)':'var(--muted)';
   btn.style.background=isCoupee?'#14371f':'#1a1a18';
   btn.textContent=isCoupee?'✓ Coupée':'✂ Coupée';
+  if(isCoupee) _cutFeedback(line);   // [L102 · M2-D] flash + vibration + bip : enregistré, sans regarder
   updateCoupeeStatus();
   // [L71 · Audit B14] figer/défiger l'attribution CLIENT de cette ligne au ✂ : une bobine
   // coupée garde l'attribution constatée à cet instant, même si une ligne amont est
@@ -13080,6 +13204,7 @@ function toggleCoupee(id){
 }
 function updateCoupeeStatus(){
   try{ syncHideCoupeesUi(); }catch(e){}   // [L62] masquage des coupées : classe conteneur + libellé bouton
+  try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B/E] AVANT l'early-return : fiche vidée → barre du bas et bouton « vif » retirés aussi
   if(!ficheLines.length) return;
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
@@ -13105,14 +13230,16 @@ function updateCoupeeStatus(){
   const banner=document.getElementById('coupeeBanner');
   const sendBtn=document.getElementById('sendPlanBtn');
   const hint=document.getElementById('sendPlanHint');
+  // [L102 · M2-D] barre de progression qui se remplit — redondance chiffre + forme (H)
+  const _pbar=`<div class="cut-progress"><div style="width:${total?Math.round(done/total*100):0}%"></div></div>`;
   if(banner){
     banner.style.display='block';
     if(allDone){
       banner.style.background='#14371f';banner.style.borderColor='var(--green)';banner.style.color='var(--green)';
-      banner.innerHTML=`✅ Toutes les bobines sont coupées (${total}/${total}) — prêt à confirmer`+(perRefStr?`<div style="font-size:12px;font-weight:600;margin-top:6px">${perRefStr}</div>`:'');
+      banner.innerHTML=`✅ Toutes les bobines sont coupées (${total}/${total}) — prêt à confirmer`+_pbar+(perRefStr?`<div style="font-size:12px;font-weight:600;margin-top:6px">${perRefStr}</div>`:'');
     } else {
       banner.style.background='#1a1a18';banner.style.borderColor='var(--border2)';banner.style.color='var(--text)';
-      banner.innerHTML=`✂ Progression : <strong style="color:var(--text)">${done}/${total}</strong> bobines coupées`+(perRefStr?`<div style="font-size:12px;font-weight:600;margin-top:6px">${perRefStr}</div>`:'');
+      banner.innerHTML=`✂ Progression : <strong style="color:var(--text)">${done}/${total}</strong> bobines coupées`+_pbar+(perRefStr?`<div style="font-size:12px;font-weight:600;margin-top:6px">${perRefStr}</div>`:'');
     }
   }
   if(sendBtn){
@@ -13124,6 +13251,65 @@ function updateCoupeeStatus(){
   // Bouton manque matière : visible dès qu'au moins 1 bobine coupée (et pas tout fini)
   const mmBtn=document.getElementById('manqueMatiereBtn');
   if(mmBtn) mmBtn.style.display=(done>0&&!allDone)?'flex':'none';
+}
+// ============================================================
+// [L102 · Design M2 A/B/E] « ACTION DU MOMENT » — un seul bouton vif à la fois.
+// updateNextAction() choisit LE prochain geste attendu de l'opérateur :
+//   fiche vide → rien · tout coupé → ✓ Confirmer · chrono arrêté → ▶ Démarrer
+//   · sinon → ✂ de la PREMIÈRE bobine non coupée.
+// Il pose .next-action (plein ambre + halo pulsé — C : seule teinte libre) et
+// alimente la barre d'action fixe du bas (#actionBar, téléphone ≤700px).
+// Appelée par updateCoupeeStatus (chaque marquage / restauration / reset),
+// chronoStart/Pause/Reset et showPage. PUR AFFICHAGE — aucune logique métier,
+// aucun accès moteur/Firestore.
+// ============================================================
+let _abMode='none';
+function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.getElementById(id);return el&&!el.classList.contains('coupee');})||null; }
+function updateNextAction(){
+  try{
+    document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
+    const total=ficheLines.length;
+    const done=total?countCoupees():0;
+    let mode='none';
+    if(total){ if(done===total) mode='confirm'; else if(!chronoRunning) mode='start'; else mode='cut'; }
+    if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
+    else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); }
+    else if(mode==='cut'){ const l=_nextUncutLine(); if(l) document.getElementById('coupeeBtn_'+l.id)?.classList.add('next-action'); }
+    _syncActionBar(mode,done,total);
+  }catch(e){}
+}
+// [L102 · M2-I] icônes SVG inline (rendu identique iOS/Android) pour la barre d'action
+const _AB_SVG={
+  play:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  check:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>',
+  down:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 17l-7-8h14z"/></svg>'
+};
+function _syncActionBar(mode,done,total){
+  _abMode=mode;
+  const onFiche=document.getElementById('page1')?.classList.contains('active');
+  const show=onFiche&&mode!=='none';
+  document.body.classList.toggle('has-actionbar',!!show);
+  if(!show) return;
+  const btn=document.getElementById('abBtn'), pr=document.getElementById('abProgress'), fill=document.getElementById('abProgressFill');
+  if(!btn) return;
+  if(pr) pr.style.display=(mode==='cut'||mode==='confirm')?'block':'none';
+  if(fill) fill.style.width=(total?Math.round(done/total*100):0)+'%';
+  if(mode==='start'){ btn.className='ab-primary'; btn.innerHTML=_AB_SVG.play+' '+((typeof chronoSec==='number'&&chronoSec>0)?'Reprendre le chrono':'Démarrer le chrono'); }
+  else if(mode==='confirm'){ btn.className='ab-primary'; btn.innerHTML=_AB_SVG.check+' Confirmer la commande ('+done+'/'+total+')'; }
+  else{ btn.className='ab-nav'; btn.innerHTML='✂ Bobine '+Math.min(done+1,total)+'/'+total+' — voir '+_AB_SVG.down; }
+}
+// Tap sur la barre : Démarrer / Confirmer directement ; en cours de coupe, on
+// DÉFILE vers la bobine à couper (jamais de marquage à distance : le ✂ reste
+// sur la carte, avec ses gardes test 2ᵉ / NC — sécurité inchangée).
+function actionBarTap(){
+  if(_abMode==='start'){ chronoStart(); }
+  else if(_abMode==='confirm'){ confirmCommandeRecap(); }
+  else if(_abMode==='cut'){
+    const l=_nextUncutLine(); if(!l) return;
+    const el=document.getElementById(l.id); if(!el) return;
+    try{ el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){ try{ el.scrollIntoView(); }catch(_){} }
+    el.classList.remove('fl-spot'); void el.offsetWidth; el.classList.add('fl-spot');   // repère ambre : c'est ICI qu'on coupe
+  }
 }
 // ============================================================
 // [L62] MASQUAGE DES BOBINES COUPÉES (fiche) — la liste n'affiche que le travail
@@ -13179,7 +13365,21 @@ function updateTest2Subs(id){
   if(ncLabel) ncLabel.classList.toggle('sel',ncMode);
   const line=document.getElementById(id);
   if(line) line.classList.toggle('test2-nc-flag',ncMode);
+  try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] statut du volet « ⋯ Contrôles »
   updateCoupeeStatus();
+}
+// [L102 · Design M2-F] Volet « ⋯ Contrôles » : statut compact dans le résumé
+// (test 2ᵉ à faire / ✓ test OK / ⚠ NC) + ouverture AUTO dès qu'une NC ou un
+// test 2ᵉ non conforme est coché (saisie directe OU restauration brouillon/
+// partage) — rien d'alarmant ne reste replié. Redondance forme+texte (H).
+function syncFlMore(id){
+  const det=document.getElementById('flMore_'+id); if(!det) return;
+  const nc=['larg','qty','casse','ang'].some(k=>{const el=document.getElementById('nc_'+k+'_'+id);return el&&el.querySelector('input').checked;});
+  const t2nc=!!(document.getElementById('flTest2nc_'+id)?.checked);
+  const t2ok=(typeof test2Resolved==='function')&&test2Resolved(id);
+  const stat=document.getElementById('flMoreStat_'+id);
+  if(stat) stat.innerHTML=(nc||t2nc)?'<span class="st-nc">⚠ NC</span>':(t2ok?'<span class="st-ok">✓ test OK</span>':'<span class="st-todo">test 2ᵉ à faire</span>');
+  if(nc||t2nc) det.open=true;
 }
 // Réapplique la règle FEBA (masquage « Droit » + conformité) sur toutes les bobines.
 function refreshAllTest2(){
@@ -13214,6 +13414,7 @@ function updateNC(id){
   });
   const badge=document.getElementById('badge_'+id);
   if(badge){badge.textContent=hasNC?'NC':'RAS';badge.className='fl-badge '+(hasNC?'badge-red':'badge-green');}
+  try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] NC cochée → le volet s'ouvre + statut ⚠
 }
 function toggleAction(id,which){
   const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
@@ -14583,6 +14784,7 @@ function resumeDraft(id){
 function restoreFicheLineFromData(ld){
   addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',refIdKey:ld.refIdKey||null,useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',
     origConf:(ld.origConf!==undefined?ld.origConf:undefined), rattrapage:!!ld.rattrapage,   // [L97 · relecture #19]
+    autoLabel:(ld.autoLabel!==undefined?ld.autoLabel:undefined),   // [L102 · BUG L97] étiquette AUTO (meta du gel) restaurée séparément de la saisie
     cliParts:Array.isArray(ld.cliParts)?ld.cliParts:null,   // [L71 · Audit B14] snapshot figé restauré (brouillon/partage)
     recut:!!ld.recut, rollW:ld.rollW||0,
     // La note turquoise des bobines rouleau est reconstruite (déterministe depuis rollW).
