@@ -1327,7 +1327,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L96';
+const APP_VERSION='2026.07.09-L97';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1350,7 +1350,10 @@ function _updBanner(newVer){
 }
 function updDismiss(){ _updDismissed=true; const b=document.getElementById('updBanner'); if(b) b.remove(); }
 function updReload(){
-  if(_updReloading) return; _updReloading=true;
+  if(_updReloading) return;
+  if(typeof chronoRunning!=='undefined'&&chronoRunning&&!confirm('Le chronomètre tourne — recharge plutôt à la fin de la commande.\n\nRecharger quand même maintenant ?')) return;   // [L97 · relecture #3]
+  _updReloading=true;
+  setTimeout(function(){ if(_updReloading){ _updReloading=false; const b=document.querySelector('#updBanner .btn-blue'); if(b){ b.disabled=false; b.textContent='Recharger'; } } },30000);   // [L97 · relecture #3] réarmement si la page est toujours vivante (reload annulé)
   const btn=document.querySelector('#updBanner .btn-blue'); if(btn){btn.disabled=true;btn.textContent='⏳…';}
   const ctl=navigator.serviceWorker&&navigator.serviceWorker.controller;
   if(ctl){
@@ -2085,7 +2088,7 @@ document.addEventListener('keydown',function(e){
 
 (function initAuth(){
   // Écouter les changements d'état Firebase Auth
-  if(!firebase.auth) return; // Fallback si Firebase non dispo
+  if(typeof firebase==='undefined'||!firebase.auth){ try{ const le=document.getElementById('loginErr'); if(le){ le.textContent='Hors-ligne — reconnecte le réseau puis recharge.'; le.style.display='block'; } }catch(e){} return; }   // [L97 · relecture #1] hors-ligne : firebase absent tuait TOUT le script (ReferenceError)
   
   firebase.auth().onAuthStateChanged(async function(user){
     if(user){
@@ -4695,6 +4698,21 @@ function packRefGroups(groups){
 //     seulement (leurs flux à annotations ne sont pas re-packés).
 // L'ordre produit ici est la SOURCE UNIQUE de toutes les surfaces (écran plan,
 // PDF, fiche BOB-xxx, archive, éditeur manuel) via _planGroupsByLaize=identité.
+// [L97 · relecture #9] Garde de LISIBILITÉ d'une config saisie — partagée par le recalcul des
+// écarts ET l'arrêt manque matière (le solde était calculé sur des confs illisibles sans garde).
+function _confIllisible(raw){
+  raw=String(raw||'').trim();
+  if(!raw) return 'config vide';
+  const nc=normConf(raw);
+  if(/\d\.\d*×/.test(nc)) return 'quantité décimale ?';
+  const ok=nc.split(/[+,]/).map(x=>x.trim()).filter(x=>x&&/\d/.test(x)).every(seg=>{
+    const qw=(seg.match(/\d+(?:\.\d+)?×\d+(?:\.\d+)?/g)||[]).length;
+    const dg=(seg.match(/\d+(?:\.\d+)?/g)||[]).length;
+    if(qw>0) return dg===qw*2&&parseConf(seg).length===qw;
+    return dg===1&&parseConf(seg).length===1;
+  });
+  return ok?'':'segment illisible';
+}
 const PALETTES_MAX=4;
 function _pgW(g){ return [...new Set((g.pattern||[]).map(p=>Number(p.width)||0).filter(w=>w>0))]; }
 // Pic de palettes ouvertes d'une séquence complète de motifs.
@@ -4792,7 +4810,11 @@ function _palRepack(c){
   // _phaseEnd : son reste est une chute RÉUTILISABLE (rouleau de fin de phase), pas une perte.
   const planGroups=[].concat(...phases.map((ph,pi)=>{
     const gs=groupBobines(ph,c.blade);
-    if(gs.length&&pi<phases.length-1) gs[gs.length-1]={...gs[gs.length-1],_phaseEnd:true};
+    if(gs.length&&pi<phases.length-1){   // [L97 · relecture #4] UNE seule bobine porte le solde de phase : le groupe count>1 est éclaté (sinon badge « solde conservé » sur N bobines et agrégat compté 1×)
+      const lg=gs[gs.length-1], n=Math.max(1,parseInt(lg.count)||1);
+      if(n>1){ gs[gs.length-1]={...lg,count:n-1}; gs.push({...lg,count:1,_phaseEnd:true}); }
+      else gs[gs.length-1]={...lg,_phaseEnd:true};
+    }
     return gs;
   }));
   const totalBobines=bobs.length, totalMat=totalBobines*c.useful;
@@ -4962,7 +4984,7 @@ function mergeDuplicateRefBlocks(){
     const ml=parseNum(bl.querySelector('[data-rb="longueur"]')?.value)||0;
     const film=nrm(bl.querySelector('[data-rb="film"]')?.value);
     const mach=nrm(bl.querySelector('[data-rb="machine"]')?.value);
-    return ref+'␟'+ml+'␟'+film+'␟'+mach;
+    return ref+'␟'+ml+'␟'+film+'␟'+mach+'␟'+nrm(bl.querySelector('[data-rb="veka"]')?.value)+'␟'+(parseNum(bl.querySelector('[data-rb="mother"]')?.value)||0);   // [L97 · relecture #5] VEKA + bobine mère dans la clé (alignée _refIdKey) — deux blocs légitimement distincts ne fusionnent plus
   };
   const byKey={};
   blocks.forEach(bl=>{ const k=keyOf(bl); if(!k) return; (byKey[k]=byKey[k]||[]).push(bl); });
@@ -5031,6 +5053,16 @@ function _pmSortBobinesOnce(pm){
       return Math.max(0,...(String(b.conf||'').match(/\d+(?:[.,]\d+)?/g)||[]).map(x=>parseFloat(x.replace(',','.')))); };
     entry.bobines=entry.bobines.map((b,i)=>({b,i,w:wOf(b)})).sort((a,z)=>(z.w-a.w)||(a.i-z.i)).map(x=>x.b);
   });
+}
+// [L97 · relecture #6] machine d'EN-TÊTE du plan (PDF + nom) : la 1re machine RÉELLE du plan
+// (manuel puis blocs), plus currentMachine qui pouvait être périmée.
+function _planHeadMachine(){
+  try{
+    if(planManual&&planManual[0]&&planManual[0].machine) return planManual[0].machine;
+    const g0=(typeof getRefGroups==='function'?getRefGroups():[]).find(x=>(x.rows||[]).length&&x.machine);
+    if(g0) return g0.machine;
+  }catch(e){}
+  return currentMachine;
 }
 function _planGroupsByLaize(pg,ref){
   // [L82] IDENTITÉ : l'ordre (grandes laizes d'abord + contrainte ≤4 palettes, solde en dernier)
@@ -5358,7 +5390,7 @@ function planManualCoherence(pm, refGroups){
     const g=_pmFindGroup(r,i,(refGroups||[]).filter(x=>(x.rows||[]).length)); if(!g) return;   // [L70 · Audit B29]
     const ordered={}, covered={};
     (g.rows||[]).forEach(x=>{ if(x.width>0&&x.qty>0) ordered[x.width]=(ordered[x.width]||0)+x.qty; });
-    (g.chutes||[]).forEach(x=>{ if(x.width>0&&x.qty>0) covered[x.width]=(covered[x.width]||0)+x.qty; });
+    { const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{}; Object.entries(cu).forEach(([w,q])=>{ covered[w]=(covered[w]||0)+q; }); }   // [L97 · relecture #7] chutes PLAFONNÉES par la demande (comme le moteur) — un stock déclaré > commandé n'affiche plus un faux « surplus »
     (r.bobines||[]).forEach(b=>{
       const cnt=Math.max(1,parseInt(b.count)||1);
       parseConf(b.conf).forEach(p=>{ if(p.width>0&&p.qty>0) covered[p.width]=(covered[p.width]||0)+cnt*p.qty; });
@@ -5738,7 +5770,7 @@ function getPlanHTML(){
   return buildPlanPrintHTML({
     groups,
     mandrinGroups:autoGroups,   // mandrins lus depuis la saisie (rows), même en plan manuel
-    mn:getMachineLabel(currentMachine),
+    mn:getMachineLabel(_planHeadMachine()),   // [L97 · relecture #6]
     client:document.getElementById('planClient').value||'—',
     refLabelFallback:document.getElementById('planRef').value||'—',
     motherFallback:parseNum(document.getElementById('motherWidth').value),
@@ -6612,6 +6644,17 @@ async function stopManqueMatiere(){
   // (fromFicheId:'') était parqué → doublon reprenable = risque de double découpe du solde.
   if(_sendingFiche||_stoppingMM){showToast('Envoi en cours…','err');return;}   // [L86 · simpl.17] les DEUX verrous restent testés (B39), code factorisé
   if(!ficheLines.length){showToast('Aucune fiche en cours.','err');return;}
+  // [L97 · relecture #9] MÊME garde de lisibilité qu'au recalcul : le solde manque-matière était
+  // calculé sur des confs illisibles (« 2×300 3×200 », vide…) → solde FAUX parqué en brouillon.
+  { const _bad=[];
+    ficheLines.forEach(l=>{
+      if(!document.getElementById(l.id)?.classList.contains('coupee')) return;
+      const raw=(document.getElementById('flConf_'+l.id)?.value||'').trim();
+      const r=_confIllisible(raw);
+      if(r) _bad.push((document.getElementById('flLabel_'+l.id)?.value||l.label||l.id)+' (« '+raw+' » — '+r+')');
+    });
+    if(_bad.length){ showToast('⛔ Arrêt manque matière BLOQUÉ — config illisible sur :\n\n'+_bad.join('\n')+'\n\nCorrige puis recommence. Rien n\'a été modifié.','err'); return; }
+  }
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
   if(done===0){showToast('⚠ Aucune bobine coupée.\n\nMarque au moins une bobine comme "Coupée" avant de déclarer un manque de matière.','err');return;}
@@ -6972,23 +7015,10 @@ function recalcEcartsFromFiche(opts){
       if(!frozenSet.has(l.id)) return;
       if(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')) return;
       const raw=(document.getElementById('flConf_'+l.id)?.value||'').trim();
-      if(!raw){   // [L96 · vérif #6] conf VIDE sur une bobine engagée non-déchet : BLOQUER — sinon ses laizes comptaient 0 produit et étaient re-produites EN SILENCE (l'opérateur doit écrire ce qu'il a réellement coupé, ou marquer la bobine Déchet)
+      const _reason=_confIllisible(raw);   // [L97 · relecture #9] MÊME garde partagée que l'arrêt manque matière (vide / quantité décimale / segment illisible)
+      if(_reason){
         const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id);
-        _illisibles.push(lbl+' (config VIDE — écris la découpe réelle ou marque 🗑 Déchet)');
-        return;
-      }
-      // [L92 · Audit #5] contrôle par COMPTAGE DE CHIFFRES consommés : « 2×300 3×200 » (espace au
-      // lieu de +) n'échappe plus — parseConf ne lisait que la 1re paire et perdait la 2e EN SILENCE.
-      if(/\d[.]\d*\s*×/.test(normConf(raw).replace(/(\d+(?:\.\d+)?)×/g,m0=>m0.includes('.')?m0:'#×'))&&/\d\.\d*×/.test(normConf(raw))){ const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id); _illisibles.push(lbl+' (« '+raw+' » — quantité décimale ?)'); return; }   // [L94] « 6,5×502 » : parseConf lisait qty 5 EN SILENCE
-      const ok=normConf(raw).split(/[+,]/).map(x=>x.trim()).filter(x=>x&&/\d/.test(x)).every(seg=>{
-        const qw=(seg.match(/\d+(?:\.\d+)?×\d+(?:\.\d+)?/g)||[]).length;          // paires q×l présentes
-        const dg=(seg.match(/\d+(?:\.\d+)?/g)||[]).length;                           // groupes de chiffres présents
-        if(qw>0) return dg===qw*2&&parseConf(seg).length===qw;                        // tout doit être des paires
-        return dg===1&&parseConf(seg).length===1;                                     // ou UNE largeur nue
-      });
-      if(!ok){
-        const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id);
-        _illisibles.push(lbl+' (« '+raw+' »)');
+        _illisibles.push(lbl+' (« '+raw+' » — '+_reason+')');
       }
     });
     if(_illisibles.length){
@@ -7084,6 +7114,7 @@ function recalcEcartsFromFiche(opts){
     cont.querySelectorAll('.fiche-ref-sep').forEach(s=>s.remove());
 
     // 3) Reconstruire réf par réf.
+    _machChgOrig=null;   // [L97 · relecture #23] la map « machines avant changement » pointe des ids détruits — l'appliquer après reconstruction écrasait les machines
     ficheLines=[];
     const recap=[]; let totalAdded=0; let _firstAddedId=null;   // [L87]
     const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
@@ -7308,7 +7339,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     catch(e){ console.warn('Archive multi-clients :',e); _cliParts=null; }
   }
   const ficheDetailTagged=ficheData.map((fd,i)=>{
-    const t={...fd,horsPlan:(i+1)>nbPlan};
+    const t={...fd,horsPlan:(!!fd.rattrapage)||/(^|·\s*)(RESTE|OP2)-\d/i.test(String(fd.label||''))};   // [L97 · relecture #10] par NATURE de la ligne (rattrapage / RESTE- / OP2-), plus par POSITION — le slice(nbPlan) marquait les mauvaises bobines en multi-réf après ♻
     if(_shareActive){ const c=_shareCutInfoFor(i,fd.label); if(c) Object.assign(t,c); }
     if(_cliParts&&Array.isArray(_cliParts[i])&&_cliParts[i].length) t.cliParts=_cliParts[i];
     return t;
@@ -7664,6 +7695,7 @@ function getFicheLinesData(){
       label:get('flLabel')?.value||'',
       conf:get('flConf')?.value||'',
       ref:L.ref||'', refIdKey:L.refIdKey||null, useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',
+      origConf:(L.origConf!==undefined?L.origConf:undefined), rattrapage:L.rattrapage||undefined, label:L.label||undefined,   // [L97 · relecture #19] le gel « conf modifiée » et le flag rattrapage survivent au brouillon/partage
       recut:L.recut||false, rollW:L.rollW||0,
       cliParts:(Array.isArray(L.cliParts)&&L.cliParts.length)?L.cliParts:undefined,   // [L71 · Audit B14] snapshot figé (undefined = retiré au JSON)
       devi:get('flDevi')?.checked||false,
@@ -8017,7 +8049,7 @@ async function exportTemps(){
 // ONGLET ANALYSE
 // ============================================================
 function getWeekKey(dateStr){
-  const d=new Date(dateStr);
+  const d=new Date(dateStr); d.setHours(0,0,0,0);   // [L97 · relecture #15] tronqué au JOUR : un même jour ne se ventile plus sur 2 semaines selon l'heure
   const jan1=new Date(d.getFullYear(),0,1);
   const w=Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7);
   return d.getFullYear()+'·S'+String(w).padStart(2,'0');
@@ -8544,7 +8576,7 @@ function stockForecastRender(){
     if(m.deleted) continue;
     const rf=m.ref, m2=Number(m.m2)||0;
     if(stockMvtLocKey(m)!=='bk') _soldeByRef[rf]=(_soldeByRef[rf]||0)+m2;   // B+K non reçu → hors stock dispo
-    if(m.type==='sortie'){
+    if(m.type==='sortie' && stockMvtLocKey(m)!=='bk' && !m.corrigePar){   // [L97 · relecture #13] un camion B+K→STEP ou une sortie ANNULÉE ne sont pas de la consommation
       const t=new Date(m.date).getTime();
       if(t>=_cut90){ const e=_conso90[rf]||(_conso90[rf]={total:0,earliest:Infinity,n:0}); e.total+=Math.abs(m2); e.n++; if(t<e.earliest) e.earliest=t; }
     }
@@ -8920,7 +8952,7 @@ async function annulStockMouvement(id){
   if(!(await confirmDlg(`Annuler ce mouvement (${(Number(m.m2)||0)>=0?'+':''}${(Number(m.m2)||0).toLocaleString('fr-FR')} m² · ${m.ref}${ds?' · '+ds:''}) ?\n\nUne écriture de correction inverse sera créée — le mouvement d'origine est conservé.`,{danger:true,ok:'Annuler le mouvement'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
     const corr={ date:isoNow(), type:'correction', ref:m.ref, m2:-(Number(m.m2)||0),
-      rouleaux:(m.rouleaux!=null?-m.rouleaux:null), bl:m.bl||'',
+      rouleaux:(m.rouleaux!=null?Math.abs(m.rouleaux):null), bl:m.bl||'', location:stockMvtLocKey(m),   // [L97 · relecture #11/#12] MÊME emplacement que l'original (l'annulation faussait DEUX emplacements) + rouleaux en valeur ABSOLUE (le signe est porté par m2 dans la balance — le négatif DOUBLAIT le compteur)
       note:'Annulation du mouvement du '+(ds||'?')+(m.note?' ('+m.note+')':''),
       op:currentUser?currentUser.ini:'?', corrige:id, deleted:false };
     // TX-annulStockMouvement (B8) : contre-écriture + marquage corrigePar dans la MÊME
@@ -9144,7 +9176,7 @@ async function bkRemplacerParXls(){
       doomed.forEach(m=>{
         const corrRef=db.collection('stockMouvements').doc();
         const corr={ date:isoNow(), type:'correction', ref:m.ref, m2:-(Number(m.m2)||0),
-          rouleaux:(m.rouleaux!=null?-m.rouleaux:null), bl:m.bl||'', location:stockMvtLocKey(m),
+          rouleaux:(m.rouleaux!=null?Math.abs(m.rouleaux):null), bl:m.bl||'', location:stockMvtLocKey(m),   // [L97 · relecture #12] valeur absolue
           note:'Remplacement import B+K (Excel 26/05) — annulation', op:currentUser?currentUser.ini:'?', corrige:m.id, deleted:false };
         batch.set(corrRef,corr); batch.update(db.collection('stockMouvements').doc(m.id),{corrigePar:corrRef.id});
         corrs.push({corr,corrRef,m});
@@ -9244,9 +9276,13 @@ async function bkRunImport(btn){
   if(!(await confirmDlg(`Importer ${mvts.length} mouvement(s) de stock${arts.length?` + créer ${arts.length} article(s) matière`:''} ?\n\nChaque mouvement reste annulable individuellement (contre-écriture tracée).`,{ok:'Importer'}))) return;
   if(btn){ btn.disabled=true; btn.textContent='⏳ Import…'; }
   try{
+    // [L97 · relecture #14] IDs DÉTERMINISTES dérivés du jeton anti-doublon : un réessai après
+    // timeout ÉCRASE les mêmes documents au lieu d'en créer de nouveaux (l'écriture partie en file
+    // + le re-clic doublaient le stock — le message « l'anti-doublon empêche tout double » était faux).
+    const _bkHash=t=>{ let h=5381; for(let i=0;i<t.length;i++){ h=((h*33)^t.charCodeAt(i))>>>0; } return h.toString(36)+'_'+(t.length%97).toString(36); };
     const batch=db.batch();
-    const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc(); batch.set(dr,a); return dr; });
-    const mvtRefs=mvts.map(m=>{ const dr=db.collection('stockMouvements').doc(); batch.set(dr,m); return dr; });
+    const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc('bkart_'+_bkHash(String(a.ref))); batch.set(dr,a); return dr; });
+    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const dr=db.collection('stockMouvements').doc('bk_'+_bkHash(tok+'|'+m.type+'|'+m.location)); batch.set(dr,m); return dr; });
     await Promise.race([ batch.commit(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),25000)) ]);   // borné : jamais de bouton gelé
     arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
     mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
@@ -10043,7 +10079,7 @@ function dujRenderQueue(){
   const perMach=DUJ_MACHINES.map(k=>{
     const load=jobs.filter(j=>j.machine===k).reduce((s,j)=>s+j.sec,0);
     if(load<=0) return '';
-    const endMin=sh*60+sm+load/60; const eh=Math.floor(endMin/60)%24, em=Math.round(endMin%60);
+    const endMin=sh*60+sm+load/60; const _tot=Math.round(endMin); const eh=Math.floor(_tot/60)%24, em=_tot%60;   // [L97 · relecture #16] arrondi AVANT découpage h/min — fini le « 08:60 »
     const over=endMin>(sh*60+sm)+ (12*60); // simple repère charge > 12h
     return `<div style="flex:1;min-width:130px;background:var(--card);border:1px solid var(--border2);border-top:3px solid var(--${k});border-radius:10px;padding:12px;text-align:center">
       <div style="font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase">${getMachineLabel(k)}</div>
@@ -12720,7 +12756,7 @@ function addFicheLine(data){
   }
   const id='fl_'+Date.now()+'_'+Math.floor(Math.random()*9999);
   data=data||{};
-  ficheLines.push({id,rattrapage:!!data.rattrapage,origConf:normConf(data.conf),   // [L88] * accepté
+  ficheLines.push({id,label:String(data.label||''),rattrapage:!!data.rattrapage,origConf:(data.origConf!==undefined?String(data.origConf):normConf(data.conf)),   // [L97 · relecture #18/#19] label en meta (le correctif L94 « étiquette auto ne gèle plus » était INOPÉRANT sans lui) + origConf restauré prioritaire (round-trip brouillon/partage)
     ref:data.ref||'', useful:data.useful||0, blade:data.blade||0, machine:data.machine||'',
     // D-1 : identité stable du groupe réf porté par la bobine (clé par contenu). Permet au
     // recalcul de rattacher chaque bobine figée à SA réf même si deux réfs ont le même code.
@@ -12858,9 +12894,11 @@ function resetFicheBobines(){
     const line=document.getElementById(id);
     const btn=document.getElementById('coupeeBtn_'+id);
     if(line){ line.classList.remove('coupee'); delete line.dataset.cutAt; }   // [L76] cutAt nettoyé avec la classe (anti-rebond ✂ B40)
+    { const _m=ficheLines.find(x=>x.id===id); if(_m) _m.cliParts=null; }   // [L97 · relecture #20] attribution client FIGÉE purgée : une bobine dé-marquée ne garde plus un client fantôme
     if(btn){btn.style.borderColor='var(--border2)';btn.style.color='var(--muted)';btn.style.background='#1a1a18';btn.textContent='✂ Coupée';}
     try{ if(_shareCurrentDocId()&&_shareCutsLocal[idx]&&_shareCutsLocal[idx].u===_uid()) shareCutWrite(idx,false,id); }catch(e){}
   });
+  updateAllCumuls();   // [L97 · relecture #20] compteurs clients recalculés sans les snapshots purgés
   updateCoupeeStatus();
 }
 // [L73 · Lot 5 · B40] anti-rebond ✂ : instant du dernier MARQUAGE (tous boutons confondus).
@@ -13115,7 +13153,7 @@ function parseConf(val){
   val=val.replace(/(\d),(\d)/g,'$1.$2');
   val.split(/[+,]/).forEach(p=>{
     p=p.trim();
-    const m=p.match(/(\d+)\s*×\s*(\d+(?:\.\d+)?)/);
+    const m=p.match(/(?:^|[^\d.])(\d+)\s*×\s*(\d+(?:\.\d+)?)/);   // [L97 · relecture #21] « 6.5×502 » ne se lit plus « 5×502 » en silence (quantité jamais précédée d'un chiffre ou d'un point)
     if(m){const q=parseInt(m[1]);if(q>0&&q<=99999) pieces.push({qty:q,width:parseFloat(m[2])});}
     else{const m2=p.match(/^(\d+(?:\.\d+)?)(?:mm)?$/);if(m2) pieces.push({qty:1,width:parseFloat(m2[1])});}
   });
@@ -14051,7 +14089,7 @@ async function clearCurrentDraft(ficheId){
   const ids=[autosaveId(), planAutosaveId()];
   // 1) local : ne plus proposer ces brouillons immédiatement
   brouillonsCache=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>ids.indexOf(d.id)<0);
-  _planAutosaveLast='';   // ne pas recréer le brouillon plan au prochain tick
+  try{ _planAutosaveLast=JSON.stringify(serializeFicheState().plan); }catch(e){ _planAutosaveLast=''; }   // [L97 · relecture #22] baseline = état COURANT : '' faisait l'INVERSE (le tick suivant recréait le brouillon de la commande qui vient d'être envoyée)
   _autosaveLastSig='';    // idem brouillon fiche : forcer une capture propre au prochain contenu
   try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
   // 2) distant : suppression attendue ; en échec → marquage consommé (au lieu de laisser un reste)
@@ -14462,6 +14500,7 @@ function resumeDraft(id){
 }
 function restoreFicheLineFromData(ld){
   addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',refIdKey:ld.refIdKey||null,useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',
+    origConf:(ld.origConf!==undefined?ld.origConf:undefined), rattrapage:!!ld.rattrapage,   // [L97 · relecture #19]
     cliParts:Array.isArray(ld.cliParts)?ld.cliParts:null,   // [L71 · Audit B14] snapshot figé restauré (brouillon/partage)
     recut:!!ld.recut, rollW:ld.rollW||0,
     // La note turquoise des bobines rouleau est reconstruite (déterministe depuis rollW).
