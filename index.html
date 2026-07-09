@@ -1326,7 +1326,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L83';
+const APP_VERSION='2026.07.09-L84';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -8566,7 +8566,8 @@ function stockViewHTML(){
     <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <div class="section-title" style="margin-bottom:0">📥 Import fournisseur (Excel / CSV)</div>
-        <button class="btn btn-ghost btn-sm" onclick="bkFillSample()">📋 Liste B+K du 01/07/2026</button>
+        <button class="btn btn-ghost btn-sm" onclick="bkFillSample()">📋 Liste 01/07</button>
+        <button class="btn btn-orange btn-sm" onclick="bkRemplacerParXls()" title="Annule l'import B+K existant (contre-écritures) et charge l'état Excel : stock B+K avec ancienneté, camions du 26/05 reçus chez STEP, lignes en production">🔄 Remplacer par l'Excel 26/05</button>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Colle la liste des commandes ouvertes B+K (copiée depuis <b>Excel</b> ou en <b>CSV</b>). Chaque ligne crée une <b>entrée B+K</b> datée de sa semaine « On stock » (KW → date réelle) ; les lignes avec BL créent en plus la <b>réception</b> (sortie B+K → entrée STEP). Réimporter la même liste ne crée aucun doublon.</div>
       <textarea id="bkImportText" rows="5" style="width:100%;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:12px;padding:8px" placeholder="matno, typ, mm, ml, ar, batch, qty_m2, price, req, onstock, … (collage direct depuis Excel accepté)"></textarea>
@@ -8825,6 +8826,52 @@ async function saveStockMouvement(btn){
 // Champs 100% existants (date/type/ref/m2/location/rouleaux/bl/note/op/deleted)
 // → AUCUN changement de règles Firestore nécessaire.
 // ============================================================
+// [L84] État TRANSCRIT de l'Excel d'Esteban (livraisons 26/27.05, ancienneté « Storage time »).
+// Jointure Mat-No / mère×ml faite via la liste du 01/07 par lot+nom ; lignes absentes de cette
+// liste : le LOT sert de clé d'article (dimensions à compléter dans la fiche article).
+// 3 états encodés : storage=« N weeks » → EN STOCK B+K depuis N sem. ; KW xx → EN PRODUCTION ;
+// calloff+deldate 26.05. → livré chez STEP (camion). Réponses Esteban 09/07 : DQ1000-1 103 950
+// = production KW 26 · ligne grisée DH1006 4 517 = stock B+K · DH1004 63 000 = livré STEP.
+const BK_XLS_20260526=`matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage,calloff_m2,pal,delnote,deldate
+41117500,SK 6008AD32 trans,260,2300,1,3333988807,9620,,KW 18,KW 18,,,,,
+41117500,SK 6008AD32 trans,260,2300,NEW,3343662,52000,tbd,,,,,,,
+41116775,TacFlex DC1000 trans,2140,1000,19,3324580,51360,,KW 34,KW 34,,,,,
+41117882,TacFlex DF1004-1 s/w,2100,1000,15,3337662,42000,,KW 28,KW 28,,,,,
+41315247,TacFlex DF1004-2 SUYS s/w,2100,1000,16,3337664,42000,,KW 28,KW 28,,,,,
+41314107,TacFlex DH1004 Logo SUYS trans,2100,1500,24,3307557801,63000,,,,39 weeks,63000,,,26.05.
+41314107,TacFlex DH1004 Logo SUYS trans,2100,1500,24,3289841803,15750,,,,24 weeks,,,,
+41117206,TacFlex DH1006 trans,2100,1000,35,3317642801,96600,,,,28 weeks,,,,
+41117206,TacFlex DH1006 trans,2100,1000,35,3317642801,4517,,,,28 weeks,,,,
+41116850,TacFlex DH1006-2 trans,2200,500,8,3335966,231000,,KW 26,KW 26,,,,,
+41116929,TacFlex DQ1000-1 trans,2100,500,3,3333172801,103950,,KW 26,KW 26,,,,,
+41116929,TacFlex DQ1000-1 trans,2100,500,36,3313286801,27300,,,,30 weeks,,,,
+3335969,TacFlex DQ1002 trans,2100,0,13,3335969,25500,,KW 26,KW 26,,,,,
+41319051,TacFlex DQ1002 Legrand trans,2100,1500,12,3335967,302400,,KW 26,KW 26,,,,,
+41319080,TacFlex DQ1006 tblau,2100,600,6,3335975,171360,,KW 26,KW 26,,,,,
+41319080,TacFlex DQ1006 tblau,2100,600,37,3313289801,71820,,,,31 weeks,37800,,,26.05.
+41319829,TacFlex DQ1009 trans,2100,350,49,3325528801,77175,,,,13 weeks,15435,,,26.05.
+41319831,TacFlex DQ1009 grün,2100,600,38,3313290801,16380,,,,30 weeks,16380,,,26.05.
+41319832,TacFlex DQ1009 tblau,2100,600,7,3335978,151200,,KW 30,KW 31,,,,,
+41319832,TacFlex DQ1009 tblau,2100,600,46,3325195801,94500,,,,13 weeks,37800,,,26.05.
+41315237,TacFlex DQ1041 trans,2100,500,1,3333170801,42000,,KW 20,KW 20,,,,,
+41315709,TacFlex DQ1042-1 PW trans,2100,1300,14,3335984,101010,,KW 26,KW 26,,,,,
+41315709,TacFlex DQ1042-1 PW trans,2100,1300,48,3325189801,35490,,,,12 weeks,,,,
+3313291801,TacFlex KX1006-1 Veka LeProfile oweiß,1250,0,39,3313291801,131040,,,,31 weeks,45000,,,26.05.
+41313870,TacFlex KX1006-1 Veka LeProfile oweiß,1250,1000,18-1,3340458,340200,,KW 35,KW 35,,,,,
+41317395,TacFlex KX1006-1 Veka LeProfile oweiß,1250,700,18-2,3340806,61740,,KW 35,KW 35,,,,,
+41319504,TacFlex KX1035 sw/ws,2100,500,2,3333171,119700,,KW 23,KW 23,,,,,
+41312799,TacFlex KX1045-1 s/w,2100,100,9,3335987,49980,,KW 27,KW 26,,,,,
+3313292801,TacFlex KX1045-1 s/w,2100,0,40,3313292801,12180,,,,32 weeks,12180,,,26.05.
+41312806,TacFlex KX1045-1 s/w,2100,250,10,3335990,99750,,KW 27,KW 26,,,,,
+3313293801,TacFlex KX1045-1 s/w,2100,0,41,3313293801,25200,,,,32 weeks,,,,
+41312809,TacFlex KX1045-1 s/w,2100,500,11,3335992,50400,,KW 27,KW 26,,,,,
+3313294801,TacFlex KX1045-1 s/w,2100,0,42,3313294801,5250,,,,32 weeks,,,,
+41315778,TacFlex KX1047 Oxxo 20_30_60_140 oweiß,1890,500,51-1,3328011,18900,,KW 28,KW 28,,,,,
+41315775,TacFlex KX1047 Oxxo 40_50 oweiß,1890,500,51-2,3328012,42525,,KW 28,KW 28,,,,,
+41315797,TacFlex KX1047 Oxxo Proluxe 20_30_60_140 oweiß,1890,500,52-1,3328013,18900,,KW 28,KW 28,,,,,
+41315794,TacFlex KX1047 Oxxo Proluxe 40_50 oweiß,1890,500,52-2,3328014,29295,,KW 28,KW 28,,,,,
+41317239,TacFlex KX1075 neutral FR s/w,1050,600,17,3339087,50000,,KW 30,KW 30,,,,,`;
+
 const BK_CSV_20260701=`matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage,calloff_m2,pal,delnote,deldate
 41117500,SK 6008AD32 trans,260,2300,20,3343662,52000,tbd,KW 36,KW 36,,,,,
 41116845,SK 534A-UV tblau,2180,500,Muster,3312544801,1090,no charge,,,,,07.07.,22125038
@@ -8907,6 +8954,33 @@ function _bkParseTable(text){
   return rows;
 }
 function bkFillSample(){ const el=stkEl('bkImportText'); if(el){ el.value=BK_CSV_20260701; bkAnalyseImport(); } }
+// [L84] REMPLACEMENT : annule TOUS les mouvements d'import B+K existants (jetons [BK/[BKCO) par
+// contre-écritures tracées (jamais de suppression), puis charge l'état Excel du 26/05 pour import.
+async function bkRemplacerParXls(){
+  if(!canViewStock()){ showToast('Accès réservé.','err'); return; }
+  const doomed=stockMouvementsCache.filter(m=>!m.deleted&&!m.corrige&&!m.corrigePar&&String(m.note||'').includes('[BK'));
+  if(doomed.length){
+    if(!(await confirmDlg(`Remplacer l'import B+K existant ?\n\n${doomed.length} mouvement(s) seront annulés par contre-écritures tracées (rien n'est supprimé), puis l'état Excel du 26/05 sera proposé à l'import.`,{danger:true,ok:'Remplacer'}))) return;
+    try{
+      const batch=db.batch(); const corrs=[];
+      doomed.forEach(m=>{
+        const corrRef=db.collection('stockMouvements').doc();
+        const corr={ date:isoNow(), type:'correction', ref:m.ref, m2:-(Number(m.m2)||0),
+          rouleaux:(m.rouleaux!=null?-m.rouleaux:null), bl:m.bl||'', location:stockMvtLocKey(m),
+          note:'Remplacement import B+K (Excel 26/05) — annulation', op:currentUser?currentUser.ini:'?', corrige:m.id, deleted:false };
+        batch.set(corrRef,corr); batch.update(db.collection('stockMouvements').doc(m.id),{corrigePar:corrRef.id});
+        corrs.push({corr,corrRef,m});
+      });
+      await boundedWrite(batch.commit(),25000);
+      corrs.forEach(x=>{ x.corr.id=x.corrRef.id; stockMouvementsCache.unshift(x.corr); x.m.corrigePar=x.corrRef.id; });
+      logAudit('correction','stockMouvements','remplacement-bk',`Remplacement import B+K : ${doomed.length} mouvement(s) annulé(s) par contre-écriture`).catch(function(){});
+      showToast(`✓ ${doomed.length} ancien(s) mouvement(s) annulé(s) — analyse du nouvel état…`,'ok');
+    }catch(e){ showToast('Erreur annulation : '+e.message,'err'); return; }
+  }
+  const el=stkEl('bkImportText'); if(el){ el.value=BK_XLS_20260526; bkAnalyseImport(); }
+  renderStock();
+  setTimeout(function(){ const el2=stkEl('bkImportText'); if(el2){ el2.value=BK_XLS_20260526; bkAnalyseImport(); } },50);   // re-render efface le panneau : on re-remplit après
+}
 let _bkPlanned=null;
 function bkAnalyseImport(){
   const el=stkEl('bkImportText'), out=stkEl('bkPreview'), btn=stkEl('bkImportBtn');
@@ -8932,29 +9006,38 @@ function bkAnalyseImport(){
       arts.push({ ref, largeur:mm, longueur:ml, surfaceUnit:su, fournisseur:'Bischof + Klein',
         delaiSem:18, seuilM2:0, qtyMiniM2:0, prixM2:0, deleted:false, createdAt:isoNow(), createdBy:op });
     }
+    // [L84] 3 ÉTATS chez le fournisseur : « N weeks » = EN STOCK B+K depuis N semaines (date
+    // du mouvement antidatée d'autant → l'ancienneté se lit dans le journal) ; « KW xx » =
+    // EN PRODUCTION (pas encore produit, date = lundi de la semaine prévue) ; sinon à confirmer.
+    const stW=parseInt((String(r.storage||'').match(/(\d+)/)||[])[1]||'',10);
+    let mvDate, etat;
+    if(stW>0){ mvDate=new Date(Date.now()-stW*7*86400000).toISOString(); etat='EN STOCK B+K depuis '+stW+' semaine(s)'; }
+    else if(kw){ mvDate=_bkKwToIso(kw)||isoNow(); etat='EN PRODUCTION — dispo '+kw; }
+    else { mvDate=isoNow(); etat='chez B+K — date à confirmer'; }
     if(qty>0){
       const tok=`[BK:${matno}/${r.batch||'?'}/${qty}]`;
       if(noteHas(tok)){ skipped++; }
-      else mvts.push({ date:_bkKwToIso(kw)||( (r.delnote&&String(r.delnote).trim())?'2026-07-07T12:00:00.000Z':isoNow() ),
+      else mvts.push({ date:mvDate,
         type:'entree', ref, m2:qty, location:'bk',
         rouleaux:su>0?Math.round(qty/su*10)/10:null, bl:'',
-        note:`Commande B+K · lot ${r.batch||'?'} · AR ${r.ar||'—'} · mère ${mm||'?'} mm × ${ml||'?'} ml · prix ${priceTxt}${kw?' · dispo '+kw:''} ${tok}`,
+        note:`${etat} · lot ${r.batch||'?'} · AR ${r.ar||'—'} · mère ${mm||'?'} mm × ${ml||'?'} ml · prix ${priceTxt} ${tok}`,
         op, deleted:false });
     }
     // Call-off expédié (BL présent) : la quantité appelée quitte bk et entre chez STEP.
     const bl=String(r.delnote||'').replace(/\D/g,'');
-    const ship=_bkNum(r.calloff_m2)>0?_bkNum(r.calloff_m2):(bl?qty:0);
-    if(ship>0&&bl){
-      const tokCo=`[BKCO:${matno}/${r.batch||'?'}/${bl}]`;
+    const _dd=String(r.deldate||'').trim();
+    const ship=_bkNum(r.calloff_m2)>0?_bkNum(r.calloff_m2):((bl||_dd)?qty:0);
+    if(ship>0&&(bl||_dd)){   // [L84] livraison identifiable par n° de BL OU par date (l'Excel Esteban n'a pas de n° BL)
+      const tokCo=`[BKCO:${matno}/${r.batch||'?'}/${bl||_dd.replace(/\D/g,'')}]`;
       if(noteHas(tokCo)){ skipped++; }
       else{
         const dd=String(r.deldate||'').match(/(\d{1,2})\.(\d{1,2})\./);
         const shipDate=dd?new Date(Date.UTC(2026,parseInt(dd[2],10)-1,parseInt(dd[1],10),12)).toISOString():'2026-07-07T12:00:00.000Z';
         const rl=su>0?Math.round(ship/su*10)/10:null;
         mvts.push({ date:shipDate, type:'sortie', ref, m2:-ship, location:'bk', rouleaux:rl, bl,
-          note:`Call-off expédié vers STEP · BL ${bl}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
+          note:`Camion vers STEP${bl?' · BL '+bl:''}${_dd?' · le '+_dd:''}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
         mvts.push({ date:shipDate, type:'entree', ref, m2:ship, location:'step', rouleaux:rl, bl,
-          note:`Réception B+K · BL ${bl}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
+          note:`Réception B+K${bl?' · BL '+bl:''}${_dd?' · le '+_dd:''}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
       }
     }
   });
