@@ -194,6 +194,12 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 .chute-arrow{color:var(--orange);font-weight:800;margin:0 4px}
 .chute-note{color:var(--orange);font-weight:700}
 .chute-band{background:#2a1f08;border:1px solid #7a5200;border-radius:10px;padding:8px 13px;margin:0 0 9px;font-size:13px;color:var(--orange);font-weight:600}
+/* [L94] Stock : 2 colonnes sur tablette/desktop (moins de défilement — demande Esteban) */
+.stock-wrap{display:flex;flex-direction:column;gap:16px;padding-bottom:20px}
+@media(min-width:900px){ .stock-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start} .stock-wrap>.sspan2{grid-column:1/-1} }
+/* [L94] classeur lames : ligne cochée = carte ORANGE bien visible (demande Esteban) */
+.affut-item:has(.affut-ck:checked){background:#3a2e14;border-color:var(--orange);box-shadow:inset 3px 0 0 var(--orange)}
+.affut-item:has(.affut-ck:checked) b{color:var(--orange)}
 /* [L87] bobine ajoutée par ♻ Recalcul des écarts : surbrillance temporaire pour la retrouver */
 .reste-new{outline:3px solid var(--orange);outline-offset:3px;border-radius:12px;animation:resteFlash 1.2s ease-in-out 6}
 @keyframes resteFlash{0%,100%{outline-color:var(--orange)}50%{outline-color:transparent}}
@@ -1325,7 +1331,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L93';
+const APP_VERSION='2026.07.09-L94';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4136,7 +4142,9 @@ function isLineFrozen(id){
   if(document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')) return true;
   // [L70 · Audit B21] une étiquette bobine mère saisie = l'opérateur a engagé la ligne :
   // un recalcul (changement de mère / op.2) ne doit plus la détruire silencieusement.
-  if((document.getElementById('flLabel_'+id)?.value||'').trim()) return true;
+  { const _lv=(document.getElementById('flLabel_'+id)?.value||'').trim();
+    if(_lv){ const _ln=ficheLines.find(x=>x.id===id);
+      if(!_ln||_lv!==String(_ln.label||'').trim()) return true; } }   // [L94 · terrain 09/07] l'étiquette AUTO (BOB-xxx préremplie) ne gèle plus : elle gelait TOUTES les bobines → le recalcul ne ré-optimisait jamais, il ne faisait qu'AJOUTER des RESTE-. Une étiquette MODIFIÉE par l'opérateur (n° de bobine mère réel) gèle toujours (B21).
   if(document.getElementById('flDevi_'+id)?.checked) return true;
   if(document.getElementById('flDroit_'+id)?.checked) return true;
   const meta=ficheLines.find(l=>l.id===id);
@@ -7004,6 +7012,7 @@ function recalcEcartsFromFiche(opts){
       if(!raw) return;
       // [L92 · Audit #5] contrôle par COMPTAGE DE CHIFFRES consommés : « 2×300 3×200 » (espace au
       // lieu de +) n'échappe plus — parseConf ne lisait que la 1re paire et perdait la 2e EN SILENCE.
+      if(/\d[.]\d*\s*×/.test(normConf(raw).replace(/(\d+(?:\.\d+)?)×/g,m0=>m0.includes('.')?m0:'#×'))&&/\d\.\d*×/.test(normConf(raw))){ const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id); _illisibles.push(lbl+' (« '+raw+' » — quantité décimale ?)'); return; }   // [L94] « 6,5×502 » : parseConf lisait qty 5 EN SILENCE
       const ok=normConf(raw).split(/[+,]/).map(x=>x.trim()).filter(x=>x&&/\d/.test(x)).every(seg=>{
         const qw=(seg.match(/\d+(?:\.\d+)?×\d+(?:\.\d+)?/g)||[]).length;          // paires q×l présentes
         const dg=(seg.match(/\d+(?:\.\d+)?/g)||[]).length;                           // groupes de chiffres présents
@@ -8465,6 +8474,9 @@ var stockArticlesCache=[];
 var stockMouvementsCache=[];
 var stockLoaded=false;
 var stockMvtType='entree';
+let stockFilterRef='';   // [L94] filtre par référence (ex. « DQ1000 ») appliqué aux tableaux, articles et mouvements
+let _stockFilterTimer=null;
+function stockSetFilter(v){ stockFilterRef=v||''; clearTimeout(_stockFilterTimer); _stockFilterTimer=setTimeout(function(){ renderStock(); setTimeout(function(){ const i=stkEl('stockFilterInp'); if(i&&stockFilterRef){ i.focus(); const L=i.value.length; try{i.setSelectionRange(L,L);}catch(e){} } },30); },350); }
 
 function stkEl(id){return document.getElementById(id);}
 function canViewStock(){ return currentRole==='admin' || currentRole==='pilotage'; }
@@ -8637,7 +8649,8 @@ function stockArticleCardHTML(a,soldePre){
   </div>`;
 }
 function stockViewHTML(){
-  const arts=stockArticlesCache.slice().sort((a,b)=>String(a.ref).localeCompare(String(b.ref)));
+  const _sf=nrm(stockFilterRef);
+  const arts=stockArticlesCache.slice().filter(a=>!_sf||nrm(a.ref).includes(_sf)).sort((a,b)=>String(a.ref).localeCompare(String(b.ref)));   // [L94] filtre par référence
   const bal=stockBalancesByLoc();
   const nf=n=>Math.round(Number(n)||0).toLocaleString('fr-FR');
   // Totaux par emplacement + total disponible (STEP + en production ; B+K = pas encore reçu).
@@ -8673,7 +8686,7 @@ function stockViewHTML(){
   const _soldeTot={}; ['step','bk','prod'].forEach(l=>Object.entries(bal[l]).forEach(([rf,e])=>{_soldeTot[rf]=(_soldeTot[rf]||0)+e.m2;}));
   const refOpts=arts.map(a=>`<option value="${esc(a.ref)}">${esc(a.ref)}</option>`).join('');
   const datalist=allKnownRefs().map(r=>`<option value="${esc(r)}"></option>`).join('');
-  const mvts=stockMouvementsCache.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,40);
+  const mvts=stockMouvementsCache.slice().filter(m=>!_sf||nrm(m.ref).includes(_sf)).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,40);   // [L94] filtre par référence
   const typeColor={entree:'#4ade80',sortie:'#f87171',correction:'#999'};
   const typeLabel={entree:'Entrée',sortie:'Sortie',correction:'Correction'};
   const locLabel={step:'STEP',bk:'B+K',prod:'Prod'};
@@ -8692,9 +8705,9 @@ function stockViewHTML(){
   </tr>`;}).join('');
   const locBtns=STOCK_LOCS.map(o=>`<button type="button" id="sml_${o.key}" onclick="setStockMvtLoc('${o.key}')" class="stock-type-btn" style="flex:1">${o.lbl}</button>`).join('');
   return `
-  <div style="display:flex;flex-direction:column;gap:16px;padding-bottom:20px">
+  <div class="stock-wrap">
 
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:13px;padding:16px 18px">
+    <div class="sspan2" style="background:var(--card);border:1px solid var(--border2);border-radius:13px;padding:16px 18px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
         <div style="font-size:15px;font-weight:800">📦 Stock matière</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -8709,11 +8722,20 @@ function stockViewHTML(){
         ${tile('En production',tProd,'#f59e0b','affecté')}
         ${tile('Total disponible (STEP + prod)',dispo,'#4ade80','')}
       </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">
+        <input id="stockFilterInp" value="${esc(stockFilterRef)}" oninput="stockSetFilter(this.value)" placeholder="🔎 Filtrer par référence (ex. DQ1000, TacFlex…)" style="flex:1;min-width:200px;padding:10px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--section);color:var(--text);font-size:14px">
+        ${stockFilterRef?`<button class="btn btn-ghost btn-sm" onclick="stockSetFilter('')">✕ Effacer</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="g('stock-sec-mvt')?.scrollIntoView({behavior:'smooth'})">➕ Mouvement</button>
+        <button class="btn btn-ghost btn-sm" onclick="g('stock-sec-import')?.scrollIntoView({behavior:'smooth'})">📥 Import</button>
+        <button class="btn btn-ghost btn-sm" onclick="g('stock-sec-articles')?.scrollIntoView({behavior:'smooth'})">📄 Articles</button>
+        <button class="btn btn-ghost btn-sm" onclick="g('stock-sec-prev')?.scrollIntoView({behavior:'smooth'})">🔮 Prévision</button>
+        <button class="btn btn-ghost btn-sm" onclick="g('stock-sec-mvts')?.scrollIntoView({behavior:'smooth'})">🧾 Mouvements</button>
+      </div>
     </div>
 
     ${STOCK_LOCS.map(section).join('')}
 
-    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+    <div id="stock-sec-mvt" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div class="section-title">Nouveau mouvement</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Emplacement</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">${locBtns}</div>
@@ -8732,7 +8754,7 @@ function stockViewHTML(){
       <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="saveStockMouvement(this)">✓ Enregistrer le mouvement</button>
     </div>
 
-    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+    <div id="stock-sec-import" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <div class="section-title" style="margin-bottom:0">📥 Import fournisseur (Excel / CSV)</div>
         <button class="btn btn-ghost btn-sm" onclick="bkFillSample()">📋 Liste 01/07</button>
@@ -8747,7 +8769,7 @@ function stockViewHTML(){
       <div id="bkPreview" style="margin-top:10px"></div>
     </div>
 
-    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+    <div id="stock-sec-articles" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
         <div class="section-title" style="margin-bottom:0">Articles & réglages appro.</div>
         <button class="btn btn-ghost btn-sm" onclick="toggleStockArticleForm()">➕ Nouvel article</button>
@@ -8771,7 +8793,7 @@ function stockViewHTML(){
       <div>${arts.length?arts.map(a=>stockArticleCardHTML(a,_soldeTot[a.ref]||0)).join(''):'<div class="text-muted" style="padding:8px 0">Aucun article. Crée-en un avec ➕ Nouvel article.</div>'}</div>
     </div>
 
-    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+    <div id="stock-sec-prev" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <div class="section-title" style="margin-bottom:0">🔮 Prévision d'approvisionnement</div>
         <label class="u-meta">Horizon&nbsp;<input id="stockHorizonSem" type="number" min="1" value="18" oninput="stockForecastRenderDebounced()" style="width:64px;padding:5px 7px;border-radius:7px;border:1px solid var(--border2);background:var(--card);color:var(--text)"> sem.</label>
@@ -8780,7 +8802,7 @@ function stockViewHTML(){
       <div id="stockForecast"></div>
     </div>
 
-    <div>
+    <div id="stock-sec-mvts" class="sspan2">
       <div class="section-title" style="margin-bottom:8px">Derniers mouvements</div>
       ${mvts.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
         <thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
@@ -9157,7 +9179,7 @@ function bkAnalyseImport(){
   const rows=_bkParseTable(el.value);
   if(!rows.length){ out.innerHTML='<div style="color:var(--red);font-size:13px">Aucune ligne article reconnue. Colle la liste B+K (Excel ou CSV) — colonnes matno, typ, mm, ml…</div>'; if(btn) btn.classList.add('hidden'); _bkPlanned=null; return; }
   const op=currentUser?currentUser.ini:'?';
-  const noteHas=tok=>stockMouvementsCache.some(m=>!m.deleted&&String(m.note||'').includes(tok));
+  const noteHas=tok=>stockMouvementsCache.some(m=>!m.deleted&&!m.corrigePar&&String(m.note||'').includes(tok));   // [L94] un mouvement ANNULÉ ne bloque plus la ré-importation — « Remplacer par l'Excel » sautait les lignes communes avec le 01/07 (annulées juste avant !)
   const arts=[], mvts=[]; let skipped=0;
   const artSeen=new Set();
   rows.forEach(r=>{
@@ -9339,8 +9361,9 @@ async function lameAffuter(machine,lameNum){
     dateInstall:now, date:now,
     description:'Lame '+num+' partie à l\'affûtage', responsable:who,
     createdAt:now, createdBy:who, deleted:false };
+  const _now2=new Date(Date.now()+1).toISOString();   // [L94 · vérif #2] réinstallation datée 1 ms APRÈS la trace : ordre correct aussi côté Firestore
   const neuve={ type:'lame', categorie:'installation', machine, lameNum:num,
-    dateInstall:now, date:now,
+    dateInstall:_now2, date:_now2,
     description:'Lame '+num+' réinstallée neuve après affûtage', responsable:who,
     createdAt:now, createdBy:who, deleted:false };
   try{
@@ -9606,18 +9629,18 @@ function maintViewHTML(){  const machOpts=['feba','maveg','cevenini'].map(m=>`<o
 // Fonction PURE (testée par harnais Node).
 function lameClasseurEtat(traces,nowIso){
   const evts=(traces||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&String(r.lameNum||'').trim())
-    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||'')));
+    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||''))||((a.categorie==='installation'?1:0)-(b.categorie==='installation'?1:0)));   // [L94 · vérif #2] à date ÉGALE l'installation passe APRÈS l'affûtage — la lame qu'on venait d'affûter disparaissait du classeur (non déterministe au rechargement)
   const last={}, activeByMachine={};
-  evts.forEach(r=>{ const n=String(r.lameNum).trim(); last[n]=r; if(r.categorie==='installation'&&r.machine) activeByMachine[r.machine]=n; });
+  evts.forEach(r=>{ const n=nrm(r.lameNum); last[n]=r; if(r.categorie==='installation'&&r.machine) activeByMachine[r.machine]=n; });   // [L94 · vérif #4] clé insensible à la casse : reposer « l-2401 » ne crée plus une lame fantôme à côté de « L-2401 »
   const groupes={feba:[],maveg:[],cevenini:[],hors:[]}, recentes=[];
   const cutoff=new Date(new Date(nowIso||isoNow()).getTime()-30*86400000).toISOString();
   Object.entries(last).forEach(([n,r])=>{
     const d=String(r.dateInstall||r.date||r.createdAt||'');
     if(r.categorie==='installation'){
       const m=(r.machine&&groupes[r.machine])?r.machine:'hors';
-      groupes[m].push({num:n,machine:r.machine||'',montee:(!!r.machine&&activeByMachine[r.machine]===n),date:d});
+      groupes[m].push({num:String(r.lameNum).trim(),machine:r.machine||'',montee:(!!r.machine&&activeByMachine[r.machine]===n),date:d});   // [L94 · vérif #4] affichage : casse d'origine
     } else if(r.categorie==='affutage'&&d>=cutoff){
-      recentes.push({num:n,machine:r.machine||'',date:d});
+      recentes.push({num:String(r.lameNum).trim(),machine:r.machine||'',date:d});
     }
   });
   Object.values(groupes).forEach(a=>a.sort((x,y)=>((y.montee?1:0)-(x.montee?1:0))||y.date.localeCompare(x.date)));
@@ -9647,8 +9670,8 @@ function renderAffutageList(){
   const el=document.getElementById('affutageList'); if(!el) return;
   const {groupes,recentes}=lameClasseurEtat(maintenanceCache);
   const bloc=(titre,arr)=>{
-    const rows=arr.map(l=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
-      <input type="checkbox" class="affut-ck" data-m="${esc(l.machine)}" data-num="${esc(l.num)}" data-montee="${l.montee?'1':'0'}" style="width:18px;height:18px;accent-color:var(--orange);flex:0 0 auto">
+    const rows=arr.map(l=>`<label class="affut-item" style="display:flex;align-items:center;gap:10px;padding:9px 10px;cursor:pointer;border:1px solid var(--border);border-radius:9px;margin:5px 0">
+      <input type="checkbox" class="affut-ck" data-m="${esc(l.machine)}" data-num="${esc(l.num)}" data-montee="${l.montee?'1':'0'}" style="width:22px;height:22px;accent-color:var(--orange);flex:0 0 auto">
       <span style="font-size:13px;color:var(--text)">🔪 <b>${esc(l.num)}</b>${l.montee
         ?' <span style="background:#14371f;color:#4ade80;font-size:11px;font-weight:800;padding:2px 8px;border-radius:12px">MONTÉE</span>'
         :' <span style="color:var(--orange);font-size:12px;font-weight:600">démontée · en attente d\'affûtage</span>'}
@@ -9669,15 +9692,27 @@ async function submitAffutage(btn){
   const nbM=cks.filter(c=>c.getAttribute('data-montee')==='1').length, nbD=cks.length-nbM;
   if(!(await confirmDlg('Envoyer '+cks.length+' lame(s) à l\'affûtage ?'+(nbM?'\n\n· '+nbM+' MONTÉE(S) : repartent neuves sur leur machine (âge remis à zéro)':'')+(nbD?'\n· '+nbD+' démontée(s) : tracées parties à l\'affûtage (reposables plus tard via « Changer la lame »)':''),{ok:'Confirmer'}))) return;   // [L90] classeur : montées ≠ démontées
   if(btn) btn.disabled=true;
-  let okCount=0;
-  for(const ck of cks){
-    const montee=ck.getAttribute('data-montee')==='1';
-    const ok=montee?await lameAffuter(ck.getAttribute('data-m'),ck.getAttribute('data-num'))
-                   :await lameAffuterSeule(ck.getAttribute('data-m'),ck.getAttribute('data-num'));
-    if(ok) okCount++;
-  }
-  if(btn) btn.disabled=false;
-  showToast('✓ '+okCount+' lame(s) réidentifiée(s) neuve(s)','ok');
+  // [L94 · vérif #3] l'état est RE-DÉRIVÉ à l'instant du clic (pas celui figé au rendu) : une lame
+  // remplacée/remontée par une AUTRE tablette entre-temps est ignorée avec avertissement — avant,
+  // on réinstallait « neuve » une lame physiquement démontée (écrasant la vraie pose).
+  let okNeuves=0, okTracees=0, ignorees=[];
+  try{
+    const _etat=lameClasseurEtat(maintenanceCache);
+    const _all=[].concat(_etat.groupes.feba,_etat.groupes.maveg,_etat.groupes.cevenini,_etat.groupes.hors);
+    for(const ck of cks){
+      const numAff=ck.getAttribute('data-num');
+      const cur=_all.find(x=>nrm(x.num)===nrm(numAff));
+      const monteeAffichee=ck.getAttribute('data-montee')==='1';
+      if(!cur||cur.montee!==monteeAffichee){ ignorees.push(numAff); continue; }
+      if(cur.montee){ if(await lameAffuter(cur.machine,cur.num)) okNeuves++; }
+      else { if(await lameAffuterSeule(cur.machine,cur.num)) okTracees++; }
+    }
+  }finally{ if(btn) btn.disabled=false; }
+  // [L94 · vérif #5] toast honnête : « réidentifiée neuve » seulement pour les montées.
+  const okCount=okNeuves+okTracees;
+  let msg=[]; if(okNeuves) msg.push(okNeuves+' lame(s) réidentifiée(s) neuve(s)'); if(okTracees) msg.push(okTracees+' tracée(s) partie(s) à l\'affûtage');
+  if(ignorees.length) msg.push('⚠ '+ignorees.length+' ignorée(s) — état changé entre-temps ('+ignorees.join(', ')+')');
+  showToast((okCount?'✓ ':'')+((msg.join(' · '))||'Aucune écriture'),okCount?'ok':'err');
   renderMaintenance();
 }
 async function saveMaintenance(btn){
@@ -11949,7 +11984,12 @@ async function clearFiches(){
 
 // Export JSON des données VISIBLES (≤ limites de chargement) — pas un backup exhaustif
 // (le backup complet est assuré par la sauvegarde automatique Firestore)
+let _backupBusy=false;
 async function downloadFullBackup(){
+  if(_backupBusy) return; _backupBusy=true;   // [L94] anti double-tap pendant le chargement de l'historique (double téléchargement)
+  try{ await _downloadFullBackupInner(); }finally{ _backupBusy=false; }
+}
+async function _downloadFullBackupInner(){
   // [L89] charge AUTOMATIQUEMENT l'historique complet avant d'exporter (même garde-fou que les exports CSV)
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }
   if(!savesCache.length&&!tempsCache.length&&!fichesCache.length){showToast('Aucune donnée à exporter.','err');return;}

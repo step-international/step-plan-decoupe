@@ -26,7 +26,16 @@ self.addEventListener('install',function(e){
 });
 
 self.addEventListener('activate',function(e){
-  e.waitUntil(self.clients.claim());
+  e.waitUntil(Promise.all([
+    self.clients.claim(),
+    // [L94 · vérif #1] RÉPARATION : si le cache est vide (install pendant panne réseau,
+    // éviction iOS sous pression de stockage), on ré-épingle — sinon le gel mourait en
+    // silence et la mise à jour subie redevenait possible (incident Prima/Deceuninck).
+    caches.open(CACHE).then(async function(c){
+      var cur=await c.match('index.html');
+      if(!cur){ try{ await c.add(new Request('index.html',{cache:'no-store'})); }catch(err){} }
+    })
+  ]));
 });
 
 self.addEventListener('message',function(e){
@@ -52,7 +61,15 @@ self.addEventListener('fetch',function(e){
   const isIndex=req.mode==='navigate'||(url.origin===self.location.origin&&/\/(index\.html)?$/.test(url.pathname));
   if(!isIndex) return;                                      // Firebase/gstatic/photos : réseau normal
   e.respondWith(
-    caches.open(CACHE).then(function(c){ return c.match('index.html'); })
-      .then(function(r){ return r||fetch(req); })
+    caches.open(CACHE).then(function(c){
+      return c.match('index.html').then(function(r){
+        if(r) return r;
+        // [L94 · vérif #1] cache vide → on sert le réseau ET on ré-épingle au passage
+        return fetch(req).then(function(nr){
+          if(nr&&nr.ok){ try{ c.put('index.html',nr.clone()).catch(function(){}); }catch(err){} }
+          return nr;
+        });
+      });
+    })
   );
 });
