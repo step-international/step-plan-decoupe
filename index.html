@@ -1334,7 +1334,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L100';
+const APP_VERSION='2026.07.09-L101';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11920,6 +11920,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
     +`<div style="background:#102a40;color:#9ecbf0;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">👤 RELAIS OPÉRATEUR — ${esc(String(f.ini||'op.1'))} → ${esc(String(f.ini2||'op.2'))} · dès la bobine ${esc(String(f.op2Bob))}</div>`
     +`</td></tr>`;
   let bobNum=0;
+  const _horsList=[];   // [L101 · choix Esteban] bobines rattrapage/RESTE-/OP2- sorties du tableau principal → section « ⚠ HORS PLAN » (fd.horsPlan posé à l'archivage L7363)
   const planRows=(liveGroups||[]).map((g,gi)=>{
     const isLast=gi===(liveGroups.length-1);
     const rows=[];
@@ -11929,6 +11930,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
       // [L64 · Lot 6] PDF extrait client : les bobines des autres clients sont omises
       // (la numérotation physique des bobines est conservée).
       if(cliF&&!cliHasPart(fd,cliF)) continue;
+      if(fd&&fd.horsPlan){ _horsList.push({fd,bn:bobNum}); continue; }   // [L101] rattrapage → section HORS PLAN (numéro physique conservé)
       // [L65] machine de la LIGNE d'abord (changement machine op.1) puis réf puis fiche —
       // le bandeau ⚙ CHANGEMENT DE MACHINE se déclenche automatiquement à la transition.
       const curMachLbl=(getMachineLabel((fd&&fd.machine)||'')||machByRef[(fd&&fd.ref)||'']||defMachLbl)||'';
@@ -11976,11 +11978,9 @@ function showFicheDetail(id,autoPrint,cliFilter){
     return rows.join('');
   }).join('');
 
-  // Bobines hors plan (au-delà du plan théorique)
-  const ficheDetail=f.ficheDetail||[];
-  const nbPlan=bobNum;
-  const horsPlanRows=ficheDetail.slice(nbPlan).map((fd,idx)=>{
-    const bn=nbPlan+idx+1;
+  // [L101 · choix Esteban] Bobines RATTRAPAGE / RESTE- / OP2- : section séparée « ⚠ HORS PLAN »,
+  // alimentée par fd.horsPlan (par NATURE), plus par un slice positionnel qui était toujours vide.
+  const horsPlanRows=_horsList.map(({fd,bn})=>{
     if(cliF&&!cliHasPart(fd,cliF)) return '';   // [L64 · Lot 6] extrait client
     const ncs=[];
     if(fd.ncLarg) ncs.push('Largeur');
