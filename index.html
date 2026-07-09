@@ -1325,7 +1325,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L92';
+const APP_VERSION='2026.07.09-L93';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5035,6 +5035,23 @@ function _laizeSortExcluded(ref){ return /KX\s*-?\s*104[67]/i.test(String(ref||'
 // [L85 · Audit #11] Tri UNIQUE des bobines d'un plan manuel au chargement d'un plan sauvegardé :
 // grandes laizes d'abord (stable, clé = plus grande largeur du motif via parseConf, repli = plus
 // grand nombre saisi), dernier motif = solde naturel. Jamais appelé pendant l'édition en cours.
+// [L92 · Audit #19] Plan MANUEL actif à l'envoi : reconstruit un « computed » d'ARCHIVE depuis la
+// saisie manuelle (le plan réellement suivi) — sinon f.groups/pct/nbPlan/totalBobines archivaient
+// le plan AUTO écarté (PDF d'historique faux, écart terrain/plan mensonger).
+function _pmComputedForArchive(computed){
+  return computed.map((c,ci)=>{
+    const man=(typeof _pmFindEntry==='function')?_pmFindEntry(c,ci):null;
+    if(!man||!Array.isArray(man.bobines)||!man.bobines.length) return c;
+    const useful=man.useful>0?man.useful:c.useful, blade=(man.blade!=null&&man.blade>=0)?man.blade:c.blade;
+    const pg=man.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1),pattern:parseConf(normConf(b.conf||''))})).filter(gp=>gp.pattern.length);
+    if(!pg.length) return c;
+    const bobs=[].concat(...pg.map(gp=>Array.from({length:gp.count},()=>gp.pattern.map(p=>({...p})))));
+    const totalMat=useful*bobs.length;
+    const used=bobs.reduce((sm,p)=>sm+calcStats(p,blade).total,0);
+    return {...c,useful,blade,planGroups:pg,bobines:bobs,recutGroups:[],recutBobines:[],chutesUsed:{},
+      stats:{totalBobines:bobs.length,totalMat,totalUsed:used,pct:totalMat>0?(totalMat-used)/totalMat*100:0}};
+  });
+}
 function _pmSortBobinesOnce(pm){
   (Array.isArray(pm)?pm:[]).forEach(entry=>{
     if(!entry||!Array.isArray(entry.bobines)||entry.bobines.length<2) return;
@@ -5663,7 +5680,8 @@ function buildPlanPrintHTML(o){
     let _chutesSrc=c.chutesUsed||{};
     const _pgDisp=_planGroupsByLaize(c.planGroups,c.ref);   // [L79] impression : grandes laizes d'abord (solde en dernier) — COPIE
     if(!_rowsSrc&&cliXtra&&Array.isArray(o.mandrinGroups)){
-      const _m=o.mandrinGroups.find(g=>String(g.ref||'').trim().toLowerCase()===String(c.ref||'').trim().toLowerCase());
+      const _m=(c.refIdKey&&o.mandrinGroups.find(g=>_cliQKey(_refIdKey(g),g.machine)===_cliQKey(c.refIdKey,c.machine)))
+        ||o.mandrinGroups.find(g=>String(g.ref||'').trim().toLowerCase()===String(c.ref||'').trim().toLowerCase());   // [L92 · Audit #20] clé machine d'abord (deux blocs homonymes sur 2 machines ne s'échangent plus leurs clients), repli nom pour les anciens plans
       if(_m&&Array.isArray(_m.rows)&&_m.rows.length){ _rowsSrc=_m.rows; _chutesSrc=_m.chutesUsed||{}; }
     }
     if(cliXtra&&_rowsSrc){
@@ -5742,7 +5760,7 @@ function getPlanHTML(){
   const autoGroups=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
   // Si le plan a été modifié à la main, on imprime cette version.
   const groups=planManual
-    ? planManual.map(r=>({ref:r.ref, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film, veka:r.veka, machine:r.machine||'',
+    ? planManual.map(r=>({ref:r.ref, refIdKey:r.refIdKey||null, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film, veka:r.veka, machine:r.machine||'',
         planGroups:r.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1), pattern:parseConf(b.conf)}))}))
     : autoGroups;
   const numCmd=document.getElementById('planNumCmd')?.value||'';
@@ -5780,7 +5798,7 @@ function printSavedPlan(id){
   const _pmPrint=(Array.isArray(s.planManual)&&s.planManual.length)?JSON.parse(JSON.stringify(s.planManual)):null;
   if(_pmPrint) _pmSortBobinesOnce(_pmPrint);   // [L92 · Audit #18] MÊME tri qu'au chargement (doLoad) : le PDF imprimé depuis Données correspondait à un autre ordre/solde que la fiche après chargement
   const groups=_pmPrint
-    ? _pmPrint.map(r=>({ref:r.ref, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film||'', veka:r.veka||'', machine:r.machine||'',
+    ? _pmPrint.map(r=>({ref:r.ref, refIdKey:r.refIdKey||null, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film||'', veka:r.veka||'', machine:r.machine||'',
         planGroups:r.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1), pattern:parseConf(b.conf)}))
       }))
     : autoGroups;
@@ -7235,7 +7253,8 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   try{
   opts=opts||{};
   // Multi-réfs : recompose les bobines/groups réf par réf (laize propre à chaque réf)
-  const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  let computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  if(planManual&&Array.isArray(planManual)&&planManual.length) computed=_pmComputedForArchive(computed);   // [L92 · Audit #19] l'archive (groups/pct/nbPlan/solde) reflète le plan MANUEL réellement suivi, pas le plan auto écarté
   const multi=computed.length>1;
   // [L70 · Audit B26] mono-réf : réutiliser le plan RÉEL (computed[0] — chutes stock
   // déduites, rouleaux traités) au lieu de re-packer la commande brute : pct/écarts/
