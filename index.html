@@ -1325,7 +1325,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L87';
+const APP_VERSION='2026.07.09-L88';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -2574,6 +2574,7 @@ function canViewAudit(){
 // identique : le replace global n'inspecte pas le texte de remplacement, donc aucun double-échappement.
 const g=id=>document.getElementById(id);   // [L86 · simpl.7] raccourci global (était redéfini localement 6 fois)
 const nrm=v=>String(v==null?'':v).trim().toLowerCase();   // [L87 · simpl.5] normalisation UNIQUE (était redéfinie localement 10 fois)
+const normConf=c=>(c||'').replace(/x/gi,'×').replace(/\*/g,'×').trim();   // [L88] normalisation UNIQUE des configs : l'opérateur peut taper × , x  OU * PARTOUT (demande Esteban) — toute surface qui lit/compare une conf passe par ici
 const pctCls=p=>p<3?'pct-green':p<8?'pct-orange':'pct-red';   // [L87 · simpl.9] couleur perte partagée
 const _ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 function esc(v){
@@ -3355,7 +3356,7 @@ function importPlanToFiche(opts){
           const cnt=Math.max(1,parseInt(b.count)||1);
           for(let k=0;k<cnt;k++){
             addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
-              conf:(b.conf||'').replace(/x/gi,'×'),
+              conf:normConf(b.conf),   // [L88] * accepté
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
             bi++;
           }
@@ -4096,7 +4097,7 @@ function isLineFrozen(id){
   if(document.getElementById('flDevi_'+id)?.checked) return true;
   if(document.getElementById('flDroit_'+id)?.checked) return true;
   const meta=ficheLines.find(l=>l.id===id);
-  const cur=(document.getElementById('flConf_'+id)?.value||'').replace(/x/gi,'×').trim();
+  const cur=normConf(document.getElementById('flConf_'+id)?.value);   // [L88] * accepté
   if(meta && cur!==(meta.origConf||'')) return true; // config modifiée manuellement
   return false;
 }
@@ -10878,7 +10879,7 @@ function efRemoveBob(btn){
 // (exact en mono-réf ; chute approximée en multi-réf, configs toujours exactes).
 function groupsFromDetail(detail,useful,blade){
   const out=[]; let i=0;
-  const norm=c=>(c||'').replace(/x/gi,'×').replace(/\*/g,'×').trim();
+  const norm=normConf;   // [L88 · simpl.10] alias du global
   while(i<detail.length){
     const conf=norm(detail[i].conf);
     let cnt=1; while(i+cnt<detail.length && norm(detail[i+cnt].conf)===conf) cnt++;
@@ -11290,7 +11291,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
   // la MAUVAISE bobine après une édition de fiche (ligne supprimée = index décalés).
   const _exp=f.ficheDetail[bobIdx]||{};
   const expectLabel=(_exp.label||'');
-  const expectConf=String(_exp.conf||'').replace(/x/gi,'×').trim();
+  const expectConf=normConf(_exp.conf);   // [L88] * accepté (une conf tapée « 6*502 » ne fait plus échouer le traitement NC)
   const expectNc=['ncLarg','ncQty','ncCasse','ncAng'].map(k=>!!_exp[k]).join(',');
   try{
     // TX-ncSaveTreat (B2) : lecture-modification-écriture ATOMIQUE. Avant, on réécrivait TOUT
@@ -11310,7 +11311,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
       if(bobIdx<0 || bobIdx>=det.length) throw new Error('Bobine absente de la version à jour — recharge l\'historique.');
       const cur=det[bobIdx]||{};
       if((cur.label||'')!==expectLabel
-         || String(cur.conf||'').replace(/x/gi,'×').trim()!==expectConf
+         || normConf(cur.conf)!==expectConf
          || ['ncLarg','ncQty','ncCasse','ncAng'].map(k=>!!cur[k]).join(',')!==expectNc)
         throw new Error('Fiche modifiée ailleurs (bobines décalées ?) — recharge l\'historique et rouvre la NC.');   // [L72 · Audit B35]
       det[bobIdx]=Object.assign({},cur,changes);          // patch de la SEULE bobine ciblée, sur la version fraîche
@@ -11492,7 +11493,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
     const u=parseNum(f.useful)||0, b=parseNum(f.blade)||0;
     // Regroupe par config réelle, en intégrant la laize propre à chaque bobine si dispo.
     const out=[]; let i=0;
-    const norm=c=>(c||'').replace(/x/gi,'×').replace(/\*/g,'×').trim();
+    const norm=normConf;   // [L88 · simpl.10] alias du global
     while(i<det.length){
       const conf=norm(det[i].conf);
       const uu=(det[i].useful!=null&&det[i].useful>0)?det[i].useful:u;
@@ -12497,7 +12498,7 @@ function addFicheLine(data){
   }
   const id='fl_'+Date.now()+'_'+Math.floor(Math.random()*9999);
   data=data||{};
-  ficheLines.push({id,rattrapage:!!data.rattrapage,origConf:(data.conf||'').replace(/x/gi,'×').trim(),
+  ficheLines.push({id,rattrapage:!!data.rattrapage,origConf:normConf(data.conf),   // [L88] * accepté
     ref:data.ref||'', useful:data.useful||0, blade:data.blade||0, machine:data.machine||'',
     // D-1 : identité stable du groupe réf porté par la bobine (clé par contenu). Permet au
     // recalcul de rattacher chaque bobine figée à SA réf même si deux réfs ont le même code.
@@ -14485,7 +14486,7 @@ function printFiche(){
   ficheLines.forEach((l,idx)=>{
     const label=document.getElementById('flLabel_'+l.id)?.value||'';
     const cutC=liveShare?_shareCutInfoFor(idx,label):null;
-    const conf=(document.getElementById('flConf_'+l.id)?.value||'').replace(/x/gi,'×');
+    const conf=normConf(document.getElementById('flConf_'+l.id)?.value);   // [L88] * accepté
     const devi=document.getElementById('flDevi_'+l.id)?.checked;
     const droit=document.getElementById('flDroit_'+l.id)?.checked;
     const conf2=(_flMachineOf(l.id)==='feba')?devi:(devi&&droit);   // [L65] machine de la ligne
