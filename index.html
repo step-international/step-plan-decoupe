@@ -194,6 +194,9 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 .chute-arrow{color:var(--orange);font-weight:800;margin:0 4px}
 .chute-note{color:var(--orange);font-weight:700}
 .chute-band{background:#2a1f08;border:1px solid #7a5200;border-radius:10px;padding:8px 13px;margin:0 0 9px;font-size:13px;color:var(--orange);font-weight:600}
+/* [L87] bobine ajoutée par ♻ Recalcul des écarts : surbrillance temporaire pour la retrouver */
+.reste-new{outline:3px solid var(--orange);outline-offset:3px;border-radius:12px;animation:resteFlash 1.2s ease-in-out 6}
+@keyframes resteFlash{0%,100%{outline-color:var(--orange)}50%{outline-color:transparent}}
 .rb-chute-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .rb-chute-row input{flex:0 0 auto}
 .fiche-chute-note{font-size:12px;font-weight:700;color:var(--orange);background:#2a1f08;border:1px solid #7a5200;border-radius:6px;padding:4px 9px;margin-top:6px;display:inline-block}
@@ -1322,7 +1325,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L86';
+const APP_VERSION='2026.07.09-L87';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -2570,6 +2573,8 @@ function canViewAudit(){
 // [L80 · PERF-esc] UN seul balayage regex + table (avant : 5 .replace() enchaînés). Sortie STRICTEMENT
 // identique : le replace global n'inspecte pas le texte de remplacement, donc aucun double-échappement.
 const g=id=>document.getElementById(id);   // [L86 · simpl.7] raccourci global (était redéfini localement 6 fois)
+const nrm=v=>String(v==null?'':v).trim().toLowerCase();   // [L87 · simpl.5] normalisation UNIQUE (était redéfinie localement 10 fois)
+const pctCls=p=>p<3?'pct-green':p<8?'pct-orange':'pct-red';   // [L87 · simpl.9] couleur perte partagée
 const _ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 function esc(v){
   return String(v==null?'':v).replace(/[&<>"']/g,function(c){return _ESC_MAP[c];});
@@ -3675,7 +3680,6 @@ function cliStockByRef(){
 // ni _refIdKey ni le refIdKey persisté des lignes (repli homonymes B13/B22 intact).
 function _cliQKey(refIdKey,machine){ return String(refIdKey)+'¦'+String(machine==null?'':machine).trim().toLowerCase(); }
 function _cliKeyTables(groups){
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
   const keys=new Set(); const nameToKey={}; const bareToKey={};
   (groups||[]).forEach(g=>{ const bare=_refIdKey(g); const k=_cliQKey(bare,g.machine); keys.add(k);
     if(!(bare in bareToKey)) bareToKey[bare]=k;
@@ -4905,7 +4909,6 @@ function refStdMother(refStr){
 function mergeDuplicateRefBlocks(){
   const blocks=[...document.querySelectorAll('.ref-block')];
   if(blocks.length<2) return false;
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
   const keyOf=bl=>{
     const ref=nrm(bl.querySelector('[data-rb="ref"]')?.value);
     if(!ref) return null;                               // bloc sans réf : jamais fusionné
@@ -5075,7 +5078,7 @@ function recalcPlan(){
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
     : '';
-  const perteCls=pertePct<3?'pct-green':pertePct<8?'pct-orange':'pct-red';
+  const perteCls=pctCls(pertePct);   // [L87 · simpl.9]
   const chutesChipLabel=Object.keys(chutesUsedAll).map(w=>chutesUsedAll[w]+'×'+fmt(Number(w))).join(' + ');
   if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+`
     <div class="stat-chip">📦 <span>${totalBobines}</span> bobine${totalBobines>1?'s':''}</div>
@@ -5252,7 +5255,6 @@ function enterPlanManual(){
 // vidée (base FILTRÉE à la création vs NON filtrée à l'adaptation) → la fiche d'une réf
 // pouvait être générée avec les bobines d'une AUTRE réf, sans alerte.
 function _pmFindGroup(r,i,cur){
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
   if(r&&r.refIdKey){ const hit=cur.find(c=>_refIdKey(c)===r.refIdKey); if(hit) return hit; }
   const byName=cur.filter(c=>nrm(c.ref)===nrm(r&&r.ref));
   if(byName.length===1) return byName[0];
@@ -5260,7 +5262,6 @@ function _pmFindGroup(r,i,cur){
 }
 function _pmFindEntry(c,ci){
   if(!planManual) return null;
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
   const k=_refIdKey(c);
   const hit=planManual.find(r=>r.refIdKey===k);
   if(hit) return hit;
@@ -5333,7 +5334,7 @@ function renderPlanManual(){
   const cardsEl=document.getElementById('planCards');
   const multi=planManual.length>1;
   const s=planManualStats();
-  const perteCls=s.pertePct<3?'pct-green':s.pertePct<8?'pct-orange':'pct-red';
+  const perteCls=pctCls(s.pertePct);   // [L87 · simpl.9]
   // L32 — badge désynchronisation plan manuel ↔ commande (par laize/réf).
   const _coh=planManualCoherence(planManual,getRefGroups());
   const _cohBadge=_coh.length
@@ -6781,8 +6782,9 @@ function recalcEcartsFromFiche(opts){
   const op2=opts.op2||null; // {refKey, useful, blade} : re-pack du reste avec la laize op.2
   const force=!!opts.force; // changement de plan op.1 : garde les coupées, recalcule le reste, même chrono à l'arrêt
   if(!op2 && !force && !chronoRunning){
-    showToast('⏱ Le chronomètre doit être en marche pour recalculer le plan.','err');
-    return {started:false};
+    // [L87] avant : refus sec — l'opérateur qui corrige APRÈS l'arrêt du chrono (cas réel :
+    // bobineaux au rebut en fin de commande) était bloqué. On demande au lieu de refuser.
+    if(!confirm('Le chronomètre est à l\'arrêt.\n\nRecalculer quand même le reste de la commande ?\n(les bobines déjà coupées sont conservées)')) return {started:false};
   }
   // Commande RÉF PAR RÉF : chaque référence a sa propre laize utile, sa lame
   // et ses lignes de découpe. L'optimisation du reliquat se fait isolément
@@ -6804,7 +6806,7 @@ function recalcEcartsFromFiche(opts){
   // une simple différence de casse ou d'espace (ex. "KX1045-1" vs "kx1045-1 ")
   // rangeait le coupé dans une autre case que la commande -> aucune déduction
   // en aval + surproduction. On compare donc toujours sur la clé normalisée.
-  const nrmRef=v=>String(v==null?'':v).trim().toLowerCase();
+  const nrmRef=nrm;   // [L87 · simpl.5] alias du global (7 usages conservés tels quels — recette contre-vérifiée)
   // D-1 : clé d'identité par CONTENU (ref+film+veka+longueur+laize+lame), robuste
   // aux collisions de nom (deux réfs de même code mais film/laize/longueur
   // différents) et au ré-ordonnancement. Sert de clé à tous les dictionnaires
@@ -6874,6 +6876,31 @@ function recalcEcartsFromFiche(opts){
       const m=committedByRef[k]||(committedByRef[k]={});
       parseConf(document.getElementById('flConf_'+l.id)?.value||'').forEach(p=>{m[p.width]=(m[p.width]||0)+p.qty;});
     });
+    // [L87] GARDE SAISIE MANUELLE : l'opérateur corrige souvent la config À LA MAIN
+    // (« 8×502 » → « 6×502 ») avant de cocher ✓ coupée puis ♻. Si un segment tapé n'est pas
+    // lisible (ex. « 6 502 » sans ×), parseConf l'IGNORAIT EN SILENCE → la bobine comptait
+    // 0 pièce produite → reliquat gonflé → le recalcul régénérait la commande « comme si
+    // rien n'était coupé » (bug atelier signalé par Esteban 09/07). Désormais : BLOCAGE
+    // AVANT toute étape destructive (pattern B30), en nommant la bobine et le texte fautif.
+    const _illisibles=[];
+    ficheLines.forEach(l=>{
+      if(!frozenSet.has(l.id)) return;
+      if(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')) return;
+      const raw=(document.getElementById('flConf_'+l.id)?.value||'').trim();
+      if(!raw) return;
+      const segs=raw.split(/[+]/).map(x=>x.trim()).filter(x=>x&&/\d/.test(x));
+      const parsed=parseConf(raw);
+      const parsedSegs=raw.split(/[+]/).map(x=>parseConf(x).length).filter(n=>n>0).length;
+      if(!parsed.length||parsedSegs<segs.length){
+        const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id);
+        _illisibles.push(lbl+' (« '+raw+' »)');
+      }
+    });
+    if(_illisibles.length){
+      updateCoupeeStatus();
+      showToast('⛔ Recalcul BLOQUÉ — config illisible sur '+_illisibles.length+' bobine(s) coupée(s) :\n\n'+_illisibles.join('\n')+'\n\nÉcris chaque découpe en « quantité×largeur » (ex. 6×502 + 2×300) puis reclique ♻. Rien n\'a été modifié.','err');
+      return;
+    }
     residualByRef={}; surplusByRef={};
     Object.keys(cmdByRef).forEach(k=>{
       const cmd=cmdByRef[k].command, com=committedByRef[k]||{};
@@ -6963,7 +6990,7 @@ function recalcEcartsFromFiche(opts){
 
     // 3) Reconstruire réf par réf.
     ficheLines=[];
-    const recap=[]; let totalAdded=0;
+    const recap=[]; let totalAdded=0; let _firstAddedId=null;   // [L87]
     const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
     const doneKeys=new Set();
     _genOrderR.forEach(ci=>{
@@ -7020,6 +7047,7 @@ function recalcEcartsFromFiche(opts){
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:pb, machine:pm,   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm — À RECOUPER EN 1ER (avant les bobines mères)'});
+            if(!_firstAddedId&&ficheLines.length) _firstAddedId=ficheLines[ficheLines.length-1].id;   // [L87]
             ri++; recutAdded++;
           }
         });
@@ -7031,6 +7059,7 @@ function recalcEcartsFromFiche(opts){
             addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:pu, blade:pb, machine:pm});   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
+            if(!_firstAddedId&&ficheLines.length) _firstAddedId=ficheLines[ficheLines.length-1].id;   // [L87] 1re bobine ajoutée : repérée pour scroll+surbrillance
             ri++; added++;
           }
         });
@@ -7060,6 +7089,16 @@ function recalcEcartsFromFiche(opts){
     renumberFicheLines();
     refreshEtiquetteSolde();
     if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
+    // [L87] Bobines ajoutées VISIBLES : l'opérateur signalait « le compteur passe à 38/39
+    // mais la bobine ajoutée est introuvable ». On surligne la 1re ajoutée, on défile
+    // dessus, et le bandeau violet garde le récap (le toast, lui, disparaît en 5 s).
+    if(totalAdded>0&&_firstAddedId){
+      const _eln=document.getElementById(_firstAddedId);
+      if(_eln){ _eln.classList.add('reste-new'); setTimeout(function(){ try{_eln.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){} },200); setTimeout(function(){ _eln.classList.remove('reste-new'); },8000); }
+      setTimeout(function(){ const bn=document.getElementById('coupeeBanner');
+        if(bn){ bn.style.display='block'; bn.style.background='#1f1535'; bn.style.borderColor='var(--violet)'; bn.style.color='var(--violet)';
+          bn.innerHTML='♻ <b>'+totalAdded+' bobine(s) ajoutée(s)</b> pour couvrir la commande — repérée(s) « RESTE- », surlignée(s) en orange ci-dessous.'; } },50);
+    }
 
     const head=op2
       ? '🔧 Plan re-découpé pour l\'opérateur 2 (laize utile '+fmt(op2.useful)+' mm).'
@@ -10396,7 +10435,6 @@ function reprendreCommandeManque(id){
 // Fonction pure (testable) : renvoie les refGroups du reste, prêts pour un plan.
 function _resteGroupsFromFiche(f){
   if(!f) return [];
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
   const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
   // Coupé PAR réf : somme des laizes des bobines coupées (conf renseignée).
   const cutByRef={};            // {nrmRef:{width:qty}}
@@ -12124,7 +12162,6 @@ function renderFicheMachineBlocks(opts){
     const refChip='<span class="fmm-ref-chip" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">Réf '+(pos+1)+'</span>';
     block.innerHTML='<div class="fmm-head">'+refChip+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
     // Ancre : 1re ligne bobine de cette réf dans le DOM.
-    const nrm=v=>String(v==null?'':v).trim().toLowerCase();
     const key=nrm(r.ref);
     let anchor=null;
     for(const l of ficheLines){ if(nrm(l.ref)===key){ anchor=document.getElementById(l.id); break; } }
@@ -12266,7 +12303,6 @@ function applyOp2PlanChange(){
   if(!(useful2>0)){ showToast('La largeur utile op.2 (mère − bords) est nulle.','err'); return; }
   const groups=(typeof getRefGroups==='function'?getRefGroups():[]).filter(g=>(g.rows||[]).length);
   if(!groups.length){ showToast('Aucune commande à recalculer.','err'); return; }
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
   if(groups.length>1){
     // Choix de la réf par boutons (un par référence) — index sûr, pas de chaîne dans onclick.
     _op2Pending={useful2,b2,refKeys:groups.map(g=>nrm(g.ref))};
@@ -12289,7 +12325,6 @@ function _op2PickRef(i){
   _applyOp2WithRefKey(refKey, p.useful2, p.b2);
 }
 function _applyOp2WithRefKey(refKey, useful2, b2){
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
   const groups=(typeof getRefGroups==='function'?getRefGroups():[]).filter(g=>(g.rows||[]).length);
   const tgt=groups.find(g=>nrm(g.ref)===refKey)||groups[0];
   if(!tgt){ showToast('Référence introuvable.','err'); return; }
