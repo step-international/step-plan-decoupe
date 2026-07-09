@@ -1325,7 +1325,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L89';
+const APP_VERSION='2026.07.09-L90';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9493,8 +9493,8 @@ function maintViewHTML(){  const machOpts=['feba','maveg','cevenini'].map(m=>`<o
   <!-- [L79] Formulaire « Installer / déclarer une lame » du haut RETIRÉ (redondant) : l'installation/changement se fait par machine dans « État des lames » via lameInstallPrompt. saveMaintenance conservée sans accès UI. -->
   <div id="lameEtat"></div>
   <div class="u-panel" style="margin-bottom:14px">
-    <div class="u-eyebrow" style="margin-bottom:8px">🛠 Lames parties à l'affûtage</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Coche les lames envoyées à l'affûtage. Elles repartent neuves (âge remis à zéro) et l'opération est tracée dans l'historique.</div>
+    <div class="u-eyebrow" style="margin-bottom:8px">🗂 Classeur lames — à affûter</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Toutes les lames utilisées non affûtées, par machine : la lame <b style="color:#4ade80">MONTÉE</b> et les lames <b style="color:var(--orange)">démontées</b> (remplacées sans affûtage — elles ne disparaissent plus du suivi). Coche puis envoie : une montée repart neuve sur sa machine ; une démontée est tracée partie à l'affûtage.</div>
     <div id="affutageList"></div>
     <div style="margin-top:12px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="submitAffutage(this)">✅ Marquer comme affûtées (neuves)</button></div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
@@ -9513,28 +9513,87 @@ function maintViewHTML(){  const machOpts=['feba','maveg','cevenini'].map(m=>`<o
   <div id="maintSummary"></div>
   <div id="maintList"></div>`;
 }
-// Liste des cases à cocher des lames courantes pour l'affûtage.
+// ============================================================
+// [L90] CLASSEUR LAMES — toutes les lames « utilisées non affûtées », par machine.
+// Problème résolu : une lame REMPLACÉE sans passer par l'affûtage disparaissait
+// de tout suivi (seule la lame montée était listée).
+// État dérivé UNIQUEMENT des traces 'maintenance' existantes (pas de reconstruction
+// rétroactive) : pour chaque lameNum, le DERNIER événement fait foi pour l'état ET
+// la machine de rattachement (un même n° passé sur 2 machines = dernier gagne).
+//   dernier = installation → au classeur (MONTÉE si c'est la lame active de sa
+//   machine, sinon « démontée · en attente d'affûtage »)
+//   dernier = affutage     → sortie du classeur (affichée dans « affûtées ≤30 j »)
+// Fonction PURE (testée par harnais Node).
+function lameClasseurEtat(traces,nowIso){
+  const evts=(traces||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&String(r.lameNum||'').trim())
+    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||'')));
+  const last={}, activeByMachine={};
+  evts.forEach(r=>{ const n=String(r.lameNum).trim(); last[n]=r; if(r.categorie==='installation'&&r.machine) activeByMachine[r.machine]=n; });
+  const groupes={feba:[],maveg:[],cevenini:[],hors:[]}, recentes=[];
+  const cutoff=new Date(new Date(nowIso||isoNow()).getTime()-30*86400000).toISOString();
+  Object.entries(last).forEach(([n,r])=>{
+    const d=String(r.dateInstall||r.date||r.createdAt||'');
+    if(r.categorie==='installation'){
+      const m=(r.machine&&groupes[r.machine])?r.machine:'hors';
+      groupes[m].push({num:n,machine:r.machine||'',montee:(!!r.machine&&activeByMachine[r.machine]===n),date:d});
+    } else if(r.categorie==='affutage'&&d>=cutoff){
+      recentes.push({num:n,machine:r.machine||'',date:d});
+    }
+  });
+  Object.values(groupes).forEach(a=>a.sort((x,y)=>((y.montee?1:0)-(x.montee?1:0))||y.date.localeCompare(x.date)));
+  recentes.sort((a,b)=>b.date.localeCompare(a.date));
+  return {groupes,recentes};
+}
+// Affûtage d'une lame DÉMONTÉE : trace SEULE (pas de réinstallation — la lame n'est
+// plus sur la machine). La machine d'origine est conservée dans la trace (ISO).
+async function lameAffuterSeule(machine,lameNum){
+  const num=String(lameNum||'').trim();
+  if(!num){ showToast('N° de lame obligatoire.','err'); return false; }
+  if(!db||!currentUser){ showToast('Connexion requise.','err'); return false; }
+  const now=isoNow(); const who=currentUser?currentUser.ini:'?';
+  const trace={ type:'lame', categorie:'affutage', machine:machine||'', lameNum:num,
+    dateInstall:now, date:now,
+    description:'Lame '+num+' (démontée'+(machine?' de '+getMachineLabel(machine):'')+') partie à l\'affûtage', responsable:who,
+    createdAt:now, createdBy:who, deleted:false };
+  try{
+    const ref=db.collection('maintenance').doc(); await boundedWrite(ref.set(trace),10000);
+    trace.id=ref.id; maintenanceCache.unshift(trace);
+    logAudit('create','maintenance',ref.id,`Affûtage lame ${num} (démontée${machine?' · '+getMachineLabel(machine):''})`).catch(function(){});
+    return true;
+  }catch(e){ showToast('Erreur affûtage : '+e.message,'err'); return false; }
+}
+// Classeur affiché dans l'onglet maintenance.
 function renderAffutageList(){
   const el=document.getElementById('affutageList'); if(!el) return;
-  const items=LAME_MACHINES.map(m=>{
-    const cur=lameActiveForMachine(m); if(!cur) return '';
-    const lbl=getMachineLabel(m);
-    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
-      <input type="checkbox" class="affut-ck" data-m="${m}" data-num="${esc(cur.lameNum||'')}" style="width:18px;height:18px;accent-color:var(--orange)">
-      <span style="font-size:13px;color:var(--text)">⚙ ${esc(lbl)} · 🔪 <b>${esc(cur.lameNum||'—')}</b></span>
-    </label>`;
-  }).filter(Boolean).join('');
-  el.innerHTML=items||'<div class="text-muted" style="font-size:13px">Aucune lame courante déclarée.</div>';
+  const {groupes,recentes}=lameClasseurEtat(maintenanceCache);
+  const bloc=(titre,arr)=>{
+    const rows=arr.map(l=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
+      <input type="checkbox" class="affut-ck" data-m="${esc(l.machine)}" data-num="${esc(l.num)}" data-montee="${l.montee?'1':'0'}" style="width:18px;height:18px;accent-color:var(--orange);flex:0 0 auto">
+      <span style="font-size:13px;color:var(--text)">🔪 <b>${esc(l.num)}</b>${l.montee
+        ?' <span style="background:#14371f;color:#4ade80;font-size:11px;font-weight:800;padding:2px 8px;border-radius:12px">MONTÉE</span>'
+        :' <span style="color:var(--orange);font-size:12px;font-weight:600">démontée · en attente d\'affûtage</span>'}
+      <span style="color:var(--muted);font-size:12px"> · ${l.date?new Date(l.date).toLocaleDateString('fr-FR'):'—'}</span></span>
+    </label>`).join('');
+    return `<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:2px">${titre}</div>${rows||'<div class="text-muted" style="font-size:12px;padding:4px 0">aucune lame en attente</div>'}</div>`;
+  };
+  el.innerHTML=bloc('⚙ '+getMachineLabel('feba'),groupes.feba)
+    +bloc('⚙ '+getMachineLabel('maveg'),groupes.maveg)
+    +bloc('⚙ '+getMachineLabel('cevenini'),groupes.cevenini)
+    +(groupes.hors.length?bloc('📦 Hors machine',groupes.hors):'')
+    +(recentes.length?`<div style="margin-top:8px;font-size:12px;color:var(--muted)">🛠 Affûtées récemment (30 j) : ${recentes.map(r=>esc(r.num)+' — '+new Date(r.date).toLocaleDateString('fr-FR')).join(' · ')}</div>`:'');
 }
 async function submitAffutage(btn){
   if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
   const cks=Array.from(document.querySelectorAll('.affut-ck:checked'));
   if(!cks.length){ showToast('Coche au moins une lame.','err'); return; }
-  if(!(await confirmDlg(cks.length+' lame(s) marquée(s) comme affûtée(s) et réidentifiée(s) neuve(s) ?',{ok:'Confirmer'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
+  const nbM=cks.filter(c=>c.getAttribute('data-montee')==='1').length, nbD=cks.length-nbM;
+  if(!(await confirmDlg('Envoyer '+cks.length+' lame(s) à l\'affûtage ?'+(nbM?'\n\n· '+nbM+' MONTÉE(S) : repartent neuves sur leur machine (âge remis à zéro)':'')+(nbD?'\n· '+nbD+' démontée(s) : tracées parties à l\'affûtage (reposables plus tard via « Changer la lame »)':''),{ok:'Confirmer'}))) return;   // [L90] classeur : montées ≠ démontées
   if(btn) btn.disabled=true;
   let okCount=0;
   for(const ck of cks){
-    const ok=await lameAffuter(ck.getAttribute('data-m'),ck.getAttribute('data-num'));
+    const montee=ck.getAttribute('data-montee')==='1';
+    const ok=montee?await lameAffuter(ck.getAttribute('data-m'),ck.getAttribute('data-num'))
+                   :await lameAffuterSeule(ck.getAttribute('data-m'),ck.getAttribute('data-num'));
     if(ok) okCount++;
   }
   if(btn) btn.disabled=false;
