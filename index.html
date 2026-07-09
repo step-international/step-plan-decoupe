@@ -194,6 +194,13 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 .chute-arrow{color:var(--orange);font-weight:800;margin:0 4px}
 .chute-note{color:var(--orange);font-weight:700}
 .chute-band{background:#2a1f08;border:1px solid #7a5200;border-radius:10px;padding:8px 13px;margin:0 0 9px;font-size:13px;color:var(--orange);font-weight:600}
+/* [L98 · simpl.8] styles répétés factorisés */
+.plan-banner-warn{flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px}
+.ana-card{background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px}
+.ana-card-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+/* [L98 · #8 vbadge] badges VEKA/Profilé enfin colorés (mêmes couleurs que les selects) */
+.vbadge-profile{border-color:#22d3ee;color:#22d3ee;background:#0c2e33}
+.vbadge-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30}
 /* [L94] Stock : 2 colonnes sur tablette/desktop (moins de défilement — demande Esteban) */
 .stock-wrap{display:flex;flex-direction:column;gap:16px;padding-bottom:20px}
 @media(min-width:900px){ .stock-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start} .stock-wrap>.sspan2{grid-column:1/-1} }
@@ -1327,7 +1334,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L97';
+const APP_VERSION='2026.07.09-L98';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1607,7 +1614,7 @@ async function loadFullHistory(btn){
   // à vie (disabled). On réactive TOUJOURS le bouton sur tout chemin non-succès (timeout inclus).
   let ok=false,_timedOut=false;
   try{
-    ok=await Promise.race([ ensureFullHistory(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),25000)) ]);
+    ok=await raceTimeout(ensureFullHistory(),25000);
   }catch(e){ _timedOut=(String(e&&e.message)==='__TIMEOUT__'); }
   if(ok){
     renderDataPage();
@@ -1840,8 +1847,7 @@ function downloadColdArchive(){
   if(!arch.length){showToast('Aucun élément en archive froide pour le moment.\n\n(Les éléments y sont déplacés automatiquement juste avant leur suppression définitive.)','ok');return;}
   const payload={exportDate:new Date().toISOString(),exportBy:currentUser?(currentUser.nom||currentUser.ini):'?',note:'Archive froide — éléments purgés de la corbeille. Conservés ici avant suppression définitive.',count:arch.length,items:arch};
   const b=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-  const a=document.createElement('a');{const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_archive_froide_'+todayISO()+'.json';a.click();
+  downloadBlob(b,'step_archive_froide_'+todayISO()+'.json');   // [L98 · simpl.8]
 }
 
 // Supprime toutes les photos Storage référencées par une fiche (best-effort)
@@ -2589,6 +2595,8 @@ function canViewAudit(){
 // identique : le replace global n'inspecte pas le texte de remplacement, donc aucun double-échappement.
 const g=id=>document.getElementById(id);   // [L86 · simpl.7] raccourci global (était redéfini localement 6 fois)
 const nrm=v=>String(v==null?'':v).trim().toLowerCase();   // [L87 · simpl.5] normalisation UNIQUE (était redéfinie localement 10 fois)
+const MACHINE_KEYS=['feba','maveg','cevenini'];            // [L98 · simpl.8] liste UNIQUE des machines (était dupliquée 9×)
+const MACHINE_LABELS=['FEBA','MAVEG','CEVENINI'];          // [L98 · simpl.8] libellés majuscules (KPI, exports)
 const normConf=c=>(c||'').replace(/x/gi,'×').replace(/\*/g,'×').replace(/(\d)\s+,(\d)/g,'$1.$2').replace(/(\d),(\d)/g,'$1.$2').replace(/\s*×\s*/g,'×').trim();   // [L92 · Audit #17] normalisation UNIQUE alignée sur parseConf : ×/x/*, virgule décimale → point, espaces autour de × — « 4×92,5 » ≡ « 4x92.5 » ≡ « 4 * 92,5 » sur TOUTES les comparaisons (isLineFrozen, NC, cumuls…)
 const pctCls=p=>p<3?'pct-green':p<8?'pct-orange':'pct-red';   // [L87 · simpl.9] couleur perte partagée
 const _ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
@@ -2604,6 +2612,8 @@ function csvCell(v){
 // [L83 · Audit #35-#39] Écriture Firestore BORNÉE : plus aucun bouton/flux ne gèle à vie hors-ligne.
 // En timeout, l'erreur (en français) remonte aux catch existants ; la persistance offline Firestore
 // fera partir l'écriture au retour du réseau — d'où le message « mise en file, ne re-saisis pas ».
+function downloadBlob(blob,filename){ const a=document.createElement('a'); const _bu=URL.createObjectURL(blob); a.href=_bu; setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000); a.download=filename; a.click(); }   // [L98 · simpl.8] queue de téléchargement répétée 7× factorisée
+const raceTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),ms))]);   // [L98 · simpl.8] motif répété 9× factorisé
 function boundedWrite(p,ms){
   return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.')),ms||10000))]);
 }
@@ -2851,10 +2861,7 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
         const blob=await compressImageBlob(file,800,0.6);
         if(oldUrl){ try{ await Promise.race([deletePhotoFromStorage(oldUrl),new Promise(r=>setTimeout(r,4000))]); }catch(e){} }   // [L79] delete borné (4 s)
         // [L79] upload BORNÉ (10 s) : sans ça un réseau lent gelait l'édition (spinner ⏳ à vie). Repli photo LOCALE.
-        val=await Promise.race([
-          uploadPhotoToStorage(blob,'edit_'+Date.now()),
-          new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),10000))
-        ]).catch(async function(err){
+        val=await raceTimeout(uploadPhotoToStorage(blob,'edit_'+Date.now()),10000).catch(async function(err){
           if(String(err&&err.message)!=='__TIMEOUT__') throw err;
           try{ showToast('📡 Réseau lent : photo gardée en LOCAL.','err'); }catch(_){}
           return await compressImage(file,800,0.6);
@@ -5078,7 +5085,7 @@ function recalcPlan(){
   // machine : inchangé. N'affecte QUE la lame — perte bords / mère préservées, moteur intact.
   document.querySelectorAll('[data-rb="machine"]').forEach(el=>{
     el.classList.remove('mach-feba','mach-maveg','mach-cevenini');
-    if(['feba','maveg','cevenini'].includes(el.value)) el.classList.add('mach-'+el.value);
+    if(MACHINE_KEYS.includes(el.value)) el.classList.add('mach-'+el.value);
     const _d=MACHINE_DEFAULTS[el.value], _blk=el.closest('.ref-block'), _b=_blk&&_blk.querySelector('[data-rb="blade"]');
     if(_d&&_b&&_b.value!==_d.blade) _b.value=_d.blade;
   });
@@ -5115,14 +5122,14 @@ function recalcPlan(){
   });
   let heavyBanner='';
   if(heavy){
-    heavyBanner='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">📊 Commande volumineuse (nombreuses laizes distinctes + grosse quantité) — vérifie bien le plan ci-dessous.</div>';   // [L92 · Audit #12] libellé factuel : l'ancien « patiente » s'affichait APRÈS le calcul
+    heavyBanner='<div class="plan-banner-warn">📊 Commande volumineuse (nombreuses laizes distinctes + grosse quantité) — vérifie bien le plan ci-dessous.</div>';   // [L92 · Audit #12] libellé factuel : l'ancien « patiente » s'affichait APRÈS le calcul
   }
   packTruncated=false;   // reset avant calcul : pack() le lèvera si la saisie est aberrante
   const computed=packRefGroupsPal(groups);   // [L82] enveloppe palettes (moteur intact)
   // [L92 · Audit #3] contrainte atelier ≤4 palettes NON tenable (chutes/rouleaux présents ou >12
   // largeurs) : on PRÉVIENT au lieu de dépasser en silence — l'opérateur peut anticiper la place au sol.
   { const _pk=Math.max(0,...computed.map(c=>Number(c._palPeak)||0));
-    if(_pk>PALETTES_MAX) heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ Ce plan ouvrira jusqu\'à <b>'+_pk+' palettes</b> en même temps (limite atelier : '+PALETTES_MAX+') — impossible de faire mieux avec ces chutes/rouleaux. Prévois la place au sol.</div>'; }
+    if(_pk>PALETTES_MAX) heavyBanner+='<div class="plan-banner-warn">⚠ Ce plan ouvrira jusqu\'à <b>'+_pk+' palettes</b> en même temps (limite atelier : '+PALETTES_MAX+') — impossible de faire mieux avec ces chutes/rouleaux. Prévois la place au sol.</div>'; }
   // Garde-fous saisie : qty>5000/ligne, plan tronqué, ou >150 bobines (jamais vu en réel)
   const badQtyRow=groups.some(g=>(g.rows||[]).some(r=>r.qty>5000));
   const totalBobChk=[].concat(...computed.map(c=>c.bobines)).length;
@@ -5140,7 +5147,7 @@ function recalcPlan(){
   // le cas. Calibrage prudent, à valider avec l'atelier.
   const bigQtyRow=groups.some(g=>(g.rows||[]).some(r=>r.qty>1000));   // [L73 · Lot 5 · B43]
   if(!badQtyRow && !packTruncated && totalBobChk<=150 && (bigQtyRow || totalBobChk>30)){   // [L73 · Lot 5 · B43]
-    heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ Quantité inhabituelle ('+(bigQtyRow?'une ligne dépasse 1 000 pièces':totalBobChk+' bobines mères')+') — zéro en trop ? Vérifie la saisie avant d\'envoyer.</div>';   // [L73 · Lot 5 · B43]
+    heavyBanner+='<div class="plan-banner-warn">⚠ Quantité inhabituelle ('+(bigQtyRow?'une ligne dépasse 1 000 pièces':totalBobChk+' bobines mères')+') — zéro en trop ? Vérifie la saisie avant d\'envoyer.</div>';   // [L73 · Lot 5 · B43]
   }
   // Alerte non bloquante : bobine mère saisie très différente de la mère STANDARD
   // connue de la référence. Cause typique du "trop de bobines" (ex. VEKA 41313870,
@@ -5149,7 +5156,7 @@ function recalcPlan(){
     if(!c.rows.length) return;
     const std=refStdMother(c.ref), mo=Number(c.mother)||0;
     if(std>0 && mo>0 && Math.abs(mo-std)>=50){   // [L73 · Lot 5 · B44] seuil ≥50 : un écart de 50 mm pile n'alertait pas
-      heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+esc(c.ref||('Réf '+(ci+1)))+' : bobine mère saisie <b>'+fmt(mo)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(std)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
+      heavyBanner+='<div class="plan-banner-warn">⚠ '+esc(c.ref||('Réf '+(ci+1)))+' : bobine mère saisie <b>'+fmt(mo)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(std)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
     }
   });
   // planGroups global = concat des configs de toutes les réfs (pour le reste de l'app)
@@ -5453,7 +5460,7 @@ function renderPlanManual(){
   planManual.forEach((r,ri)=>{
     const stdPM=refStdMother(r.ref), moPM=Number(r.mother)||0;
     if(stdPM>0 && moPM>0 && Math.abs(moPM-stdPM)>=50){
-      html+='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+esc(r.ref||('Réf '+(ri+1)))+' : bobine mère saisie <b>'+fmt(moPM)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(stdPM)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
+      html+='<div class="plan-banner-warn">⚠ '+esc(r.ref||('Réf '+(ri+1)))+' : bobine mère saisie <b>'+fmt(moPM)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(stdPM)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
     }
   });
   planManual.forEach((r,ri)=>{
@@ -6069,7 +6076,7 @@ async function doSave(){
           showToast('Modification abandonnée — recharge le plan (📂) pour repartir de la dernière version.','err');
           return; // editingSaveId conservé → l'utilisateur peut recharger/réessayer
         }
-        try{ await Promise.race([ db.collection('saves').doc(target).update(updEntry), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),10000)) ]); } // écrasement assumé [L79] borné
+        try{ await raceTimeout(db.collection('saves').doc(target).update(updEntry),10000); } // écrasement assumé [L79] borné
         catch(e2){ showToast(String(e2&&e2.message)==='__TIMEOUT__'?'⏳ Réseau lent — réessaie.':('Erreur sauvegarde : '+e2.message),'err'); return; }
       }
       editingSaveId=null; _editSaveBase=null;
@@ -6079,7 +6086,7 @@ async function doSave(){
       logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
       if(typeof showToast==='function') showToast('✏️ Plan modifié','ok');
     }else{
-      const docRef=await Promise.race([ db.collection('saves').add(entry), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),10000)) ]);   // [L79] borné : anti bouton-mort
+      const docRef=await raceTimeout(db.collection('saves').add(entry),10000);   // [L79] borné : anti bouton-mort
       savesCache.unshift({_id:docRef.id,...entry});
       if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
       logAudit('create','saves',docRef.id,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
@@ -6791,7 +6798,7 @@ function confirmCommandeRecap(){
   const machSet=new Set();
   ficheLines.forEach(({id})=>{
     const el=document.getElementById(id); if(!el) return;
-    ['feba','maveg','cevenini'].forEach(m=>{ if(el.classList.contains(m)) machSet.add(getMachineLabel(m)); });
+    MACHINE_KEYS.forEach(m=>{ if(el.classList.contains(m)) machSet.add(getMachineLabel(m)); });
   });
   const machStr=machSet.size?[...machSet].join(', '):'—';
   let msg='📤 Confirmer l\'envoi de la commande ?\n\n';
@@ -7750,10 +7757,7 @@ async function doChronoSave(){
     // [L79] add() BORNÉ (8 s) : sans ça un réseau lent gelait l'await → le finally ne libérait jamais
     // _savingChrono (bouton « Enregistrer » mort). La persistance offline Firestore rend l'écriture
     // durable même sur timeout, donc on considère le relevé « mis en file » et on libère l'UI.
-    const docRef=await Promise.race([
-      db.collection('temps').add(entry),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),8000))
-    ]);
+    const docRef=await raceTimeout(db.collection('temps').add(entry),8000);
     tempsCache.unshift({_id:docRef.id,...entry});
     if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);
     logAudit('create','temps',docRef.id,`Relevé enregistré — ${client} / ${ref} (durée ${fmtTimeFr(entry.duree)})`,{client:client,ref:ref,dateCmd:entry.date}).catch(function(){});   // [L79] non bloquant
@@ -7920,7 +7924,7 @@ function openTempsEdit(id){
   const dh=Math.floor(sec/3600), dm=Math.floor((sec%3600)/60), dss=sec%60;
   const dateVal=(()=>{ const d=new Date(t.date); return isNaN(d)?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const machVal=String(t.machine||'').toUpperCase();
-  const machOpts=['FEBA','MAVEG','CEVENINI'].map(m=>`<option value="${m}"${m===machVal?' selected':''}>${m}</option>`).join('');
+  const machOpts=MACHINE_LABELS.map(m=>`<option value="${m}"${m===machVal?' selected':''}>${m}</option>`).join('');
   const old=document.getElementById('tempsEditOverlay'); if(old) old.remove();
   const inp='padding:9px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;width:100%;box-sizing:border-box;font-size:14px';
   const lab='font-size:12px;color:#888;display:block;margin-bottom:4px';
@@ -8041,8 +8045,7 @@ async function exportTemps(){
   });
   const csv='\ufeff'+headers+'\n'+rows.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');{const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_temps_'+todayISO()+'.csv';a.click();
+  downloadBlob(b,'step_temps_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 
 // ============================================================
@@ -8160,20 +8163,20 @@ function buildFicheAnalytics(){
       </div>`;
 
   return `
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">🥧 Répartition des non-conformités par type</div>
+    <div class="ana-card">
+      <div class="ana-card-title">🥧 Répartition des non-conformités par type</div>
       ${ncBlock}
       <div style="font-size:12px;color:var(--muted);margin-top:8px">Source : fiches de découpe (hors corbeille). Identifie le défaut récurrent à traiter en priorité (ISO 9001).</div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚠ Taux de NC par opérateur</div>
+      <div class="ana-card">
+        <div class="ana-card-title">⚠ Taux de NC par opérateur</div>
         <div style="overflow-x:auto">${svgHBars(opItems,'%',420,46)}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:6px">NC ÷ bobines contrôlées. À lire comme un indicateur de formation, pas de sanction.</div>
       </div>
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚙️ Taux de NC par machine</div>
+      <div class="ana-card">
+        <div class="ana-card-title">⚙️ Taux de NC par machine</div>
         <div style="overflow-x:auto">${svgHBars(machItems,'%',420,80)}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:6px">Une machine qui sort plus de NC = réglage ou maintenance à prévoir.</div>
       </div>
@@ -8275,12 +8278,14 @@ function fmtHm(sec){sec=Math.max(0,Math.round(sec));const h=Math.floor(sec/3600)
 
 // PUR : calcule les KPI d'un mois depuis des tableaux fiches/temps. Testable sans Firebase.
 // Perte = moyenne PONDÉRÉE par le nombre de bobines (une grosse commande pèse plus).
+// [L98 · #13] mois LOCAL (une fiche de 00h30 le 1er ne part plus dans le mois UTC précédent)
+function _localYM(d){ const x=new Date(d); if(isNaN(x)) return String(d||'').slice(0,7); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'); }
 function buildMonthlyKpi(ym,fiches,temps){
-  const F=(fiches||[]).filter(f=>!f.deleted&&f.valide!==false&&String(f.date||'').slice(0,7)===ym);   // [L79·AN-1] exclure les fiches REFUSÉES (valide===false) des KPI mensuels (bobines/perte gonflées sinon)
-  const T=(temps||[]).filter(t=>!t.deleted&&String(t.date||'').slice(0,7)===ym);
-  const MACH=['FEBA','MAVEG','CEVENINI'];
+  const F=(fiches||[]).filter(f=>!f.deleted&&f.valide!==false&&_localYM(f.date)===ym);   // [L98 · #13] mois local   // [L79·AN-1] exclure les fiches REFUSÉES (valide===false) des KPI mensuels (bobines/perte gonflées sinon)
+  const T=(temps||[]).filter(t=>!t.deleted&&_localYM(t.date)===ym);   // [L98 · #13] mois local
+  const MACH=MACHINE_LABELS;
   const mach={};MACH.forEach(m=>mach[m]={bobines:0,wpNum:0,wpDen:0,dur:0,laizes:0});
-  let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0;   // [L83 · Audit #44]
+  let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0,soldeMm=0,chutesPieces=0;   // [L83 · Audit #44][L98 · #13]
   const cliVol={},refVol={};   // [L79·AN-3] volume (bobines) par client / par réf → top 5 stockés dans l'agrégat
   F.forEach(f=>{
     const b=Number(f.totalBobines)||0,p=parseFloat(f.pct);
@@ -8291,6 +8296,8 @@ function buildMonthlyKpi(ym,fiches,temps){
     else autresBobines+=b;   // [L83 · Audit #44] machine hors FEBA/MAVEG/CEVENINI : comptée à part (total = machines + autres)
     const c=String(f.client||'—').trim()||'—'; cliVol[c]=(cliVol[c]||0)+b;
     const rf=String(f.ref||'—').trim()||'—'; refVol[rf]=(refVol[rf]||0)+b;
+    const gs=f.groups||[]; if(gs.length) soldeMm+=parseNum(gs[gs.length-1].waste)||0;   // [L98 · #13] chute RÉUTILISABLE (solde conservé)
+    chutesPieces+=Object.values(f.chutesStock||{}).reduce((a2,b2)=>a2+(Number(b2)||0),0);   // [L98 · #13] bobineaux pris en stock
   });
   const topClients=Object.entries(cliVol).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:e[1]}));
   const topRefs=Object.entries(refVol).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:e[1]}));
@@ -8303,16 +8310,19 @@ function buildMonthlyKpi(ym,fiches,temps){
   });
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
-  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines};   // [L83 · Audit #44]
+  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces};   // [L83 · Audit #44][L98 · #13]
 }
 
 // Fige un mois : requête datée DIRECTE (indépendante du cache boot allégé), filtre deleted client.
 async function computeMonthAggregate(ym){
   if(!db) throw new Error('Base indisponible');
   const next=nextYM(ym);
+  // [L98 · #13] bornes élargies de ±2 jours : le filtre PRÉCIS (mois LOCAL) est dans buildMonthlyKpi
+  const _lo=new Date(new Date(ym+'-01T00:00:00Z').getTime()-2*86400000).toISOString();
+  const _hi=new Date(new Date(next+'-01T00:00:00Z').getTime()+2*86400000).toISOString();
   const r=await Promise.all([
-    db.collection('fiches').where('date','>=',ym).where('date','<',next).get(),
-    db.collection('temps').where('date','>=',ym).where('date','<',next).get()
+    db.collection('fiches').where('date','>=',_lo).where('date','<',_hi).get(),
+    db.collection('temps').where('date','>=',_lo).where('date','<',_hi).get()
   ]);
   const kpi=buildMonthlyKpi(ym,r[0].docs.map(d=>d.data()),r[1].docs.map(d=>d.data()));
   kpi.figeAt=isoNow();
@@ -8369,7 +8379,7 @@ function printKpiMois(ym){
   const M=kpi.machines||{};
   const td='padding:6px 8px;border:1px solid #ccc';
   const th='text-align:right;padding:5px 8px;border:1px solid #ccc;background:#f2f2f2';
-  const machRows=['FEBA','MAVEG','CEVENINI'].map(n=>{const x=M[n]||{};return `<tr><td style="${td}">${n}</td><td style="${td};text-align:right">${(x.bobines||0).toLocaleString('fr-FR')}</td><td style="${td};text-align:right">${(x.pertePct||0)} %</td><td style="${td};text-align:right">${x.secLaize||0} s</td></tr>`;}).join('');
+  const machRows=MACHINE_LABELS.map(n=>{const x=M[n]||{};return `<tr><td style="${td}">${n}</td><td style="${td};text-align:right">${(x.bobines||0).toLocaleString('fr-FR')}</td><td style="${td};text-align:right">${(x.pertePct||0)} %</td><td style="${td};text-align:right">${x.secLaize||0} s</td></tr>`;}).join('');
   const topRows=arr=>((arr||[]).map(x=>`<tr><td style="${td}">${esc(x.k)}</td><td style="${td};text-align:right;font-weight:700">${Number(x.v).toLocaleString('fr-FR')}</td></tr>`).join('')||`<tr><td style="${td}" colspan="2">—</td></tr>`);
   const html=`<div style="font-family:system-ui,-apple-system,sans-serif;color:#111;padding:6mm;max-width:190mm">
     <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:14px">
@@ -8397,7 +8407,7 @@ function buildKpiMoisBlock(){
     const tag=ym===cur?' — en cours':(agregatsCache.some(a=>a.mois===ym)?' — figé':' — non figé');
     return `<option value="${ym}">${monthLabelFr(ym)}${tag}</option>`;
   }).join('');
-  return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+  return `<div class="ana-card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">📊 KPI mensuels</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -8469,6 +8479,8 @@ function kpiMoisInnerHTML(ym){
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Rendement matière</div><div style="font-size:24px;font-weight:800;color:var(--green)">${rendement.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#777;margin-top:3px">utile ÷ mère</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#666">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chute réutilisable</div><div style="font-size:24px;font-weight:800;color:#5eead4">${((kpi.soldeMm||0)/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} m</div><div style="font-size:11px;color:#777;margin-top:3px">soldes conservés (≠ perte)</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#777;margin-top:3px">chutes réutilisées</div></div>
     </div>
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#60a5fa')}${machCard('MAVEG','#4ade80')}${machCard('CEVENINI','#a78bfa')}</div>
@@ -8490,7 +8502,8 @@ var stockArticlesCache=[];
 var stockMouvementsCache=[];
 var stockLoaded=false;
 var stockMvtType='entree';
-let stockFilterRef='';   // [L94] filtre par référence (ex. « DQ1000 ») appliqué aux tableaux, articles et mouvements
+let stockFilterRef='';
+let stockSecOpen={mvt:true,imp:false,art:false,prev:false,mvts:false};   // [L98 · #12] état replié/déplié des sections (moins de défilement)   // [L94] filtre par référence (ex. « DQ1000 ») appliqué aux tableaux, articles et mouvements
 let _stockFilterTimer=null;
 function stockSetFilter(v){ stockFilterRef=v||''; clearTimeout(_stockFilterTimer); _stockFilterTimer=setTimeout(function(){ renderStock(); setTimeout(function(){ const i=stkEl('stockFilterInp'); if(i&&stockFilterRef){ i.focus(); const L=i.value.length; try{i.setSelectionRange(L,L);}catch(e){} } },30); },350); }
 
@@ -8752,7 +8765,7 @@ function stockViewHTML(){
     ${STOCK_LOCS.map(section).join('')}
 
     <div id="stock-sec-mvt" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
-      <div class="section-title">Nouveau mouvement</div>
+      <div class="section-title">Nouveau mouvement</div><details ${stockSecOpen.mvt?'open':''} ontoggle="stockSecOpen.mvt=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Emplacement</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">${locBtns}</div>
       <div style="display:flex;gap:6px;margin-bottom:10px">
@@ -8767,7 +8780,7 @@ function stockViewHTML(){
         <div><label class="stk-lbl">N° BL / lot</label><input id="stockBl" class="stk-inp"></div>
         <div><label class="stk-lbl">Note / motif</label><input id="stockNote" class="stk-inp"></div>
       </div>
-      <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="saveStockMouvement(this)">✓ Enregistrer le mouvement</button>
+      <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="saveStockMouvement(this)">✓ Enregistrer le mouvement</button></details>
     </div>
 
     <div id="stock-sec-import" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
@@ -8775,21 +8788,21 @@ function stockViewHTML(){
         <div class="section-title" style="margin-bottom:0">📥 Import fournisseur (Excel / CSV)</div>
         <button class="btn btn-ghost btn-sm" onclick="bkFillSample()">📋 Liste 01/07</button>
         <button class="btn btn-orange btn-sm" onclick="bkRemplacerParXls()" title="Annule l'import B+K existant (contre-écritures) et charge l'état Excel : stock B+K avec ancienneté, camions du 26/05 reçus chez STEP, lignes en production">🔄 Remplacer par l'Excel 26/05</button>
-      </div>
+      </div><details ${stockSecOpen.imp?'open':''} ontoggle="stockSecOpen.imp=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Colle la liste des commandes ouvertes B+K (copiée depuis <b>Excel</b> ou en <b>CSV</b>). Chaque ligne crée une <b>entrée B+K</b> datée de sa semaine « On stock » (KW → date réelle) ; les lignes avec BL créent en plus la <b>réception</b> (sortie B+K → entrée STEP). Réimporter la même liste ne crée aucun doublon.</div>
       <textarea id="bkImportText" rows="5" style="width:100%;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:12px;padding:8px" placeholder="matno, typ, mm, ml, ar, batch, qty_m2, price, req, onstock, … (collage direct depuis Excel accepté)"></textarea>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-blue" onclick="bkAnalyseImport()">🔎 Analyser</button>
         <button class="btn btn-green hidden" id="bkImportBtn" onclick="bkRunImport(this)">✓ Importer</button>
       </div>
-      <div id="bkPreview" style="margin-top:10px"></div>
+      <div id="bkPreview" style="margin-top:10px"></div></details>
     </div>
 
     <div id="stock-sec-articles" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
         <div class="section-title" style="margin-bottom:0">Articles & réglages appro.</div>
         <button class="btn btn-ghost btn-sm" onclick="toggleStockArticleForm()">➕ Nouvel article</button>
-      </div>
+      </div><details ${stockSecOpen.art?'open':''} ontoggle="stockSecOpen.art=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
       <datalist id="stockRefList">${datalist}</datalist>
       <div id="stockArticleForm" class="hidden" style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:13px 14px;margin-bottom:10px">
         <div class="section-title">Nouvel article</div>
@@ -8806,20 +8819,20 @@ function stockViewHTML(){
         </div>
         <button class="btn btn-green btn-sm" style="margin-top:10px" onclick="saveStockArticle(this)">✓ Créer l'article</button>
       </div>
-      <div>${arts.length?arts.map(a=>stockArticleCardHTML(a,_soldeTot[a.ref]||0)).join(''):'<div class="text-muted" style="padding:8px 0">Aucun article. Crée-en un avec ➕ Nouvel article.</div>'}</div>
+      <div>${arts.length?arts.map(a=>stockArticleCardHTML(a,_soldeTot[a.ref]||0)).join(''):'<div class="text-muted" style="padding:8px 0">Aucun article. Crée-en un avec ➕ Nouvel article.</div>'}</div></details>
     </div>
 
     <div id="stock-sec-prev" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <div class="section-title" style="margin-bottom:0">🔮 Prévision d'approvisionnement</div>
         <label class="u-meta">Horizon&nbsp;<input id="stockHorizonSem" type="number" min="1" value="18" oninput="stockForecastRenderDebounced()" style="width:64px;padding:5px 7px;border-radius:7px;border:1px solid var(--border2);background:var(--card);color:var(--text)"> sem.</label>
-      </div>
+      </div><details ${stockSecOpen.prev?'open':''} ontoggle="stockSecOpen.prev=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Stock = disponible (STEP International + en production ; B+K non compté tant qu'il n'est pas reçu). Consommation déduite des sorties des 90 derniers jours.</div>
-      <div id="stockForecast"></div>
+      <div id="stockForecast"></div></details>
     </div>
 
     <div id="stock-sec-mvts" class="sspan2">
-      <div class="section-title" style="margin-bottom:8px">Derniers mouvements</div>
+      <div class="section-title" style="margin-bottom:8px">Derniers mouvements</div><details ${stockSecOpen.mvts?'open':''} ontoggle="stockSecOpen.mvts=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
       ${mvts.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
         <thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">Date</th>
@@ -8830,7 +8843,7 @@ function stockViewHTML(){
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">N° BL</th>
           <th style="text-align:left;padding:5px 6px;border-bottom:1px solid var(--border)">Op.</th>
           <th style="text-align:center;padding:5px 6px;border-bottom:1px solid var(--border)"></th>
-        </tr></thead><tbody>${log}</tbody></table>`:'<div class="text-muted" style="padding:8px 0">Aucun mouvement.</div>'}
+        </tr></thead><tbody>${log}</tbody></table>`:'<div class="text-muted" style="padding:8px 0">Aucun mouvement.</div>'}</details>
     </div>
     <div style="font-size:12px;color:#666;padding-top:8px;border-top:1px solid var(--border)">Saisie manuelle. Branchement auto (baisse au démarrage de commande) = lot suivant.</div>
   </div>`;
@@ -9283,7 +9296,7 @@ async function bkRunImport(btn){
     const batch=db.batch();
     const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc('bkart_'+_bkHash(String(a.ref))); batch.set(dr,a); return dr; });
     const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const dr=db.collection('stockMouvements').doc('bk_'+_bkHash(tok+'|'+m.type+'|'+m.location)); batch.set(dr,m); return dr; });
-    await Promise.race([ batch.commit(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),25000)) ]);   // borné : jamais de bouton gelé
+    await raceTimeout(batch.commit(),25000);   // borné : jamais de bouton gelé
     arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
     mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
     logAudit('create','stockMouvements','import-bk',`Import fournisseur B+K : ${mvts.length} mouvement(s), ${arts.length} article(s) — total ${mvts.reduce((s,m)=>s+m.m2,0).toLocaleString('fr-FR')} m² net`).catch(()=>{});
@@ -9317,7 +9330,7 @@ function maintCatLabel(type,cat){ return MAINT_CAT_LABEL[cat]||cat||''; }
 // depuis les fiches (somme des qty des commandes sur cette machine depuis
 // la date de pose). Aucun compteur stocké → pas de désync possible.
 // ============================================================
-const LAME_MACHINES=['feba','maveg','cevenini'];
+const LAME_MACHINES=MACHINE_KEYS;
 // Dernier event d'installation par machine (lame courante). null si aucune.
 function lameActiveForMachine(machine){
   const evts=(maintenanceCache||[])
@@ -9614,7 +9627,7 @@ async function confirmLameInstall(){
   if(ok) renderMaintenance();
 }
 // [L83 · Audit #24] maintRespOpts supprimée (morte — le formulaire « Installer/déclarer une lame » a été retiré au L79)
-function maintViewHTML(){  const machOpts=['feba','maveg','cevenini'].map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
+function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
   return `
   <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Suivi des lames de découpe — preuve ISO 9001. L'alerte de changement se déclenche selon la machine : FEBA 15 jours, MAVEG et CEVENINI 10 jours après la pose. <span style="color:var(--green)">Installe / change une lame directement sur la machine concernée ci-dessous (« 🔄 Changer la lame »).</span></div>
   <!-- [L79] Formulaire « Installer / déclarer une lame » du haut RETIRÉ (redondant) : l'installation/changement se fait par machine dans « État des lames » via lameInstallPrompt. saveMaintenance conservée sans accès UI. -->
@@ -9816,10 +9829,7 @@ function exportMaintenance(){
   ].map(csvCell).join(';'));
   const csv='\uFEFF'+head.join(';')+'\n'+lines.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');
-  {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='suivi_lames_'+todayISO()+'.csv';
-  a.click();
+  downloadBlob(b,'suivi_lames_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 
 // ============================================================
@@ -9833,7 +9843,7 @@ function exportMaintenance(){
 // meilleure machine, file du jour. (Re-fusion branche analytics.)
 // Source : enregistrements 'temps'. débit m/h = longueur×nbBobines×3600/durée.
 // ============================================================
-const DUJ_MACHINES=['feba','maveg','cevenini'];
+const DUJ_MACHINES=MACHINE_KEYS;
 const DUJ_LABEL2KEY={FEBA:'feba',MAVEG:'maveg',CEVENINI:'cevenini'};
 var dujQueue=[];
 function dujMachKey(m){ if(!m) return ''; const k=DUJ_LABEL2KEY[m]; if(k) return k; const lo=String(m).toLowerCase(); return DUJ_MACHINES.includes(lo)?lo:''; }
@@ -10124,8 +10134,8 @@ function buildAnalyseDashboard(d){
       </div>
     </div>
 
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⬛ Temps moyen par largeur de bobineau</div>
+    <div class="ana-card">
+      <div class="ana-card-title">⬛ Temps moyen par largeur de bobineau</div>
       <div style="overflow-x:auto">
         <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">
           ${svgBarChart(widthItems,'#60a5fa',maxW,W,H,padL,padB)}
@@ -10134,7 +10144,7 @@ function buildAnalyseDashboard(d){
       <div style="font-size:12px;color:var(--muted);margin-top:6px">Axe X = largeur en mm · Axe Y = secondes par laize (moyenne)</div>
     </div>
 
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
+    <div class="ana-card">
       <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📈 Évolution sec/laize par opérateur (par semaine)</div>
       <div style="margin-bottom:10px">${legendOps}</div>
       <div style="overflow-x:auto">
@@ -10145,8 +10155,8 @@ function buildAnalyseDashboard(d){
       <div style="font-size:12px;color:var(--muted);margin-top:6px">Axe X = semaine de l'année · Axe Y = secondes par laize (moyenne hebdo)</div>
     </div>
 
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">🏆 Classement clients — durée moyenne</div>
+    <div class="ana-card">
+      <div class="ana-card-title">🏆 Classement clients — durée moyenne</div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="border-bottom:1px solid #333">
           <th style="text-align:left;padding:6px 10px;color:#888;font-size:12px;font-weight:700">#</th>
@@ -10175,8 +10185,8 @@ function buildAnalyseDashboard(d){
       <div style="font-size:12px;color:var(--muted);margin-top:8px">Rouge = commandes longues · Vert = commandes rapides (relatif au client le plus lent)</div>
     </div>
 
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">⚙️ Comparaison machines</div>
+    <div class="ana-card">
+      <div class="ana-card-title">⚙️ Comparaison machines</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
         ${machItems.map(m=>`
         <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px;text-align:center">
@@ -10211,8 +10221,8 @@ function buildAnalyseDashboard(d){
       </div>
     </div>
 
-    <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">📦 Volume de découpes par semaine</div>
+    <div class="ana-card">
+      <div class="ana-card-title">📦 Volume de découpes par semaine</div>
       <div style="overflow-x:auto">
         <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${volSvg}</svg>
       </div>
@@ -10343,7 +10353,7 @@ function renderLameStats(){
 var analyseFilter={mach:'ALL',op:'ALL',month:'ALL'};
 function setAnalyseFilter(dim,val){ if(analyseFilter[dim]===val) return; analyseFilter[dim]=val; try{ renderAnalyse(); }catch(e){ console.warn('renderAnalyse:',e); } }
 function analyseFilterBar(allTemps){
-  const MACHS=['FEBA','MAVEG','CEVENINI'], C={FEBA:'#60a5fa',MAVEG:'#4ade80',CEVENINI:'#a78bfa'};
+  const MACHS=MACHINE_LABELS, C={FEBA:'#60a5fa',MAVEG:'#4ade80',CEVENINI:'#a78bfa'};
   const machs=MACHS.filter(m=>allTemps.some(t=>String(t.machine||'').toUpperCase()===m));
   const ops=[...new Set(allTemps.map(t=>String(t.operateur||'').trim()).filter(Boolean))].sort();
   const months=[...new Set(allTemps.map(t=>String(t.date||'').slice(0,7)).filter(s=>s.length===7))].sort().reverse();
@@ -10713,7 +10723,7 @@ function _resteGroupsFromFiche(f){
     const mother=parseNum(f.mother), useful=parseNum(f.useful);
     const edge=Math.max(0,mother-useful), blade=parseNum(f.blade);
     let machine=String((det.find(x=>x&&x.machine)||{}).machine||'').trim().toLowerCase();
-    if(!machine){ const lbl=String(f.machine||'').trim().toLowerCase(); if(['feba','maveg','cevenini'].includes(lbl)) machine=lbl; }
+    if(!machine){ const lbl=String(f.machine||'').trim().toLowerCase(); if(MACHINE_KEYS.includes(lbl)) machine=lbl; }
     const g0=(Array.isArray(f.refGroups)&&f.refGroups[0])?f.refGroups[0]:{};
     base=[{
       ref:f.ref||'', longueur:f.longueur||g0.longueur||'', film:f.film||g0.film||'', veka:f.veka||g0.veka||'',
@@ -10745,7 +10755,7 @@ function _resteGroupsFromFiche(f){
     const _op2Refs=new Set(Object.keys(_lastOp2).filter(k=>_lastOp2[k]));   // [L76] réfs dont le reliquat est réellement calé op.2
     if(_op2Refs.size){
       const _l2=String(f.machine2||'').trim().toLowerCase();   // f.machine2 = LABEL ('MAVEG') → clé ('maveg')
-      const _mach2=['feba','maveg','cevenini'].includes(_l2)?_l2:'';
+      const _mach2=MACHINE_KEYS.includes(_l2)?_l2:'';
       base.forEach(g=>{
         if(multi&&!_op2Refs.has(nrm(g.ref))) return;   // multi-réf : seule la réf ciblée par op.2
         g.mother=_m2; g.edge=Math.max(0,_e2); g.blade=_b2;
@@ -10871,6 +10881,72 @@ function _ficheValidBlockReason(data){
   }
   return null;
 }
+// ============================================================
+// [L98 · #9 Esteban] SORTIE DE STOCK à la VALIDATION d'une fiche — stock connecté phase 2.
+// Modale pré-remplie (matière ≈ bobines mères × mère × longueur), modifiable, refusable d'un
+// tap ; écrit des mouvements « sortie / STEP » classiques (annulables par contre-écriture).
+// ============================================================
+function proposeStockSortie(f){
+  try{
+    if(!canViewStock()||!Array.isArray(stockArticlesCache)||!stockArticlesCache.length) return;
+    const dets=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+    const rows=[];
+    const push=(refName,mother,longueur,nb)=>{ const m2=Math.round((parseNum(mother)||0)/1000*(parseNum(longueur)||0)*nb); if(nb>0&&m2>0) rows.push({refName:refName||'—',nb,m2}); };
+    if(Array.isArray(f.refGroups)&&f.refGroups.length){
+      f.refGroups.forEach(gr=>{ const nb=dets.filter(fd=>fd&&!fd.recut&&nrm(fd.ref)===nrm(gr.ref)).length; push(gr.ref,gr.mother,gr.longueur,nb); });
+    } else {
+      const nb=dets.filter(fd=>fd&&!fd.recut).length||Number(f.totalBobines)||0;
+      push(f.ref,f.mother,f.longueur,nb);
+    }
+    if(!rows.length) return;
+    const arts=stockArticlesCache.filter(a=>!a.deleted).slice().sort((a,b)=>String(a.ref).localeCompare(String(b.ref)));
+    const guess=rn=>{ const code=nrm(rn).split(' - ')[0].split(' ')[0]; let hit=code?arts.find(a=>nrm(a.ref).includes(code)):null; if(!hit) hit=arts.find(a=>nrm(a.ref).includes(nrm(rn).slice(0,8))); return hit?hit.ref:''; };
+    const lineHtml=(r,i)=>`<div style="display:grid;grid-template-columns:1fr 110px;gap:8px;margin-bottom:8px;align-items:end">
+      <div><label class="stk-lbl">${esc(r.refName)} · ${r.nb} bobine(s) mère(s)</label>
+        <select id="sso_art_${i}" class="stk-inp"><option value="">— ne pas sortir —</option>${arts.map(a=>`<option value="${esc(a.ref)}"${a.ref===guess(r.refName)?' selected':''}>${esc(a.ref)}</option>`).join('')}</select></div>
+      <div><label class="stk-lbl">m²</label><input id="sso_m2_${i}" inputmode="numeric" value="${r.m2}" class="stk-inp"></div>
+    </div>`;
+    const ov=document.createElement('div');
+    ov.id='ssoOverlay'; ov.className='modal-overlay open'; ov.style.zIndex='9500';
+    ov.innerHTML=`<div class="modal" role="dialog" aria-modal="true" style="max-width:560px">
+      <div style="font-size:15px;font-weight:800;margin-bottom:6px">📦 Sortie de stock — matière consommée</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Fiche validée : ${esc(f.client||'')} / ${esc(f.ref||'')}${f.numCmd?' · N° '+esc(f.numCmd):''}. Vérifie/ajuste puis confirme — chaque sortie reste annulable (contre-écriture tracée).</div>
+      ${rows.map(lineHtml).join('')}
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost" onclick="document.getElementById('ssoOverlay')?.remove()">✕ Pas maintenant</button>
+        <button class="btn btn-green" onclick="confirmStockSortie('${esc(f._id)}',${rows.length},this)">✓ Sortir du stock</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+  }catch(e){ console.warn('Proposition sortie stock :',e); }
+}
+async function confirmStockSortie(fid,n,btn){
+  const f=fichesCache.find(x=>x._id===fid);
+  const outs=[];
+  for(let i=0;i<n;i++){
+    const ref=document.getElementById('sso_art_'+i)?.value||'';
+    const m2=Math.abs(parseFloat(String(document.getElementById('sso_m2_'+i)?.value||'').replace(',','.'))||0);
+    if(ref&&m2>0) outs.push({ref,m2});
+  }
+  if(!outs.length){ showToast('Aucune ligne à sortir (choisis une matière).','err'); return; }
+  if(btn) btn.disabled=true;
+  try{
+    const batch=db.batch(); const created=[];
+    outs.forEach(o=>{
+      const art=stockArticlesCache.find(a=>a.ref===o.ref);
+      const su=art?(Number(art.surfaceUnit)||stockSurfaceUnit(art.largeur,art.longueur)):0;
+      const mvt={ date:isoNow(), type:'sortie', ref:o.ref, m2:-o.m2, location:'step',
+        rouleaux:su>0?Math.round(o.m2/su*10)/10:null, bl:'',
+        note:'Conso fiche validée — '+(f?(f.client||'')+' / '+(f.ref||''):fid)+(f&&f.numCmd?' · N° '+f.numCmd:''),
+        op:currentUser?currentUser.ini:'?', deleted:false };
+      const dr=db.collection('stockMouvements').doc(); batch.set(dr,mvt); created.push({mvt,dr});
+    });
+    await boundedWrite(batch.commit(),12000);
+    created.forEach(x=>{ x.mvt.id=x.dr.id; stockMouvementsCache.unshift(x.mvt); });
+    logAudit('create','stockMouvements','conso-fiche',`Sortie stock (conso fiche validée) ${f?(f.client||'')+' / '+(f.ref||''):fid} : ${outs.map(o=>o.m2.toLocaleString('fr-FR')+' m² '+o.ref).join(' · ')}`).catch(function(){});
+    document.getElementById('ssoOverlay')?.remove();
+    showToast('✓ '+outs.length+' sortie(s) de stock enregistrée(s)','ok');
+  }catch(e){ showToast('Erreur sortie stock : '+e.message,'err'); if(btn) btn.disabled=false; }
+}
 async function validateFiche(id){
   if(!canValidate()){showToast('Validation réservée au pilotage et aux admins.','err');return;}
   const f=fichesCache.find(x=>x._id===id);
@@ -10926,6 +11002,7 @@ async function validateFiche(id){
     }),12000);   // [L83 · Audit #38] borné
     f.valide=true;f.valideBy=by;f.valideAt=at;
     await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
+    try{ proposeStockSortie(f); }catch(e){ console.warn('Sortie stock :',e); }   // [L98 · #9] proposition de sortie de stock (refusable d'un tap)
   }catch(e){showToast('Erreur validation : '+e.message,'err');}
   // Fiche manque-matière validée : proposer de créer le PLAN DU RESTE (recalcul
   // ordonné − coupé) dans Données > Plans, et remplacer le brouillon du solde.
@@ -11218,7 +11295,7 @@ async function saveFicheConfigs(id){
       // On NE BLOQUE PLUS : on PROPOSE d'écraser — un admin/pilotage doit toujours pouvoir enregistrer
       // sa modif (ex. ajout d'une photo oubliée). En cas de vraie modif concurrente, l'avertissement laisse le choix.
       if(!(await confirmDlg('⚠ Cette fiche a peut-être été modifiée ailleurs depuis que tu l\'as ouverte.\n\nEnregistrer TA version quand même ? (elle remplacera l\'autre)',{ok:'Enregistrer ma version'}))){ showToast('Modification abandonnée — recharge la fiche (✏️) pour repartir de la dernière version.','err'); return; }
-      try{ await Promise.race([ db.collection('fiches').doc(id).update(updSafe), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),12000)) ]); }
+      try{ await raceTimeout(db.collection('fiches').doc(id).update(updSafe),12000); }
       catch(e2){ showToast(String(e2&&e2.message)==='__TIMEOUT__'?'⏳ Réseau lent/coupé — réessaie.':('Erreur enregistrement : '+e2.message),'err'); return; }
     }
     Object.assign(f,updSafe);
@@ -11395,10 +11472,7 @@ function exportAudit(){
   if(!rows.length){showToast('Aucune entrée à exporter.','err');return;}
   const csv=buildAuditCsv(rows);
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');
-  {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='piste_audit_'+todayISO()+'.csv';
-  a.click();
+  downloadBlob(b,'piste_audit_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 async function auditRefresh(btn){
   if(!db) return;
@@ -11592,10 +11666,7 @@ async function exportNc(){
   ].map(csvCell).join(';'));
   const csv='\uFEFF'+head.join(';')+'\n'+lines.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');
-  {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='registre_NC_'+todayISO()+'.csv';
-  a.click();
+  downloadBlob(b,'registre_NC_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 
 // Sépare la matière non utilisée d'une fiche en deux catégories :
@@ -12169,8 +12240,7 @@ async function exportFiches(){
     (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'')
   ].map(csvCell).join(';')).join('\n');
   const b=new Blob(['\ufeff'+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');{const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_fiches_'+todayISO()+'.csv';a.click();
+  downloadBlob(b,'step_fiches_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 
 // ============================================================
@@ -12402,7 +12472,7 @@ function renderFicheMachineBlocks(opts){
       const mopt=m=>`<option value="${m}"${r.machine===m?' selected':''}>${getMachineLabel(m)}</option>`;
       body='<div class="field" style="margin-bottom:10px"><label>Machine de cette référence</label>'
         +'<select data-fmm="machine" onchange="onFmmMachineChange(this)"><option value="">— choisir —</option>'
-        +['feba','maveg','cevenini'].map(mopt).join('')+'</select></div>'
+        +MACHINE_KEYS.map(mopt).join('')+'</select></div>'
         +'<div class="row3">'
         +'<div class="field"><label>Bobine mère (mm)</label><input type="text" data-fmm="mother" inputmode="decimal" value="'+V(r.mother)+'"></div>'
         +'<div class="field"><label>Perte bords (mm)</label><input type="text" data-fmm="edge" inputmode="decimal" value="'+V(r.edge)+'"></div>'
@@ -12731,7 +12801,7 @@ function applyMachChg(){
 function _flMachineOf(id){ const l=Array.isArray(ficheLines)?ficheLines.find(x=>x&&x.id===id):null; return (l&&l.machine)?l.machine:ficheMachine; }
 function getMachineLabel(m){return {feba:'FEBA',maveg:'MAVEG',cevenini:'CEVENINI'}[m]||m.toUpperCase();}
 // Classe CSS de couleur selon la machine (feba/maveg/cevenini), '' si inconnue.
-function machineCls(m){return ['feba','maveg','cevenini'].includes(m)?(' '+m):'';}
+function machineCls(m){return MACHINE_KEYS.includes(m)?(' '+m):'';}
 
 function addFicheLine(data){
   // [L67 · Audit] ajout MANUEL (bouton, sans data) bloqué pendant un partage : une ligne
