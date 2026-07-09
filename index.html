@@ -1320,7 +1320,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L80';
+const APP_VERSION='2026.07.09-L81';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -3343,7 +3343,14 @@ function importPlanToFiche(opts){
       if(man){
         // Plan modifié à la main : il fait foi, on génère les bobines telles
         // que saisies (les chutes éventuelles y sont déjà incluses par l'opérateur).
-        man.bobines.forEach(b=>{
+        // [L80] …mais dans l'ORDRE grandes laizes d'abord (demande Esteban : vaut AUSSI pour les plans
+        // déjà écrits à la main en attente de chargement). Tri STABLE par la plus grande laize du motif
+        // (conf « q×larg + … »), sur COPIE — la saisie manuelle n'est jamais mutée. Les 2 commandes en
+        // cours (KX1046/KX1047, cf. _laizeSortExcluded) gardent leur ordre d'origine.
+        const _manBobs=_laizeSortExcluded(c.ref)?man.bobines
+          :man.bobines.map((b,_k)=>({b,_k,_w:Math.max(0,...String(b.conf||'').split('+').map(s=>{const m=s.match(/[×x]\s*(\d+(?:[.,]\d+)?)/i);return m?parseFloat(m[1].replace(',','.')):0;}))}))
+            .sort((a,z)=>(z._w-a._w)||(a._k-z._k)).map(x=>x.b);
+        _manBobs.forEach(b=>{
           const cnt=Math.max(1,parseInt(b.count)||1);
           for(let k=0;k<cnt;k++){
             addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
@@ -3366,7 +3373,7 @@ function importPlanToFiche(opts){
             bi++;
           }
         });
-        c.planGroups.forEach(g=>{
+        _planGroupsByLaize(c.planGroups,c.ref).forEach(g=>{   // [L80] la FICHE suit le MÊME ordre trié (grandes laizes d'abord, solde en dernier) que l'écran plan et le PDF — avant : ordre moteur brut → la numérotation BOB-xxx de la fiche ne correspondait pas au PDF imprimé
           const chuteNote=g.chute?('✂ '+Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')+' mm pris dans chute stock (déjà en stock, ne pas découper)'):'';
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
@@ -4812,7 +4819,12 @@ function mergeDuplicateRefBlocks(){
 // c.planGroups n'est JAMAIS muté (computePlanAggregate et la fiche relisent [length-1] pour le
 // solde/chute-stock). Utilisé pour l'affichage écran ET l'impression, avec l'attribution multi-clients
 // alignée sur le même ordre pour rester cohérent.
-function _planGroupsByLaize(pg){
+// [L80 · TEMPORAIRE — à retirer après le 16/07/2026] Deux commandes EN COURS d'exécution atelier
+// gardent leur ordre d'origine (demande Esteban : Deceuninck KX1047 liv. 11/07 · Prima KX1046 liv. 16/07) :
+// re-trier en plein milieu changerait la numérotation BOB-xxx que les opérateurs suivent déjà.
+function _laizeSortExcluded(ref){ return /KX\s*-?\s*104[67]/i.test(String(ref||'')); }
+function _planGroupsByLaize(pg,ref){
+  if(_laizeSortExcluded(ref)) return pg||[];   // [L80] commandes en cours : ordre d'origine conservé
   if(!Array.isArray(pg)||pg.length<3) return pg||[];
   const _sol=pg[pg.length-1];
   const _s=pg.slice(0,-1).sort((a,b)=>((b.pattern&&b.pattern[0]&&b.pattern[0].width)||0)-((a.pattern&&a.pattern[0]&&a.pattern[0].width)||0));
@@ -4942,7 +4954,7 @@ function recalcPlan(){
   computed.forEach((c,ci)=>{
     if(!c.rows.length) return;
     const useful=c.useful, blade=c.blade;
-    const _pgDisp=_planGroupsByLaize(c.planGroups);   // [L79] motifs triés grandes laizes d'abord (solde en dernier) — COPIE, c.planGroups intact
+    const _pgDisp=_planGroupsByLaize(c.planGroups,c.ref);   // [L79] motifs triés grandes laizes d'abord (solde en dernier) — COPIE, c.planGroups intact
     const mc=machineCls(c.machine);            // classe couleur machine
     const mLbl=getMachineLabel(c.machine||'');
     // [L64 · Lot 6] attribution client par bobine de CETTE réf (multi-clients seulement).
@@ -5437,7 +5449,7 @@ function buildPlanPrintHTML(o){
     // clients apparaît donc aussi sur le plan imprimé en mode ✏️ (cohérent avec la fiche).
     let _rowsSrc=(Array.isArray(c.rows)&&c.rows.length)?c.rows:null;
     let _chutesSrc=c.chutesUsed||{};
-    const _pgDisp=_planGroupsByLaize(c.planGroups);   // [L79] impression : grandes laizes d'abord (solde en dernier) — COPIE
+    const _pgDisp=_planGroupsByLaize(c.planGroups,c.ref);   // [L79] impression : grandes laizes d'abord (solde en dernier) — COPIE
     if(!_rowsSrc&&cliXtra&&Array.isArray(o.mandrinGroups)){
       const _m=o.mandrinGroups.find(g=>String(g.ref||'').trim().toLowerCase()===String(c.ref||'').trim().toLowerCase());
       if(_m&&Array.isArray(_m.rows)&&_m.rows.length){ _rowsSrc=_m.rows; _chutesSrc=_m.chutesUsed||{}; }
@@ -6204,7 +6216,7 @@ function chronoStart(){
     return;
   }
   // [L79] Rappel STOCK avant de démarrer : chutes / bobineaux déjà en stock à déduire de la commande.
-  if(typeof confirm==='function' && !confirm('Avez-vous des chutes ou des bobineaux EN STOCK à utiliser pour cette commande ?\n\nSi oui, ajoute-les au plan (✂ Bobineaux en stock / ♻ Chute) AVANT de démarrer.\n\nOK = démarrer · Annuler = les ajouter d\'abord')) return;
+  if(typeof confirm==='function' && !confirm('Avez-vous des chutes ou des bobineaux SUR LA PALETTE (en stock) pour cette commande ?\n\nSi oui, ajoute-les au plan (✂ Bobineaux en stock / ♻ Chute) AVANT de démarrer.\n\nOK = démarrer · Annuler = les ajouter d\'abord')) return;   // [L80] libellé « sur la palette » (demande Esteban) — s'affiche à CHAQUE démarrage de chrono
   chronoRunning=true;
   updateNumJourForToday();   // commande travaillée un nouveau jour → 152 → 152+153
   chronoStartTs=chronoStartTs||new Date().toISOString();
@@ -8411,6 +8423,20 @@ function stockViewHTML(){
     </div>
 
     <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <div class="section-title" style="margin-bottom:0">📥 Import fournisseur (Excel / CSV)</div>
+        <button class="btn btn-ghost btn-sm" onclick="bkFillSample()">📋 Liste B+K du 01/07/2026</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Colle la liste des commandes ouvertes B+K (copiée depuis <b>Excel</b> ou en <b>CSV</b>). Chaque ligne crée une <b>entrée B+K</b> datée de sa semaine « On stock » (KW → date réelle) ; les lignes avec BL créent en plus la <b>réception</b> (sortie B+K → entrée STEP). Réimporter la même liste ne crée aucun doublon.</div>
+      <textarea id="bkImportText" rows="5" style="width:100%;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:12px;padding:8px" placeholder="matno, typ, mm, ml, ar, batch, qty_m2, price, req, onstock, … (collage direct depuis Excel accepté)"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-blue" onclick="bkAnalyseImport()">🔎 Analyser</button>
+        <button class="btn btn-green hidden" id="bkImportBtn" onclick="bkRunImport(this)">✓ Importer</button>
+      </div>
+      <div id="bkPreview" style="margin-top:10px"></div>
+    </div>
+
+    <div style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
         <div class="section-title" style="margin-bottom:0">Articles & réglages appro.</div>
         <button class="btn btn-ghost btn-sm" onclick="toggleStockArticleForm()">➕ Nouvel article</button>
@@ -8639,6 +8665,196 @@ async function saveStockMouvement(btn){
     await logAudit('create','stockMouvements',r.id,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`);
     renderStock();
   }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); if(btn) btn.disabled=false; }
+}
+
+// ============================================================
+// [L80] IMPORT FOURNISSEUR B+K — Excel/CSV → mouvements de stock
+// ------------------------------------------------------------
+// Colle la liste des commandes ouvertes B+K (copiée d'Excel = tabulations, ou
+// CSV) → chaque ligne devient une ENTRÉE en 'bk' (matière commandée/produite
+// chez le fournisseur) datée de sa semaine « On stock » (KW ISO → lundi 2026).
+// Les lignes avec BL (call-off expédié) génèrent EN PLUS la paire
+// SORTIE bk → ENTRÉE step (réception camion), datée du BL.
+// Granularité MATIÈRE MÈRE : réf = « nom produit · Mat-No » ; l'article
+// stockArticles correspondant est auto-créé (mère mm × ml, fournisseur B+K).
+// Event-sourced : on n'écrit JAMAIS un solde, uniquement des mouvements ;
+// annulation par contre-écriture existante (annulStockMouvement).
+// Anti-doublon : jeton [BK:matno/lot/qty] (ou [BKCO:…] pour la réception)
+// dans la note — réimporter la même liste ne crée RIEN en double.
+// Champs 100% existants (date/type/ref/m2/location/rouleaux/bl/note/op/deleted)
+// → AUCUN changement de règles Firestore nécessaire.
+// ============================================================
+const BK_CSV_20260701=`matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage,calloff_m2,pal,delnote,deldate
+41117500,SK 6008AD32 trans,260,2300,20,3343662,52000,tbd,KW 36,KW 36,,,,,
+41116845,SK 534A-UV tblau,2180,500,Muster,3312544801,1090,no charge,,,,,07.07.,22125038
+41116775,TacFlex DC1000 trans,2140,1000,19,3342580,51360,tbd,KW 34,KW 34,,,,,
+41117882,TacFlex DF1004-1 s/w,2100,1000,15,3337662801,42000,"617,17",KW 28,KW 26,,,,,
+41315247,TacFlex DF1004-2 SUYS s/w,2100,1000,16,3337664801,41370,"617,17",KW 28,KW 26,,25200,1,07.07.,22125711
+41314107,TacFlex DH1004 Logo SUYS trans,2100,1500,24,3289841803,15750,"177,58",KW 34,KW 49,30 weeks,15750,1,07.07.,22125713
+41314107,TacFlex DH1004 Logo SUYS trans,2100,1500,21,3344863,176400,tbd,KW 38,KW 38,,,,,
+41117206,TacFlex DH1006 trans,2100,1000,35,3317642801,96600,"212,90",KW 45,KW 45,34 weeks,,,,
+41117206,TacFlex DH1006 trans,2100,1000,35,3317642803,4200,"212,90",KW 45,KW 45,34 weeks,,,,
+41116850,TacFlex DH1006-2 trans,2200,500,8,3335966801,170500,"221,77",KW 26,KW25,,46200,2,07.07.,22125716
+41116929,TacFlex DQ1000-1 trans,2100,500,3,3333172801,103950,"455,67",KW 20,KW 20,7 weeks,,,,
+41319051,TacFlex DQ1002 Legrand trans,2100,1500,12,3335967801,230790,"216,10",KW 26,KW25,,,,,
+41319080,TacFlex DQ1006 tblau,2100,600,6,3335975,171360,tbd,KW 26,KW 28,,,,,
+41319080,TacFlex DQ1006 tblau,2100,600,37,3313289801,15120,"237,62",KW 45,KW 42,37 weeks,,,,
+41319829,TacFlex DQ1009 trans,2100,350,49,3325528801,15750,"273,32",KW 08,KW 8,19 weeks,,,,
+41319829,TacFlex DQ1009 trans,2100,350,22,3344866,89670,tbd,KW 38,KW 38,,,,,
+41319831,TacFlex DQ1009 grün,2100,600,23,3344868,37800,tbd,KW 38,KW 38,,,,,
+41319832,TacFlex DQ1009 tblau,2100,600,7,3335978,151200,tbd,KW 30,KW 30,,,,,
+41319832,TacFlex DQ1009 tblau,2100,600,46,3325195801,15120,"193,40",KW 08,KW 8,19 weeks,15120,1,07.07.,22125717
+41315237,TacFlex DQ1041 trans,2100,500,1,3333170801,42000,"615,30",KW 20,KW 19,8 weeks,,,,
+41315709,TacFlex DQ1042-1 PW trans,2100,1300,14,3335984801,100800,"264,88",KW 26,KW 25,,,,,
+41315709,TacFlex DQ1042-1 PW trans,2100,1300,48,3325189801,35490,"229,16",KW 08,KW 9,18 weeks,,,,
+41313870,TacFlex KX1006-1 Veka LeProfile oweiß,1250,1000,18-1,3340458,340200,tbd,KW 35,KW 35,,,,,
+41317395,TacFlex KX1006-1 Veka LeProfile oweiß,1250,700,18-2,3340806,61740,tbd,KW 35,KW 35,,,,,
+41319504,TacFlex KX1035 sw/ws,2100,500,2,3333171801,83265,"771,04",KW 23,KW 26,,41265,2,07.07.,22125718
+41319504,TacFlex KX1035 sw/ws,2100,500,24,3344869,180600,tbd,KW 38,KW 38,,,,,
+41312799,TacFlex KX1045-1 s/w,2100,100,9,3335987,49980,tbd,KW 27,KW 29,,,,,
+41312806,TacFlex KX1045-1 s/w,2100,250,10,3335990,99750,tbd,KW 27,KW 29,,,,,
+41312809,TacFlex KX1045-1 s/w,2100,500,11,3335992,50400,tbd,KW 27,KW 29,,,,,
+41315778,TacFlex KX1047 Oxxo 20_30_60_140 oweiß,1890,500,51-1,3328011801,19845,"679,00",KW 28,KW 27,,,,,
+41315775,TacFlex KX1047 Oxxo 40_50 oweiß,1890,500,51-2,3328012801,45171,"679,00",KW 28,KW 27,,,,,
+41315797,TacFlex KX1047 Oxxo Proluxe 20_30_60_140 oweiß,1890,500,52-1,3328013801,18900,"679,00",KW 28,KW 27,,,,,
+41315794,TacFlex KX1047 Oxxo Proluxe 40_50 oweiß,1890,500,52-2,3328014801,36845,"679,00",KW 28,KW 27,,,,,
+41317239,TacFlex KX1075 neutral FR s/w,1050,600,17,3339087,50000,tbd,KW 30,KW 31,,,,,`;
+// (Ligne KX1047 Oxxo Proluxe 52-1 : glitch d'extraction du PDF « 1o4w0eiß » corrigé en « 140 oweiß ».)
+
+// Semaine ISO 2026 (« KW 28 » / « KW25 ») → lundi de la semaine, midi UTC (stable toutes timezones).
+function _bkKwToIso(kwStr){
+  const m=String(kwStr||'').match(/(\d{1,2})/); if(!m) return '';
+  const w=parseInt(m[1],10); if(!(w>=1&&w<=53)) return '';
+  const jan4=Date.UTC(2026,0,4);                                   // le 4 janvier est TOUJOURS en semaine ISO 1
+  const day=new Date(jan4).getUTCDay()||7;                          // dim=7
+  return new Date(jan4-(day-1)*86400000+(w-1)*7*86400000+12*3600000).toISOString();
+}
+// Nombre tolérant : « 100.800 » (milliers allemands), « 617,17 » (décimale virgule), espaces.
+function _bkNum(v){
+  let s=String(v==null?'':v).trim().replace(/\s/g,'');
+  if(!s) return 0;
+  if(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s=s.replace(/\./g,'');   // points = milliers
+  s=s.replace(',','.');
+  const n=parseFloat(s); return isNaN(n)?0:n;
+}
+// Parse CSV (guillemets gérés) OU collage Excel (tabulations). Ligne d'en-tête matno/typ/... optionnelle.
+function _bkParseTable(text){
+  const lines=String(text||'').split(/\r?\n/).map(l=>l.replace(/ /g,' ')).filter(l=>l.trim());
+  if(!lines.length) return [];
+  const COLS=['matno','typ','mm','ml','ar','batch','qty_m2','price','req','onstock','storage','calloff_m2','pal','delnote','deldate'];
+  const tab=lines[0].indexOf('\t')>=0;
+  const splitLine=l=>{
+    if(tab) return l.split('\t').map(c=>c.trim().replace(/^"|"$/g,''));
+    const out=[]; let cur='',q=false;
+    for(let i=0;i<l.length;i++){ const ch=l[i];
+      if(ch==='"'){ q=!q; continue; }
+      if(ch===','&&!q){ out.push(cur.trim()); cur=''; continue; }
+      cur+=ch;
+    }
+    out.push(cur.trim()); return out;
+  };
+  let head=COLS, start=0;
+  const first=splitLine(lines[0]).map(c=>c.toLowerCase());
+  if(first.includes('matno')||first.includes('mat-no')){ head=first.map(c=>c.replace('mat-no','matno')); start=1; }
+  const rows=[];
+  for(let i=start;i<lines.length;i++){
+    const cells=splitLine(lines[i]); if(!cells.length) continue;
+    const r={}; head.forEach((h,k)=>{ r[h]=cells[k]!==undefined?cells[k]:''; });
+    if(String(r.matno||'').replace(/\D/g,'').length<6) continue;    // pas une ligne article (totaux, vide…)
+    rows.push(r);
+  }
+  return rows;
+}
+function bkFillSample(){ const el=stkEl('bkImportText'); if(el){ el.value=BK_CSV_20260701; bkAnalyseImport(); } }
+let _bkPlanned=null;
+function bkAnalyseImport(){
+  const el=stkEl('bkImportText'), out=stkEl('bkPreview'), btn=stkEl('bkImportBtn');
+  if(!el||!out) return;
+  const rows=_bkParseTable(el.value);
+  if(!rows.length){ out.innerHTML='<div style="color:var(--red);font-size:13px">Aucune ligne article reconnue. Colle la liste B+K (Excel ou CSV) — colonnes matno, typ, mm, ml…</div>'; if(btn) btn.classList.add('hidden'); _bkPlanned=null; return; }
+  const op=currentUser?currentUser.ini:'?';
+  const noteHas=tok=>stockMouvementsCache.some(m=>!m.deleted&&String(m.note||'').includes(tok));
+  const arts=[], mvts=[]; let skipped=0;
+  const artSeen=new Set();
+  rows.forEach(r=>{
+    const matno=String(r.matno).replace(/\D/g,'');
+    const typ=String(r.typ||'').trim()||('Article '+matno);
+    const ref=typ+' · '+matno;
+    const mm=_bkNum(r.mm), ml=_bkNum(r.ml), qty=_bkNum(r.qty_m2);
+    const su=stockSurfaceUnit(mm,ml);
+    const priceRaw=String(r.price||'').trim();
+    const priceTxt=(/^\d/.test(priceRaw.replace(/\s/g,'')))?priceRaw+' €':'à confirmer';
+    const kw=(String(r.onstock||'').trim()||String(r.req||'').trim());
+    // Article matière mère auto-créé s'il n'existe pas (sinon le solde n'apparaîtrait pas dans les tableaux).
+    if(!artSeen.has(ref)&&!stockArticlesCache.some(a=>a.ref===ref)){
+      artSeen.add(ref);
+      arts.push({ ref, largeur:mm, longueur:ml, surfaceUnit:su, fournisseur:'Bischof + Klein',
+        delaiSem:18, seuilM2:0, qtyMiniM2:0, prixM2:0, deleted:false, createdAt:isoNow(), createdBy:op });
+    }
+    if(qty>0){
+      const tok=`[BK:${matno}/${r.batch||'?'}/${qty}]`;
+      if(noteHas(tok)){ skipped++; }
+      else mvts.push({ date:_bkKwToIso(kw)||( (r.delnote&&String(r.delnote).trim())?'2026-07-07T12:00:00.000Z':isoNow() ),
+        type:'entree', ref, m2:qty, location:'bk',
+        rouleaux:su>0?Math.round(qty/su*10)/10:null, bl:'',
+        note:`Commande B+K · lot ${r.batch||'?'} · AR ${r.ar||'—'} · mère ${mm||'?'} mm × ${ml||'?'} ml · prix ${priceTxt}${kw?' · dispo '+kw:''} ${tok}`,
+        op, deleted:false });
+    }
+    // Call-off expédié (BL présent) : la quantité appelée quitte bk et entre chez STEP.
+    const bl=String(r.delnote||'').replace(/\D/g,'');
+    const ship=_bkNum(r.calloff_m2)>0?_bkNum(r.calloff_m2):(bl?qty:0);
+    if(ship>0&&bl){
+      const tokCo=`[BKCO:${matno}/${r.batch||'?'}/${bl}]`;
+      if(noteHas(tokCo)){ skipped++; }
+      else{
+        const dd=String(r.deldate||'').match(/(\d{1,2})\.(\d{1,2})\./);
+        const shipDate=dd?new Date(Date.UTC(2026,parseInt(dd[2],10)-1,parseInt(dd[1],10),12)).toISOString():'2026-07-07T12:00:00.000Z';
+        const rl=su>0?Math.round(ship/su*10)/10:null;
+        mvts.push({ date:shipDate, type:'sortie', ref, m2:-ship, location:'bk', rouleaux:rl, bl,
+          note:`Call-off expédié vers STEP · BL ${bl}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
+        mvts.push({ date:shipDate, type:'entree', ref, m2:ship, location:'step', rouleaux:rl, bl,
+          note:`Réception B+K · BL ${bl}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
+      }
+    }
+  });
+  _bkPlanned={arts,mvts};
+  const locLbl={bk:'B+K',step:'STEP'};
+  const prev=mvts.slice(0,80).map(m=>`<tr>
+    <td style="padding:4px 6px;border-bottom:1px solid var(--border)">${new Date(m.date).toLocaleDateString('fr-FR')}</td>
+    <td style="padding:4px 6px;border-bottom:1px solid var(--border);color:${m.m2>=0?'#4ade80':'#f87171'}">${m.type==='entree'?'Entrée':'Sortie'} ${locLbl[m.location]}</td>
+    <td style="padding:4px 6px;border-bottom:1px solid var(--border);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.ref)}</td>
+    <td style="padding:4px 6px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${m.m2>=0?'#4ade80':'#f87171'}">${m.m2>=0?'+':''}${m.m2.toLocaleString('fr-FR')}</td>
+    <td style="padding:4px 6px;border-bottom:1px solid var(--border);color:var(--muted)">${esc(m.bl||'')}</td></tr>`).join('');
+  out.innerHTML=`<div style="font-size:13px;margin-bottom:8px">
+      <b>${rows.length}</b> ligne(s) lue(s) → <b style="color:#4ade80">${mvts.length}</b> mouvement(s) à créer, <b>${arts.length}</b> article(s) matière à créer${skipped?`, <b style="color:var(--orange)">${skipped}</b> déjà importé(s) (ignorés)`:''}.
+    </div>
+    ${mvts.length?`<div style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:var(--muted);text-transform:uppercase;font-size:11px"><th style="text-align:left;padding:4px 6px">Date</th><th style="text-align:left;padding:4px 6px">Mouvement</th><th style="text-align:left;padding:4px 6px">Matière</th><th style="text-align:right;padding:4px 6px">m²</th><th style="text-align:left;padding:4px 6px">BL</th></tr></thead>
+      <tbody>${prev}</tbody></table></div>`:'<div style="color:var(--muted);font-size:13px">Rien de nouveau à importer (tout est déjà en base).</div>'}`;
+  if(btn) btn.classList.toggle('hidden',!(mvts.length||arts.length));
+}
+async function bkRunImport(btn){
+  if(!canViewStock()){ showToast('Accès réservé.','err'); return; }
+  if(!db){ showToast('Base indisponible.','err'); return; }
+  if(!_bkPlanned||(!_bkPlanned.mvts.length&&!_bkPlanned.arts.length)){ showToast('Analyse d\'abord la liste (🔎).','err'); return; }
+  const {arts,mvts}=_bkPlanned;
+  if(!(await confirmDlg(`Importer ${mvts.length} mouvement(s) de stock${arts.length?` + créer ${arts.length} article(s) matière`:''} ?\n\nChaque mouvement reste annulable individuellement (contre-écriture tracée).`,{ok:'Importer'}))) return;
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Import…'; }
+  try{
+    const batch=db.batch();
+    const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc(); batch.set(dr,a); return dr; });
+    const mvtRefs=mvts.map(m=>{ const dr=db.collection('stockMouvements').doc(); batch.set(dr,m); return dr; });
+    await Promise.race([ batch.commit(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),25000)) ]);   // borné : jamais de bouton gelé
+    arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
+    mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
+    logAudit('create','stockMouvements','import-bk',`Import fournisseur B+K : ${mvts.length} mouvement(s), ${arts.length} article(s) — total ${mvts.reduce((s,m)=>s+m.m2,0).toLocaleString('fr-FR')} m² net`).catch(()=>{});
+    _bkPlanned=null;
+    renderStock();
+    showToast(`✓ Import B+K terminé : ${mvts.length} mouvement(s), ${arts.length} article(s)`,'ok');
+  }catch(e){
+    showToast(String(e&&e.message)==='__TIMEOUT__'?'⏳ Réseau lent — import interrompu, rien n\'est perdu : réessaie (l\'anti-doublon empêche tout double).':'Erreur import : '+e.message,'err');
+    if(btn){ btn.disabled=false; btn.textContent='✓ Importer'; }
+  }
 }
 
 // ============================================================
