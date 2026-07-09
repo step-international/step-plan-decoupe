@@ -1334,7 +1334,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L98';
+const APP_VERSION='2026.07.09-L99';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4712,7 +4712,10 @@ function _confIllisible(raw){
   if(!raw) return 'config vide';
   const nc=normConf(raw);
   if(/\d\.\d*×/.test(nc)) return 'quantité décimale ?';
-  const ok=nc.split(/[+,]/).map(x=>x.trim()).filter(x=>x&&/\d/.test(x)).every(seg=>{
+  if(parseConf(nc).length===0) return 'aucune largeur reconnue';   // [L99 · audit e2e] config sans AUCUN chiffre (« cassée », « voir chef ») : la boucle every([]) la validait à tort → 0 pièce comptée → re-production SILENCIEUSE au recalcul / arrêt manque matière
+  const segs=nc.split(/[+,]/).map(x=>x.trim()).filter(Boolean);
+  if(segs.some(seg=>!/\d/.test(seg))) return 'segment sans chiffre';   // [L99] un segment texte au milieu (« 6×502 + cassée ») ne passe plus non plus
+  const ok=segs.every(seg=>{
     const qw=(seg.match(/\d+(?:\.\d+)?×\d+(?:\.\d+)?/g)||[]).length;
     const dg=(seg.match(/\d+(?:\.\d+)?/g)||[]).length;
     if(qw>0) return dg===qw*2&&parseConf(seg).length===qw;
