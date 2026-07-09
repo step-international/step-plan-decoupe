@@ -3365,7 +3365,7 @@ function importPlanToFiche(opts){
     cartonByWidth={};
     cmdMetaByRef={};
     computed.forEach(c=>{
-      const rk=_refIdKey(c);   // [L71 · Audit B13] clé robuste — deux homonymes = deux cibles distinctes
+      const rk=_cliQKey(_refIdKey(c),c.machine);   // [L71 · Audit B13][L92 · Audit #14] machine incluse (aligné sur _cliLineKey)
       const meta=cmdMetaByRef[rk]||(cmdMetaByRef[rk]={totals:{},carton:{},mandrin:{}});
       c.rows.forEach(r=>{
         commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;
@@ -5095,7 +5095,7 @@ function recalcPlan(){
   });
   let heavyBanner='';
   if(heavy){
-    heavyBanner='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⏳ Commande volumineuse (beaucoup de laizes distinctes + grosse quantité) — le calcul peut prendre quelques secondes, patiente.</div>';
+    heavyBanner='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">📊 Commande volumineuse (nombreuses laizes distinctes + grosse quantité) — vérifie bien le plan ci-dessous.</div>';   // [L92 · Audit #12] libellé factuel : l'ancien « patiente » s'affichait APRÈS le calcul
   }
   packTruncated=false;   // reset avant calcul : pack() le lèvera si la saisie est aberrante
   const computed=packRefGroupsPal(groups);   // [L82] enveloppe palettes (moteur intact)
@@ -5206,7 +5206,7 @@ function recalcPlan(){
           <span class="rb-m">laize ${fmt(useful)} mm</span>${mlPart}${filmPart}${vekaPart}
           <span class="rb-m">${c.stats.totalBobines} bobine${c.stats.totalBobines>1?'s':''}</span>
           ${(c.recutBobines||[]).length?`<span class="rb-m" style="color:#5eead4">♻ ${c.recutBobines.length} rouleau${c.recutBobines.length>1?'x':''}</span>`:''}
-          <span class="rb-m">perte ${(function(){const pg=c.planGroups||[];const last=pg[pg.length-1];const solde=last?Math.max(0,c.useful-calcStats(last.pattern,c.blade).total):0;return (c.stats.totalMat>0?Math.max(0,c.stats.totalMat-c.stats.totalUsed-solde)/c.stats.totalMat*100:0).toFixed(1);})()}%</span><!-- [L83 · Audit #2] solde exclu : même définition que le chip global « Perte » -->
+          <span class="rb-m">perte ${(function(){const pg=c.planGroups||[];const last=pg[pg.length-1];let solde=last?Math.max(0,c.useful-calcStats(last.pattern,c.blade).total):0;pg.forEach(gg=>{if(gg._phaseEnd)solde+=Math.max(0,c.useful-calcStats(gg.pattern,c.blade).total);});const rrest=(c.recutBobines||[]).reduce((sm,r)=>sm+Math.max(0,r.rollW-calcStats(r.pattern,c.blade).total),0);return (c.stats.totalMat>0?Math.max(0,c.stats.totalMat-c.stats.totalUsed-solde-rrest)/c.stats.totalMat*100:0).toFixed(1);})()}%</span><!-- [L83 · Audit #2][L92 · Audit #8/#9] solde + fins de phase + restes rouleaux exclus : même définition que le chip global « Perte » -->
         </span>
       </div>`;
     }
@@ -5777,8 +5777,10 @@ function printSavedPlan(id){
   });
   const autoGroups=packRefGroupsPal(grpInput).filter(c=>c.rows.length);
   // Plan manuel sauvegardé → on l'utilise tel quel ; sinon recalcul automatique.
-  const groups=Array.isArray(s.planManual)&&s.planManual.length
-    ? s.planManual.map(r=>({ref:r.ref, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film||'', veka:r.veka||'', machine:r.machine||'',
+  const _pmPrint=(Array.isArray(s.planManual)&&s.planManual.length)?JSON.parse(JSON.stringify(s.planManual)):null;
+  if(_pmPrint) _pmSortBobinesOnce(_pmPrint);   // [L92 · Audit #18] MÊME tri qu'au chargement (doLoad) : le PDF imprimé depuis Données correspondait à un autre ordre/solde que la fiche après chargement
+  const groups=_pmPrint
+    ? _pmPrint.map(r=>({ref:r.ref, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film||'', veka:r.veka||'', machine:r.machine||'',
         planGroups:r.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1), pattern:parseConf(b.conf)}))
       }))
     : autoGroups;
@@ -5881,10 +5883,14 @@ function getEtiquetteSoldeList(){
   if(useful<=0) return [];
   const rows=getOrderRows();
   if(!rows.length) return [];
-  const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade);
-  const lastG=groups[groups.length-1];
+  // [L92 · Audit #21] MÊME source que le plan affiché (enveloppe palettes + chutes stock) — le
+  // pack() brut ignorait le re-pack phasé [L82] et les chutes → étiquette d'une bobine inexistante.
+  let lastG=null,u2=useful;
+  try{ const c0=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length)[0];
+    if(c0&&(c0.planGroups||[]).length){ lastG=c0.planGroups[c0.planGroups.length-1]; u2=c0.useful>0?c0.useful:useful; } }catch(e){}
+  if(!lastG){ const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade); lastG=groups[groups.length-1]; u2=useful; }
   if(!lastG) return [];
-  const solde=useful-calcStats(lastG.pattern,blade).total;
+  const solde=u2-calcStats(lastG.pattern,blade).total;
   return [{key:'r0',mn,ref,solde:fmt(solde),date:today()}];
 }
 function refreshEtiquetteSolde(){
@@ -7088,6 +7094,7 @@ function recalcEcartsFromFiche(opts){
     const recap=[]; let totalAdded=0; let _firstAddedId=null;   // [L87]
     const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
     const doneKeys=new Set();
+    let _prevMachR='';   // [L92 · Audit #15] même signalétique machine que l'import
     _genOrderR.forEach(ci=>{
       const c=computed[ci];
       const k=refKey(c);
@@ -7096,7 +7103,7 @@ function recalcEcartsFromFiche(opts){
       // bobines figées ré-attachées en double, pas de reliquat compté 2×.
       if(doneKeys.has(k)) return;
       doneKeys.add(k);
-      if(multi) insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur);
+      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, _prevMachR); if(c.machine) _prevMachR=c.machine; }   // [L92 · Audit #15] couleur machine + bande CHANGEMENT DE MACHINE conservées après recalcul
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
       frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=k; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante
@@ -7175,7 +7182,9 @@ function recalcEcartsFromFiche(opts){
 
     // 4) Bobines figées dont la réf n'existe plus dans le plan : conservées en fin de liste.
     const known=new Set(computed.map(c=>refKey(c)));
-    frozenMetas.filter(l=>!known.has(lineKey(l))).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); ficheLines.push(l); });
+    const _orphelines=frozenMetas.filter(l=>!known.has(lineKey(l)));
+    _orphelines.forEach(l=>{ cont.appendChild(frozenNodes[l.id]); ficheLines.push(l); });
+    if(_orphelines.length) recap.push('⚠ '+_orphelines.length+' bobine(s) coupée(s) ne correspondent à AUCUNE réf du plan (réf renommée ?) — leur production n\'est PAS déduite du reste : vérifie avant de couper, sinon la commande sera reproduite en double.');   // [L92 · Audit #7]
 
     recalcPlan();
     updateAllCumuls();
@@ -7315,16 +7324,24 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   // (grandes laizes d'abord, solde en dernier) que l'écran/PDF/fiche — sinon un PDF regénéré depuis
   // l'historique listait les motifs dans un ordre ≠ des BOB-xxx de la fiche. Le lecteur « Chute »
   // (f.groups[length-1].waste) reste juste : le solde est épinglé en dernier par _planGroupsByLaize.
+  // [L92 · Audit #22] les ROULEAUX ♻ à recouper font partie du plan : ils entrent dans l'archive
+  // (f.groups) comme sur l'écran/PDF/fiche — sinon 3 groupes archivés pour 4 lignes réelles.
+  const _recForRecord=c=>((c.recutGroups||[]).map(gp=>{
+    const tot=calcStats(gp.pattern,c.blade).total;
+    return {label:(multi&&c.ref?c.ref+' · ':'')+'♻ '+makeLabel(gp.pattern)+' (rouleau '+fmt(gp.rollW)+' mm)',count:gp.count,total:fmt(tot),waste:fmt(Math.max(0,gp.rollW-tot)),isLast:false};
+  }));
   if(multi){
     groupsForRecord=[];
     computed.forEach(c=>{
+      groupsForRecord.push(..._recForRecord(c));
       _planGroupsByLaize(c.planGroups,c.ref).forEach(gp=>{
         const tot=calcStats(gp.pattern,c.blade).total;
         groupsForRecord.push({label:(c.ref?c.ref+' · ':'')+makeLabel(gp.pattern),count:gp.count,total:fmt(tot),waste:fmt(c.useful-tot),isLast:false});
       });
     });
   }else{
-    groupsForRecord=_planGroupsByLaize(groups,ref).map(gp=>({label:makeLabel(gp.pattern),count:gp.count,total:fmt(calcStats(gp.pattern,blade).total),waste:fmt(useful-calcStats(gp.pattern,blade).total),isLast:false}));
+    const c0=computed[0]||{recutGroups:[],blade:blade,useful:useful,ref:ref};
+    groupsForRecord=_recForRecord({...c0,ref:''}).concat(_planGroupsByLaize(groups,ref).map(gp=>({label:makeLabel(gp.pattern),count:gp.count,total:fmt(calcStats(gp.pattern,blade).total),waste:fmt(useful-calcStats(gp.pattern,blade).total),isLast:false})));
   }
 
   const ficheEntry={
@@ -13074,7 +13091,7 @@ function updateAllCumuls(){
   let _grpsAll=[]; try{ _grpsAll=(typeof getRefGroups==='function')?getRefGroups():[]; }catch(e){}
   const _T=_cliKeyTables(_grpsAll);
   try{ _grpsAll.forEach(g=>{
-    const rk=_refIdKey(g);
+    const rk=_cliQKey(_refIdKey(g),g.machine);   // [L92 · Audit #14] MÊME espace de clés que _cliLineKey (machine incluse depuis L83) — le stock/les cibles ne matchaient plus les lignes
     const u=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{};
     const acc=stockByRef[rk]||(stockByRef[rk]={});
     Object.entries(u).forEach(([w,q])=>{acc[w]=(acc[w]||0)+q;});
@@ -13088,7 +13105,7 @@ function updateAllCumuls(){
       const _groups=_grpsAll;
       cliT={};   // {rk:{width:{cli:cible à couper}}}
       _groups.forEach(gr=>{
-        const rk=_refIdKey(gr);   // [L71 · Audit B13]
+        const rk=_cliQKey(_refIdKey(gr),gr.machine);   // [L71 · Audit B13][L92 · Audit #14] machine incluse
         const t=cliT[rk]||(cliT[rk]={});
         (gr.rows||[]).forEach(r=>{ if(!(r.qty>0&&r.width>0))return; const m=t[r.width]||(t[r.width]={}); const c=r.cli||'A'; m[c]=(m[c]||0)+r.qty; });
         // Le stock de chutes sert les PREMIERS clients de la file (même règle partout) :
@@ -14485,7 +14502,7 @@ function restoreFicheState(st){
     // pas de champ useful (serializeRefGroups ne le sauvegarde pas) : on le recompose
     // (mère − bords) pour que la clé colle à celle des lignes/groupes vivants.
     const _x=Object.assign({},x,{useful:(Number(x.useful)||Math.max(0,(parseNum(x.mother)||0)-(parseNum(x.edge)||0)))});
-    const rk=_refIdKey(_x);
+    const rk=_cliQKey(_refIdKey(_x),_x.machine);   // [L92 · Audit #14] machine incluse (aligné sur _cliLineKey)
     const meta=cmdMetaByRef[rk]||(cmdMetaByRef[rk]={totals:{},carton:{},mandrin:{}});
     (x.rows||[]).forEach(r=>{
       commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;
