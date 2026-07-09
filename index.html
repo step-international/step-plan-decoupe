@@ -1325,7 +1325,50 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L88';
+const APP_VERSION='2026.07.09-L89';
+// ============================================================
+// [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
+// (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
+// opérateurs en plein milieu, chrono perdu + verrou réarmé).
+// Le service worker (sw.js) ÉPINGLE la version en cours : même fermée/rouverte,
+// l'app reste sur SA version. Quand une nouvelle version est en ligne, une
+// bannière propose « Recharger » (met à jour) ou « ✕ Plus tard » (on continue
+// sur l'ancienne version jusqu'à la fin de la commande).
+// ============================================================
+let _updDismissed=false,_updReloading=false;
+function _updBanner(newVer){
+  if(_updDismissed||document.getElementById('updBanner')) return;
+  const b=document.createElement('div');
+  b.id='updBanner';
+  b.style.cssText='position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:99999;background:#1f2a3a;border:2px solid var(--blue);border-radius:14px;padding:12px 14px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+  b.innerHTML='<div style="flex:1;font-size:14px;font-weight:700">🔄 Nouvelle version disponible <span style="color:var(--muted);font-weight:600">('+esc(newVer)+')</span><div style="font-size:12px;color:var(--muted);font-weight:600;margin-top:2px">Termine ta commande tranquillement — l\'app ne changera PAS de version tant que tu n\'appuies pas sur « Recharger ».</div></div>'+
+    '<button class="btn btn-blue" onclick="updReload()" style="flex-shrink:0">Recharger</button>'+
+    '<button class="btn btn-ghost" onclick="updDismiss()" aria-label="Plus tard" style="flex-shrink:0">✕</button>';
+  document.body.appendChild(b);
+}
+function updDismiss(){ _updDismissed=true; const b=document.getElementById('updBanner'); if(b) b.remove(); }
+function updReload(){
+  if(_updReloading) return; _updReloading=true;
+  const btn=document.querySelector('#updBanner .btn-blue'); if(btn){btn.disabled=true;btn.textContent='⏳…';}
+  const ctl=navigator.serviceWorker&&navigator.serviceWorker.controller;
+  if(ctl){
+    const done=function(e){ if(e.data&&e.data.type==='INDEX_REFRESHED'){ try{navigator.serviceWorker.removeEventListener('message',done);}catch(_){} location.reload(); } };
+    navigator.serviceWorker.addEventListener('message',done);
+    ctl.postMessage({type:'REFRESH_INDEX'});
+    setTimeout(function(){ location.reload(); },6000);   // repli si le SW ne répond pas
+  } else location.reload();
+}
+async function checkAppUpdate(){
+  try{
+    const r=await fetch('index.html',{cache:'no-store'});   // no-store : le SW laisse passer (vraie version en ligne)
+    if(!r.ok) return;
+    const m=(await r.text()).match(/APP_VERSION='([^']+)'/);
+    if(m&&m[1]&&m[1]!==APP_VERSION) _updBanner(m[1]);
+  }catch(e){}
+}
+setTimeout(checkAppUpdate,15000);
+setInterval(checkAppUpdate,30*60*1000);
+document.addEventListener('visibilitychange',function(){ if(!document.hidden) setTimeout(checkAppUpdate,2000); });
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -6341,9 +6384,19 @@ function chronoStart(){
   // (pickFicheMachine) ; une fiche fraîchement importée est déjà validée (importPlanToFiche). On force
   // ainsi l'opérateur à re-valider consciemment le plan après un changement de mère/bords.
   if(!fichePlanValidated){
-    showToast('⚠ Tu as modifié une dimension (mère / bords) — clique « 🔄 Changement plan » avant de démarrer le chrono.','err');
-    const _h=document.getElementById('fPlanHint'); if(_h){ _h.style.color='var(--red)'; setTimeout(function(){ if(typeof updateFPlanHint==='function') updateFPlanHint(); },3000); }
-    return;
+    // [L89 · incident Prima/Deceuninck 09/07] IMPASSE atelier : après un rechargement forcé
+    // (mise à jour, crash, iOS qui purge la PWA) en PLEIN MILIEU d'une commande, le verrou se
+    // réarmait → chrono bloqué ↔ « Changement plan » redouté avec des bobines déjà coupées.
+    // Si de la production est ENGAGÉE, on propose la REPRISE consciente au lieu de bloquer.
+    if(countCoupees()>0){
+      if(confirm('Reprise de commande : le plan n\'a pas été re-validé (rechargement ou modification).\n\nSi tu n\'as PAS changé la bobine mère / les bords, appuie sur OK pour REPRENDRE le chrono directement.\n\nOK = reprendre · Annuler = vérifier puis « 🔄 Changement plan »')){
+        fichePlanValidated=true; updateFPlanHint();
+      } else return;
+    } else {
+      showToast('⚠ Tu as modifié une dimension (mère / bords) — clique « 🔄 Changement plan » avant de démarrer le chrono.','err');
+      const _h=document.getElementById('fPlanHint'); if(_h){ _h.style.color='var(--red)'; setTimeout(function(){ if(typeof updateFPlanHint==='function') updateFPlanHint(); },3000); }
+      return;
+    }
   }
   // [L79] Rappel STOCK avant de démarrer : chutes / bobineaux déjà en stock à déduire de la commande.
   if(typeof confirm==='function' && !confirm('Avez-vous des chutes ou des bobineaux SUR LA PALETTE (en stock) pour cette commande ?\n\nSi oui, ajoute-les au plan (✂ Bobineaux en stock / ♻ Chute) AVANT de démarrer.\n\nOK = démarrer · Annuler = les ajouter d\'abord')) return;   // [L80] libellé « sur la palette » (demande Esteban) — s'affiche à CHAQUE démarrage de chrono
@@ -11757,12 +11810,14 @@ async function clearFiches(){
 
 // Export JSON des données VISIBLES (≤ limites de chargement) — pas un backup exhaustif
 // (le backup complet est assuré par la sauvegarde automatique Firestore)
-function downloadFullBackup(){
+async function downloadFullBackup(){
+  // [L89] charge AUTOMATIQUEMENT l'historique complet avant d'exporter (même garde-fou que les exports CSV)
+  if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }
   if(!savesCache.length&&!tempsCache.length&&!fichesCache.length){showToast('Aucune donnée à exporter.','err');return;}
   const backup={
     exportDate:new Date().toISOString(),
     exportBy:currentUser?currentUser.nom:'inconnu',
-    note:'Export des données visibles uniquement (≤ limites de chargement). Backup complet = sauvegarde automatique Firestore.',
+    note:fullHistoryLoaded?'Export COMPLET — historique intégral chargé avant export.':'Export PARTIEL (données récentes uniquement — historique complet indisponible au moment de l\'export). Backup complet = sauvegarde automatique Firestore.',
     saves:savesCache,
     temps:tempsCache,
     fiches:fichesCache
@@ -11771,7 +11826,7 @@ function downloadFullBackup(){
   const b=new Blob([json],{type:'application/json'});
   const a=document.createElement('a');
   {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_export_visible_'+todayISO()+'.json';
+  a.download=(fullHistoryLoaded?'step_export_complet_':'step_export_visible_')+todayISO()+'.json';   // [L89]
   a.click();
 }
 
@@ -13854,7 +13909,7 @@ function serializeFicheState(){
     fiche:{machine:ficheMachine,machine2:ficheMachine2,op2DiffMachine:g('fOp2DiffMachine')?.checked||false,mother2:g('fMother2')?.value||'',edge2:g('fEdge2')?.value||'',blade2:g('fBlade2')?.value||'',ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',lameChg:g('fLameChg')?.checked||false,lameNew:g('fLameNew')?.value||'',lameChgBob:g('fLameChgBob')?.value||'',machChg:g('fMachChg')?.checked||false,machChgTo:g('fMachChgTo')?.value||'',machChgBob:g('fMachChgBob')?.value||'',
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
       numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||'',
-      refOrder:(typeof ficheRefOrder!=='undefined'?ficheRefOrder.slice():[]),refValidated:(typeof ficheRefValidated!=='undefined'?Array.from(ficheRefValidated):[])},
+      refOrder:(typeof ficheRefOrder!=='undefined'?ficheRefOrder.slice():[]),refValidated:(typeof ficheRefValidated!=='undefined'?Array.from(ficheRefValidated):[]),planValidated:fichePlanValidated},   // [L89] le verrou « Changement plan » survit au rechargement
     chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning, runStart:chronoRunStart},
     lines:getFicheLinesData(),
     pendingFicheId:_pendingFicheId||null, pendingTempsId:_pendingTempsId||null,   // ENVOI-1 : renvoi idempotent
@@ -14363,7 +14418,7 @@ function restoreFicheState(st){
   setV('fMachChgBob',st.fiche.machChgBob||'');
   // Brouillon repris = plan déjà valide : le chrono peut redémarrer sans
   // recliquer « Changement plan » (sauf si l'opérateur modifie une dimension).
-  fichePlanValidated=true; updateFPlanHint();
+  fichePlanValidated=(st.fiche.planValidated!==false); updateFPlanHint();   // [L89] état persisté restauré (anciens brouillons sans le champ → true, comme avant)
   ficheRefOrder=Array.isArray(st.fiche.refOrder)?st.fiche.refOrder.slice():[];
   if(Array.isArray(st.fiche.refValidated)){
     ficheRefValidated=new Set(st.fiche.refValidated);
