@@ -1334,7 +1334,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L99';
+const APP_VERSION='2026.07.09-L100';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4707,12 +4707,13 @@ function packRefGroups(groups){
 // PDF, fiche BOB-xxx, archive, éditeur manuel) via _planGroupsByLaize=identité.
 // [L97 · relecture #9] Garde de LISIBILITÉ d'une config saisie — partagée par le recalcul des
 // écarts ET l'arrêt manque matière (le solde était calculé sur des confs illisibles sans garde).
-function _confIllisible(raw){
+function _confIllisible(raw,_capMax,_capBlade){
   raw=String(raw||'').trim();
   if(!raw) return 'config vide';
   const nc=normConf(raw);
   if(/\d\.\d*×/.test(nc)) return 'quantité décimale ?';
-  if(parseConf(nc).length===0) return 'aucune largeur reconnue';   // [L99 · audit e2e] config sans AUCUN chiffre (« cassée », « voir chef ») : la boucle every([]) la validait à tort → 0 pièce comptée → re-production SILENCIEUSE au recalcul / arrêt manque matière
+  if(parseConf(nc).length===0) return 'aucune largeur reconnue';
+  if(_capMax>0){ const _st=calcStats(parseConf(nc),Math.max(0,Number(_capBlade)||0)); if(_st.total>_capMax+0.5) return 'trop large pour la bobine ('+fmt(_st.total)+' > '+fmt(_capMax)+' mm)'; }   // [L100 · audit e2e #3] capacité physique : Σ(largeurs)+lames ≤ laize utile — une conf « 6×300 » sur une bobine de 1000 mm était acceptée en silence → sous-production fantôme   // [L99 · audit e2e] config sans AUCUN chiffre (« cassée », « voir chef ») : la boucle every([]) la validait à tort → 0 pièce comptée → re-production SILENCIEUSE au recalcul / arrêt manque matière
   const segs=nc.split(/[+,]/).map(x=>x.trim()).filter(Boolean);
   if(segs.some(seg=>!/\d/.test(seg))) return 'segment sans chiffre';   // [L99] un segment texte au milieu (« 6×502 + cassée ») ne passe plus non plus
   const ok=segs.every(seg=>{
@@ -5615,13 +5616,20 @@ function chutePrintRecap(c){
 }
 // Lignes ROULEAU CHUTE en tête de table imprimée (mockup validé) : fond
 // turquoise clair, config en gras, laize du rouleau (pas celle de la mère).
-function recutPrintRows(c,blade){
-  let out='';
+function recutPrintRows(c,blade,recutAllocs){
+  let out=''; let _ai=0;   // [L100 · audit e2e #5] index dans recutAllocs (rouleaux servis en 1er)
   (c&&c.recutGroups||[]).forEach(g=>{
     const st=calcStats(g.pattern,blade), rest=Math.max(0,g.rollW-st.total);
+    let cliNote='';
+    if(Array.isArray(recutAllocs)){
+      const allocs=recutAllocs.slice(_ai,_ai+g.count); _ai+=g.count;
+      const clis=[...new Set([].concat(...allocs.map(cliOfAlloc)))];
+      const txt=(g.count===1&&allocs[0])?cliAllocText(allocs[0]):clis.map(id=>'['+id+']').join(' ');
+      if(clis.length||txt) cliNote=`<div style="margin-top:2px;font-size:11px;color:#6d28d9;font-weight:700">👥 ${esc(txt)}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer)</b>':''}</div>`;
+    }
     out+=`<tr style="background:#e6fffa">
       <td style="border-left:4px solid #0d9488;font-weight:700;color:#0f766e">♻ ${g.count>1?g.count+' rouleaux chute':'1 rouleau chute'}</td>
-      <td><b>${esc(makeLabel(g.pattern))}</b> — À RECOUPER EN 1ER</td>
+      <td><b>${esc(makeLabel(g.pattern))}</b> — À RECOUPER EN 1ER${cliNote}</td>
       <td>reste ${fmt(rest)} mm</td></tr>`;
   });
   return out;
@@ -5703,23 +5711,26 @@ function buildPlanPrintHTML(o){
         (c.recutGroups||[]).forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});
         _pgDisp.forEach(g=>{for(let k=0;k<g.count;k++)seq.push(g.pattern);});   // [L79] même ordre → attribution cohérente
         _cliAllocs=cliAttribute(seq,_rowsSrc,_chutesSrc);
-        _cliIdx=(c.recutGroups||[]).reduce((s,g)=>s+(g.count||0),0);   // rouleaux chute servis d'abord (non annotés)
+        _cliIdx=(c.recutGroups||[]).reduce((s,g)=>s+(g.count||0),0);   // [L100 · #5] allocs rouleaux = _cliAllocs[0.._cliIdx-1] → transmises à recutPrintRows
       }catch(e){ _cliAllocs=null; }
     }
-    let tRows=recutPrintRows(c,blade);
+    let tRows=recutPrintRows(c,blade,(_cliAllocs&&_cliIdx>0)?_cliAllocs.slice(0,_cliIdx):null);   // [L100 · audit e2e #5]
     _pgDisp.forEach((g,gi)=>{
       const st=calcStats(g.pattern,blade),waste=useful-st.total,isLast=(gi===_pgDisp.length-1)||!!g._phaseEnd;   // [L92 · Audit #8] fin de phase = solde aussi sur le PDF
-      let cliNote='';
+      let _subRows=[{count:g.count,note:'',alloc:null}];
       if(_cliAllocs){
-        const allocs=_cliAllocs.slice(_cliIdx,_cliIdx+g.count); _cliIdx+=g.count;
-        const clis=[...new Set([].concat(...allocs.map(cliOfAlloc)))];
-        const txt=(g.count===1)?cliAllocText(allocs[0]):clis.map(id=>'['+id+']').join(' ');
-        cliNote=`<div style="margin-top:3px;font-size:11px;color:#6d28d9;font-weight:700">👥 ${esc(txt)}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer à l\'emballage)</b>':''}</div>`;
+        const allocs=_cliAllocs.slice(_cliIdx,_cliIdx+g.count); _cliIdx+=g.count;   // [L100 · audit e2e #4] scinder par composition client réelle (comme l'écran) — l'union « [A][B] MIXTE » sur tout le groupe masquait les bobines pures
+        _subRows=[]; let run=null;
+        allocs.forEach(a=>{ const sg=cliAllocText(a); if(run&&run.sig===sg) run.count++; else { run={sig:sg,count:1,alloc:a}; _subRows.push(run); } });
+        _subRows.forEach(r=>{ const clis=cliOfAlloc(r.alloc); r.note=`<div style="margin-top:3px;font-size:11px;color:#6d28d9;font-weight:700">👥 ${esc(cliAllocText(r.alloc))}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer à l\'emballage)</b>':''}</div>`; });
       }
-      tRows+=`<tr style="${isLast?'background:#fffbea;font-style:italic':''}">
-        <td>${g.count>1?g.count+' bobines':'1 bobine'}</td>
-        <td>${chutePrintConfig(g.pattern,g.chute)}${cliNote}</td>
-        <td>${isLast?'Solde '+fmt(waste)+' mm':fmt(waste)+' mm'}</td></tr>`;
+      _subRows.forEach((r,ri)=>{
+        const _isL=isLast&&ri===_subRows.length-1;
+        tRows+=`<tr style="${_isL?'background:#fffbea;font-style:italic':''}">
+          <td>${r.count>1?r.count+' bobines':'1 bobine'}</td>
+          <td>${chutePrintConfig(g.pattern,g.chute)}${r.note||''}</td>
+          <td>${_isL?'Solde '+fmt(waste)+' mm':fmt(waste)+' mm'}</td></tr>`;
+      });
     });
     if(multi){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
@@ -6660,7 +6671,7 @@ async function stopManqueMatiere(){
     ficheLines.forEach(l=>{
       if(!document.getElementById(l.id)?.classList.contains('coupee')) return;
       const raw=(document.getElementById('flConf_'+l.id)?.value||'').trim();
-      const r=_confIllisible(raw);
+      const r=_confIllisible(raw, l.recut?l.rollW:l.useful, l.blade);
       if(r) _bad.push((document.getElementById('flLabel_'+l.id)?.value||l.label||l.id)+' (« '+raw+' » — '+r+')');
     });
     if(_bad.length){ showToast('⛔ Arrêt manque matière BLOQUÉ — config illisible sur :\n\n'+_bad.join('\n')+'\n\nCorrige puis recommence. Rien n\'a été modifié.','err'); return; }
@@ -7025,7 +7036,7 @@ function recalcEcartsFromFiche(opts){
       if(!frozenSet.has(l.id)) return;
       if(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')) return;
       const raw=(document.getElementById('flConf_'+l.id)?.value||'').trim();
-      const _reason=_confIllisible(raw);   // [L97 · relecture #9] MÊME garde partagée que l'arrêt manque matière (vide / quantité décimale / segment illisible)
+      const _reason=_confIllisible(raw, l.recut?l.rollW:l.useful, l.blade);   // [L97 · relecture #9][L100 #3] + capacité (utile/rouleau + lame de la ligne)
       if(_reason){
         const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id);
         _illisibles.push(lbl+' (« '+raw+' » — '+_reason+')');
@@ -7522,9 +7533,10 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       // (reprise via brouillon, re-saisie) : plusieurs plans visibles = operateur perdu +
       // risque de double decoupe.
       try{
-        const _kSend=nrm(client)+'\u00a6'+nrm(ref)+'\u00a6'+nrm(numCmd);
+        const _ncSend=(numCmd&&numCmd!=='\u2014')?numCmd:'';   // [L100 · audit e2e #7] n\u00b0 vide canonique : la fiche a '\u2014' par d\u00e9faut, le plan sauv\u00e9 a '' \u2192 sans \u00e7a la cl\u00e9 ne matchait jamais et le plan n'\u00e9tait PAS consomm\u00e9
+        const _kSend=nrm(client)+'\u00a6'+nrm(ref)+'\u00a6'+nrm(_ncSend);
         if(nrm(client)||nrm(ref)){
-          const _dupes=savesCache.filter(sv=>sv&&!sv.deleted&&(nrm(sv.client)+'\u00a6'+nrm(sv.ref)+'\u00a6'+nrm(sv.numCmd))===_kSend);
+          const _dupes=savesCache.filter(sv=>sv&&!sv.deleted&&(nrm(sv.client)+'\u00a6'+nrm(sv.ref)+'\u00a6'+nrm((sv.numCmd&&sv.numCmd!=='\u2014')?sv.numCmd:''))===_kSend);   // [L100 · #7] m\u00eame canonicalisation c\u00f4t\u00e9 plan
           for(const sv of _dupes){
             try{
               await boundedWrite(db.collection('saves').doc(sv._id).update({deleted:true,deletedAt:isoNow()}),8000);
@@ -10704,7 +10716,7 @@ function _resteGroupsFromFiche(f){
   // Coupé PAR réf : somme des laizes des bobines coupées (conf renseignée).
   const cutByRef={};            // {nrmRef:{width:qty}}
   det.forEach(fd=>{
-    if(!fd||fd.coupee!==true) return;
+    if(!fd||fd.coupee!==true||fd.actDechet===true) return;   // [L100 · audit e2e #2] une bobine 🗑 Déchet n'est PAS livrée : ses laizes retombent dans le reliquat et sont RE-PRODUITES (aligné sur recalcEcarts B54) — sinon perte sèche silencieuse dans le solde manque-matière ET le plan du reste à la validation
     const rk=nrm(fd.ref);
     const m=cutByRef[rk]||(cutByRef[rk]={});
     parseConf(fd.conf||'').forEach(p=>{ m[p.width]=(m[p.width]||0)+p.qty; });
@@ -10739,8 +10751,8 @@ function _resteGroupsFromFiche(f){
   // re-découpé pour l'op.2 (lignes OP2- dans le détail), le reliquat était calé sur la
   // machine 2 → le plan du reste reprend mère/bords/lame/machine de l'op.2. En multi-réf,
   // SEULE la réf reprise par l'op.2 (celle des lignes OP2-) bascule, les autres restent op.1.
-  const _m2=parseNum(f.mother2), _e2=parseNum(f.edge2), _b2=parseNum(f.blade2);
-  if(_m2>0&&_b2>0){
+  const _m2=parseNum(f.mother2), _e2=parseNum(f.edge2), _b2=Math.max(0,parseNum(f.blade2));
+  if(_m2>0){   // [L100 · audit e2e #1] MAVEG/CEVENINI ont une lame par défaut de 0 : exiger _b2>0 empêchait le plan du reste de basculer sur la machine op.2 (restait calé op.1). mother2/blade2 ne sont archivés QUE si op.2-autre-machine coché → _m2>0 suffit comme signal.
     // [L76 · Reliquat B55] Un changement de plan op.1 APRÈS le relais op.2 (recalcEcartsFromFiche
     // force:true) supprime les OP2- NON coupées et re-packe le reliquat en lignes RESTE- calées
     // op.1 (useOp2=false) — seules les OP2- déjà COUPÉES restent dans le détail. Détecter « il
@@ -11823,7 +11835,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
       const conf=norm(det[i].conf);
       const uu=(det[i].useful!=null&&det[i].useful>0)?det[i].useful:u;
       const bb=(det[i].blade!=null)?det[i].blade:b;
-      let cnt=1; while(i+cnt<det.length && norm(det[i+cnt].conf)===conf) cnt++;
+      let cnt=1; while(i+cnt<det.length && norm(det[i+cnt].conf)===conf && ((det[i+cnt].useful!=null&&det[i+cnt].useful>0?det[i+cnt].useful:u)===uu)) cnt++;   // [L100 · audit e2e #6] regrouper seulement à laize utile IDENTIQUE — sinon la chute de la 1re ligne (uu) s'appliquait à des bobines de laize différente
       const pat=parseConf(conf);
       const tot=pat.length?calcStats(pat,bb).total:0;
       out.push({label:pat.length?makeLabel(pat):(conf||'—'),count:cnt,total:fmt(tot),waste:fmt(uu-tot),isLast:false});
