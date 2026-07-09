@@ -1326,7 +1326,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L84';
+const APP_VERSION='2026.07.09-L85';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -2589,6 +2589,8 @@ function csvCell(v){
 function boundedWrite(p,ms){
   return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.')),ms||10000))]);
 }
+// [L85 · Audit #27] Comptage des bobines cochées ✂ Coupée — était copié-collé 7 fois.
+function countCoupees(){ return ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length; }
 
 // ============================================================
 // STATE
@@ -3341,14 +3343,12 @@ function importPlanToFiche(opts){
       if(man){
         // Plan modifié à la main : il fait foi, on génère les bobines telles
         // que saisies (les chutes éventuelles y sont déjà incluses par l'opérateur).
-        // [L80] …mais dans l'ORDRE grandes laizes d'abord (demande Esteban : vaut AUSSI pour les plans
-        // déjà écrits à la main en attente de chargement). Tri STABLE par la plus grande laize du motif
-        // (conf « q×larg + … »), sur COPIE — la saisie manuelle n'est jamais mutée. Les 2 commandes en
-        // cours (KX1046/KX1047, cf. _laizeSortExcluded) gardent leur ordre d'origine.
-        const _manBobs=_laizeSortExcluded(c.ref)?man.bobines
-          :man.bobines.map((b,_k)=>({b,_k,_w:Math.max(0,...String(b.conf||'').split('+').map(s=>{const m=s.match(/[×x]\s*(\d+(?:[.,]\d+)?)/i);return m?parseFloat(m[1].replace(',','.')):0;}))}))
-            .sort((a,z)=>(z._w-a._w)||(a._k-z._k)).map(x=>x.b);
-        _manBobs.forEach(b=>{
+        // [L85 · Audit #11/#12] La fiche suit la saisie de l'éditeur MOT POUR MOT (plan manuel fait
+        // foi) : une SEULE séquence pour écran d'édition, fiche BOB-xxx, PDF et attribution clients
+        // (l'ancien tri côté fiche créait 3 ordres différents → étiquette solde et 👥 contradictoires).
+        // Le « grandes laizes d'abord » des plans écrits à la main est appliqué UNE FOIS au CHARGEMENT
+        // du plan sauvegardé (_pmSortBobinesOnce dans doLoad), jamais pendant l'édition.
+        man.bobines.forEach(b=>{
           const cnt=Math.max(1,parseInt(b.count)||1);
           for(let k=0;k<cnt;k++){
             addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
@@ -4960,6 +4960,18 @@ function mergeDuplicateRefBlocks(){
 // gardent leur ordre d'origine (demande Esteban : Deceuninck KX1047 liv. 11/07 · Prima KX1046 liv. 16/07) :
 // re-trier en plein milieu changerait la numérotation BOB-xxx que les opérateurs suivent déjà.
 function _laizeSortExcluded(ref){ return /KX\s*-?\s*104[67]/i.test(String(ref||'')); }
+// [L85 · Audit #11] Tri UNIQUE des bobines d'un plan manuel au chargement d'un plan sauvegardé :
+// grandes laizes d'abord (stable, clé = plus grande largeur du motif via parseConf, repli = plus
+// grand nombre saisi), dernier motif = solde naturel. Jamais appelé pendant l'édition en cours.
+function _pmSortBobinesOnce(pm){
+  (Array.isArray(pm)?pm:[]).forEach(entry=>{
+    if(!entry||!Array.isArray(entry.bobines)||entry.bobines.length<2) return;
+    if(_laizeSortExcluded(entry.ref)) return;   // commandes en cours : intouchées
+    const wOf=b=>{ try{ const pc=parseConf(String(b.conf||'')); if(pc&&pc.length) return Math.max(0,...pc.map(p=>Number(p.width)||0)); }catch(e){}
+      return Math.max(0,...(String(b.conf||'').match(/\d+(?:[.,]\d+)?/g)||[]).map(x=>parseFloat(x.replace(',','.')))); };
+    entry.bobines=entry.bobines.map((b,i)=>({b,i,w:wOf(b)})).sort((a,z)=>(z.w-a.w)||(a.i-z.i)).map(x=>x.b);
+  });
+}
 function _planGroupsByLaize(pg,ref){
   // [L82] IDENTITÉ : l'ordre (grandes laizes d'abord + contrainte ≤4 palettes, solde en dernier)
   // est désormais fixé À LA SOURCE par packRefGroupsPal — toutes les surfaces (écran plan, PDF,
@@ -5543,7 +5555,7 @@ function buildPlanPrintHTML(o){
   const _planGroupCmd=c=>{
     const map={};
     if(c&&c.rows&&c.rows.length){ c.rows.forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0; if(w&&q) map[w]=(map[w]||0)+q;}); }
-    else { (c&&c.planGroups||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); (g.pattern||[]).forEach(pw=>{ const w=Number(pw)||0; if(w) map[w]=(map[w]||0)+cnt; }); }); }
+    else { (c&&c.planGroups||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); (g.pattern||[]).forEach(pw=>{ const w=Number(pw&&pw.width!==undefined?pw.width:pw)||0, q=Number(pw&&pw.qty!==undefined?pw.qty:1)||1; if(w) map[w]=(map[w]||0)+cnt*q; }); }); }   // [L85 · Audit #14] pattern = objets {qty,width} (plan manuel) : Number(objet)=NaN rendait le récap 🧾 VIDE
     const widths=Object.keys(map).map(Number).sort((a,b)=>a-b);
     const total=widths.reduce((s,w)=>s+map[w],0);
     const str=widths.map(w=>map[w]+'×'+w+'mm').join(' + ');
@@ -6130,7 +6142,7 @@ function closeLoadModal(){document.getElementById('loadModal').classList.remove(
 // le Plan ne soit écrasé (capture cohérente Plan+Fiche au parking).
 function openNewCmdConflictModal(){
   const total=ficheLines.length;
-  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  const done=countCoupees();   // [L85 · Audit #27]
   const client=(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'—');
   const num=(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'sans n°');
   const info=document.getElementById('newCmdConflictInfo');
@@ -6172,7 +6184,7 @@ function newCmdErase(){
   // « Parquer » n'est pas tracé : il crée un brouillon récupérable.
   try{
     const total=ficheLines.length;
-    const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+    const done=countCoupees();   // [L85 · Audit #27]
     const client=(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'—');
     const num=(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'sans n°');
     logAudit('discard','fiches','',`Commande en cours effacée pour charger une nouvelle — ${total} bobine(s), ${done} coupée(s) · ${client} / ${num}`).catch(()=>{});
@@ -6294,6 +6306,7 @@ async function doLoad(){
   // Plan manuel sauvegardé : on le restaure APRÈS recalcPlan (qui l'aurait écrasé).
   if(Array.isArray(s.planManual)&&s.planManual.length){
     planManual=JSON.parse(JSON.stringify(s.planManual));
+    _pmSortBobinesOnce(planManual);   // [L85 · Audit #11] grandes laizes d'abord, appliqué UNE fois au chargement (demande Esteban) — l'édition en cours n'est jamais re-triée
     const peb=document.getElementById('planEditBtn'); if(peb) peb.textContent='↩ Plan auto';
     const pmh=document.getElementById('planManualHint'); if(pmh) pmh.style.display='block';
     renderPlanManual();
@@ -6527,7 +6540,7 @@ async function stopManqueMatiere(){
   if(_stoppingMM){showToast('Envoi en cours…','err');return;}
   if(!ficheLines.length){showToast('Aucune fiche en cours.','err');return;}
   const total=ficheLines.length;
-  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  const done=countCoupees();   // [L85 · Audit #27]
   if(done===0){showToast('⚠ Aucune bobine coupée.\n\nMarque au moins une bobine comme "Coupée" avant de déclarer un manque de matière.','err');return;}
   const reste=total-done;
   _stoppingMM=true;   // [L73 · Lot 5 · B39] posé AVANT le confirm : garde le 2e tap dehors même boîte ouverte
@@ -6656,7 +6669,7 @@ function confirmCommandeRecap(){
   const total=ficheLines.length;
   // Rien à récapituler ou pas tout coupé : on laisse les gardes existantes gérer le message.
   if(!total){ confirmCommande(); return; }
-  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  const done=countCoupees();   // [L85 · Audit #27]
   if(done<total){ confirmCommande(); return; }
   const ncCount=document.querySelectorAll('#ficheLines .fl-badge.badge-red').length;
   const machSet=new Set();
@@ -6728,7 +6741,7 @@ async function confirmCommande(){
   }
   // Toutes les bobines doivent être coupées
   const total=ficheLines.length;
-  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  const done=countCoupees();   // [L85 · Audit #27]
   if(done<total){
     showToast(`⚠ ${total-done} bobine(s) non coupée(s) sur ${total}.\n\nMarque toutes les bobines comme "✓ Coupée" avant de confirmer.\n\nSi tu n'as pas assez de matière, utilise le bouton "⛔ Arrêt — Manque de matière".`,'err');
     return;
@@ -11811,7 +11824,7 @@ async function permanentDeleteAll(){
   const doneIds=new Set(); let errc=0;
   for(const it of items){
     try{
-      if(it._col==='fiches'){ addToColdArchive([it]); await deleteFichePhotos(it); }
+      addToColdArchive([it]); if(it._col==='fiches') await deleteFichePhotos(it);   // [L85 · Audit #16] archive froide pour TOUT
       await db.collection(it._col).doc(it._id).delete();
       doneIds.add(it._id);
     }catch(e){ errc++; console.error('permanentDeleteAll',it._col,it._id,e); }
@@ -11863,7 +11876,7 @@ async function permanentDelete(collection,id){
     return;
   }
   try{
-    if(collection==='fiches'){const it=corbeilleCache.find(x=>x._id===id);if(it){addToColdArchive([it]);await deleteFichePhotos(it);}}
+    {const it=corbeilleCache.find(x=>x._id===id);if(it){addToColdArchive([it]);if(collection==='fiches') await deleteFichePhotos(it);}}   // [L85 · Audit #16] archive froide pour TOUT (la bannière corbeille le promet) — photos purgées seulement pour les fiches
     await db.collection(collection).doc(id).delete();
     corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
     await logAudit('permanent_delete',collection,id,'');
@@ -12717,7 +12730,7 @@ function updateCoupeeStatus(){
   try{ syncHideCoupeesUi(); }catch(e){}   // [L62] masquage des coupées : classe conteneur + libellé bouton
   if(!ficheLines.length) return;
   const total=ficheLines.length;
-  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  const done=countCoupees();   // [L85 · Audit #27]
   const allDone=done===total;
   // Détail par référence (multi-réf) : "FILM-A 1/2 · FILM-B 2/4"
   const refs=[...new Set(ficheLines.map(l=>l.ref).filter(Boolean))];
@@ -12780,7 +12793,7 @@ function syncHideCoupeesUi(){
   if(box) box.classList.toggle('hide-coupees',_hideCoupees);
   const btn=document.getElementById('hideCoupeesBtn');
   if(!btn) return;
-  const done=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
+  const done=countCoupees();   // [L85 · Audit #27]
   btn.textContent=_hideCoupees?('👁 Voir les coupées'+(done>0?' ('+done+')':'')):'🙈 Masquer les coupées';
 }
 function updateTest2Subs(id){
