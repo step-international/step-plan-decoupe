@@ -1320,7 +1320,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.08-L79';
+const APP_VERSION='2026.07.09-L80';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -1383,7 +1383,7 @@ function confirmDlg(message,opts){
       ov=document.createElement('div');
       ov.id='confirmDlgOverlay';
       ov.className='modal-overlay';
-      ov.style.zIndex='9000';   // au-dessus des modales existantes (z-index 200)
+      ov.style.zIndex='100000';   // [L79] AU-DESSUS de TOUTES les surcouches (édition fiche/overlays sont à 9999) — sinon la confirmation s'ouvre DERRIÈRE la modale : invisible, non cliquable → le await ne se résout jamais = « bouton mort » (bug enregistrement photo AFEXTRUSION)
       ov.innerHTML='<div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmDlgMsg">'
         +'<div id="confirmDlgMsg" style="white-space:pre-line;font-size:15px;line-height:1.5;margin-bottom:18px;word-break:break-word"></div>'
         +'<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">'
@@ -2565,8 +2565,11 @@ function canViewAudit(){
   return currentRole==='admin';
 }
 // Échappement HTML — empêche l'injection via texte saisi (NC, client, étiquette…)
+// [L80 · PERF-esc] UN seul balayage regex + table (avant : 5 .replace() enchaînés). Sortie STRICTEMENT
+// identique : le replace global n'inspecte pas le texte de remplacement, donc aucun double-échappement.
+const _ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 function esc(v){
-  return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(v==null?'':v).replace(/[&<>"']/g,function(c){return _ESC_MAP[c];});
 }
 // Cellule CSV sûre : neutralise l'injection de formule Excel + échappe les guillemets
 function csvCell(v){
@@ -3179,7 +3182,7 @@ function showPage(i){
   // Au passage sur la Fiche : import auto depuis le Plan (silencieux, ne touche pas si déjà travaillé).
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
   if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }
-  if(i===2){ renderDataPage(); if(typeof updateTabBadges==='function') updateTabBadges(); }
+  if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
 }
 
@@ -5843,6 +5846,8 @@ async function doSave(){
     if(_saveBtn){ _saveBtn.disabled=false; _saveBtn.style.opacity=''; }
   }
 }
+let _saveClientOptsHtml=null, _saveClientKeys=null;   // [L80·PERF-3] cache des <option> client (catalogue statique)
+const _saveRefOptsByClient={};                         // [L80·PERF-3] cache des <option> réf par client sélectionné
 function renderSaves(){
   let saves=savesCache.filter(s=>!s.deleted);
   // [L65] compteur : combien de commandes sont déjà préparées (plans en attente de découpe).
@@ -5856,32 +5861,38 @@ function renderSaves(){
   const selC=document.getElementById('saveFilterClient');
   const selR=document.getElementById('saveFilterRef');
   const catC=(typeof CLIENT_DATA!=='undefined')?CLIENT_DATA:{};
+  // [L80 · PERF-3] CLIENT_DATA est un catalogue STATIQUE (jamais muté à l'exécution) → on mémoïse les
+  // <option> au lieu de les reconstruire (Object.keys().sort() + Object.values().flat() + dédup Set) à
+  // CHAQUE rendu de la liste des sauvegardes. Cache client : 1× ; cache réf : 1× par client sélectionné.
   if(selC){
     const cur=selC.value;
-    const clients=Object.keys(catC).sort();
-    selC.innerHTML='<option value="">Tous clients</option>'+clients.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    selC.value=clients.includes(cur)?cur:'';
+    if(_saveClientOptsHtml===null){
+      _saveClientKeys=Object.keys(catC).sort();
+      _saveClientOptsHtml='<option value="">Tous clients</option>'+_saveClientKeys.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    }
+    selC.innerHTML=_saveClientOptsHtml;
+    selC.value=_saveClientKeys.includes(cur)?cur:'';
   }
   const fC=selC?selC.value:'';
   if(selR){
     const cur=selR.value;
-    // Entrées du client choisi, sinon toutes les entrées du catalogue.
-    // Affichage au format accueil : "réf · longueur ml" (une même réf peut
-    // exister en plusieurs longueurs — chaque entrée a son propre code article).
-    let entries;
-    if(fC && catC[fC]) entries=catC[fC];
-    else entries=Object.values(catC).flat();
-    // Dédup sur la chaîne ref complète (le code article au début la rend unique).
-    const seen=new Set();
-    const opts=[];
-    entries.forEach(r=>{
-      if(!r.ref||seen.has(r.ref)) return;
-      seen.add(r.ref);
-      const lg=(r.longueur!=null&&String(r.longueur).trim()!=='')?` · ${esc(String(r.longueur))} ml`:'';
-      opts.push(`<option value="${esc(r.ref)}">${esc(r.ref)}${lg}</option>`);
-    });
-    selR.innerHTML='<option value="">Toutes matières / réf.</option>'+opts.join('');
-    selR.value=seen.has(cur)?cur:'';
+    let cached=_saveRefOptsByClient[fC];
+    if(!cached){
+      // Entrées du client choisi, sinon toutes les entrées du catalogue. Format accueil : "réf · longueur ml".
+      // Dédup sur la chaîne ref complète (le code article au début la rend unique).
+      const entries=(fC && catC[fC])?catC[fC]:Object.values(catC).flat();
+      const seen=new Set(); const opts=[];
+      entries.forEach(r=>{
+        if(!r.ref||seen.has(r.ref)) return;
+        seen.add(r.ref);
+        const lg=(r.longueur!=null&&String(r.longueur).trim()!=='')?` · ${esc(String(r.longueur))} ml`:'';
+        opts.push(`<option value="${esc(r.ref)}">${esc(r.ref)}${lg}</option>`);
+      });
+      cached={html:'<option value="">Toutes matières / réf.</option>'+opts.join(''), refs:seen};
+      _saveRefOptsByClient[fC]=cached;
+    }
+    selR.innerHTML=cached.html;
+    selR.value=cached.refs.has(cur)?cur:'';
   }
   const fR=selR?selR.value:'';
   const fCmd=(document.getElementById('saveFilterCmd')?.value||'').trim().toLowerCase();
@@ -7420,10 +7431,38 @@ async function doChronoSave(){
 // ============================================================
 // PAGE 3 — DONNÉES
 // ============================================================
+function _activeDataTab(){
+  const tabs=['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance'];
+  for(let i=0;i<tabs.length;i++){ const el=document.getElementById('tab'+tabs[i].charAt(0).toUpperCase()+tabs[i].slice(1)); if(el&&el.classList.contains('active')) return tabs[i]; }
+  return 'fiches';
+}
+// [L80 · PERF-5] Un sous-onglet Données est-il RÉELLEMENT visible ? (page Données active ET onglet non masqué)
+// Sert à éviter de reconstruire des listes cachées sur un événement de fond (ex : snapshot brouillons d'un autre poste).
+function _isDataTabVisible(tab){
+  const p2=document.getElementById('page2');
+  if(!p2||!p2.classList.contains('active')) return false;
+  const el=document.getElementById('tabContent'+tab.charAt(0).toUpperCase()+tab.slice(1));
+  return !!(el && !el.classList.contains('hidden'));
+}
 function renderDataPage(){
-  renderSaves();
-  renderTemps();
-  renderFiches();
+  // [L80 · PERF-2] Ne rend QUE le sous-onglet VISIBLE. Avant : renderSaves()+renderTemps()+renderFiches()
+  // systématiquement → 2 listes cachées (potentiellement des centaines de nœuds DOM) construites en pure
+  // perte à CHAQUE entrée dans Données. Les autres sous-onglets sont rendus à la demande par switchTab (clic).
+  const t=_activeDataTab();
+  if(t==='saves') renderSaves();
+  else if(t==='temps') renderTemps();
+  else if(t==='brouillons') renderDrafts();
+  else if(t==='nc') renderNc();
+  else if(t==='analyse') renderAnalyse();
+  else if(t==='stock') renderStock();
+  else if(t==='audit') renderAudit();
+  else if(t==='maintenance') renderMaintenance();
+  else if(t==='corbeille') loadCorbeille();
+  else renderFiches();
+  // [L80 · PERF-NC] renderFiches appelle DÉJÀ updateTabBadges (→ buildNcRows qui balaie fichesCache×ficheDetail) ;
+  // on ne le rappelle donc PAS pour 'fiches' (supprime le double balayage NC). Pour les autres sous-onglets,
+  // dont le renderer ne touche pas aux badges, on l'appelle une fois ici.
+  if(t!=='fiches' && typeof updateTabBadges==='function') updateTabBadges();
 }
 function resetTempsFilters(){
   ['filterMachine','filterClient','filterOp'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -9747,10 +9786,15 @@ function debouncedFicheSearch(){
 }
 function renderFiches(){
   const all=fichesCache.filter(f=>!f.deleted);
-  const nbValid=all.filter(f=>f.valide===true).length;
-  let fiches=showValidatedFiches?all.filter(f=>f.valide===true)
-            :fichesPendingOnly?all.filter(f=>f.valide==null)
-            :all.filter(f=>f.valide!==true);
+  // [L80 · PERF-fiches] UN seul balayage de `all` pour nbValid + nbPending + les 3 listes de vue
+  // (avant : 4 .filter() distincts sur fichesCache à CHAQUE frappe de recherche / rendu).
+  let nbValid=0,nbPending=0; const _fVal=[],_fPend=[],_fCur=[];
+  for(let i=0;i<all.length;i++){ const f=all[i],v=f.valide;
+    if(v===true){nbValid++;_fVal.push(f);}
+    else if(v==null){nbPending++;_fPend.push(f);_fCur.push(f);}   // valide==null → aussi "en cours" (valide!==true)
+    else _fCur.push(f);                                            // valide===false → "en cours" uniquement
+  }
+  let fiches=showValidatedFiches?_fVal:(fichesPendingOnly?_fPend:_fCur);
   // Recherche texte (client, n° commande, nom de fiche, réf).
   const q=(document.getElementById('ficheSearch')?.value||'').trim().toLowerCase();
   if(q){
@@ -9768,7 +9812,7 @@ function renderFiches(){
     btn.className='btn btn-sm '+(showValidatedFiches?'btn-green':'btn-ghost');
   }
   // Bouton « À valider » : compteur des fiches en attente (valide==null).
-  const nbPending=all.filter(f=>f.valide==null).length;
+  // nbPending déjà calculé dans le balayage unique ci-dessus [L80 · PERF-fiches]
   const pb=document.getElementById('btnPendingOnly');
   if(pb){
     pb.textContent=`🕓 À valider (${nbPending})`;
@@ -13263,7 +13307,7 @@ function startBrouillons(){
     }catch(e){}
     try{ renderSharedInbox(); }catch(e){}
     try{ renderSharedViewBar(); }catch(e){}
-    try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
+    try{ if(_isDataTabVisible('brouillons')) renderDrafts(); }catch(e){}   // [L80·PERF-5] ne reconstruit la liste des brouillons QUE si l'onglet est visible (avant : liste complète rebâtie à chaque snapshot de fond d'un autre poste) — switchTab la rend à la navigation
     try{ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }catch(e){}
   }, function(err){ console.warn('Brouillons (sync) :',err.message); });
 }
