@@ -1331,7 +1331,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L94';
+const APP_VERSION='2026.07.09-L95';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7509,6 +7509,23 @@ async function saveCommandeFiche(rows,useful,blade,opts){
         }
         loadedSaveId=null;
       }
+      // [L95 - Esteban 09/07] TOUT plan correspondant a la commande envoyee disparait - envoi
+      // NORMAL ou ARRET MANQUE MATIERE - meme si le plan n'avait pas ete charge formellement
+      // (reprise via brouillon, re-saisie) : plusieurs plans visibles = operateur perdu +
+      // risque de double decoupe.
+      try{
+        const _kSend=nrm(client)+'\u00a6'+nrm(ref)+'\u00a6'+nrm(numCmd);
+        if(nrm(client)||nrm(ref)){
+          const _dupes=savesCache.filter(sv=>sv&&!sv.deleted&&(nrm(sv.client)+'\u00a6'+nrm(sv.ref)+'\u00a6'+nrm(sv.numCmd))===_kSend);
+          for(const sv of _dupes){
+            try{
+              await boundedWrite(db.collection('saves').doc(sv._id).update({deleted:true,deletedAt:isoNow()}),8000);
+              sv.deleted=true; sv.deletedAt=isoNow();
+              logAudit('delete','saves',sv._id,`Plan consomm\u00e9 (fiche envoy\u00e9e \u2014 m\u00eame commande) \u2014 ${client||''} / ${ref||''}${numCmd?' \u00b7 N\u00b0 '+numCmd:''}`).catch(function(){});
+            }catch(e){ console.warn('Plan correspondant non archiv\u00e9 (r\u00e9seau ?) :',e&&e.message); }
+          }
+        }
+      }catch(e){}
     }catch(e){
       // DRAFT-1 : ne plus affirmer « placée en BROUILLON » sans preuve. On tente Firestore
       // (attendu, borné) puis repli localStorage ; message selon le support qui a tenu.
