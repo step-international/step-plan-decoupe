@@ -64,7 +64,7 @@ label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
 button{cursor:pointer;font-family:inherit}
 /* K1 — focus clavier visible partout (les border:none neutralisaient l'indice natif) */
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:focus-visible,.test2-sub:focus-visible,.machine-btn:focus-visible,.ini-btn:focus-visible,.step-btn:focus-visible,label:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
+button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:focus-visible,.test2-sub:focus-visible,.ini-btn:focus-visible,.step-btn:focus-visible,label:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:9px;border:none;font-size:14px;font-weight:600;transition:all .15s}
 .btn-blue{background:#1e3a5f;color:var(--blue);border:1px solid #2d5a9e}.btn-blue:hover{background:#254878}
 .btn-green{background:#14371f;color:var(--green);border:1px solid #1e5c30}.btn-green:hover{background:#1a4a28}
@@ -91,10 +91,7 @@ button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:
 .share-recv-meta{color:var(--muted);font-size:12px;margin-top:1px}
 .share-view-bar{display:flex;align-items:center;gap:9px;background:var(--shared-bg);border:1px solid var(--shared);border-radius:11px;padding:9px 12px;margin:8px 0;font-size:13px;color:var(--shared)}
 .machine-btns{display:flex;gap:10px;margin-bottom:14px}
-.machine-btn{flex:1;padding:12px;border-radius:10px;border:2px solid var(--border);background:var(--card);color:var(--muted);font-size:15px;font-weight:700;transition:all .2s}
-.machine-btn.sel-feba{border-color:var(--blue);color:var(--blue);background:#1a2e47}
-.machine-btn.sel-maveg{border-color:var(--green);color:var(--green);background:#142a1a}
-.machine-btn.sel-cevenini{border-color:var(--violet);color:var(--violet);background:#1f1535}
+/* [L86 · simpl.19] .machine-btn (sans -fiche) jamais posée — règles supprimées (.machine-btns conteneur conservé) */
 .machine-btn-fiche{flex:1;padding:10px;border-radius:9px;border:2px solid var(--border);background:var(--card);color:var(--muted);font-size:14px;font-weight:700;transition:all .2s}
 .machine-btn-fiche.sel-feba{border-color:var(--blue);color:var(--blue);background:#1a2e47}
 .machine-btn-fiche.sel-maveg{border-color:var(--green);color:var(--green);background:#142a1a}
@@ -360,7 +357,6 @@ body.atelier .ini-btn{font-size:18px;padding:14px 18px;min-width:64px}
 body.atelier [id^="coupeeBtn_"]{font-size:18px !important;padding:16px !important;min-height:60px !important}
 body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
-body.atelier .machine-btn{font-size:17px;padding:16px}
 /* [L83 · Audit #29] contrôles qualité ISO tapables/lisibles en mode atelier */
 body.atelier .nc-check,body.atelier .test2-sub,body.atelier .test2-nc{font-size:15px;min-height:48px;padding:10px 14px}
 body.atelier .test2-main{font-size:14px}
@@ -423,7 +419,7 @@ body.has-topbanner #nav{top:48px}
       sa zone tactile passe à 48px via un pseudo-élément transparent étendu
       (le tap sur ::after cible la pastille elle-même → onclick inchangé).
    Compatible mode atelier : body.atelier ne fait qu'agrandir par-dessus. */
-.btn:active,.machine-btn:active,.machine-btn-fiche:active,.ini-btn:active,.tab-btn:active,.nc-check:active,.fc-btn:active{transform:scale(.98);filter:brightness(1.18)}
+.btn:active,.machine-btn-fiche:active,.ini-btn:active,.tab-btn:active,.nc-check:active,.fc-btn:active{transform:scale(.98);filter:brightness(1.18)}
 #logoutBtn,#atelierBtn{min-height:44px;align-items:center}
 .ini-btn{min-height:44px}
 .cli-dot.cli-row{position:relative}
@@ -1326,7 +1322,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.09-L85';
+const APP_VERSION='2026.07.09-L86';
 let fullHistoryLoaded=false;      // historique complet chargé depuis Firestore (déclaré tôt : utilisé par ensureFullHistory)
 var showValidatedFiches=false;
 var fichesPendingOnly=false;   // filtre « À valider » (fiches valide==null)
@@ -1648,7 +1644,7 @@ async function backfillDeleted(){
 // qui n'ont pas besoin de tourner à CHAQUE login (purge/corbeille ~1500 lectures, agrégats
 // mensuels). Idempotentes et time-based → une passe quotidienne suffit largement.
 function _oncePerDay(key){
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   try{ if(localStorage.getItem(key)===today) return false; localStorage.setItem(key,today); return true; }catch(e){ return true; }
 }
 async function loadCorbeille(silent){
@@ -1786,7 +1782,7 @@ function downloadColdArchive(){
   const payload={exportDate:new Date().toISOString(),exportBy:currentUser?(currentUser.nom||currentUser.ini):'?',note:'Archive froide — éléments purgés de la corbeille. Conservés ici avant suppression définitive.',count:arch.length,items:arch};
   const b=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');{const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_archive_froide_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  a.download='step_archive_froide_'+todayISO()+'.json';a.click();
 }
 
 // Supprime toutes les photos Storage référencées par une fiche (best-effort)
@@ -1891,7 +1887,7 @@ async function doLogin(){
     if(btn) btn.disabled=true;
     err.style.color='var(--muted)';
     err.textContent='Connexion en cours...';
-    const result=await firebase.auth().signInWithEmailAndPassword(email, password);
+    await firebase.auth().signInWithEmailAndPassword(email, password);   // [L86 · simpl.4] retour jamais lu (hydratation via onAuthStateChanged)
     // L'état sera hydraté par onAuthStateChanged
   }catch(e){
     err.style.color='';   // [L74 · Design Lot C] retour au rouge pour les vraies erreurs
@@ -2573,6 +2569,7 @@ function canViewAudit(){
 // Échappement HTML — empêche l'injection via texte saisi (NC, client, étiquette…)
 // [L80 · PERF-esc] UN seul balayage regex + table (avant : 5 .replace() enchaînés). Sortie STRICTEMENT
 // identique : le replace global n'inspecte pas le texte de remplacement, donc aucun double-échappement.
+const g=id=>document.getElementById(id);   // [L86 · simpl.7] raccourci global (était redéfini localement 6 fois)
 const _ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 function esc(v){
   return String(v==null?'':v).replace(/[&<>"']/g,function(c){return _ESC_MAP[c];});
@@ -2650,7 +2647,7 @@ let commandeFiles = []; // fichiers commande client : [{url,type,name}] type ∈
 let chronoSec = 0;
 // Verrous anti double-clic (envoi fiche / enregistrement chrono / sauvegarde plan) + flags d'état
 // [L62 · Fix bug D] _savingPlan : doSave n'avait PAS de verrou (contrairement à doChronoSave
-// et sendFiche) → un double-tap tablette créait 2 plans identiques.
+// et saveCommandeFiche) → un double-tap tablette créait 2 plans identiques.
 let _sendingFiche=false, _savingChrono=false, _savingPlan=false, _draftWarnShown=false;
 let _stoppingMM=false;   // [L73 · Lot 5 · B39] verrou dédié à l'arrêt manque matière (re-tap pendant l'envoi)
 // ENVOI-1 : id de fiche/temps réservé AVANT l'envoi et conservé dans l'état sérialisé.
@@ -2697,6 +2694,7 @@ function clampQ(n,max){return Math.max(0,Math.min(max||9999,Math.floor(n||0)));}
 function safeUrl(u){u=String(u==null?'':u);return /^(https?:|blob:|data:image\/)/i.test(u)?u:'#';}
 function today(){return new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function isoNow(){return new Date().toISOString();}
+function todayISO(){return new Date().toISOString().slice(0,10);}   // [L86 · simpl.11] était recopié 10 fois
 function getDayOfYear(){
   const now=new Date(),start=new Date(now.getFullYear(),0,1);
   return Math.ceil((now-start)/86400000);
@@ -3595,7 +3593,6 @@ function cliNom(id){
 // Liste complète (A + extras) avec méta — pour l'archive fiche et les récaps.
 // Champs A lus FICHE d'abord (même règle L31 que l'archivage).
 function cliListFull(){
-  const g=id=>document.getElementById(id);
   const a={id:'A',nom:g('fClient')?.value||g('planClient')?.value||'',
     numCmd:g('fNumCmd')?.value||g('planNumCmd')?.value||'',
     dateLiv:g('fDateLiv')?.value||g('planDateLiv')?.value||'',
@@ -3734,7 +3731,7 @@ function cliPartsFromGroups(lines,groups,stockByRef){
 }
 // [L71] entrées d'attribution des lignes fiche courantes (réf + clé + conf + figé/déchet).
 function _cliLineEntries(){
-  return (Array.isArray(ficheLines)?ficheLines:[]).map(l=>({
+  return ficheLines.map(l=>({
     ref:l.ref||'', refIdKey:l.refIdKey||null, machine:l.machine||'',   // [L83 · Audit #1]
     dechet:!!(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')),
     frozen:(Array.isArray(l.cliParts)&&l.cliParts.length)?l.cliParts:null,
@@ -3743,7 +3740,7 @@ function _cliLineEntries(){
 }
 
 // ── UI : panneau « Multi-clients » (page Plan) + pastilles par ligne ─────────
-function cliSyncBody(){ try{ document.body.classList.toggle('cli-multi',cliMulti()); }catch(e){} }
+function cliSyncBody(){ document.body.classList.toggle('cli-multi',cliMulti()); }   // [L86 · simpl.18] try/catch mort retiré (corps ne peut pas jeter)
 function cliFreeSlot(){ return ['B','C','D'].find(s=>!(cmdClients||[]).some(c=>c.id===s))||null; }
 function cliAdd(){
   const slot=cliFreeSlot();
@@ -4951,11 +4948,7 @@ function mergeDuplicateRefBlocks(){
   }
   return merged>0;
 }
-// [L79] Ordre d'AFFICHAGE du plan : grandes laizes d'abord (clé = pattern[0].width, garanti en tête
-// par bestPattern), en épinglant le SOLDE (dernier motif du packing) en dernier. Renvoie une COPIE —
-// c.planGroups n'est JAMAIS muté (computePlanAggregate et la fiche relisent [length-1] pour le
-// solde/chute-stock). Utilisé pour l'affichage écran ET l'impression, avec l'attribution multi-clients
-// alignée sur le même ordre pour rester cohérent.
+// [L86 · simpl.24] (docstring L79 périmée supprimée — l'ordre est fixé à la source par packRefGroupsPal, cf. [L82] dans _planGroupsByLaize)
 // [L80 · TEMPORAIRE — à retirer après le 16/07/2026] Deux commandes EN COURS d'exécution atelier
 // gardent leur ordre d'origine (demande Esteban : Deceuninck KX1047 liv. 11/07 · Prima KX1046 liv. 16/07) :
 // re-trier en plein milieu changerait la numérotation BOB-xxx que les opérateurs suivent déjà.
@@ -5078,7 +5071,6 @@ function recalcPlan(){
   const {totalBobines,totalMat,totalUsed,pct,chuteStockMm,
          perteMm,resteRouleauxMm,perteMereMm,pertePct,
          chutesUsedAll,chutesPieces,recutCountAll}=agg;
-  const pctCls=pct<3?'pct-green':pct<8?'pct-orange':'pct-red';
   const multi=computed.length>1;
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
@@ -5636,7 +5628,6 @@ function buildPlanPrintHTML(o){
   const _cmdSrc=(o.mandrinGroups&&o.mandrinGroups.length)?o.mandrinGroups:(groups||[]);
   const _cmdMap={}; _cmdSrc.forEach(g=>(g.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0;if(w&&q)_cmdMap[w]=(_cmdMap[w]||0)+q;}));
   const _cmdStr=Object.keys(_cmdMap).map(Number).sort((a,b)=>a-b).map(w=>_cmdMap[w]+'×'+w+'mm').join(' + ');
-  const _cmdTotal=Object.values(_cmdMap).reduce((a,b)=>a+b,0);
   const _totMeres=(groups||[]).reduce((s,c)=>s+((c.planGroups||[]).reduce((ss,g)=>ss+Math.max(1,parseInt(g.count)||1),0)),0);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plan STEP</title>
@@ -5918,7 +5909,6 @@ async function doSave(){
   var rows=getOrderRows();
   const refGroups=serializeRefGroups();
   const multi=refGroups.length>1;
-  const allRows=[].concat(...refGroups.map(g=>g.rows||[]));
   const entry={
     rows:rows,machine:(refGroups[0]&&refGroups[0].machine)||currentMachine,
     refGroups:refGroups,                       // multi-réfs (nouveau)
@@ -6011,7 +6001,7 @@ function renderSaves(){
   // cascade : choisir un client restreint la liste des références.
   const selC=document.getElementById('saveFilterClient');
   const selR=document.getElementById('saveFilterRef');
-  const catC=(typeof CLIENT_DATA!=='undefined')?CLIENT_DATA:{};
+  const catC=CLIENT_DATA;
   // [L80 · PERF-3] CLIENT_DATA est un catalogue STATIQUE (jamais muté à l'exécution) → on mémoïse les
   // <option> au lieu de les reconstruire (Object.keys().sort() + Object.values().flat() + dédup Set) à
   // CHAQUE rendu de la liste des sauvegardes. Cache client : 1× ; cache réf : 1× par client sélectionné.
@@ -6078,8 +6068,6 @@ function renderSaves(){
       ?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${machLabels.map(mn=>`<span style="display:inline-block;padding:3px 12px;border-radius:7px;font-size:15px;font-weight:800;letter-spacing:.5px;color:#fff;background:${MACH_COLORS[mn]||'#a78bfa'}">⚙ ${esc(mn)}</span>`).join('')}</div>`
       :'';
     const stripRefNum=r=>String(r||'').replace(/^\s*\d+\s*[-–]\s*/,'');   // [L79] retire le préfixe numérique « 12 - » d'une réf
-    const pkg=[s.typeCond||s.carton,s.palette,s.etiquetage||s.etiquette,s.cerclage].filter(Boolean).join(' · ');
-    const pkgLine=pkg?`<div class="save-meta">📦 ${pkg}</div>`:'';
     const cmdLine=(s.numCmd)?`<div style="margin-top:5px"><span style="display:inline-block;background:var(--blue);color:#fff;font-weight:800;font-size:13px;padding:3px 10px;border-radius:6px;letter-spacing:.02em">N° ${esc(s.numCmd)}</span>${s.dateLiv?`<span style="margin-left:8px;font-size:12px;color:var(--muted)">📅 livr. ${new Date(s.dateLiv).toLocaleDateString('fr-FR')}</span>`:''}</div>`:'';
     const isMulti=Array.isArray(s.refGroups)&&s.refGroups.length>1;
     const titleHtml=isMulti
@@ -6536,8 +6524,7 @@ async function stopManqueMatiere(){
   // [L73 · Lot 5 · B39] re-tap pendant l'envoi : saveCommandeFiche early-returnait en silence
   // (verrou _sendingFiche) → _ficheId undefined → un SECOND brouillon « ⛔ Solde » orphelin
   // (fromFicheId:'') était parqué → doublon reprenable = risque de double découpe du solde.
-  if(_sendingFiche){showToast('Envoi en cours…','err');return;}
-  if(_stoppingMM){showToast('Envoi en cours…','err');return;}
+  if(_sendingFiche||_stoppingMM){showToast('Envoi en cours…','err');return;}   // [L86 · simpl.17] les DEUX verrous restent testés (B39), code factorisé
   if(!ficheLines.length){showToast('Aucune fiche en cours.','err');return;}
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
@@ -6675,7 +6662,7 @@ function confirmCommandeRecap(){
   const machSet=new Set();
   ficheLines.forEach(({id})=>{
     const el=document.getElementById(id); if(!el) return;
-    ['feba','maveg','cevenini'].forEach(m=>{ if(el.classList.contains(m)) machSet.add(typeof getMachineLabel==='function'?getMachineLabel(m):m.toUpperCase()); });
+    ['feba','maveg','cevenini'].forEach(m=>{ if(el.classList.contains(m)) machSet.add(getMachineLabel(m)); });
   });
   const machStr=machSet.size?[...machSet].join(', '):'—';
   let msg='📤 Confirmer l\'envoi de la commande ?\n\n';
@@ -7118,7 +7105,6 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   const ecartMsg=(opts.ecartLines&&opts.ecartLines.length)?opts.ecartLines.join(' ; '):
     (nbFiche>nbPlan?`+${nbFiche-nbPlan} bobine(s) en plus`:nbFiche<nbPlan?`-${nbPlan-nbFiche} bobine(s) en moins`:'');
 
-  const g=id=>document.getElementById(id);
   // L31 — client archivé : FICHE d'abord (comme l'affichage : la fiche est la
   // vérité terrain). Avant, plan d'abord → si le <select> plan avait perdu sa
   // valeur, la fiche s'archivait à '—' et le nom disparaissait dans Données, le
@@ -7383,7 +7369,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   }finally{
     _sendingFiche=false;
     const _sb2=document.getElementById('sendPlanBtn');
-    if(_sb2) _sb2.disabled=false;   // l'opacité/cursor sont regérés par resetAll/updateSend
+    if(_sb2) _sb2.disabled=false;   // l'opacité/cursor sont regérés par resetAll/updateCoupeeStatus
   }
 }
 
@@ -7858,7 +7844,7 @@ async function exportTemps(){
   const csv='\ufeff'+headers+'\n'+rows.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');{const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_temps_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  a.download='step_temps_'+todayISO()+'.csv';a.click();
 }
 
 // ============================================================
@@ -7923,7 +7909,7 @@ function buildFicheAnalytics(){
   const fiches=fichesCache.filter(f=>!f.deleted&&f.valide!==false);   // [L83 · Audit #42] fiches REFUSÉES exclues — même règle que le KPI mensuel (le taux NC vs cible 3% était calculé sur un périmètre différent selon l'écran)
   if(!fiches.length) return '';
   let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,totBob=0,ncBob=0;
-  const opStat={},machStat={},clientPct={};
+  const opStat={},machStat={};   // [L86 · simpl.1] clientPct/clientItems morts supprimés
   fiches.forEach(f=>{
     const det=f.ficheDetail||[];
     let fNc=0;
@@ -7937,7 +7923,6 @@ function buildFicheAnalytics(){
     });
     const op=f.ini||'?';if(!opStat[op])opStat[op]={nc:0,tot:0};opStat[op].nc+=fNc;opStat[op].tot+=det.length;
     const m=f.machine||'?';if(!machStat[m])machStat[m]={nc:0,tot:0};machStat[m].nc+=fNc;machStat[m].tot+=det.length;
-    const pct=parseFloat(f.pct);if(!isNaN(pct)){const c=f.client||'?';if(!clientPct[c])clientPct[c]=[];clientPct[c].push(pct);}
   });
   const ncTotal=ncLarg+ncQty+ncCasse+ncAng;
   const ncSlices=[
@@ -7956,7 +7941,6 @@ function buildFicheAnalytics(){
   const opItems=Object.entries(opStat).filter(([,d])=>d.tot>0).map(([op,d])=>({label:op,value:d.tot?d.nc/d.tot*100:0,color:opColors[op]||'#60a5fa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
   const machColors={'FEBA':'#60a5fa','MAVEG':'#4ade80','CEVENINI':'#a78bfa','?':'#888'};
   const machItems=Object.entries(machStat).filter(([,d])=>d.tot>0).map(([m,d])=>({label:m,value:d.tot?d.nc/d.tot*100:0,color:machColors[m]||'#a78bfa',sub:`(${d.nc}/${d.tot})`,disp:(Math.round(d.nc/d.tot*1000)/10)})).sort((a,b)=>b.value-a.value);
-  const clientItems=Object.entries(clientPct).map(([c,arr])=>({label:c,value:avgArr(arr),color:'#34d399',sub:`(${arr.length} cmd)`})).sort((a,b)=>b.value-a.value);
   const globalNcRate=totBob?Math.round(ncBob/totBob*1000)/10:0;
   // [L79 · AN-5] Objectif qualité STEP : ≤ 3% de bobines non-conformes. On affiche le réel VS la cible,
   // couleur + écart en points, pour piloter l'amélioration continue (ISO 9001 §6.2 objectifs / §9.1 surveillance).
@@ -8158,7 +8142,7 @@ async function ensureMonthlyAggregates(){
   //      au prochain lancement (par n'importe quel poste isManage habilité).
   if(!db || !canManageData()) return;
   const KEY='step_aggregates_daily';
-  const today=new Date().toISOString().slice(0,10);
+  const today=todayISO();
   try{ if(localStorage.getItem(KEY)===today) return; }catch(e){}
   await loadAgregats();
   const ym=lastClosedYM();
@@ -8482,7 +8466,6 @@ function stockArticleCardHTML(a,soldePre){
 function stockViewHTML(){
   const arts=stockArticlesCache.slice().sort((a,b)=>String(a.ref).localeCompare(String(b.ref)));
   const bal=stockBalancesByLoc();
-  const suOf=a=>Number(a.surfaceUnit)||stockSurfaceUnit(a.largeur,a.longueur);
   const nf=n=>Math.round(Number(n)||0).toLocaleString('fr-FR');
   // Totaux par emplacement + total disponible (STEP + en production ; B+K = pas encore reçu).
   const tStep=stockLocTotal(bal,'step'), tBk=stockLocTotal(bal,'bk'), tProd=stockLocTotal(bal,'prod');
@@ -8732,7 +8715,7 @@ async function saveStockArticleEdit(id,btn){
 }
 // INT-2 : archivage d'un article stock (soft-delete). Récupérable via la corbeille
 // pendant RETENTION_DRAFT_DAYS. Les MOUVEMENTS, eux, ne se suppriment volontairement
-// pas : un mouvement erroné s'annule par écriture de correction (stockAnnulerMouvement),
+// pas : un mouvement erroné s'annule par écriture de correction (annulStockMouvement),
 // ce qui préserve la traçabilité comptable.
 async function archiveStockArticle(id){
   if(!canManageData()){ showToast('Archivage réservé au pilotage et aux admins.','err'); return; }
@@ -9411,9 +9394,7 @@ async function confirmLameInstall(){
   if(ok) renderMaintenance();
 }
 // [L83 · Audit #24] maintRespOpts supprimée (morte — le formulaire « Installer/déclarer une lame » a été retiré au L79)
-function maintViewHTML(){
-  const today=new Date().toISOString().slice(0,10);
-  const machOpts=['feba','maveg','cevenini'].map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
+function maintViewHTML(){  const machOpts=['feba','maveg','cevenini'].map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
   return `
   <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Suivi des lames de découpe — preuve ISO 9001. L'alerte de changement se déclenche selon la machine : FEBA 15 jours, MAVEG et CEVENINI 10 jours après la pose. <span style="color:var(--green)">Installe / change une lame directement sur la machine concernée ci-dessous (« 🔄 Changer la lame »).</span></div>
   <!-- [L79] Formulaire « Installer / déclarer une lame » du haut RETIRÉ (redondant) : l'installation/changement se fait par machine dans « État des lames » via lameInstallPrompt. saveMaintenance conservée sans accès UI. -->
@@ -9546,7 +9527,7 @@ function exportMaintenance(){
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='suivi_lames_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='suivi_lames_'+todayISO()+'.csv';
   a.click();
 }
 
@@ -10171,7 +10152,6 @@ function renderAnalyse(){
     totalH:Math.round(d.totalSec/3600*10)/10,
     color:m==='FEBA'?'#60a5fa':m==='MAVEG'?'#4ade80':'#a78bfa'
   })).sort((a,b)=>b.avg-a.avg);
-  const maxM=Math.max(...machItems.map(x=>x.avg),1);
 
   const legendOps=allOps.map(op=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px">
     <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${opColors[op]||'#888'}"></span>${op}
@@ -10328,7 +10308,7 @@ function renderFiches(){
     const validBtns=canValidate()?`
       ${f.valide!==true?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#7a2222'};color:${blOk?'#4ade80':'#f87171'};background:${blOk?'#14371f':'#3d1414'}">${blOk?'📎 BL joint':'⛔ BL manquant'}</span>`:''}
       ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
-      ${(f.valide==null)?`<button class="fc-btn" style="background:#3a1414;color:#f87171;border:1px solid #5a2020" onclick="rejectFiche('${f._id}')" title="Refuser la fiche (non-conformité process)">✗ Refuser</button>`:''}`:'';   // [L83 · Audit #21] le circuit « refusée » existait partout (KPI, exports, couleurs) mais le bouton avait disparu
+      ${(f.valide==null)?`<button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser la fiche (non-conformité process)">✗ Refuser</button>`:''}`:'';   // [L83 · Audit #21] le circuit « refusée » existait partout (KPI, exports, couleurs) mais le bouton avait disparu
     // [L79] Bordure gauche colorée par ÉTAT (séparation nette) : vert=validée · orange=à valider · rouge=refusée/manque matière.
     const _stateBorder=(f.valide===true)?'#4ade80':(f.valide===false)?'#f87171':(f.manqueMatiere?'#f87171':'#f59e0b');
     return `<div class="fiche-card" style="border-left-color:${_stateBorder};border-left-width:6px">
@@ -11127,7 +11107,7 @@ function exportAudit(){
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='piste_audit_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='piste_audit_'+todayISO()+'.csv';
   a.click();
 }
 async function auditRefresh(btn){
@@ -11324,7 +11304,7 @@ async function exportNc(){
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='registre_NC_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='registre_NC_'+todayISO()+'.csv';
   a.click();
 }
 
@@ -11499,12 +11479,6 @@ function showFicheDetail(id,autoPrint,cliFilter){
     }
     return m;
   })();
-  const mandrinForConf=(label)=>{
-    if(!isLegrandFr) return '';
-    const pat=parseConf(label||'');
-    const codes=[...new Set(pat.map(p=>mandrinMap[p.width]).filter(Boolean))];
-    return codes.length?codes.join(' / '):'';
-  };
   // Nb de bobineaux par carton, par largeur (Legrand France).
   const cartonMap=(()=>{
     const m={};
@@ -11758,7 +11732,7 @@ function downloadFullBackup(){
   const b=new Blob([json],{type:'application/json'});
   const a=document.createElement('a');
   {const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_export_visible_'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='step_export_visible_'+todayISO()+'.json';
   a.click();
 }
 
@@ -11899,7 +11873,7 @@ async function exportFiches(){
   ].map(csvCell).join(';')).join('\n');
   const b=new Blob(['\ufeff'+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');{const _bu=URL.createObjectURL(b);a.href=_bu;setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000);}
-  a.download='step_fiches_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  a.download='step_fiches_'+todayISO()+'.csv';a.click();
 }
 
 // ============================================================
@@ -12894,9 +12868,7 @@ function updateAllCumuls(){
   // Cumul PAR RÉFÉRENCE : chaque bobine compte dans le total de SA réf
   // (deux réfs partageant une largeur ont chacune leur compteur / ✓ / carton /
   // mandrin). Repli sur les maps globales si la réf de la ligne n'est pas
-  // dans le plan courant (ligne libre, réf retirée, ancien brouillon).
-  const nrm=v=>String(v==null?'':v).trim().toLowerCase();
-  const runningByRef={};
+  // dans le plan courant (ligne libre, réf retirée, ancien brouillon).  const runningByRef={};
   // E — bobineaux DÉJÀ EN STOCK par (réf, largeur) : ils couvrent une partie de la
   // commande sans être coupés. Sert à afficher la cible réellement À COUPER
   // (commande - stock) dans le cumul opérateur, pour ne pas laisser croire qu'il manque.
@@ -13161,7 +13133,6 @@ function updateShareUi(){
 // l'auto-save 10 s (côté émetteur et récepteur) sont le Lot 3.
 // ============================================================
 function _shareLabel(){
-  const g=id=>document.getElementById(id);
   const cli=(g('fClient')&&g('fClient').value)||(g('planClient')&&g('planClient').value)||'—';
   const cmd=(g('fNumCmd')&&g('fNumCmd').value)||(g('planNumCmd')&&g('planNumCmd').value)||'sans n°';
   return cli+' / '+cmd;
@@ -13451,7 +13422,7 @@ function _syncSharedApply(doc){
   _viewingSharedRev=rev;
   // Préserver le chrono du destinataire (restoreFicheState le remettrait à zéro).
   const _prevChrono={sec:chronoSec,startTs:chronoStartTs,wasRunning:chronoRunning,runStart:chronoRunStart};
-  const _sy=(typeof window!=='undefined'&&window.scrollY)||0;   // préserver le défilement (reconstruction complète du DOM)
+  const _sy=window.scrollY||0;   // préserver le défilement (reconstruction complète du DOM)
   try{ restoreFicheState(_shareCloneForReceiver(doc.state)); }
   catch(e){ console.warn('Miroir live :',e); return; }
   try{ restoreChrono(_prevChrono); }catch(e){}
@@ -13509,7 +13480,7 @@ function applySharedCuts(cuts){
   try{ _shareCutsLocal=JSON.parse(JSON.stringify(cuts||{})); }catch(e){ _shareCutsLocal={}; }
   const me=_uid();
   let changed=false;
-  (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l,idx){
+  ficheLines.forEach(function(l,idx){
     const line=document.getElementById(l.id);
     const btn=document.getElementById('coupeeBtn_'+l.id);
     if(!line||!btn) return;
@@ -13590,7 +13561,7 @@ function shareEndAfterSend(){
 }
 // Retire tous les 🔒 (fin de partage / sortie de vue) — les marquages « coupée » restent.
 function _clearSharedLocks(){
-  (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l){
+  ficheLines.forEach(function(l){
     const line=document.getElementById(l.id), btn=document.getElementById('coupeeBtn_'+l.id);
     if(!line||!btn||!line.classList.contains('coupee-other')) return;
     line.classList.remove('coupee-other');
@@ -13837,7 +13808,6 @@ async function clearCurrentDraft(ficheId){
 }
 
 function serializeFicheState(){
-  const g=id=>document.getElementById(id);
   return {
     plan:{machine:currentMachine,mother:g('motherWidth')?.value||'',blade:g('bladeWidth')?.value||'',edge:g('edgeLoss')?.value||'',
       client:g('planClient')?.value||'',ref:g('planRef')?.value||'',largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',
@@ -14003,7 +13973,7 @@ function stopAutosave(){
 async function maybeResumeRunningChrono(){
   try{
     if(ficheLines&&ficheLines.length) return;           // une fiche est déjà à l'écran
-    if(typeof chronoRunning!=='undefined'&&chronoRunning) return;
+    if(chronoRunning) return;
     const live=readChronoLive();                         // sauvegarde instantanée (localStorage, hors-ligne)
     const aid=(typeof autosaveId==='function')?autosaveId():null;
     let d=null;
@@ -14086,7 +14056,7 @@ async function maybeResumeRunningChrono(){
 async function maybeResumePlan(){
   try{
     if(ficheLines&&ficheLines.length) return;                       // une fiche est déjà à l'écran (chrono repris)
-    if(typeof chronoRunning!=='undefined'&&chronoRunning) return;   // un chrono a été repris
+    if(chronoRunning) return;   // un chrono a été repris
     if(typeof planHasContent==='function' && planHasContent()) return; // une saisie plan est déjà en cours
     const pid=(typeof planAutosaveId==='function')?planAutosaveId():null;
     if(!db||!pid) return;
@@ -14155,7 +14125,6 @@ let _planAutosaveTimer=null;
 let _planAutosaveLast='';
 let _planAutosaveBound=false;
 function planHasContent(){
-  const g=id=>document.getElementById(id);
   if(((g('planClient')&&g('planClient').value)||'').trim()) return true;
   if(((g('planRef')&&g('planRef').value)||'').trim()) return true;
   if(((g('planNumCmd')&&g('planNumCmd').value)||'').trim()) return true;
@@ -14268,7 +14237,6 @@ function restoreFicheState(st){
   // Données→Plans (double découpe possible). Brouillons antérieurs (sans champ) : null,
   // comportement d'avant (on n'archive jamais « consommé » un plan jamais coupé).
   loadedSaveId=st.loadedSaveId||null;
-  const g=id=>document.getElementById(id);
   selectMachine(st.plan.machine||'feba');
   if(g('motherWidth'))g('motherWidth').value=st.plan.mother;
   if(g('bladeWidth'))g('bladeWidth').value=st.plan.blade;
