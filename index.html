@@ -239,6 +239,8 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 .fiche-line.coupee.coupee-other{border-color:#8a2857;background:#241019;border-left-color:var(--shared)}
 /* [L62] Masquage des bobines coupées sur la fiche (moins de défilement pendant la coupe) */
 #ficheLines.hide-coupees .fiche-line.coupee:not(.flash-cut){display:none}   /* [L102 · M2-D] la carte reste visible le temps du flash de confirmation (~0,9 s) avant d'être masquée */
+/* [L105 · Phase 1 · E] chrono arrêté : indice rouge sur chaque ✂ non coupé (prévient avant le tap) */
+#ficheLines.chrono-off .fiche-line:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⏱ arrêté";color:var(--red);font-weight:800;font-size:.85em}
 .fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .fl-pos{font-size:15px;font-weight:800;color:var(--mc,var(--blue));background:rgba(255,255,255,.05);border-radius:8px;padding:6px 12px;white-space:nowrap}
 .fl-title{flex:1;font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -249,7 +251,7 @@ body.atelier .fl-badge{font-size:17px;padding:3px 10px}
 @media(max-width:480px){.fiche-grid{grid-template-columns:1fr}}
 /* [L79] Cases de conformité compactées (moins encombrantes / moins de texte sur mobile) — restent tapables (~36px) */
 .nc-checks{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
-.nc-check{display:flex;align-items:center;gap:5px;padding:7px 11px;min-height:36px;border-radius:7px;border:1px solid var(--border2);background:#1a1a18;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;user-select:none}
+.nc-check{display:flex;align-items:center;gap:5px;padding:9px 12px;min-height:44px;border-radius:7px;border:1px solid var(--border2);background:#1a1a18;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;user-select:none}   /* [L105 · Phase 1 · G] 36→44px (cible tactile gants) */
 .nc-check input{display:none}
 .nc-check.ras.sel{background:#14371f;border-color:var(--green);color:var(--green)}
 .nc-check.bad.sel{background:#3d1414;border-color:var(--red);color:var(--red)}
@@ -1411,7 +1413,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L104';
+const APP_VERSION='2026.07.10-L105';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -13201,14 +13203,14 @@ function addFicheLine(data){
       </div>
       <div class="field">
         <label>Non-conformité</label>
-        <div class="nc-checks">
+        <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts (1 ligne mobile), ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
           <label class="nc-check ras sel" id="nc_ras_${id}"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ RAS</label>
-          <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Largeur</label>
-          <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Quantité</label>
-          <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
           <label class="nc-check bad" id="nc_ang_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Angle</label>
+          <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
+          <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
+          <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Qté</label>
         </div>
-        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" style="margin-top:8px"></textarea>
+        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci -->
       </div>
       <div class="field">
         <label>Photo bobine</label>
@@ -13468,6 +13470,10 @@ function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.get
 function updateNextAction(){
   try{
     document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
+    // [L105 · Phase 1 · E] état chrono visible SUR le bouton ✂ : quand le chrono est arrêté,
+    // chaque ✂ non coupé affiche « · ⏱ arrêté » en rouge (CSS ::after) → l'opérateur voit
+    // AVANT de taper qu'il faut démarrer le chrono (avant : simple toast, chrono hors écran).
+    document.getElementById('ficheLines')?.classList.toggle('chrono-off',!chronoRunning);
     const total=ficheLines.length;
     const done=total?countCoupees():0;
     let mode='none';
