@@ -824,7 +824,7 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
       <textarea id="planNotesEmballage" placeholder="Instructions spécifiques client…" style="min-height:50px;font-size:13px"></textarea>
     </div>
     <div id="packagingAlert" class="hidden" style="margin-top:8px;padding:10px 14px;border-radius:8px;background:#3d2a00;border:1px solid #7a5200;font-size:12px;color:var(--orange);line-height:1.6"></div>
-    <div class="text-muted" style="font-size:12px;margin-top:6px">Auto-rempli quand tu choisis un client. Modifiable manuellement. Sauvegardé avec le plan.</div>
+    <div class="text-muted" style="font-size:12px;margin-top:6px">Modifiable manuellement. Sauvegardé avec le plan.</div>
   </div>
 
   <div class="section">
@@ -1467,7 +1467,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L114';
+const APP_VERSION='2026.07.10-L115';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1716,6 +1716,7 @@ function ensureFullHistory(){
       }
       fullHistoryLoaded=true;
       const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display='none';
+      try{ hygieneAutoSweep(); }catch(e){}   // [L115] nettoyage AUTO des plans déjà coupés (silencieux, admin) sur historique COMPLET
       return true;
     }catch(e){
       console.warn('Chargement historique complet échoué :',e.message);
@@ -1776,6 +1777,7 @@ async function loadFirestoreData(){
     // L'historique complet se charge à la demande via le bouton 📥 dans Données.
     const r=await Promise.all([loadCol('saves',200),loadCol('temps',500),loadCol('fiches',200)]);
     savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;   // [L73 · Lot 5 · B34] loadCol retourne désormais {rows,truncated,last} (troncature normale au boot : bandeau partiel géré par fullHistoryLoaded)
+    try{ hygieneAutoSweep(); }catch(e){}   // [L115] nettoyage AUTO des plans déjà coupés du récent (fenêtre boot) — le reste au chargement complet
     if(!migrated && canManageData()) backfillDeleted();   // migration unique (admins/pilotage)
     if(canManageData() && _oncePerDay('step_corbeille_daily')) loadCorbeille(true);   // purge auto en arrière-plan, au plus 1×/jour/poste (l'ouverture de l'onglet reste toujours à jour)
     // [L77 · B10-bis] Postes NON admin/pilotage : la purge corbeille reste réservée au pilotage,
@@ -6164,7 +6166,7 @@ function refreshEtiquetteSolde(){
         Machine : ${d.mn} · Date : ${d.date}
       </div>
       <div class="field" style="margin-bottom:8px">
-        <label>N° de la bobine mère <span style="color:var(--orange);font-size:12px">obligatoire pour imprimer</span></label>
+        <label>N° de la bobine mère</label>
         <input type="text" id="etiqNumMere_${d.key}" placeholder="ex : 11" inputmode="text" oninput="updateEtiquetteBtn('${d.key}')">
       </div>
       <button class="btn btn-orange" id="etiqPrintBtn_${d.key}" style="width:100%;justify-content:center;opacity:.4;cursor:not-allowed" onclick="printEtiquetteSolde('${d.key}')">🖨️ Imprimer l'étiquette solde</button>
@@ -8490,6 +8492,10 @@ async function exportTemps(){
 // REPLI tap-pour-poser (carte → cases surlignées → case). Souris : glisser direct.
 // ============================================================
 let plnWeekOffset=0;
+let plnPoolSort='recent';   // [L115] tri de « À planifier » : recent | liv | client | ref
+let plnPoolOpen=true;       // [L115] « À planifier » repliable
+function plnSetSort(v){ plnPoolSort=v; renderPlanning(); }
+function plnTogglePool(){ plnPoolOpen=!plnPoolOpen; renderPlanning(); }
 let plnArmedSid=null;            // carte « armée » (tap-pour-poser)
 let _plnDrag=null;               // état du glisser en cours
 let _plnLastDrop=0;              // anti-clic fantôme après un drop
@@ -8768,7 +8774,13 @@ function renderPlanning(){
     </div>`;
   };
   const reports=all.filter(s=>s.plannedDate&&s.plannedDate<todayIso).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
-  const pool=all.filter(s=>!s.plannedDate).sort((a,b)=>String(_plnDateLivMin(a)||'9999').localeCompare(String(_plnDateLivMin(b)||'9999')));
+  const _poolSorters={
+    recent:(a,b)=>String(b.date||'').localeCompare(String(a.date||'')),                                   // plan le plus récemment enregistré d'abord
+    liv:(a,b)=>String(_plnDateLivMin(a)||'9999-99-99').localeCompare(String(_plnDateLivMin(b)||'9999-99-99')), // livraison la plus proche d'abord
+    client:(a,b)=>String(a.client||'').localeCompare(String(b.client||''),'fr')||String(a.ref||'').localeCompare(String(b.ref||''),'fr'),
+    ref:(a,b)=>String(a.ref||'').localeCompare(String(b.ref||''),'fr')||String(a.client||'').localeCompare(String(b.client||''),'fr'),
+  };
+  const pool=all.filter(s=>!s.plannedDate).sort(_poolSorters[plnPoolSort]||_poolSorters.recent);
   let grid=`<div class="pln-hcell"></div>`+days.map((d,i)=>`<div class="pln-hcell${dayIsos[i]===todayIso?' today':''}">${PLN_JOURS[i]} ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</div>`).join('');
   DUJ_MACHINES.forEach(m=>{
     grid+=`<div class="pln-mach" style="color:var(--${m})">${esc(getMachineLabel(m))}</div>`;
@@ -8790,8 +8802,17 @@ function renderPlanning(){
       ${canEdit?'':'<span style="font-size:12px;color:var(--muted)">🔒 lecture seule</span>'}
     </div>
     ${reports.length?`<div class="pln-report">↪ <b>Reportés (${reports.length})</b> — à re-glisser :${reports.map(s=>cardHtml(s,'report')).join('')}</div>`:''}
-    <div style="font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">📥 À planifier — ${pool.length} plan(s)</div>
-    <div id="plnPool" onclick="plnPoolTap()">${pool.map(s=>cardHtml(s,'pool')).join('')||'<span style="color:var(--muted);font-size:13px">Aucun plan en attente. 👍</span>'}</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <button class="btn btn-ghost btn-sm" onclick="plnTogglePool()" style="font-weight:800" title="Afficher / replier les plans à planifier">${plnPoolOpen?'▾':'▸'} 📥 À planifier — ${pool.length}</button>
+      ${plnPoolOpen?`<label style="font-size:12px;color:var(--muted);margin-left:auto">Trier :</label>
+      <select onchange="plnSetSort(this.value)" style="padding:6px 8px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:12.5px">
+        <option value="recent"${plnPoolSort==='recent'?' selected':''}>Plus récent</option>
+        <option value="liv"${plnPoolSort==='liv'?' selected':''}>Livraison proche</option>
+        <option value="client"${plnPoolSort==='client'?' selected':''}>Client</option>
+        <option value="ref"${plnPoolSort==='ref'?' selected':''}>Référence</option>
+      </select>`:''}
+    </div>
+    ${plnPoolOpen?`<div id="plnPool" onclick="plnPoolTap()">${pool.map(s=>cardHtml(s,'pool')).join('')||'<span style="color:var(--muted);font-size:13px">Aucun plan en attente. 👍</span>'}</div>`:''}
     <div class="pln-wrap"><div class="pln-grid">${grid}</div></div>
     ${canEdit?'<div style="font-size:12px;color:var(--muted);margin-top:8px">🖱 Souris : glisse une carte. ✋ Tactile : garde le doigt appuyé ~½ s pour prendre la carte, ou touche-la puis touche une case. Touche une carte posée pour détail / retirer.</div>':''}`;
 }
@@ -9539,7 +9560,7 @@ function stockViewHTML(){
         <button class="btn btn-ghost btn-sm" onclick="bkFillSample()">📋 Liste 01/07</button>
         <button class="btn btn-orange btn-sm" onclick="bkRemplacerParXls()" title="Annule l'import B+K existant (contre-écritures) et charge l'état Excel : stock B+K avec ancienneté, camions du 26/05 reçus chez STEP, lignes en production">🔄 Remplacer par l'Excel 26/05</button>
       </div><details ${stockSecOpen.imp?'open':''} ontoggle="stockSecOpen.imp=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Colle la liste des commandes ouvertes B+K (copiée depuis <b>Excel</b> ou en <b>CSV</b>). Chaque ligne crée une <b>entrée B+K</b> datée de sa semaine « On stock » (KW → date réelle) ; les lignes avec BL créent en plus la <b>réception</b> (sortie B+K → entrée STEP). Réimporter la même liste ne crée aucun doublon.</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Colle la liste des commandes ouvertes B+K. Chaque ligne crée une <b>entrée B+K</b> datée de sa semaine « On stock » (KW → date réelle) ; les lignes avec BL créent en plus la <b>réception</b> (sortie B+K → entrée STEP). Réimporter la même liste ne crée aucun doublon.</div>
       <textarea id="bkImportText" rows="5" style="width:100%;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:12px;padding:8px" placeholder="matno, typ, mm, ml, ar, batch, qty_m2, price, req, onstock, … (collage direct depuis Excel accepté)"></textarea>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-blue" onclick="bkAnalyseImport()">🔎 Analyser</button>
@@ -13162,7 +13183,7 @@ function renderFicheMachineBlocks(opts){
   // Liste « Ordre de coupe » (▲▼) — chaque réf est distinguée par film / longueur / VEKA.
   const orderEl=document.getElementById('fmmOrder');
   if(orderEl){
-    let oh='<div class="section-title" style="margin:0 0 8px">Ordre de coupe</div><div class="fmm-order-list">';
+    let oh='<div class="fmm-order-list">';
     refs.forEach((r,pos)=>{
       const tags=fmmRefTags(r);
       const rc=refColor(pos);
@@ -13523,17 +13544,48 @@ function hygieneDryRun(){
 // Soft-delete UNIQUEMENT (deleted:true → Corbeille, récupérable RETENTION_DRAFT_DAYS jours, puis
 // purge auto + archive froide) + logAudit par plan. Même détection que hygieneDryRun. PLANS SEULS —
 // jamais les brouillons (gérés à la main par Esteban).
+// [L115] Détection PARTAGÉE (bouton 🧹 + nettoyage AUTO) : plans dont la commande a DÉJÀ une fiche
+// découpe (validée ou à valider — refusées exclues), même clé que le balayage à l'envoi (_kSend).
+// EXCLUS : plans supprimés, et « ♻ RESTE manque matière » (reste/resteFromFiche) — le solde reste à couper.
+function _hygienePlansToArchive(){
+  if(!Array.isArray(fichesCache)||!Array.isArray(savesCache)) return [];
+  const canon=v=>nrm((v&&v!=='—')?v:'');
+  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
+  const sentKeys=new Set(fichesCache.filter(f=>f&&!f.deleted&&f.valide!==false&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
+  return savesCache.filter(s=>s&&!s.deleted&&!s.reste&&!s.resteFromFiche&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+}
+// [L115 · demande Esteban] nettoyage AUTOMATIQUE et SILENCIEUX au chargement des données : les plans
+// déjà coupés disparaissent de Données > Plans ET du Planning sans clic. Seul le pilotage/admin ÉCRIT
+// (les autres postes voient déjà le planning filtré). Soft-delete (récupérable 45 j) + logAudit.
+let _hygieneAutoBusy=false;
+async function hygieneAutoSweep(){
+  if(_hygieneAutoBusy) return;
+  if(typeof canManageData!=='function'||!canManageData()) return;
+  if(!db||!Array.isArray(fichesCache)||!fichesCache.length||!Array.isArray(savesCache)||!savesCache.length) return;
+  const plans=_hygienePlansToArchive();
+  if(!plans.length) return;
+  _hygieneAutoBusy=true;
+  const stamp=isoNow(); let n=0;
+  try{
+    for(const s of plans){
+      try{
+        await boundedWrite(db.collection('saves').doc(s._id).update({deleted:true,deletedAt:stamp}),8000);
+        s.deleted=true; s.deletedAt=stamp; n++;
+        logAudit('delete','saves',s._id,'Hygiène AUTO — plan déjà coupé archivé ('+(s.client||'')+' / '+(s.ref||'')+' / N°'+(s.numCmd||'')+')',{client:s.client||'',ref:s.ref||'',dateCmd:s.date||'',auto:true}).catch(function(){});
+      }catch(e){ /* réseau : réessayé au prochain chargement (idempotent) */ }
+    }
+    if(n){
+      try{ if(document.getElementById('savesList')) renderSaves(); }catch(e){}
+      try{ if(document.getElementById('planningContent')) renderPlanning(); }catch(e){}
+      console.log('[Hygiène auto] '+n+' plan(s) déjà coupé(s) archivé(s) (récupérables 45 j).');
+    }
+  }finally{ _hygieneAutoBusy=false; }
+}
 async function hygieneApply(){
   if(typeof canManageData==='function'&&!canManageData()){showToast('⛔ Réservé au pilotage/admin.','err');return;}
   // [L113 · audit #14] caches pas encore chargés → ne rien présenter comme « rien à nettoyer »
   if(!Array.isArray(fichesCache)||!fichesCache.length||!Array.isArray(savesCache)||!savesCache.length){showToast('⏳ Données pas encore chargées — ouvre « 📥 Charger l\'historique complet » puis réessaie.','err');return;}
-  const canon=v=>nrm((v&&v!=='—')?v:'');
-  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
-  // [L113 · audit #11] fiches REFUSÉES (valide===false) exclues : une commande refusée n'est PAS « déjà coupée »
-  const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&f.valide!==false&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
-  // [L112 · CRITIQUE] plans « ♻ RESTE manque matière » EXCLUS : même numCmd que la fiche
-  // d'origine mais le solde reste À COUPER — les archiver = perdre le plan du solde.
-  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.reste&&!s.resteFromFiche&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  const plans=_hygienePlansToArchive();
   if(!plans.length){showToast('Aucun plan « déjà coupé » à nettoyer. 👍','ok');return;}
   const apercu=plans.slice(0,8).map(s=>'· '+(s.client||'—')+' / N° '+(s.numCmd||'—')).join('\n');
   if(!confirm('🧹 Retirer '+plans.length+' plan(s) « déjà coupés » de Données > Plans ?\n\n'+apercu+(plans.length>8?'\n… et '+(plans.length-8)+' autre(s)':'')+'\n\nLeur fiche découpe garde le vrai enregistrement.\nRécupérables 45 jours via la Corbeille, puis purge automatique.')) return;
