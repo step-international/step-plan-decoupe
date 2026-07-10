@@ -1394,19 +1394,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   </div>
 </div>
 
-<div class="modal-overlay" id="chronoSaveModal">
-  <div class="modal">
-    <h3>⏱ Enregistrer le temps</h3>
-    <div id="chronoSaveInfo" style="background:#1a1a18;border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px;line-height:1.8"></div>
-    <div class="field"><label>Commentaire (facultatif)</label>
-      <textarea id="chronoComment" placeholder="ex : problème casse bobine 3..." style="min-height:50px"></textarea>
-    </div>
-    <div class="modal-btns">
-      <button class="btn btn-ghost btn-sm" onclick="closeChronoSaveModal()">Annuler</button>
-      <button class="btn btn-green btn-sm" onclick="doChronoSave()">✓ Enregistrer</button>
-    </div>
-  </div>
-</div>
+<!-- [L123 · T3] modale #chronoSaveModal RETIRÉE (jamais ouverte — le temps est enregistré par le batch de confirmation de commande) -->
 
 <div class="modal-overlay" id="newCmdConflictModal">
   <div class="modal">
@@ -1506,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L122';
+const APP_VERSION='2026.07.10-L123';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8186,56 +8174,9 @@ function getFicheLinesData(){
   });
 }
 
-// Chrono manuel (bouton dédié si réutilisé)
-function closeChronoSaveModal(){document.getElementById('chronoSaveModal').classList.remove('open');}
-async function doChronoSave(){
-  if(_savingChrono) return;          // anti double-clic : temps créé en double sinon
-  _savingChrono=true;
-  try{
-  const client=document.getElementById('fClient').value||document.getElementById('planClient').value||'—';
-  const ref=document.getElementById('fRef').value||document.getElementById('planRef').value||'—';
-  const ini=document.getElementById('fInitiales').value||'—';
-  const ini2=document.getElementById('fOp2Active').checked?(document.getElementById('fInitiales2').value||''):'';
-  const op2Bob=document.getElementById('fOp2Active').checked?(document.getElementById('fOp2Bobine').value||''):'';
-  // [L83 · Audit #10] Op.2 activé SANS bobine de reprise → relevé inexploitable (op.2 invisible de
-  // toutes les stats). Même garde que l'envoi de fiche : on bloque AVANT d'écrire.
-  if(document.getElementById('fOp2Active').checked&&!op2Bob){ showToast('⚠ Op.2 activé : choisis « Op.2 dès bobine » avant d\'enregistrer le temps.','err'); return; }
-  const agg=getOrderAggregate();                 // multi-réf : toutes les réfs
-  const rows=agg.rows;
-  const totalLaizes=agg.totalLaizes;
-  const nbBobines=agg.nbBobines;
-  const entry={
-    date:chronoStartTs||isoNow(),dateEnd:isoNow(),duree:chronoSec,
-    operateur:ini,operateur2:ini2,op2Bobine:op2Bob,
-    machine:getMachineLabel(ficheMachine),machine2:((document.getElementById('fOp2Active')?.checked&&document.getElementById('fOp2DiffMachine')?.checked)?getMachineLabel(ficheMachine2):''),client,ref,rows,   // [L79·AN-2] 2e machine du relais (ventilation stats)
-    numCmd:document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'',
-    commandeDetail:agg.commandeDetail,
-    totalLaizes,nbBobines,
-    nbLignes:(Array.isArray(ficheLines)?ficheLines.length:0),   // [L83 · Audit #5] dénominateur COHÉRENT avec « Op.2 dès bobine » (positions de LIGNES de fiche, rouleaux chute inclus — nbBobines ne compte que les mères)
-    largeur:document.getElementById('planLargeur').value||'',
-    longueur:document.getElementById('planLongueur').value||'',
-    numJour:document.getElementById('fNumJour').value||'',
-    commentaire:document.getElementById('chronoComment').value||'',
-    deleted:false
-  };
-  let _queued=false;
-  try{
-    // [L79] add() BORNÉ (8 s) : sans ça un réseau lent gelait l'await → le finally ne libérait jamais
-    // _savingChrono (bouton « Enregistrer » mort). La persistance offline Firestore rend l'écriture
-    // durable même sur timeout, donc on considère le relevé « mis en file » et on libère l'UI.
-    const docRef=await raceTimeout(db.collection('temps').add(entry),8000);
-    tempsCache.unshift({_id:docRef.id,...entry});
-    if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);
-    logAudit('create','temps',docRef.id,`Relevé enregistré — ${client} / ${ref} (durée ${fmtTimeFr(entry.duree)})`,{client:client,ref:ref,dateCmd:entry.date}).catch(function(){});   // [L79] non bloquant
-  }catch(e){
-    if(String(e&&e.message)!=='__TIMEOUT__'){ showToast('Erreur enregistrement : '+e.message,'err'); return; }
-    _queued=true;
-  }
-  closeChronoSaveModal();
-  chronoReset(true);   // [L79] reset forcé (relevé temps déjà archivé)
-  showToast(_queued?'⏳ Réseau lent — temps mis en file (il sera enregistré dès que possible).':('✓ Temps enregistré : '+fmtTimeFr(entry.duree)), _queued?'err':'ok');
-  }finally{_savingChrono=false;}
-}
+// [L123 · T3] Cluster CHRONO MORT retiré (modale #chronoSaveModal jamais ouverte + doChronoSave +
+// closeChronoSaveModal). Le temps est enregistré par le BATCH de confirmation de commande
+// (tempsEntry, saveCommandeFiche ~L7835) — pas par cette ancienne modale manuelle. Vérifié : 0 appelant.
 
 // ============================================================
 // PAGE 3 — DONNÉES
@@ -10690,19 +10631,9 @@ async function submitAffutage(btn){
   showToast((okCount?'✓ ':'')+((msg.join(' · '))||'Aucune écriture'),okCount?'ok':'err');
   renderMaintenance();
 }
-async function saveMaintenance(btn){
-  if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
-  const machine=document.getElementById('m_machine').value;
-  const num=(document.getElementById('m_lameNum').value||'').trim();
-  if(!num){ showToast('N° de lame obligatoire.','err'); return; }
-  const dRaw=document.getElementById('m_date').value;
-  const dateInstall=dRaw?new Date(dRaw+'T12:00:00').toISOString():isoNow();
-  const resp=document.getElementById('m_resp').value||'';
-  if(btn) btn.disabled=true;
-  const ok=await lameInstall(machine,num,{dateInstall,responsable:resp,description:'Pose lame '+num+' sur '+getMachineLabel(machine)+' (posée le '+(dRaw||'')+')'});
-  if(btn) btn.disabled=false;
-  if(ok) renderMaintenance();
-}
+// [L123 · T3] saveMaintenance RETIRÉE : orpheline (le formulaire du haut lisant m_machine/m_lameNum/
+// m_date/m_resp a été retiré en L79 ; aucun bouton ne l'appelle). L'installation de lame se fait par
+// machine via lameInstallPrompt/lameInstall. (m_filterMachine — le filtre de liste — est conservé.)
 async function maintDelete(id){
   if(!canManageData()){ showToast('Action réservée au pilotage et aux admins.','err'); return; }
   const rec=maintenanceCache.find(x=>x.id===id);
