@@ -635,7 +635,7 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 #plnHint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:#3a2a0e;border:1px solid var(--action);color:#fbbf24;border-radius:14px;padding:11px 15px;font-size:13.5px;z-index:1200;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.55);max-width:94vw}
 /* [L118] case « Temps » d'Analyse : chevron qui pivote à l'ouverture (affordance claire, discrète) */
 .dbx-chev{display:inline-block;transition:transform .15s;color:var(--muted)}
-#dujBox[open] .dbx-chev{transform:rotate(90deg)}
+details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 .dbx-sum:hover{background:rgba(255,255,255,.02)}
 </style>
 </head>
@@ -1224,7 +1224,6 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
     <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] maquette admin/pilotage (applyRole) — ouverture à tous en ÉTAPE 2 -->
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
     <button class="tab-btn" id="tabNc" onclick="switchTab('nc')">⚠ Registre NC</button>
-    <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
     <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
@@ -1284,45 +1283,44 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
     <div id="fichesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune fiche enregistrée.</div>
   </div>
 
-  <!-- ONGLET TEMPS -->
-  <div id="tabContentTemps" class="hidden">
-    <div id="statsSummary"></div>
-    <!-- FILTRES -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-      <select id="filterMachine" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
-        <option value="">Toutes machines</option>
-        <option value="FEBA">FEBA</option>
-        <option value="MAVEG">MAVEG</option>
-        <option value="CEVENINI">CEVENINI</option>
-      </select>
-      <select id="filterClient" onchange="renderTemps()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
-        <option value="">Tous clients</option>
-      </select>
-      <select id="filterOp" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
-        <option value="">Tous découpeurs</option>
-        <option value="TB">TB</option>
-        <option value="JF">JF</option>
-        <option value="MT">MT</option>
-        <option value="DC">DC</option>
-        <option value="ER">ER</option>
-      </select>
-      <button class="btn btn-ghost btn-sm" onclick="resetTempsFilters()">✕ Reset</button>
-    </div>
-    <div class="flex-wrap" style="margin-bottom:12px" id="tempsManageBtns">
-      <button class="btn btn-ghost btn-sm" onclick="exportTemps()">⬇️ Exporter CSV</button>
-      <!-- [L79] « Tout archiver » retiré (action de masse dangereuse) — clearTemps conservée sans accès UI -->
-    </div>
-    <div id="tempsList"></div>
-    <div id="tempsEmpty" class="text-muted hidden" style="padding:8px 0">Aucune donnée de temps enregistrée.</div>
-  </div>
-
   <!-- ONGLET PLANNING [L111 · ÉTAPE 1 squelette] -->
   <div id="tabContentPlanning" class="hidden">
     <div id="planningContent"></div>
   </div>
 
-  <!-- ONGLET ANALYSE -->
+  <!-- ONGLET ANALYSE (+ Relevés de temps fusionnés ici en L120 : bloc repliable + liste défilable) -->
   <div id="tabContentAnalyse" class="hidden">
+    <details id="tempsBox" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;margin-bottom:14px"><!-- [L120] onglet ⏱ Temps fusionné dans Analyse : petit, repliable, liste défilable -->
+      <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--muted)"><span class="dbx-chev">▸</span> ⏱ <b style="color:var(--blue);font-weight:800">Relevés de temps</b> — filtres, totaux &amp; liste <span style="margin-left:auto;font-size:11px;color:var(--muted)">toucher pour ouvrir / fermer</span></summary>
+      <div style="padding:4px 13px 12px">
+        <div id="statsSummary"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+          <select id="filterMachine" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+            <option value="">Toutes machines</option>
+            <option value="FEBA">FEBA</option>
+            <option value="MAVEG">MAVEG</option>
+            <option value="CEVENINI">CEVENINI</option>
+          </select>
+          <select id="filterClient" onchange="renderTemps()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+            <option value="">Tous clients</option>
+          </select>
+          <select id="filterOp" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+            <option value="">Tous découpeurs</option>
+            <option value="TB">TB</option>
+            <option value="JF">JF</option>
+            <option value="MT">MT</option>
+            <option value="DC">DC</option>
+            <option value="ER">ER</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="resetTempsFilters()">✕ Reset</button>
+        </div>
+        <div class="flex-wrap" style="margin-bottom:10px" id="tempsManageBtns">
+          <button class="btn btn-ghost btn-sm" onclick="exportTemps()">⬇️ Exporter CSV</button>
+        </div>
+        <div id="tempsList" style="max-height:46vh;overflow-y:auto"></div>
+        <div id="tempsEmpty" class="text-muted hidden" style="padding:8px 0">Aucune donnée de temps enregistrée.</div>
+      </div>
+    </details>
     <div id="analyseContent"></div>
     <div id="lameStatsBlock" style="margin-top:20px"></div>
   </div>
@@ -1506,7 +1504,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L119';
+const APP_VERSION='2026.07.10-L120';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3647,21 +3645,21 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine){
 function switchTab(tab){
   if(tab!=='planning'){ try{ if(typeof plnDisarm==='function') plnDisarm(); }catch(e){} }   // [L118 · audit #6] désarmer le Planning + retirer le fantôme/#plnHint en quittant l'onglet
   if(typeof updateTabBadges==='function') updateTabBadges();
+  if(tab==='temps') tab='analyse';   // [L120] onglet Temps fusionné dans Analyse (rétro-compat des anciens appels/liens)
   if(tab==='analyse'&&!canViewAnalyse()) tab='saves';
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
   if(tab==='stock'&&!canViewStock()) tab='saves';
   if(tab==='audit'&&!canViewAudit()) tab='saves';
   if(tab==='maintenance'&&!canAccessMaintenance()) tab='saves';
   // [L112 · ÉTAPE 2] Planning visible par TOUS (atelier = lecture seule ; pose/retrait gardés par plnCanEdit)
-  ['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','planning'].forEach(t=>{
+  ['saves','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','planning'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
   const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance')?'none':'';
   if(tab==='saves') renderSaves();
-  else if(tab==='temps'){ renderTemps(); autoLoadHistoryThenRerender('temps'); }   // [L79·AN-1] les totaux Temps ne doivent pas rester sur un cache tronqué
   else if(tab==='brouillons') renderDrafts();
-  else if(tab==='analyse'){ renderAnalyse(); autoLoadHistoryThenRerender('analyse'); }
+  else if(tab==='analyse'){ renderAnalyse(); renderTemps(); autoLoadHistoryThenRerender('analyse'); }   // [L120] Temps rendu dans le bloc repliable d'Analyse
   else if(tab==='corbeille'){ loadCorbeille(); }
   else if(tab==='nc'){ renderNc(); autoLoadHistoryThenRerender('nc'); }
   else if(tab==='stock') renderStock();
@@ -3679,8 +3677,7 @@ function autoLoadHistoryThenRerender(tab){
     const active=document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1));
     if(!active||!active.classList.contains('active')) return;  // l'utilisateur a changé d'onglet entre-temps
     if(tab==='nc') renderNc();
-    else if(tab==='analyse') renderAnalyse();
-    else if(tab==='temps') renderTemps();
+    else if(tab==='analyse'){ renderAnalyse(); try{ renderTemps(); }catch(e){} }   // [L120] refresh aussi les Relevés de temps (bloc dans Analyse) après historique complet
   });
 }
 
@@ -8242,7 +8239,7 @@ async function doChronoSave(){
 // PAGE 3 — DONNÉES
 // ============================================================
 function _activeDataTab(){
-  const tabs=['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance'];
+  const tabs=['saves','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance'];   // [L120] 'temps' fusionné dans 'analyse'
   for(let i=0;i<tabs.length;i++){ const el=document.getElementById('tab'+tabs[i].charAt(0).toUpperCase()+tabs[i].slice(1)); if(el&&el.classList.contains('active')) return tabs[i]; }
   return 'fiches';
 }
@@ -8260,10 +8257,9 @@ function renderDataPage(){
   // perte à CHAQUE entrée dans Données. Les autres sous-onglets sont rendus à la demande par switchTab (clic).
   const t=_activeDataTab();
   if(t==='saves') renderSaves();
-  else if(t==='temps') renderTemps();
   else if(t==='brouillons') renderDrafts();
   else if(t==='nc') renderNc();
-  else if(t==='analyse') renderAnalyse();
+  else if(t==='analyse'){ renderAnalyse(); renderTemps(); }   // [L120] Temps dans Analyse
   else if(t==='stock') renderStock();
   else if(t==='audit') renderAudit();
   else if(t==='maintenance') renderMaintenance();
@@ -8491,6 +8487,7 @@ async function clearTemps(){
 // Analyse (débit m/h + KPI + graphiques) pour ne plus afficher un temps supprimé.
 function refreshAnalyseIfPresent(){
   if(document.getElementById('analyseContent')){ try{ renderAnalyse(); }catch(e){ console.warn('refresh Analyse:',e); } }
+  if(document.getElementById('tempsList')){ try{ renderTemps(); }catch(e){} }   // [L120] Relevés de temps fusionnés dans Analyse
 }
 async function exportTemps(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
