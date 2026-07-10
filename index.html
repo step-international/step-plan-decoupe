@@ -5076,6 +5076,23 @@ function refStdMother(refStr){
 // bobines mères en trop. Un VRAI homonyme (film, métrage ou machine différents) n'est
 // JAMAIS fusionné : c'est une référence distincte légitime (cf. Lot 2 de l'audit).
 // ============================================================
+// [L103 · audit-max] lignes de commande SEMI-remplies : quantité sans largeur (ou l'inverse),
+// ou largeur illisible (« O80 » → parseNum 0). Ignorées par getRefGroups (qty>0&&w>0) : sans
+// signal, des pièces manquaient au plan et à l'envoi. Consommée par recalcPlan (bannière) et
+// confirmCommande (confirm bloquant).
+function _halfFilledRows(){
+  const out=[];
+  document.querySelectorAll('.order-row').forEach(r=>{
+    const qEl=r.querySelector('[data-type="qty"]'), wEl=r.querySelector('[data-type="width"]');
+    if(!qEl||!wEl) return;
+    const qs=String(qEl.value||'').trim(), ws=String(wEl.value||'').trim();
+    if(!qs&&!ws) return;                          // ligne vide : normal
+    const q=parseNum(qs), w=parseNum(ws);
+    if(q>0&&w>0) return;                          // ligne complète : ok
+    out.push({q:qs,w:ws});
+  });
+  return out;
+}
 function mergeDuplicateRefBlocks(){
   const blocks=[...document.querySelectorAll('.ref-block')];
   if(blocks.length<2) return false;
@@ -5102,7 +5119,7 @@ function mergeDuplicateRefBlocks(){
       bl.querySelectorAll('.rb-rows .order-row').forEach(row=>{
         const q=parseNum(row.querySelector('[data-type="qty"]')?.value);
         const w=parseNum(row.querySelector('[data-type="width"]')?.value);
-        if(q>0&&w>0&&rowsT) rowsT.appendChild(row);     // déplacée avec ses valeurs (client compris)
+        if((q>0||w>0)&&rowsT) rowsT.appendChild(row);     // déplacée avec ses valeurs (client compris) — [L103 · audit-max] une ligne PARTIELLE (qté tapée sans largeur, ou l'inverse) était DÉTRUITE avec le bloc source : toute ligne non vide est déplacée
       });
       const chT=target.querySelector('.rb-chutes');
       bl.querySelectorAll('.rb-chutes .rb-chute-row').forEach(r=>{ if(chT) chT.appendChild(r); });
@@ -5281,7 +5298,14 @@ function recalcPlan(){
     : '';
   const perteCls=pctCls(pertePct);   // [L87 · simpl.9]
   const chutesChipLabel=Object.keys(chutesUsedAll).map(w=>chutesUsedAll[w]+'×'+fmt(Number(w))).join(' + ');
-  if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+`
+  // [L103 · audit-max] lignes SEMI-remplies (qté sans largeur, largeur illisible « O80 », valeur ≤0) :
+  // getRefGroups les ignore en silence (qty>0&&w>0) → pièces absentes du plan SANS le moindre signal
+  // (contrairement à l'oversize, banni en rouge juste au-dessus). Bannière orange + confirm à l'envoi.
+  const _halfN=(typeof _halfFilledRows==='function')?_halfFilledRows().length:0;
+  const halfBanner=_halfN
+    ? `<div style="flex-basis:100%;width:100%;background:#3d2a00;border:2px solid var(--orange);color:var(--orange);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ ${_halfN} ligne(s) de commande incomplète(s) (quantité sans largeur, ou largeur illisible) — NON comprises dans le plan. Complète ou vide ces lignes.</div>`
+    : '';
+  if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+halfBanner+`
     <div class="stat-chip">📦 <span>${totalBobines}</span> bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">⚙ <span>${planGroups.length}</span> config${planGroups.length>1?'s':''}</div>
     ${cliMulti()?`<div class="stat-chip">👥 <span>${cliIds().length}</span> clients</div>`:''}
@@ -6373,6 +6397,8 @@ function _newCmdClearLiveFiche(){
   // l'écrasait définitivement (perte de fiche silencieuse). Le brouillon parqué a déjà
   // sérialisé SES ids AVANT ce clear (newCmdPark → saveDraftManual) : son renvoi reste idempotent.
   _pendingFicheId=null; _pendingTempsId=null; _autosaveLastSig='';
+  _resumedForeignDraftId=null;   // [L103 · audit-max] idem resetAll : passation abandonnée
+  _localCopyFromShare=null; try{ renderSharedViewBar(); }catch(e){}   // [L103 · audit-max] fiche vidée : le bandeau « copie d'un partage terminé » ne concerne plus rien
   try{ chronoReset(true); }catch(e){ console.warn('chronoReset:',e); }   // [L79] reset forcé (nouvelle commande)
 }
 async function newCmdPark(){
@@ -6650,6 +6676,7 @@ function chronoReset(force){
   document.getElementById('chronoStatus').textContent='Prêt — appuie sur Démarrer quand tu commences la commande';
   stopAutosave();
   persistChronoLive();
+  if(force){ try{ localStorage.removeItem(CHRONO_LS_KEY); _wroteChronoLive=false; }catch(e){} }   // [L103 · audit-max] frontière de commande (envoi / nouveau plan / reset site) : purge INCONDITIONNELLE — une clé périmée d'une session plantée ne doit jamais ressusciter (L79)
   releaseWakeLock();
   try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B]
 }
@@ -6722,11 +6749,24 @@ function chronoCatchUp(){ if(chronoRunning) chronoTick(); }
 // pour qu'elle ne soit JAMAIS perdue, même si le téléphone tue l'onglet pendant la
 // veille — et on garde l'écran allumé via Wake Lock tant que le chrono tourne.
 const CHRONO_LS_KEY='step_chrono_live';
+let _wroteChronoLive=false;   // [L103 · audit-max] CET onglet a-t-il écrit la clé live ? (2 onglets même tablette)
 function persistChronoLive(){
   try{
     if(chronoRunning && chronoRunStart!=null){
       localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||''}));
-    }else{ localStorage.removeItem(CHRONO_LS_KEY); }
+      _wroteChronoLive=true;
+    }else{
+      // [L103 · audit-max] 2 onglets sur la même tablette : l'onglet au chrono ARRÊTÉ effaçait
+      // (visibilitychange/pagehide) la sauvegarde live du chrono qui TOURNE dans l'autre onglet
+      // → crash pendant la veille = temps perdu. On n'efface que si CET onglet a écrit la clé,
+      // ou si l'entrée correspond à NOTRE chrono (même startTs). Les resets forcés aux frontières
+      // de commande purgent toujours, inconditionnellement (chronoReset(force)).
+      if(_wroteChronoLive){ localStorage.removeItem(CHRONO_LS_KEY); _wroteChronoLive=false; }
+      else{
+        const _cur=JSON.parse(localStorage.getItem(CHRONO_LS_KEY)||'null');
+        if(_cur&&chronoStartTs&&_cur.startTs===chronoStartTs) localStorage.removeItem(CHRONO_LS_KEY);
+      }
+    }
   }catch(e){}
 }
 function readChronoLive(){ try{ return JSON.parse(localStorage.getItem(CHRONO_LS_KEY)||'null'); }catch(e){ return null; } }
@@ -6919,6 +6959,16 @@ function confirmCommandeRecap(){
   if(!total){ confirmCommande(); return; }
   const done=countCoupees();   // [L85 · Audit #27]
   if(done<total){ confirmCommande(); return; }
+  // [L103 · audit-max] re-valider le test 2ᵉ à l'ENVOI : les cases restent actives après le ✂
+  // (dé-cochage accidentel en relisant la fiche) — la fiche partait « conforme:false » sans motif,
+  // introuvable ensuite dans l'analyse NC. La garde du marquage (toggleCoupee) reste inchangée.
+  for(const l of ficheLines){
+    if(!test2Resolved(l.id)){
+      const _det=document.getElementById('flMore_'+l.id); if(_det) _det.open=true;
+      showToast('⚠ Test 2ᵉ bobineaux dé-validé sur la bobine « '+((document.getElementById('flLabel_'+l.id)?.value||'').trim()||l.label||'?')+' ».\n\nRe-coche Dévidage'+(_flMachineOf(l.id)==='feba'?'':' / Droit')+' (ou ⚠ Non conforme + motif) avant d\'envoyer.','err');
+      return;
+    }
+  }
   const ncCount=document.querySelectorAll('#ficheLines .fl-badge.badge-red').length;
   const machSet=new Set();
   ficheLines.forEach(({id})=>{
@@ -6942,6 +6992,11 @@ async function confirmCommande(){
   const multi=computed.length>1;
   const rows=multi?[].concat(...computed.map(c=>c.rows)):getOrderRows();
   if(!rows.length){showToast('Aucune commande à confirmer.','err');return;}
+  // [L103 · audit-max] lignes semi-remplies : jamais dans le plan → confirm EXPLICITE avant
+  // d'envoyer une commande qui ne couvre pas ce que l'opérateur croyait avoir saisi.
+  { const _half=(typeof _halfFilledRows==='function')?_halfFilledRows():[];
+    if(_half.length&&typeof confirm==='function'
+       &&!confirm('⚠ '+_half.length+' ligne(s) de commande INCOMPLÈTE(S) — quantité sans largeur, ou largeur illisible ('+_half.map(h=>(h.q||'?')+'×'+(h.w||'?')).slice(0,4).join(' · ')+').\n\nElles ne sont PAS dans le plan et ne seront PAS coupées.\n\nEnvoyer quand même ?')) return; }
   // Garde-fous quantités aberrantes (zéro en trop, etc.)
   if(getRefGroups().some(g=>(g.rows||[]).some(r=>r.qty>5000))){
     showToast('⛔ Envoi bloqué : une ligne dépasse 5 000 pièces.\n\nVérifie la saisie (zéro en trop ?).','err');
@@ -7752,6 +7807,7 @@ function resetSiteConfirm(){
 }
 function resetAll(){
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
+  _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
   // [L67 · Audit] « Nouveau plan » clôt le partage émetteur : sans ça, la commande SUIVANTE
   // était poussée aux collègues sous l'ancien partage (10 s) → découpe d'une commande fantôme.
   try{ shareEndAfterSend(); }catch(e){}
@@ -13220,13 +13276,16 @@ function toggleCoupee(id){
     // (a) tap < 700 ms après le marquage → ignoré ; (b) dé-marquage volontaire → confirm
     // explicite (cohérent avec resetFicheBobines qui protège déjà le dé-marquage de masse).
     const _cutAt=Number(line.dataset.cutAt||0);
-    if(_cutAt&&(Date.now()-_cutAt)<700) return;
+    const _dCut=Date.now()-_cutAt;
+    if(_cutAt&&_dCut>=0&&_dCut<700) return;   // [L103 · audit-max] borne INFÉRIEURE : horloge reculée (resync NTP) → delta négatif ≠ rebond — les taps n'étaient plus avalés en silence
     if(!confirm('Dé-marquer cette bobine coupée ?\n\nElle repassera « à couper » (en partage, le verrou sera levé chez les collègues).')) return;
   }
   if(!alreadyCoupee){
     // [L73 · Lot 5 · B40] deux marquages à moins de 700 ms ne peuvent pas être volontaires
     // (2e tap du double-tap sur la bobine suivante, masquage des coupées actif).
-    if(Date.now()-_lastCoupeeMarkMs<700) return;
+    const _dMark=Date.now()-_lastCoupeeMarkMs;
+    if(_dMark<0) _lastCoupeeMarkMs=0;          // [L103 · audit-max] horloge reculée : fenêtre annulée (sinon TOUS les taps ✂ avalés jusqu'au rattrapage de l'horloge)
+    else if(_dMark<700) return;
     // Le test 2ème bobineaux doit être tranché : Conforme (Dévidage+Droit)
     // OU Non conforme avec au moins un motif (Dévidage ou Droit).
     if(!test2Resolved(id)){
@@ -13498,6 +13557,10 @@ function toggleAction(id,which){
   if(which==='dechet'){const on=d.classList.contains('btn-red');d.className=on?'btn btn-ghost btn-sm':'btn btn-red btn-sm';if(!on){off(c);off(a);}}
   else if(which==='chutes'){const on=c.classList.contains('btn-orange');c.className=on?'btn btn-ghost btn-sm':'btn btn-orange btn-sm';if(!on){off(d);off(a);}}
   else if(which==='accept'&&a){const on=a.classList.contains('btn-green');a.className=on?'btn btn-ghost btn-sm':'btn btn-green btn-sm';if(!on){off(d);off(c);}}
+  // [L103 · audit-max] 🗑 Déchet / ✂ Chutes changent les cumuls par laize (exclusion déchet B54) :
+  // sans recompute, le cumul affichait « X/X ✓ couvert » avec une bobine au rebut — l'écart
+  // n'apparaissait qu'au prochain ✂ ou recalcul. (_bulkRestore : recomptes faits par l'appelant.)
+  if(!_bulkRestore){ try{ updateAllCumuls(); updateCoupeeStatus(); }catch(e){} }
 }
 function parseConf(val){
   const pieces=[];
@@ -14307,6 +14370,7 @@ function _deviceId(){
 }
 function autosaveId(){ return 'd_autosave_'+_uid()+'_'+_deviceId(); }
 function planAutosaveId(){ return 'd_autosave_plan_'+_uid()+'_'+_deviceId(); }
+let _resumedForeignDraftId=null;   // [L103 · audit-max] brouillon AUTO d'un autre poste repris ici (passation) — purgé à l'envoi réussi (clearCurrentDraft)
 // [L73 · Lot 5 · B38] borne TOTALE ~900 Ko (marge sous la limite dure Firestore 1 Mo/doc).
 // Le strip unitaire (>10k par string) laisse passer une SOMME de petites images data:
 // qui peut dépasser 1 Mo → écriture rejetée à CHAQUE renvoi (échec définitif, pas réseau).
@@ -14451,6 +14515,7 @@ async function clearCurrentDraft(ficheId){
   // attendant le résultat ; en cas d'échec on marque {consumed:true, ficheId} — ces
   // brouillons sont filtrés au rendu et refusés à la reprise.
   const ids=[autosaveId(), planAutosaveId()];
+  if(_resumedForeignDraftId){ ids.push(_resumedForeignDraftId); _resumedForeignDraftId=null; }   // [L103 · audit-max] passation : le brouillon auto du poste précédent est consommé par CET envoi
   // 1) local : ne plus proposer ces brouillons immédiatement
   brouillonsCache=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>ids.indexOf(d.id)<0);
   try{ _planAutosaveLast=JSON.stringify(serializeFicheState().plan); }catch(e){ _planAutosaveLast=''; }   // [L97 · relecture #22] baseline = état COURANT : '' faisait l'INVERSE (le tick suivant recréait le brouillon de la commande qui vient d'être envoyée)
@@ -14866,6 +14931,12 @@ function resumeDraft(id){
   // l'écrasait (chrono compris) et l'autosave 15 s détruisait ensuite sa sauvegarde.
   if(typeof isFicheUntouched==='function'&&!isFicheUntouched()
      &&!confirm('⚠ Une commande est EN COURS à l\'écran (bobines/chrono).\n\nLa remplacer par ce brouillon ? Sa saisie actuelle sera perdue.')) return;
+  // [L103 · audit-max] PASSATION inter-postes : reprise du brouillon AUTO d'un AUTRE poste
+  // (tablette A éteinte, poste B termine et envoie). Le brouillon de A n'était jamais purgé
+  // après l'envoi de B → il restait proposé sur A au redémarrage (double découpe possible).
+  // On mémorise son id : l'envoi réussi le purgera/consommera (clearCurrentDraft), comme les
+  // brouillons auto du poste courant. Un abandon (reset/parcage) annule le marquage.
+  _resumedForeignDraftId=(/^d_autosave_/.test(String(id))&&id!==autosaveId()&&id!==planAutosaveId())?id:null;
   restoreFicheState(d.state);
   // [L103 · audit-max] flux L67 « reprends ta commande (brouillon) » : la reprise CONSCIENTE
   // de la commande partagée libère le gel post-reload. L'ancienne libération exigeait une
@@ -14918,6 +14989,12 @@ function restoreFicheLineFromData(ld){
 }
 function restoreFicheState(st){
   if(!st) return;
+  // [L103 · audit-max] l'écran est intégralement REMPLACÉ : le drapeau « copie locale d'un
+  // partage terminé » (bandeau orange + confirm anti-doublon à l'envoi) ne concerne plus ce
+  // contenu — il survivait à la reprise d'un brouillon SANS RAPPORT et bloquait/inquiétait
+  // à tort. Les flux partage le reposent après coup s'il y a lieu (leaveSharedView/_sharedViewEnded).
+  _localCopyFromShare=null;
+  try{ renderSharedViewBar(); }catch(e){}
   // ENVOI-1 : reprendre l'id réservé du brouillon → un renvoi écrira sur le MÊME doc
   // (idempotent, pas de doublon). null si le brouillon est antérieur à ce mécanisme.
   _pendingFicheId=st.pendingFicheId||null;
