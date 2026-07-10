@@ -1414,7 +1414,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L102';
+const APP_VERSION='2026.07.10-L103';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6377,6 +6377,10 @@ function _newCmdClearLiveFiche(){
 }
 async function newCmdPark(){
   document.getElementById('newCmdConflictModal').classList.remove('open');
+  // [L103 · audit-max] figer le chrono AVANT de sérialiser : parquer pendant que le chrono
+  // tourne écrivait wasRunning:true + runStart dans le brouillon — à la reprise, le chrono
+  // repartait sur now-runStart et comptait TOUT le temps passé sur l'AUTRE commande.
+  try{ if(chronoRunning) chronoPause(); }catch(e){}
   // [L75] Un 💾 Brouillon manuel encore EN VOL (verrou B41, jusqu'à ~6 s sur réseau lent)
   // faisait early-return saveDraftManual() → rien n'était parqué alors que la modale
   // promettait « parquée », puis la fiche était VIDÉE (saisies post-💾 perdues).
@@ -7071,15 +7075,28 @@ function recalcEcartsFromFiche(opts){
   const refKey=c=>_refIdKey(c);
   // Table nom→clé robuste (1re réf portant ce nom) : repli pour les lignes fiche
   // LEGACY sans refIdKey, rattachées par nom à la 1re réf de ce nom.
+  const nameToKeys={};   // [L103 · audit-max] nom → TOUTES les clés connues de ce nom (réfs homonymes)
+  computed.forEach(c=>{ const nm=nrmRef(c.ref); (nameToKeys[nm]=nameToKeys[nm]||[]).push(refKey(c)); });
   const nameToKey={};
-  computed.forEach(c=>{ const nm=nrmRef(c.ref); if(!(nm in nameToKey)) nameToKey[nm]=refKey(c); });
+  Object.keys(nameToKeys).forEach(nm=>{ nameToKey[nm]=nameToKeys[nm][0]; });
   // [L70 · Audit B22] clés CONNUES du plan courant : un refIdKey PÉRIMÉ (changement de
   // mère/laize/lame → _refIdKey change) ne doit plus isoler les bobines figées dans une
   // case orpheline — sinon le coupé était ignoré (reliquat = commande COMPLÈTE →
   // surproduction) et les figées partaient en « réf disparue » en fin de liste.
   const knownKeys=new Set(computed.map(c=>refKey(c)));
   // Clé d'une ligne fiche : son refIdKey s'il est ENCORE valide, sinon repli par nom.
-  const lineKey=l=>(l.refIdKey&&knownKeys.has(l.refIdKey))?l.refIdKey:(nameToKey[nrmRef(l.ref)]||l.refIdKey||nrmRef(l.ref));
+  // [L103 · audit-max] RÉFS HOMONYMES + clé périmée : le repli « 1re clé du nom » rattachait
+  // les figées de l'homonyme n°2 à l'homonyme n°1 (production déduite de la MAUVAISE commande).
+  // Quand plusieurs clés portent le même nom, on choisit celle dont le préfixe d'identité
+  // (ref¦film¦veka¦longueur — les 4 champs que le changement de mère/lame NE modifie PAS)
+  // correspond à l'ancienne clé de la ligne ; sans correspondance, repli d'avant (1re clé).
+  const _idPrefix=k=>String(k||'').split('¦').slice(0,4).join('¦');
+  const lineKey=l=>{
+    if(l.refIdKey&&knownKeys.has(l.refIdKey)) return l.refIdKey;
+    const _cand=nameToKeys[nrmRef(l.ref)]||[];
+    if(_cand.length>1&&l.refIdKey){ const _pf=_idPrefix(l.refIdKey); const _hit=_cand.find(k=>_idPrefix(k)===_pf); if(_hit) return _hit; }
+    return nameToKey[nrmRef(l.ref)]||l.refIdKey||nrmRef(l.ref);
+  };
 
   // Commande par réf (cible client, fixe)
   const cmdByRef={};
@@ -7231,6 +7248,7 @@ function recalcEcartsFromFiche(opts){
     // AVANT que la reconstruction ne réordonne les positions.
     const _op2Lid=_bobineSelLid('fOp2Bobine');
     const _lameLid=_bobineSelLid('fLameChgBob');
+    const _machLid=_bobineSelLid('fMachChgBob');   // [L103 · audit-max] même remap D-3 que op.2/lame — le select machine était le seul non remappé
 
     // 1) Détacher (sans détruire) les bobines figées — on les ré-attachera dans l'ordre.
     const frozenMetas=ficheLines.filter(l=>frozenSet.has(l.id));
@@ -7294,6 +7312,12 @@ function recalcEcartsFromFiche(opts){
         });
         const rr=avail.length?packRecutRolls(avail,items,pb):{rolls:[],remaining:items.slice().sort((a,b)=>b-a),unusedRolls:0};
         let ri=1;
+        // [L103 · audit-max] ne PAS repartir à 01 : des RESTE-/OP2- FIGÉES (déjà coupées) de la
+        // même réf gardent leur étiquette — repartir à 01 créait des étiquettes DUPLIQUÉES
+        // (RESTE-01 coupée + RESTE-01 neuve : traçabilité et garde d'identité partage faussées).
+        frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{
+          const _m=/(?:RESTE|OP2)-(\d+)/i.exec(String(l.label||'')); if(_m) ri=Math.max(ri,parseInt(_m[1],10)+1);
+        });
         groupRecutRolls(rr.rolls).forEach(g=>{
           waste+=Math.max(0,g.rollW-calcStats(g.pattern,pb).total)*g.count;
           for(let n=0;n<g.count;n++){
@@ -7346,6 +7370,12 @@ function recalcEcartsFromFiche(opts){
     // D-3 : re-pointer op.2 / changement de lame sur la MÊME bobine physique.
     _bobineSelRestore('fOp2Bobine',_op2Lid);
     _bobineSelRestore('fLameChgBob',_lameLid);
+    _bobineSelRestore('fMachChgBob',_machLid);   // [L103 · audit-max]
+    // [L103 · audit-max] ré-appliquer le changement de machine op.1 : les lignes régénérées
+    // (RESTE-/OP2-) repartaient avec la machine du plan alors que l'UI montrait la bascule
+    // active (archive/PDF/lame faussés). _machChgOrig a été remis à null à l'étape 3 → la map
+    // « avant changement » se reconstruit sur les lignes actuelles (machines du plan = les bons originaux).
+    try{ applyMachChg(); }catch(e){}
     renumberFicheLines();
     refreshEtiquetteSolde();
     if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
@@ -10843,10 +10873,26 @@ function _resteGroupsFromFiche(f){
   const multi=Array.isArray(f.refGroups)&&f.refGroups.length>1;
   let base;
   if(multi){
-    base=f.refGroups.map(g=>({
+    // [L103 · audit-max] RÉFS HOMONYMES : le coupé se déduit par IDENTITÉ D-1 (refIdKey),
+    // plus par NOM — deux réfs de même code (film/longueur différents) se voyaient chacune
+    // déduire le coupé DES DEUX → reste sous-dimensionné (sous-production silencieuse dans
+    // le solde manque-matière ET le plan du reste). Mêmes règles de rattachement que le
+    // recalcul (lineKey) : clé valide → elle-même ; sinon 1re clé du nom (fiches legacy).
+    const _gKeys=f.refGroups.map(g=>_refIdKey({ref:g.ref,film:g.film,veka:g.veka,longueur:g.longueur,
+      useful:parseNum(g.mother)-parseNum(g.edge),blade:parseNum(g.blade)}));
+    const _known=new Set(_gKeys);
+    const _n2k={}; f.refGroups.forEach((g,i)=>{ const nm=nrm(g.ref); if(!(nm in _n2k)) _n2k[nm]=_gKeys[i]; });
+    const cutByKey={};
+    det.forEach(fd=>{
+      if(!fd||fd.coupee!==true||fd.actDechet===true) return;   // mêmes exclusions que cutByRef (L100 #2)
+      const rk=(fd.refIdKey&&_known.has(fd.refIdKey))?fd.refIdKey:(_n2k[nrm(fd.ref)]||nrm(fd.ref));
+      const m=cutByKey[rk]||(cutByKey[rk]={});
+      parseConf(fd.conf||'').forEach(p=>{ m[p.width]=(m[p.width]||0)+p.qty; });
+    });
+    base=f.refGroups.map((g,i)=>({
       ref:g.ref||'', longueur:g.longueur||'', film:g.film||'', veka:g.veka||'',
       mother:parseNum(g.mother), edge:parseNum(g.edge), blade:parseNum(g.blade),
-      machine:String(g.machine||'').trim(), rows:(g.rows||[]), _cut:cutByRef[nrm(g.ref)]||{}
+      machine:String(g.machine||'').trim(), rows:(g.rows||[]), _cut:cutByKey[_gKeys[i]]||{}
     }));
   }else{
     // Mono-réf : params depuis les champs plats de la fiche + machine d'une ligne.
@@ -14821,6 +14867,17 @@ function resumeDraft(id){
   if(typeof isFicheUntouched==='function'&&!isFicheUntouched()
      &&!confirm('⚠ Une commande est EN COURS à l\'écran (bobines/chrono).\n\nLa remplacer par ce brouillon ? Sa saisie actuelle sera perdue.')) return;
   restoreFicheState(d.state);
+  // [L103 · audit-max] flux L67 « reprends ta commande (brouillon) » : la reprise CONSCIENTE
+  // de la commande partagée libère le gel post-reload. L'ancienne libération exigeait une
+  // égalité BYTE-IDENTIQUE écran↔doc partagé qui ne se produisait presque jamais (autosave
+  // 15 s vs push 10 s → contenus décalés) → gel À VIE pendant que le bandeau affichait
+  // « synchro en direct ». Le push repart au prochain tick avec l'écran repris (les ✂ des
+  // collègues vivent dans le champ cuts, écrit séparément : rien n'est écrasé), et on
+  // re-verrouille leurs bobines sur le DOM régénéré.
+  if(_shareActive&&_sharePushHold){
+    _sharePushHold=false; _shareAutosaveLastSig='';
+    try{ const _sd2=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(x=>x&&x.id===_shareDocId); if(_sd2) applySharedCuts(_sd2.cuts||{}); }catch(e){}
+  }
   if(d.planDraft){
     // Brouillon de saisie plan : on revient sur la page Plan, et la fiche
     // n'est pas considérée comme validée (restoreFicheState la valide par défaut).
