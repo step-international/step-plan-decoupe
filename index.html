@@ -241,6 +241,8 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 #ficheLines.hide-coupees .fiche-line.coupee:not(.flash-cut){display:none}   /* [L102 · M2-D] la carte reste visible le temps du flash de confirmation (~0,9 s) avant d'être masquée */
 /* [L105 · Phase 1 · E] chrono arrêté : indice rouge sur chaque ✂ non coupé (prévient avant le tap) */
 #ficheLines.chrono-off .fiche-line:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⏱ arrêté";color:var(--red);font-weight:800;font-size:.85em}
+/* [L107 · Phase 1 · K] fiche : plus de largeur utile sur téléphone (marges réduites) */
+@media(max-width:700px){#page1{padding-left:8px;padding-right:8px}.fiche-line{padding:12px 10px}}
 .fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .fl-pos{font-size:15px;font-weight:800;color:var(--mc,var(--blue));background:rgba(255,255,255,.05);border-radius:8px;padding:6px 12px;white-space:nowrap}
 .fl-title{flex:1;font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -1418,7 +1420,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L106';
+const APP_VERSION='2026.07.10-L107';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12682,7 +12684,8 @@ function renderFicheMachineBlocks(opts){
   if(!mono||!multi) return;
   const refs=fmmGetRefs();
   // Nettoie d'éventuels blocs inline d'un rendu précédent.
-  document.querySelectorAll('#ficheLines .fmm-inline-block').forEach(n=>n.remove());
+  // [L107 · Phase 1 · J] sélecteur élargi : le bloc de la réf 1 vit désormais HORS de #ficheLines (au-dessus de l'en-tête).
+  document.querySelectorAll('.fmm-inline-block').forEach(n=>n.remove());
   if(refs.length<=1){
     // MONO-RÉF : comportement historique inchangé.
     mono.style.display='';
@@ -12757,6 +12760,14 @@ function renderFicheMachineBlocks(opts){
     block.style.borderLeft='6px solid '+rc;   // couleur par référence (miroir de l'ordre de coupe)
     const refChip='<span class="fmm-ref-chip" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">Réf '+(pos+1)+'</span>';
     block.innerHTML='<div class="fmm-head">'+refChip+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
+    // [L107 · Phase 1 · J] RÉF 1 : son bloc de validation vit JUSTE AU-DESSUS de la section
+    // « En-tête fiche » (demande Esteban) — l'opérateur la valide avant de remplir l'en-tête,
+    // sans descendre jusqu'à la 1re bobine. Réfs 2, 3, … : inchangées (bloc à leur 1re bobine).
+    if(pos===0){
+      const hdrSec=document.getElementById('fClient')?.closest('.section');
+      if(hdrSec&&hdrSec.parentNode){ hdrSec.parentNode.insertBefore(block,hdrSec); return; }
+      // repli (en-tête introuvable) : ancienne ancre ci-dessous
+    }
     // Ancre : 1re ligne bobine de cette réf dans le DOM.
     const key=nrm(r.ref);
     let anchor=null;
@@ -13131,14 +13142,10 @@ function addFicheLine(data){
   div.className='fiche-line'+machineCls(data.machine);div.id=id;
   if(data.rattrapage){ div.style.borderColor='#caa15a'; div.style.background='rgba(245,158,11,0.05)'; }
   div.innerHTML=`
-    <div class="fiche-line-header">
+    <div class="fiche-line-header"><!-- [L107 · Phase 1 · C] le ✂ descend en GROS bouton en bas de carte -->
       <span class="fl-pos" id="pos_${id}">—</span>
       <span class="fl-title">Bobine <span id="badge_${id}" class="fl-badge badge-green">RAS</span></span>
-      <button id="coupeeBtn_${id}" onclick="toggleCoupee('${id}')" aria-label="Marquer cette bobine comme coupée"
-        style="padding:14px 18px;min-height:48px;border-radius:8px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap">
-        ✂ Coupée
-      </button>
-      <button class="btn btn-red btn-sm" style="margin-left:14px;min-width:48px" aria-label="Supprimer cette bobine" onclick="removeFicheLine('${id}')">✕</button>
+      <button class="btn btn-red btn-sm" style="margin-left:auto;min-width:48px" aria-label="Supprimer cette bobine" onclick="removeFicheLine('${id}')">✕</button>
     </div>
     <div class="fiche-grid">
       <div class="field" style="grid-column:1/-1"><label>Étiquette bobine mère</label>
@@ -13154,19 +13161,9 @@ function addFicheLine(data){
         <label>Cumul bobineaux par laize</label>
         <div class="cumul-box" id="flCumul_${id}"><span style="color:var(--muted);font-size:13px">—</span></div>
       </div>
-      <details class="fl-more" id="flMore_${id}"><!-- [L102 · M2-F] contrôles secondaires repliés — flux principal épuré : config → ✂. Ouverture auto par syncFlMore (NC) et toggleCoupee (test 2ᵉ requis). Tous les id/handlers inchangés. -->
-        <summary>⋯ Contrôles — test 2ᵉ · NC · photo <span class="fl-more-stat" id="flMoreStat_${id}"><span class="st-todo">test 2ᵉ à faire</span></span></summary>
-        <div class="fl-more-body">
-      <div class="field">
+      <div class="field" style="grid-column:1/-1"><!-- [L107 · Phase 1 · B/C] test 2ᵉ VISIBLE directement (plus d'étape cachée) : Dévidage/Droit d'abord, puis Conforme / Non conforme CÔTE À CÔTE (A). FEBA : Droit masqué par updateTest2Subs (ids inchangés). -->
         <label>Test 2ème bobineaux</label>
         <div class="test2-block">
-          <div class="test2-main">
-            <input type="checkbox" id="flTest2main_${id}" disabled>
-            <span id="test2desc_${id}">Conforme — auto si Dévidage ET Droit cochés ci-dessous</span>
-          </div>
-          <label class="test2-nc" id="test2nc_${id}">
-            <input type="checkbox" id="flTest2nc_${id}" onchange="updateTest2Subs('${id}')"> ⚠ Non conforme — coche le ou les défauts ci-dessous
-          </label>
           <div class="test2-subs">
             <label class="test2-sub" id="sub_devi_${id}">
               <input type="checkbox" id="flDevi_${id}" onchange="updateTest2Subs('${id}')"> ↔ Dévidage
@@ -13175,12 +13172,26 @@ function addFicheLine(data){
               <input type="checkbox" id="flDroit_${id}" onchange="updateTest2Subs('${id}')"> ➡ Droit
             </label>
           </div>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:stretch">
+            <div class="test2-main" style="flex:1;margin-bottom:0">
+              <input type="checkbox" id="flTest2main_${id}" disabled>
+              <span id="test2desc_${id}">Conforme — auto si Dévidage ET Droit cochés ci-dessus</span>
+            </div>
+            <label class="test2-nc" id="test2nc_${id}" style="flex:1;margin-bottom:0">
+              <input type="checkbox" id="flTest2nc_${id}" onchange="updateTest2Subs('${id}')"> ⚠ Non conforme
+            </label>
+          </div>
         </div>
       </div>
+      <div class="field" style="grid-column:1/-1;margin-bottom:0"><!-- [L107 · Phase 1 · C] R.A.S. visible dans le flux principal -->
+        <label class="nc-check ras sel" id="nc_ras_${id}" style="width:100%;justify-content:center"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ R.A.S.</label>
+      </div>
+      <details class="fl-more" id="flMore_${id}"><!-- [L107 · Phase 1 · F] zone Défaut REPLIÉE par défaut (aucune place prise) ; s'ouvre au tap, ou AUTO si NC / action requise (syncFlMore, toggleCoupee) -->
+        <summary>⚠ Défaut — NC · photo · chutes/déchet <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary>
+        <div class="fl-more-body">
       <div class="field">
-        <label>Non-conformité</label>
-        <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts (1 ligne mobile), ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
-          <label class="nc-check ras sel" id="nc_ras_${id}"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ RAS</label>
+        <label>Problème constaté</label>
+        <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts, ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
           <label class="nc-check bad" id="nc_ang_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Angle</label>
           <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
           <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
@@ -13194,11 +13205,11 @@ function addFicheLine(data){
           <button class="photo-btn" onclick="triggerPhoto('${id}')">📷 Ajouter photo</button>
         </div>
       </div>
-      <div class="field" style="margin-bottom:0">
+      <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes -->
         <label>Action</label>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1">🗑 Déchet</button>
           <button class="btn btn-ghost btn-sm" id="act_chutes_${id}" onclick="toggleAction('${id}','chutes')" style="flex:1">✂ Chutes</button>
+          <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1">🗑 Déchet</button>
           <!-- [L65] bouton « + Acceptable » retiré (demande atelier — jamais utilisé).
                toggleAction/restore/PDF tolèrent son absence : les anciennes fiches
                archivées avec actAccept continuent de s'afficher normalement. -->
@@ -13206,6 +13217,10 @@ function addFicheLine(data){
       </div>
         </div>
       </details>
+      <button id="coupeeBtn_${id}" onclick="toggleCoupee('${id}')" aria-label="Marquer cette bobine comme coupée"
+        style="grid-column:1/-1;width:100%;margin-top:2px;padding:16px 18px;min-height:56px;border-radius:10px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:17px;font-weight:800;cursor:pointer;transition:all .2s;white-space:nowrap">
+        ✂ Coupée
+      </button><!-- [L107 · Phase 1 · C] GROS bouton ✂ en bas — dernière action du flux (toggleCoupee/restore écrivent style+texte par id : inchangés) -->
     </div>`;
   document.getElementById('ficheLines').appendChild(div);
   refreshPhotoZone(id);
@@ -13332,7 +13347,8 @@ function toggleCoupee(id){
     // Le test 2ème bobineaux doit être tranché : Conforme (Dévidage+Droit)
     // OU Non conforme avec au moins un motif (Dévidage ou Droit).
     if(!test2Resolved(id)){
-      const _det=document.getElementById('flMore_'+id); if(_det) _det.open=true;   // [L102 · M2-F] le contrôle requis s'ouvre tout seul sous le doigt
+      // [L107 · Phase 1 · B] le test 2ᵉ est désormais VISIBLE sur la carte : plus d'ouverture
+      // auto du volet (qui ne contient plus que NC/photo/action) — le toast suffit.
       const elNC=document.getElementById('flTest2nc_'+id);
       const feba=(_flMachineOf(id)==='feba');   // [L65] machine de la ligne
       if(elNC&&elNC.checked){
@@ -13529,7 +13545,7 @@ function updateTest2Subs(id){
   const droitSub=document.getElementById('sub_droit_'+id);
   if(droitSub) droitSub.style.display=feba?'none':'';
   const desc=document.getElementById('test2desc_'+id);
-  if(desc) desc.textContent=feba?'Conforme — auto si Dévidage coché ci-dessous':'Conforme — auto si Dévidage ET Droit cochés ci-dessous';
+  if(desc) desc.textContent=feba?'Conforme — auto si Dévidage coché ci-dessus':'Conforme — auto si Dévidage ET Droit cochés ci-dessus';   // [L107 · Phase 1 · B] les cases sont désormais AU-DESSUS
   const ncMode=elNC&&elNC.checked;
   // En mode Non conforme, la case Conforme auto ne peut pas être cochée.
   if(ncMode){
@@ -13550,17 +13566,16 @@ function updateTest2Subs(id){
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] statut du volet « ⋯ Contrôles »
   updateCoupeeStatus();
 }
-// [L102 · Design M2-F] Volet « ⋯ Contrôles » : statut compact dans le résumé
-// (test 2ᵉ à faire / ✓ test OK / ⚠ NC) + ouverture AUTO dès qu'une NC ou un
-// test 2ᵉ non conforme est coché (saisie directe OU restauration brouillon/
-// partage) — rien d'alarmant ne reste replié. Redondance forme+texte (H).
+// [L102 · Design M2-F → L107 · Phase 1 · F] Volet « ⚠ Défaut » : statut compact dans le
+// résumé (⚠ NC quand un problème est coché) + ouverture AUTO dès qu'une NC ou un test 2ᵉ
+// non conforme est coché (saisie directe OU restauration brouillon/partage) — rien
+// d'alarmant ne reste replié. Le statut du test 2ᵉ n'y figure plus : il est VISIBLE sur la carte.
 function syncFlMore(id){
   const det=document.getElementById('flMore_'+id); if(!det) return;
   const nc=['larg','qty','casse','ang'].some(k=>{const el=document.getElementById('nc_'+k+'_'+id);return el&&el.querySelector('input').checked;});
   const t2nc=!!(document.getElementById('flTest2nc_'+id)?.checked);
-  const t2ok=(typeof test2Resolved==='function')&&test2Resolved(id);
   const stat=document.getElementById('flMoreStat_'+id);
-  if(stat) stat.innerHTML=(nc||t2nc)?'<span class="st-nc">⚠ NC</span>':(t2ok?'<span class="st-ok">✓ test OK</span>':'<span class="st-todo">test 2ᵉ à faire</span>');
+  if(stat) stat.innerHTML=(nc||t2nc)?'<span class="st-nc">⚠ NC</span>':'';
   if(nc||t2nc) det.open=true;
 }
 // Réapplique la règle FEBA (masquage « Droit » + conformité) sur toutes les bobines.
