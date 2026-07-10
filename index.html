@@ -585,13 +585,15 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 .pln-hcell{padding:9px 6px 8px;text-align:center;font-size:11.5px;font-weight:800;color:var(--muted);border-bottom:1px solid var(--border2);text-transform:uppercase;letter-spacing:.03em;background:var(--section)}
 .pln-hcell .pd{display:block;font-size:14px;color:var(--text);margin-top:2px;letter-spacing:0}
 .pln-hcell.today{color:var(--action)} .pln-hcell.today .pd{color:var(--action)}
-.pln-mach{display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border2);border-bottom:1px solid var(--border2);background:var(--section)}
+.pln-mach{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:4px;border-right:1px solid var(--border2);border-bottom:1px solid var(--border2);background:var(--section)}
 .pln-mach span{display:inline-block;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#0d0d0c;background:var(--mc,#888)}
+.pln-machwk{font-size:10.5px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.pln-machwk.warn{color:var(--orange)} .pln-machwk.over{color:var(--red)}
 .pln-mach.feba{--mc:var(--feba)} .pln-mach.maveg{--mc:var(--maveg)} .pln-mach.cevenini{--mc:var(--cevenini)}
 .pln-cell{min-height:104px;border-bottom:1px solid var(--border2);border-right:1px solid var(--border2);padding:7px;display:flex;flex-direction:column;gap:6px;background:var(--card);transition:background .15s}
 .pln-cell.today{background:rgba(245,179,1,.045)}
-.pln-load{font-size:11px;color:var(--muted);font-weight:800;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:.02em}
-.pln-load.warn{color:var(--orange)} .pln-load.over{color:var(--red)}
+.pln-load{font-size:12px;color:var(--text);opacity:.72;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:.02em}/* [L118 · audit #11] plus lisible */
+.pln-load.warn{color:var(--orange);opacity:1} .pln-load.over{color:var(--red);opacity:1}
 .pln-card{position:relative;border:1px solid var(--border2);border-left:4px solid var(--mc,#666);border-radius:9px;background:var(--section);padding:8px 10px;font-size:12.5px;line-height:1.34;transition:transform .12s,box-shadow .12s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .pln-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.35)}
 .pln-card .pc-top{display:flex;align-items:center;gap:6px}
@@ -1487,7 +1489,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L117';
+const APP_VERSION='2026.07.10-L118';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3626,6 +3628,7 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine){
 }
 
 function switchTab(tab){
+  if(tab!=='planning'){ try{ if(typeof plnDisarm==='function') plnDisarm(); }catch(e){} }   // [L118 · audit #6] désarmer le Planning + retirer le fantôme/#plnHint en quittant l'onglet
   if(typeof updateTabBadges==='function') updateTabBadges();
   if(tab==='analyse'&&!canViewAnalyse()) tab='saves';
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
@@ -6371,7 +6374,7 @@ function renderSaves(){
   if(selC){
     const cur=selC.value;
     if(_saveClientOptsHtml===null){
-      _saveClientKeys=Object.keys(catC).sort();
+      _saveClientKeys=Object.keys(catC).sort((a,b)=>a.localeCompare(b,'fr'));   // [L118 · audit #24] même tri fr que le menu Plan (ÉCHANTILLON à la lettre E)
       _saveClientOptsHtml='<option value="">Tous clients</option>'+_saveClientKeys.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
     }
     selC.innerHTML=_saveClientOptsHtml;
@@ -8514,6 +8517,7 @@ async function exportTemps(){
 let plnWeekOffset=0;
 let plnPoolSort='recent';   // [L115] tri de « À planifier » : recent | liv | client | ref
 let plnPoolOpen=true;       // [L115] « À planifier » repliable
+let _plnMidnightTimer=null, _plnVisBound=false;   // [L118 · audit #25] re-render minuit / retour de visibilité
 function plnSetSort(v){ plnPoolSort=v; renderPlanning(); }
 function plnTogglePool(){ plnPoolOpen=!plnPoolOpen; renderPlanning(); }
 let plnArmedSid=null;            // carte « armée » (tap-pour-poser)
@@ -8529,14 +8533,30 @@ function _plnIsoWeekNum(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth
 function _plnIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function plnNav(n){ plnWeekOffset=(n===0)?0:plnWeekOffset+n; renderPlanning(); }
 // « déjà coupé » = une fiche existe pour la commande (client¦réf¦n° NON vide) — même clé que l'hygiène
+// [L118 · audit #1/#20/#21] DÉTECTION UNIFIÉE « déjà coupé » — partagée par le PLANNING, l'HYGIÈNE
+// (bouton + auto) et le dry-run. Index clé(client¦ref¦n°) → date de la fiche NON REFUSÉE la plus
+// RÉCENTE. Fiches REFUSÉES (valide===false) EXCLUES : sinon un plan à recouper disparaît du planning
+// sans jamais être archivé (impasse). Avant, les 3 détections divergeaient.
 function _plnSentKeys(){
   const canon=v=>nrm((v&&v!=='—')?v:'');
   const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
-  return {set:new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd))),keyOf,canon};
+  const idx=new Map();
+  (fichesCache||[]).forEach(f=>{
+    if(!f||f.deleted||f.valide===false||!canon(f.numCmd)) return;
+    const k=keyOf(f.client,f.ref,f.numCmd), d=String(f.date||'');
+    const cur=idx.get(k); if(cur===undefined||d>cur) idx.set(k,d);
+  });
+  return {idx,keyOf,canon};
 }
+// « déjà coupé » = fiche non refusée existe pour la commande ET créée APRÈS l'enregistrement du plan
+// (fiche.date > plan.date). Sinon un plan RE-CRÉÉ (recoupe / n° de commande réutilisé) serait masqué
+// du planning ET archivé EN SILENCE par l'auto-hygiène (audit #20 CRITIQUE — perte irréversible).
+// RESTE manque matière : jamais (le solde reste à couper).
 function _plnDejaCoupe(s,ctx){
-  if(s.reste||s.resteFromFiche) return false;   // [L112 · CRITIQUE] un plan RESTE porte le numCmd de la fiche d'ORIGINE mais reste À COUPER → il doit rester planifiable
-  return !!(ctx.canon(s.numCmd)&&ctx.set.has(ctx.keyOf(s.client,s.ref,s.numCmd)));
+  if(!s||s.reste||s.resteFromFiche) return false;
+  if(!ctx.canon(s.numCmd)) return false;
+  const fd=ctx.idx.get(ctx.keyOf(s.client,s.ref,s.numCmd));
+  return !!(fd && fd>String(s.date||''));
 }
 // Livraison la plus proche (multi-clients : min des dateLiv par client — ISO triable)
 function _plnDateLivMin(s){
@@ -8576,9 +8596,14 @@ function _plnPlanMeters(s){
 }
 function _plnHoursOn(s,machKey){
   const est=_plnPlanMeters(s); if(!est) return null;
-  const deb=dujDebit(dujMachKey(machKey),null);
-  if(!deb||!deb.d||deb.src==='global') return null;
-  return est.metres/deb.d;
+  const mk=dujMachKey(machKey);
+  // [L118 · audit #17] plan MULTI-machines posé sur une case : ne charger que la part de CETTE
+  // machine (byMach[mk]) — sinon tout le métrage était imputé à la seule machine posée. Repli sur
+  // le total si le plan n'a pas de part pour mk (opérateur qui pose sur une autre machine).
+  const m=(est.byMach&&est.byMach[mk]!=null)?est.byMach[mk]:est.metres;
+  const deb=dujDebit(mk,null);
+  if(!deb||!deb.d||deb.src==='global'||!(m>0)) return null;
+  return m/deb.d;
 }
 function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
   const est=_plnPlanMeters(s); if(!est) return null;
@@ -8592,6 +8617,7 @@ function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
 }
 function _plnH(h){ if(h==null||!isFinite(h)||h<=0) return '—'; const H=Math.floor(h),M=Math.round((h-H)*60); return '≈ '+(H>0?(H+' h'+(M?' '+String(M).padStart(2,'0'):'')):(M+' min')); }
 // ── ÉCRITURE pose / déplacement / retrait (optimiste + retour arrière + logAudit) ──
+const _plnWriteBusy=new Set();   // [L118 · audit #3] sids avec une écriture planning en vol
 async function plnSetPlan(sid,dateIso,machKey){
   if(!plnCanEdit()){ showToast('🔒 Lecture seule — la planification est réservée au pilotage/admin.','err'); return false; }
   const s=(savesCache||[]).find(x=>x&&x._id===sid);
@@ -8599,7 +8625,11 @@ async function plnSetPlan(sid,dateIso,machKey){
   const before={d:s.plannedDate||null,m:s.plannedMachine||null};
   const after={d:dateIso||null,m:machKey||null};
   if(before.d===after.d&&before.m===after.m) return true;
-  s.plannedDate=after.d; s.plannedMachine=after.m;   // optimiste — onSnapshot confirmera
+  if(_plnWriteBusy.has(sid)) return false;   // [L118 · audit #3] un seul write en vol par carte : évite que le rollback d'un 1er glisser écrase un 2e glisser rapide
+  _plnWriteBusy.add(sid);
+  // [L118 · audit #2] optimiste. NB : savesCache n'a pas de listener temps réel → un AUTRE poste ne
+  // verra ce changement qu'à son prochain chargement (planification = usage pilotage, mono-poste en pratique).
+  s.plannedDate=after.d; s.plannedMachine=after.m;
   renderPlanning();
   try{
     await boundedWrite(db.collection('saves').doc(sid).update({plannedDate:after.d,plannedMachine:after.m}),10000);
@@ -8618,7 +8648,7 @@ async function plnSetPlan(sid,dateIso,machKey){
       :'⚠ Écriture planning échouée ('+((e&&e.message)||e)+') — réessaie.','err');
     if(perm) console.warn('[Planning] Règles à compléter : autoriser aux rôles admin/pilotage l\'update des champs plannedDate (string|null) et plannedMachine (string|null) de la collection saves.');
     return false;
-  }
+  }finally{ _plnWriteBusy.delete(sid); }
 }
 // ── Tap-pour-poser ──
 function plnDisarm(){
@@ -8626,6 +8656,7 @@ function plnDisarm(){
   const h=document.getElementById('plnHint'); if(h) h.remove();
   document.querySelectorAll('.pln-armed').forEach(el=>el.classList.remove('pln-armed'));
   document.querySelectorAll('.pln-droppable').forEach(el=>el.classList.remove('pln-droppable'));
+  if(typeof _plnCleanupGhost==='function') _plnCleanupGhost();   // [L118 · audit #5/#6] pas de fantôme #plnGhost orphelin
 }
 function plnArm(sid){
   if(!plnCanEdit()) return;
@@ -8636,7 +8667,10 @@ function plnArm(sid){
   const s=(savesCache||[]).find(x=>x&&x._id===sid);
   if(s&&s.plannedDate){ const p=document.getElementById('plnPool'); if(p) p.classList.add('pln-droppable'); }
   const bar=document.createElement('div'); bar.id='plnHint';
-  bar.innerHTML='📍 <b>'+esc((s&&s.client)||'—')+((s&&s.numCmd)?' · N° '+esc(s.numCmd):'')+'</b> — touche une case du planning'+((s&&s.plannedDate)?' (ou « À planifier » pour le retirer)':'')+' <button class="btn btn-ghost btn-sm" onclick="plnDisarm()">✕</button>';
+  // [L118 · audit #4/#14] carte déjà posée : bouton « ↩ Retirer » TOUJOURS présent dans la barre
+  // (avant, le retrait n'était possible qu'en déposant sur « À planifier » — impossible si replié).
+  const rm=(s&&s.plannedDate)?'<button class="btn btn-red btn-sm" onclick="plnSetPlan(\''+esc(sid)+'\',null,null)">↩ Retirer</button>':'';
+  bar.innerHTML='📍 <b>'+esc((s&&s.client)||'—')+((s&&s.numCmd)?' · N° '+esc(s.numCmd):'')+'</b> — touche une case du planning '+rm+' <button class="btn btn-ghost btn-sm" onclick="plnDisarm()">✕</button>';
   document.body.appendChild(bar);
 }
 async function plnCellTap(dateIso,machKey){
@@ -8694,11 +8728,13 @@ function plnGotoSave(sid){
   switchTab('saves');
 }
 // ── Glisser-déposer Pointer Events (souris : direct ; tactile : maintien ~250 ms) ──
+function _plnCleanupGhost(){ try{ document.getElementById('plnGhost')?.remove(); }catch(e){} }
 function plnPointerDown(ev,sid){
   if(!plnCanEdit()) return;
+  if(_plnDrag) return;   // [L118 · audit #5] un 2e doigt pendant un glisser NE réécrit plus _plnDrag (fantôme orphelin + écriture sur la mauvaise commande)
   if(ev.button!==undefined&&ev.button!==0&&ev.pointerType==='mouse') return;
   const card=ev.currentTarget;
-  _plnDrag={sid,card,x0:ev.clientX,y0:ev.clientY,lifted:false,timer:null,moved:false,hover:null};
+  _plnDrag={sid,card,pointerId:ev.pointerId,x0:ev.clientX,y0:ev.clientY,lastX:ev.clientX,lastY:ev.clientY,lifted:false,timer:null,moved:false,hover:null,scrollRAF:null};
   if(ev.pointerType!=='mouse'){ _plnDrag.timer=setTimeout(function(){ if(_plnDrag&&!_plnDrag.moved) _plnLift(); },250); }
   try{ card.setPointerCapture(ev.pointerId); }catch(e){}
 }
@@ -8717,9 +8753,20 @@ function _plnLift(){
   const s=(savesCache||[]).find(x=>x&&x._id===_plnDrag.sid);
   if(s&&s.plannedDate){ const p=document.getElementById('plnPool'); if(p) p.classList.add('pln-droppable'); }
   try{ if(navigator.vibrate) navigator.vibrate(12); }catch(e){}
+  try{ _plnDrag.scrollRAF=requestAnimationFrame(_plnAutoScroll); }catch(e){}   // [L118 · audit #12] auto-scroll quand le fantôme approche du haut/bas de l'écran
+}
+// [L118 · audit #12] défilement automatique de la page pendant un glisser près des bords haut/bas.
+function _plnAutoScroll(){
+  if(!_plnDrag||!_plnDrag.lifted){ return; }
+  const y=_plnDrag.lastY, vh=window.innerHeight||800, edge=78; let dv=0;
+  if(y<edge) dv=-Math.ceil((edge-y)/5);
+  else if(y>vh-edge) dv=Math.ceil((y-(vh-edge))/5);
+  if(dv){ try{ window.scrollBy(0,dv); }catch(e){} }
+  _plnDrag.scrollRAF=requestAnimationFrame(_plnAutoScroll);
 }
 function plnPointerMove(ev){
-  if(!_plnDrag) return;
+  if(!_plnDrag||ev.pointerId!==_plnDrag.pointerId) return;   // [L118 · audit #5] seul le pointeur qui a initié le glisser
+  _plnDrag.lastX=ev.clientX; _plnDrag.lastY=ev.clientY;
   const dx=ev.clientX-_plnDrag.x0, dy=ev.clientY-_plnDrag.y0;
   if(!_plnDrag.lifted){
     if(Math.abs(dx)>8||Math.abs(dy)>8){
@@ -8738,8 +8785,9 @@ function plnPointerMove(ev){
   if(cell){ cell.classList.add('pln-hover'); _plnDrag.hover=cell; }
 }
 async function plnPointerUp(ev){
-  if(!_plnDrag) return;
+  if(!_plnDrag||ev.pointerId!==_plnDrag.pointerId) return;   // [L118 · audit #5]
   clearTimeout(_plnDrag.timer);
+  if(_plnDrag.scrollRAF) try{ cancelAnimationFrame(_plnDrag.scrollRAF); }catch(e){}
   const d=_plnDrag; _plnDrag=null;
   if(!d.lifted) return;   // tap court → onclick (plnCardTap) prend le relais
   _plnLastDrop=Date.now();
@@ -8754,9 +8802,10 @@ async function plnPointerUp(ev){
   else if(pool) await plnSetPlan(d.sid,null,null);
   else renderPlanning();
 }
-function plnPointerCancel(){
-  if(!_plnDrag) return;
+function plnPointerCancel(ev){
+  if(!_plnDrag||(ev&&ev.pointerId!==undefined&&ev.pointerId!==_plnDrag.pointerId)) return;   // [L118 · audit #5]
   clearTimeout(_plnDrag.timer);
+  if(_plnDrag.scrollRAF) try{ cancelAnimationFrame(_plnDrag.scrollRAF); }catch(e){}
   if(_plnDrag.ghost) _plnDrag.ghost.remove();
   if(_plnDrag.card) _plnDrag.card.style.opacity='';
   document.querySelectorAll('.pln-hover').forEach(el=>el.classList.remove('pln-hover'));
@@ -8777,9 +8826,13 @@ function renderPlanning(){
   const days=[...Array(5)].map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
   const dayIsos=days.map(_plnIso);
   const kw=_plnIsoWeekNum(mon);
-  const titre=`S${kw} · ${days[0].getDate()} → ${days[4].getDate()} ${PLN_MOIS[days[4].getMonth()]} ${days[4].getFullYear()}`;
+  // [L118 · audit #26] titre correct quand la semaine chevauche 2 mois/années
+  const _sameMY=days[0].getMonth()===days[4].getMonth()&&days[0].getFullYear()===days[4].getFullYear();
+  const titre=_sameMY
+    ? `S${kw} · ${days[0].getDate()} → ${days[4].getDate()} ${PLN_MOIS[days[4].getMonth()]} ${days[4].getFullYear()}`
+    : `S${kw} · ${days[0].getDate()} ${PLN_MOIS[days[0].getMonth()].slice(0,4)} → ${days[4].getDate()} ${PLN_MOIS[days[4].getMonth()].slice(0,4)} ${days[4].getFullYear()}`;
   const canEdit=plnCanEdit();
-  const dragAttrs=canEdit?`onpointermove="plnPointerMove(event)" onpointerup="plnPointerUp(event)" onpointercancel="plnPointerCancel()"`:'';
+  const dragAttrs=canEdit?`onpointermove="plnPointerMove(event)" onpointerup="plnPointerUp(event)" onpointercancel="plnPointerCancel(event)"`:'';
   const cardHtml=(s,kind)=>{
     const liv=_plnDateLivMin(s);
     // [L117] rouge = VRAI retard seulement : livraison DÉPASSÉE (pool) ou posé APRÈS la livraison
@@ -8817,18 +8870,25 @@ function renderPlanning(){
   let weekH=0;   // [L117] charge totale estimée posée sur la semaine affichée
   let grid=`<div class="pln-corner"></div>`+days.map((d,i)=>`<div class="pln-hcell${dayIsos[i]===todayIso?' today':''}">${PLN_JOURS[i]}<span class="pd">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</span></div>`).join('');
   DUJ_MACHINES.forEach(m=>{
-    grid+=`<div class="pln-mach ${m}"><span>${esc(getMachineLabel(m))}</span></div>`;
-    dayIsos.forEach((iso,i)=>{
+    // [L118 · audit #13] pré-calcul de la semaine pour cette machine → total hebdo affiché sous le nom
+    const dayCells=dayIsos.map(iso=>{
       const cellPlans=all.filter(s=>s.plannedDate===iso&&dujMachKey(s.plannedMachine||'')===m);
       let hSum=0,every=cellPlans.length>0,any=false;
       cellPlans.forEach(s=>{ const h=_plnHoursOn(s,m); if(h==null) every=false; else {hSum+=h;any=true;} });
-      if(any) weekH+=hSum;
-      const loadTxt=cellPlans.length?(any?_plnH(hSum)+(every?'':' +?'):'—'):'';
-      const loadCls=(any&&hSum>PLN_OVER_H)?' over':((any&&hSum>PLN_WARN_H)?' warn':'');
-      grid+=`<div class="pln-cell${iso===todayIso?' today':''}" data-day="${iso}" data-mach="${m}" onclick="plnCellTap('${iso}','${m}')"><div class="pln-load${loadCls}" title="charge estimée du jour sur cette machine">${loadTxt}</div>${cellPlans.map(s=>cardHtml(s,'placed')).join('')}</div>`;
+      return {iso,cellPlans,hSum,every,any};
+    });
+    const machWeek=dayCells.reduce((a,c)=>a+(c.any?c.hSum:0),0);
+    weekH+=machWeek;
+    const mwCls=(machWeek>PLN_OVER_H*5)?' over':((machWeek>PLN_WARN_H*5)?' warn':'');   // capacité hebdo indicative = 5 jours
+    grid+=`<div class="pln-mach ${m}"><span>${esc(getMachineLabel(m))}</span>${machWeek>0?`<small class="pln-machwk${mwCls}">${_plnH(machWeek).replace('≈ ','')}/sem</small>`:''}</div>`;
+    dayCells.forEach(dc=>{
+      const loadTxt=dc.cellPlans.length?(dc.any?_plnH(dc.hSum)+(dc.every?'':' +?'):'—'):'';
+      const loadCls=(dc.any&&dc.hSum>PLN_OVER_H)?' over':((dc.any&&dc.hSum>PLN_WARN_H)?' warn':'');
+      grid+=`<div class="pln-cell${dc.iso===todayIso?' today':''}" data-day="${dc.iso}" data-mach="${m}" onclick="plnCellTap('${dc.iso}','${m}')"><div class="pln-load${loadCls}" title="charge estimée du jour sur cette machine">${loadTxt}</div>${dc.cellPlans.map(s=>cardHtml(s,'placed')).join('')}</div>`;
     });
   });
   const placedCount=all.filter(s=>s.plannedDate&&dayIsos.indexOf(s.plannedDate)>=0).length;
+  const beyond=all.filter(s=>s.plannedDate&&s.plannedDate>dayIsos[4]).length;   // [L118 · audit #28] plans planifiés APRÈS la semaine affichée
   el.innerHTML=`
     <div id="plnBar">
       <div class="pln-navgrp">
@@ -8837,10 +8897,10 @@ function renderPlanning(){
         <button onclick="plnNav(1)" title="Semaine suivante" aria-label="Semaine suivante">▶</button>
       </div>
       <span id="plnTitle">${titre}</span>
-      <span class="pln-weekload">${canEdit?'':'🔒 lecture seule · '}${placedCount} posé(s)${weekH>0?' · charge <b>'+_plnH(weekH).replace('≈ ','≈')+'</b>':''}</span>
+      <span class="pln-weekload">${canEdit?'':'🔒 lecture seule · '}${placedCount} posé(s)${weekH>0?' · charge <b>'+_plnH(weekH).replace('≈ ','≈')+'</b>':''}${beyond>0?' · <span style="color:var(--orange)">'+beyond+' au-delà ▶</span>':''}</span>
     </div>
     <div class="pln-wrap"><div class="pln-grid">${grid}</div></div>
-    ${canEdit?'<div style="font-size:12px;color:var(--muted);margin:8px 0 14px">🖱 Souris : glisse une carte de la liste vers une case. ✋ Tactile : garde le doigt appuyé ~½ s pour prendre la carte, ou touche-la puis touche une case. Touche une carte posée pour son détail / la retirer.</div>':''}
+    ${canEdit?'<div style="font-size:12px;color:var(--muted);margin:8px 0 14px">✋ <b>Le plus simple</b> : touche une carte « À planifier » puis touche la case (jour × machine) — ou l\'inverse pour la retirer. 🖱 Tu peux aussi la <b>glisser</b> directement.</div>':''}
     ${reports.length?`<div class="pln-report">↪ <b>Reportés (${reports.length})</b> — semaine passée, à re-glisser :${reports.map(s=>cardHtml(s,'report')).join('')}</div>`:''}
     <div class="pln-poolbar">
       <button class="btn btn-ghost btn-sm pln-poolbtn" onclick="plnTogglePool()" title="Afficher / replier les plans à planifier">${plnPoolOpen?'▾':'▸'} 📥 À planifier — ${pool.length}</button>
@@ -8853,6 +8913,14 @@ function renderPlanning(){
       </select>`:''}
     </div>
     ${plnPoolOpen?`<div id="plnPool" onclick="plnPoolTap()">${pool.map(s=>cardHtml(s,'pool')).join('')||'<span style="color:var(--muted);font-size:13px">Aucun plan en attente. 👍</span>'}</div>`:''}`;
+  // [L118 · audit #25] tablette laissée ouverte : re-render au prochain minuit local + au retour de
+  // visibilité, pour rafraîchir la colonne « aujourd'hui » et la bande « Reportés » (sinon figés sur la veille).
+  try{
+    if(_plnMidnightTimer) clearTimeout(_plnMidnightTimer);
+    const _now=new Date(), _nextMid=new Date(_now.getFullYear(),_now.getMonth(),_now.getDate()+1,0,0,20);
+    _plnMidnightTimer=setTimeout(function(){ const c=document.getElementById('tabContentPlanning'); if(c&&!c.classList.contains('hidden')) try{ renderPlanning(); }catch(e){} }, Math.max(1000,_nextMid-_now));
+  }catch(e){}
+  if(!_plnVisBound){ _plnVisBound=true; try{ document.addEventListener('visibilitychange',function(){ if(document.hidden) return; const c=document.getElementById('tabContentPlanning'); if(c&&!c.classList.contains('hidden')) try{ renderPlanning(); }catch(e){} }); }catch(e){} }
 }
 
 // ============================================================
@@ -13553,19 +13621,16 @@ function fillBobineSelect(id){
 // encore : elle attend la validation d'Esteban sur cet aperçu (règle Phase 4D).
 // ============================================================
 function hygieneDryRun(){
-  const canon=v=>nrm((v&&v!=='—')?v:'');
-  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
-  const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
-  // [L112 · CRITIQUE] plans « ♻ RESTE manque matière » EXCLUS : ils portent le numCmd de la
-  // fiche d'ORIGINE (déjà envoyée) alors que le solde reste À COUPER — sans cette garde,
-  // le nettoyage les aurait archivés (perte du plan du solde).
-  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.reste&&!s.resteFromFiche&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  const ctx=_plnSentKeys();   // [L118] détection unifiée (fiche non refusée + postérieure au plan) ; RESTE exclu
+  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&_plnDejaCoupe(s,ctx));
   let soldesExclus=0;
   const drafts=(brouillonsCache||[]).filter(d=>{
     if(!d||d.consumed||d.kind==='shared'||/^d_(autosave|shared_)/.test(String(d.id))) return false;
     if(d.fromFicheId){ soldesExclus++; return false; }
     const p=(d.state&&d.state.plan)||{};
-    return canon(p.numCmd)&&sentKeys.has(keyOf(p.client,p.ref,p.numCmd));
+    if(!ctx.canon(p.numCmd)) return false;
+    const fd=ctx.idx.get(ctx.keyOf(p.client,p.ref,p.numCmd));
+    return !!(fd && fd>String(d.savedAt||''));
   });
   console.log('=== HYGIÈNE — APERÇU (dry-run, RIEN n\'est touché) ===');
   console.log(plans.length+' plan(s) « déjà coupés » encore visibles dans Données > Plans :');
@@ -13587,10 +13652,8 @@ function hygieneDryRun(){
 // EXCLUS : plans supprimés, et « ♻ RESTE manque matière » (reste/resteFromFiche) — le solde reste à couper.
 function _hygienePlansToArchive(){
   if(!Array.isArray(fichesCache)||!Array.isArray(savesCache)) return [];
-  const canon=v=>nrm((v&&v!=='—')?v:'');
-  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
-  const sentKeys=new Set(fichesCache.filter(f=>f&&!f.deleted&&f.valide!==false&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
-  return savesCache.filter(s=>s&&!s.deleted&&!s.reste&&!s.resteFromFiche&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  const ctx=_plnSentKeys();   // [L118 · audit #20/#21] MÊME détection que le planning : fiche non refusée ET postérieure au plan
+  return savesCache.filter(s=>s&&!s.deleted&&_plnDejaCoupe(s,ctx));
 }
 // [L115 · demande Esteban] nettoyage AUTOMATIQUE et SILENCIEUX au chargement des données : les plans
 // déjà coupés disparaissent de Données > Plans ET du Planning sans clic. Seul le pilotage/admin ÉCRIT
@@ -13603,18 +13666,22 @@ async function hygieneAutoSweep(){
   const plans=_hygienePlansToArchive();
   if(!plans.length) return;
   _hygieneAutoBusy=true;
+  const ids=plans.map(s=>s._id);
   const stamp=isoNow(); let n=0;
   try{
-    for(const s of plans){
+    for(const id of ids){
+      const s=(savesCache||[]).find(x=>x&&x._id===id);   // [L118 · audit #22] re-résoudre par _id : ne pas muter un objet orphelin si savesCache a été remplacé entre-temps (chargement historique)
+      if(!s||s.deleted) continue;
       try{
-        await boundedWrite(db.collection('saves').doc(s._id).update({deleted:true,deletedAt:stamp}),8000);
+        await boundedWrite(db.collection('saves').doc(id).update({deleted:true,deletedAt:stamp}),8000);
         s.deleted=true; s.deletedAt=stamp; n++;
-        logAudit('delete','saves',s._id,'Hygiène AUTO — plan déjà coupé archivé ('+(s.client||'')+' / '+(s.ref||'')+' / N°'+(s.numCmd||'')+')',{client:s.client||'',ref:s.ref||'',dateCmd:s.date||'',auto:true}).catch(function(){});
+        logAudit('delete','saves',id,'Hygiène AUTO — plan déjà coupé archivé ('+(s.client||'')+' / '+(s.ref||'')+' / N°'+(s.numCmd||'')+')',{client:s.client||'',ref:s.ref||'',dateCmd:s.date||'',auto:true}).catch(function(){});
       }catch(e){ /* réseau : réessayé au prochain chargement (idempotent) */ }
     }
     if(n){
       try{ if(document.getElementById('savesList')) renderSaves(); }catch(e){}
       try{ if(document.getElementById('planningContent')) renderPlanning(); }catch(e){}
+      try{ showToast('🧹 '+n+' plan(s) déjà coupé(s) rangé(s) automatiquement (Corbeille, récupérables 45 j).','ok'); }catch(e){}   // [L118 · audit #23] signal discret non bloquant
       console.log('[Hygiène auto] '+n+' plan(s) déjà coupé(s) archivé(s) (récupérables 45 j).');
     }
   }finally{ _hygieneAutoBusy=false; }
