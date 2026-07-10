@@ -1506,7 +1506,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L121';
+const APP_VERSION='2026.07.10-L122';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3225,7 +3225,7 @@ function blCardBlock(f){
   const trash=(i)=>manage?` <button onclick="deleteBLFiche('${fid}',${i})" title="Retirer ce BL" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:13px">🗑</button>`:'';
   const head=complete
     ? `<div style="color:#4ade80;font-weight:700;font-size:12px;margin-bottom:4px">📎 BL complet</div>`
-    : `<div style="color:#f87171;font-weight:700;font-size:12px;margin-bottom:4px">⛔ BL manquant — validation bloquée</div>`;
+    : `<div style="color:var(--orange);font-weight:700;font-size:12px;margin-bottom:4px">📎 BL non joint <span style="color:var(--muted);font-weight:600">(recommandé — traçabilité ISO)</span></div>`;   // [L122 · T2-B] le BL ne bloque plus la validation (choix Esteban) : message informatif, pas bloquant
   let body='';
   // Liste de TOUS les BL joints (plusieurs possibles), chacun avec sa poubelle.
   bls.forEach((b,i)=>{
@@ -11493,9 +11493,8 @@ function renderFiches(){
     // Valider / Refuser : réservés au pilotage/admin.
     const blOk=ficheBLComplete(f);
     const validBtns=canValidate()?`
-      ${f.valide!==true?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#7a2222'};color:${blOk?'#4ade80':'#f87171'};background:${blOk?'#14371f':'#3d1414'}">${blOk?'📎 BL joint':'⛔ BL manquant'}</span>`:''}
-      ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
-      ${(f.valide==null)?`<button class="fc-btn fc-btn-red" onclick="rejectFiche('${f._id}')" title="Refuser la fiche (non-conformité process)">✗ Refuser</button>`:''}`:'';   // [L83 · Audit #21] le circuit « refusée » existait partout (KPI, exports, couleurs) mais le bouton avait disparu
+      ${f.valide!==true?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#caa15a'};color:${blOk?'#4ade80':'var(--orange)'};background:${blOk?'#14371f':'#3a2a0e'}" title="${blOk?'Bon de livraison joint':'BL non joint — recommandé (ISO), non obligatoire'}">${blOk?'📎 BL joint':'📎 BL non joint'}</span>`:''}
+      ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}`:'';   // [L122 · T2-B] bouton « ✗ Refuser » retiré + BL non bloquant (choix Esteban)
     // [L79] Bordure gauche colorée par ÉTAT (séparation nette) : vert=validée · orange=à valider · rouge=refusée/manque matière.
     const _stateBorder=(f.valide===true)?'#4ade80':(f.valide===false)?'#f87171':(f.manqueMatiere?'#f87171':'#f59e0b');
     return `<div class="fiche-card" style="border-left-color:${_stateBorder};border-left-width:6px">
@@ -11772,7 +11771,7 @@ async function createRemainingPlan(f){
 // (autoritaire : un opérateur a pu dé-couper une bobine ou détacher un BL entre-temps).
 function _ficheValidBlockReason(data){
   if(!data) return 'fiche introuvable';
-  if(!ficheBLComplete(data)) return 'bon de livraison manquant';
+  // [L122 · T2-B] BL NON bloquant (choix Esteban) — garde BL retirée ici aussi (sinon la transaction re-bloquait après le confirm de surface). BL reste recommandé/joignable, non obligatoire.
   if(!data.manqueMatiere){
     const det=Array.isArray(data.ficheDetail)?data.ficheDetail:[];
     const notCut=det.filter(fd=>!fd.coupee).length;
@@ -11853,13 +11852,10 @@ async function validateFiche(id){
   if(!canValidate()){showToast('Validation réservée au pilotage et aux admins.','err');return;}
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
+  // [L122 · T2-B] blocage « BL manquant » LEVÉ (choix Esteban) : le BL reste joignable et
+  // recommandé (ISO) mais n'empêche plus la validation. Simple avertissement si absent.
   if(!ficheBLComplete(f)){
-    const refs=ficheRefList(f);
-    const msg=refs.length>1
-      ? '⛔ Validation impossible : il manque un bon de livraison.\n\nJoins soit un BL global (toute la commande), soit un BL pour chaque référence ('+refs.join(', ')+').'
-      : '⛔ Validation impossible : aucun bon de livraison (BL) n\'est joint à cette fiche.\n\nJoins le BL avant de valider.';
-    showToast(msg,'err');
-    return;
+    if(!await confirmDlg('📎 Aucun bon de livraison joint à cette fiche.\n\nLe BL est recommandé pour la traçabilité ISO. Valider quand même sans BL ?',{ok:'Valider sans BL'})) return;
   }
   const by=currentUser?(currentUser.nom||currentUser.ini):'?';
   // Lot B — on ne valide une commande que si TOUTES les bobines (op.1, op.2, hors
@@ -11932,33 +11928,9 @@ async function validateFiche(id){
   renderFiches();
 }
 
-async function rejectFiche(id){
-  if(!canValidate()){showToast('Action réservée au pilotage et aux admins.','err');return;}
-  const f=fichesCache.find(x=>x._id===id);
-  if(!f) return;
-  if(!(await confirmDlg('Refuser cette fiche ? Elle sera marquée comme non conforme.',{danger:true,ok:'Refuser la fiche'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
-  const by=currentUser?(currentUser.nom||currentUser.ini):'?';
-  const priorValide=(f.valide===undefined?null:f.valide);
-  try{
-    const at=isoNow();
-    // TX-rejectFiche (B5) : idem validateFiche — abandon si déjà traitée ailleurs.
-    await boundedWrite(db.runTransaction(async(tx)=>{
-      const dref=db.collection('fiches').doc(id);
-      const snap=await tx.get(dref);
-      if(!snap.exists) throw new Error('fiche introuvable en base (supprimée ?)');
-      const cur=snap.data()||{};
-      const curValide=(cur.valide===undefined?null:cur.valide);
-      if(curValide!==priorValide){
-        const who=cur.valideBy?' par '+cur.valideBy:'';
-        throw new Error('déjà traitée'+who+' ('+(curValide===true?'validée':curValide===false?'refusée':'remise en attente')+') — recharge l\'historique');
-      }
-      tx.update(dref,{valide:false,valideBy:by,valideAt:at});
-    }),12000);   // [L83 · Audit #38] borné
-    f.valide=false;f.valideBy=by;f.valideAt=at;
-    await logAudit('reject','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
-  }catch(e){showToast('Erreur : '+e.message,'err');}
-  renderFiches();
-}
+// [L122 · T2-B] rejectFiche RETIRÉE (choix Esteban) : le bouton « ✗ Refuser » n'existe plus.
+// Les LECTURES de valide===false restent en place (planning/hygiène/KPI/exports/couleurs) pour
+// afficher correctement d'éventuelles fiches historiques déjà refusées ; on n'en crée simplement plus.
 
 // TX-saveFicheConfigs : verrou optimiste basé sur le CONTENU. La signature capturée à
 // l'ouverture de la modale (hors blobs photo) est comparée à la version FRAÎCHE en base
