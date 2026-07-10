@@ -1420,7 +1420,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L108';
+const APP_VERSION='2026.07.10-L109';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -14697,6 +14697,12 @@ async function saveDraftManual(){
   const local=_draftFallbackPush(stripped);
   try{ brouillonsCache=[stripped].concat((Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(x){return x.id!==stripped.id;}));
     if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
+  // [L109] Anti-doublon : ce nouveau brouillon 💾 REMPLACE l'ancien du même travail (celui repris,
+  // ou même « client / n° de commande »). L'ancien est marqué consumed → disparaît de Données >
+  // Brouillons, reste récupérable 45 j (filet) puis purge auto. Jamais autosave / partagé / solde.
+  if(local){
+    try{ const _old=_supersededManualDrafts(draft.id,label); if(_old.length){ await _consumeSupersededDrafts(_old,draft.id); if(document.getElementById('draftsList')) renderDrafts(); } }catch(e){ console.warn('Anti-doublon brouillon :',e&&e.message); }
+  }
   let firestore=false;
   if(db){
     try{
@@ -14712,6 +14718,36 @@ async function saveDraftManual(){
   else showToast('⛔ Échec : brouillon NON enregistré (base ET stockage local indisponibles).','err');
   if(_photosDropped>0) showToast('⚠ '+_photosDropped+' photo(s) trop lourde(s) NON conservée(s) dans le brouillon — reprends-les avant de renvoyer la commande.','err');
   }finally{ _savingDraftManual=false; if(_btnDM) _btnDM.disabled=false; }   // [L73 · Lot 5 · B41] libération du verrou sur TOUS les chemins (succès, timeout 6 s, exception)
+}
+// [L109] Anti-doublon de brouillon manuel — appelé par saveDraftManual.
+// Cibles = brouillons du MÊME travail : celui explicitement repris (_resumedDraftId), OU même
+// libellé « client / n° » (n° NON vide → jamais deux « sans n° » confondus). Exclus : autosave
+// (id fixe, se gère seul), partagés, soldes (fromFicheId, gérés à la main), filets « non envoyé »
+// (fromSend) SAUF s'ils sont justement celui repris.
+function _supersededManualDrafts(newId,newLabel){
+  const hasNum=!/\/\s*sans n°\s*$/.test(String(newLabel||''));
+  return (Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(d){
+    if(!d||d.id===newId||d.consumed||d.deleted) return false;
+    if(d.auto||(typeof d.id==='string'&&d.id.indexOf('d_autosave_')===0)) return false;
+    if(_isSharedDoc(d)||d.fromFicheId) return false;
+    if(d.id===_resumedDraftId) return true;
+    if(d.fromSend) return false;
+    return hasNum && d.label===newLabel;
+  });
+}
+// Marque les anciens brouillons consumed (soft) : disparaissent de Données > Brouillons (renderDrafts
+// filtre !consumed), bloqués à la reprise, conservés 45 j (RETENTION_DRAFT_DAYS) puis purge auto +
+// archive froide. N'introduit AUCUN champ Firestore nouveau : consumed/consumedAt = déjà Phase 4C.
+async function _consumeSupersededDrafts(list,newId){
+  if(!Array.isArray(list)||!list.length) return;
+  const stamp=isoNow();
+  const ids=list.map(function(d){return d.id;});
+  try{ brouillonsCache=(Array.isArray(brouillonsCache)?brouillonsCache:[]).map(function(d){ return (d&&ids.indexOf(d.id)>=0)?Object.assign({},d,{consumed:true,consumedAt:stamp}):d; }); }catch(e){}
+  for(const d of list){
+    if(db){ try{ await db.collection('brouillons').doc(d.id).set({consumed:true,consumedAt:stamp},{merge:true}); }catch(e){ console.warn('Anti-doublon (Firestore) :',e&&e.message); } }
+    try{ _draftFallbackRemove(d.id); }catch(e){}
+    try{ logAudit('delete','brouillons',d.id,'Brouillon remplacé par une version plus récente — '+(d.label||d.id),{supersededBy:newId}).catch(function(){}); }catch(e){}
+  }
 }
 // [L83 · Audit #22] saveDraftFromSend supprimée (morte — remplacée par saveDraftFromSendReliable, cf. DRAFT-1)
 // ── DRAFT-1 : repli localStorage + sauvegarde brouillon FIABLE à l'envoi ─────
