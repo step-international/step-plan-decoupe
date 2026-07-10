@@ -1420,7 +1420,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L107';
+const APP_VERSION='2026.07.10-L108';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6441,6 +6441,7 @@ function _newCmdClearLiveFiche(){
   // sérialisé SES ids AVANT ce clear (newCmdPark → saveDraftManual) : son renvoi reste idempotent.
   _pendingFicheId=null; _pendingTempsId=null; _autosaveLastSig='';
   _resumedForeignDraftId=null;   // [L103 · audit-max] idem resetAll : passation abandonnée
+  _resumedDraftId=null;          // [L108 · Phase 4C]
   _localCopyFromShare=null; try{ renderSharedViewBar(); }catch(e){}   // [L103 · audit-max] fiche vidée : le bandeau « copie d'un partage terminé » ne concerne plus rien
   try{ chronoReset(true); }catch(e){ console.warn('chronoReset:',e); }   // [L79] reset forcé (nouvelle commande)
 }
@@ -7830,6 +7831,36 @@ async function saveCommandeFiche(rows,useful,blade,opts){
             }catch(e){ console.warn('Plan correspondant non archiv\u00e9 (r\u00e9seau ?) :',e&&e.message); }
           }
         }
+        // [L108 \u00b7 Phase 4C \u00b7 validation Esteban] BROUILLONS de la m\u00eame commande : le brouillon
+        // REPRIS (manuel \ud83d\udcbe / solde \u26d4 / \u00ab non envoy\u00e9 \u00bb) + MES brouillons manuels au m\u00eame n\u00b0 de
+        // commande sont marqu\u00e9s consomm\u00e9s \u00e0 l'envoi \u2014 ils s'accumulaient (seuls les auto-drafts
+        // \u00e9taient purg\u00e9s, cf. clearCurrentDraft L1892). R\u00e8gles de s\u00fbret\u00e9 :
+        //  \u00b7 jamais un doc PARTAG\u00c9, jamais un autosave (d\u00e9j\u00e0 g\u00e9r\u00e9), jamais un solde \u00e0 fromFicheId
+        //    (le plan du reste le g\u00e8re par lien direct \u2014 un solde PAS ENCORE coup\u00e9 est intouchable) ;
+        //  \u00b7 jamais le brouillon d'un AUTRE poste \u2014 sauf celui explicitement repris ici (_resumedDraftId) ;
+        //  \u00b7 le balayage par CL\u00c9 exige un n\u00b0 de commande NON vide (deux commandes l\u00e9gitimement
+        //    identiques sans n\u00b0 ne se touchent jamais). Soft (consumed:true) + logAudit, comme DRAFT-4.
+        try{
+          const _mineIni=_ini();
+          const _victims=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>{
+            if(!d||d.consumed||d.kind==='shared'||/^d_shared_/.test(String(d.id))) return false;
+            if(/^d_autosave/.test(String(d.id))) return false;
+            if(d.id===_resumedDraftId) return true;
+            if(d.fromFicheId) return false;
+            if(!nrm(_ncSend)) return false;
+            if(d.owner&&d.owner!==_mineIni) return false;
+            const _p=(d.state&&d.state.plan)||{};
+            return (nrm(_p.client)+'\u00a6'+nrm(_p.ref)+'\u00a6'+nrm((_p.numCmd&&_p.numCmd!=='\u2014')?_p.numCmd:''))===_kSend;
+          });
+          for(const d of _victims){
+            try{
+              await boundedWrite(db.collection('brouillons').doc(d.id).set({consumed:true,ficheId:(ficheRef&&ficheRef.id)||'',consumedAt:isoNow()},{merge:true}),8000);
+              d.consumed=true;
+              logAudit('delete','brouillons',d.id,`Brouillon consomm\u00e9 (fiche envoy\u00e9e \u2014 m\u00eame commande) \u2014 ${client||''} / ${ref||''}${numCmd&&numCmd!=='\u2014'?' \u00b7 N\u00b0 '+numCmd:''}`).catch(function(){});
+            }catch(e){ console.warn('Brouillon non consomm\u00e9 (r\u00e9seau ?) :',e&&e.message); }
+          }
+          if(_victims.length){ _resumedDraftId=null; try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){} }
+        }catch(e){}
       }catch(e){}
     }catch(e){
       // DRAFT-1 : ne plus affirmer « placée en BROUILLON » sans preuve. On tente Firestore
@@ -7901,6 +7932,7 @@ function resetSiteConfirm(){
 function resetAll(){
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
+  _resumedDraftId=null;          // [L108 · Phase 4C]
   // [L67 · Audit] « Nouveau plan » clôt le partage émetteur : sans ça, la commande SUIVANTE
   // était poussée aux collègues sous l'ancien partage (10 s) → découpe d'une commande fantôme.
   try{ shareEndAfterSend(); }catch(e){}
@@ -13023,6 +13055,37 @@ function fillBobineSelect(id){
   // et les NC sont attribuées à la mauvaise lame dans l'analyse.
   if(cur&&sel.value===''){ try{ showToast('⚠ Re-choisis la bobine '+_bobSelLabel(id)+' : la bobine visée n\'existe plus.','err'); }catch(e){} }
 }
+// ============================================================
+// [L108 · Phase 4D] APERÇU HYGIÈNE (dry-run) — NE TOUCHE À RIEN.
+// Usage : console admin → hygieneDryRun(). Liste ce qui SERAIT archivé/consommé :
+//  · plans encore visibles dont la commande (clé client¦ref¦n°cmd, n° NON vide) a déjà
+//    une fiche envoyée ;
+//  · brouillons manuels/fromSend d'une commande déjà envoyée (jamais les soldes à
+//    fromFicheId : un solde pas encore coupé est intouchable, ni les partagés/autosaves).
+// L'exécution réelle (soft-delete + logAudit par élément) n'existe volontairement PAS
+// encore : elle attend la validation d'Esteban sur cet aperçu (règle Phase 4D).
+// ============================================================
+function hygieneDryRun(){
+  const canon=v=>nrm((v&&v!=='—')?v:'');
+  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
+  const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
+  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  let soldesExclus=0;
+  const drafts=(brouillonsCache||[]).filter(d=>{
+    if(!d||d.consumed||d.kind==='shared'||/^d_(autosave|shared_)/.test(String(d.id))) return false;
+    if(d.fromFicheId){ soldesExclus++; return false; }
+    const p=(d.state&&d.state.plan)||{};
+    return canon(p.numCmd)&&sentKeys.has(keyOf(p.client,p.ref,p.numCmd));
+  });
+  console.log('=== HYGIÈNE — APERÇU (dry-run, RIEN n\'est touché) ===');
+  console.log(plans.length+' plan(s) « déjà coupés » encore visibles dans Données > Plans :');
+  plans.forEach(s=>console.log('  · save '+s._id+' — '+(s.client||'—')+' / '+(s.ref||'—')+' / N° '+(s.numCmd||'—')+' — '+(s.date||'')));
+  console.log(drafts.length+' brouillon(s) manuels/« non envoyé » d\'une commande déjà envoyée :');
+  drafts.forEach(d=>console.log('  · draft '+d.id+' — '+(d.label||'(sans label)')+' — '+(d.savedAt||'')));
+  if(soldesExclus) console.log('('+soldesExclus+' brouillon(s) de SOLDE exclus — à examiner à la main : un solde peut être encore à couper)');
+  console.log('Pour exécuter : valider cet aperçu avec Esteban — l\'action d\'archivage n\'est pas encore câblée (volontaire).');
+  return {plans:plans.map(s=>s._id),drafts:drafts.map(d=>d.id),soldesExclus};
+}
 // [L70 · Audit B20] libellé humain d'un select bobine (toasts).
 function _bobSelLabel(id){ return id==='fLameChgBob'?'du changement de lame':(id==='fMachChgBob'?'du changement de machine':'de reprise de l\'opérateur 2'); }
 function refreshOp2BobineList(){ fillBobineSelect('fOp2Bobine'); fillBobineSelect('fLameChgBob'); fillBobineSelect('fMachChgBob'); }   // [L65] + select changement machine
@@ -14434,6 +14497,7 @@ function _deviceId(){
 function autosaveId(){ return 'd_autosave_'+_uid()+'_'+_deviceId(); }
 function planAutosaveId(){ return 'd_autosave_plan_'+_uid()+'_'+_deviceId(); }
 let _resumedForeignDraftId=null;   // [L103 · audit-max] brouillon AUTO d'un autre poste repris ici (passation) — purgé à l'envoi réussi (clearCurrentDraft)
+let _resumedDraftId=null;          // [L108 · Phase 4C] brouillon (manuel 💾 / solde ⛔ / fromSend) repris à l'écran — marqué consommé à l'envoi réussi de la commande
 // [L73 · Lot 5 · B38] borne TOTALE ~900 Ko (marge sous la limite dure Firestore 1 Mo/doc).
 // Le strip unitaire (>10k par string) laisse passer une SOMME de petites images data:
 // qui peut dépasser 1 Mo → écriture rejetée à CHAQUE renvoi (échec définitif, pas réseau).
@@ -15003,6 +15067,7 @@ function resumeDraft(id){
   const _foreignId=(/^d_autosave_/.test(String(id))&&id!==autosaveId()&&id!==planAutosaveId())?id:null;
   restoreFicheState(d.state);
   _resumedForeignDraftId=_foreignId;
+  _resumedDraftId=id;   // [L108 · Phase 4C] reprise = ce brouillon sera consommé à l'envoi (validation Esteban : « reprise = consommer l'ancien »)
   // [L103 · audit-max] flux L67 « reprends ta commande (brouillon) » : la reprise CONSCIENTE
   // de la commande partagée libère le gel post-reload. L'ancienne libération exigeait une
   // égalité BYTE-IDENTIQUE écran↔doc partagé qui ne se produisait presque jamais (autosave
@@ -15068,6 +15133,7 @@ function restoreFicheState(st){
   // resumeLastCommand) le laissaient posé → clearCurrentDraft consommait à l'envoi le
   // brouillon d'un poste sans rapport. resumeDraft le RE-pose juste après cet appel.
   _resumedForeignDraftId=null;
+  _resumedDraftId=null;   // [L108 · Phase 4C] idem pour le brouillon repris
   // ENVOI-1 : reprendre l'id réservé du brouillon → un renvoi écrira sur le MÊME doc
   // (idempotent, pas de doublon). null si le brouillon est antérieur à ce mécanisme.
   _pendingFicheId=st.pendingFicheId||null;
