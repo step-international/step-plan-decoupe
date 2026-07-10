@@ -241,6 +241,8 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 #ficheLines.hide-coupees .fiche-line.coupee:not(.flash-cut){display:none}   /* [L102 · M2-D] la carte reste visible le temps du flash de confirmation (~0,9 s) avant d'être masquée */
 /* [L105 · Phase 1 · E] chrono arrêté : indice rouge sur chaque ✂ non coupé (prévient avant le tap) */
 #ficheLines.chrono-off .fiche-line:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⏱ arrêté";color:var(--red);font-weight:800;font-size:.85em}
+/* [L107 · Phase 1 · K] fiche : plus de largeur utile sur téléphone (marges réduites) */
+@media(max-width:700px){#page1{padding-left:8px;padding-right:8px}.fiche-line{padding:12px 10px}}
 .fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .fl-pos{font-size:15px;font-weight:800;color:var(--mc,var(--blue));background:rgba(255,255,255,.05);border-radius:8px;padding:6px 12px;white-space:nowrap}
 .fl-title{flex:1;font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -303,6 +305,10 @@ body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 /* [L83 · Audit #28] .save-refs/.save-refrow/.rdot supprimés (ne matchaient plus aucun HTML) */
 .save-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
 .save-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+/* [L106 · Phase 1 · S] corbeille 🗑 TOUJOURS en dernier, calée à droite — harmonisé Plans/Corbeille/Brouillons (+ Fiches via .fc-actions) */
+.save-actions .btn-red{order:99;margin-left:auto}
+#savesList .save-actions .btn-red{grid-column:2}
+.fc-actions .fc-btn-red-ghost{order:99}
 /* [L79] Cartes Plans (Données) : boutons en 2×2 (deux en haut, deux en bas) */
 #savesList .save-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;width:auto;max-width:260px}
 #savesList .save-actions .btn{width:100%;min-height:46px;justify-content:center}
@@ -314,6 +320,7 @@ body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 .save-card{padding:13px;gap:10px;flex-direction:column;align-items:stretch}
 .save-info{width:100%}
 .save-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;width:100%;margin-top:2px}
+.save-actions .btn-red{grid-column:-2/-1}   /* [L106 · Phase 1 · S] mobile : 🗑 dans la dernière colonne (à droite) */
 .save-actions .btn{min-height:48px;width:100%;justify-content:center;white-space:nowrap;font-size:14px}
 .action-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .action-bar .btn{width:100%;justify-content:center;white-space:nowrap;padding:12px 6px;font-size:13px}}
@@ -1413,7 +1420,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L105';
+const APP_VERSION='2026.07.10-L108';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2767,6 +2774,7 @@ let _pendingFicheId=null, _pendingTempsId=null;
 let packTruncated=false;          // pack() a coupé : pièces non placées (quantités aberrantes)
 let fichesRenderLimit=30;         // pagination de la liste des fiches
 let tempsRenderLimit=50;          // pagination de la liste des temps
+let savesRenderLimit=50;          // [L106 · Phase 2 · W] pagination de Données > Plans
 // fullHistoryLoaded déclaré en tête du script
 let chronoRunning = false;
 let chronoInterval = null;
@@ -6321,6 +6329,10 @@ function renderSaves(){
   const empty=document.getElementById('savesEmpty');
   if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');empty.textContent=(fC||fR||fCmd)?'Aucun résultat pour ces filtres.':'Aucune sauvegarde.';return;}
   empty.classList.add('hidden');
+  // [L106 · Phase 2 · W] pagination (même pattern que Fiches/Temps) : renderSaves rendait
+  // TOUT d'un coup — lent sur tablette dès que l'historique grossit.
+  const totalSaves=saves.length;
+  saves=saves.slice(0,savesRenderLimit);
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
@@ -6379,11 +6391,14 @@ function renderSaves(){
         <button class="btn btn-red btn-sm" onclick="deleteSave('${s._id}')" title="Archiver (récupérable 45 j)">🗑️ Archiver</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('')+(totalSaves>savesRenderLimit
+    ?`<div style="text-align:center;margin-top:12px"><button class="btn btn-ghost" onclick="savesRenderLimit+=50;renderSaves()">⬇ Voir plus (${totalSaves-saves.length} restant${totalSaves-saves.length>1?'s':''})</button></div>`
+    :'');   // [L106 · Phase 2 · W]
 }
 function resetSaveFilters(){
   ['saveFilterClient','saveFilterRef'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const c=document.getElementById('saveFilterCmd');if(c)c.value='';
+  savesRenderLimit=50;   // [L106 · Phase 2 · W] repartir en haut de liste
   renderSaves();
 }
 function openLoadModal(id){
@@ -6426,6 +6441,7 @@ function _newCmdClearLiveFiche(){
   // sérialisé SES ids AVANT ce clear (newCmdPark → saveDraftManual) : son renvoi reste idempotent.
   _pendingFicheId=null; _pendingTempsId=null; _autosaveLastSig='';
   _resumedForeignDraftId=null;   // [L103 · audit-max] idem resetAll : passation abandonnée
+  _resumedDraftId=null;          // [L108 · Phase 4C]
   _localCopyFromShare=null; try{ renderSharedViewBar(); }catch(e){}   // [L103 · audit-max] fiche vidée : le bandeau « copie d'un partage terminé » ne concerne plus rien
   try{ chronoReset(true); }catch(e){ console.warn('chronoReset:',e); }   // [L79] reset forcé (nouvelle commande)
 }
@@ -6953,12 +6969,28 @@ async function stopManqueMatiere(){
   // 4. Parquer le solde APRÈS l'envoi réussi (brouillon manuel : clearCurrentDraft
   //    ne purge que l'auto, resetAll ne touche pas brouillonsCache).
   if(soldeState&&soldeState.lines&&soldeState.lines.length){
-    try{
-      const drafts=loadDrafts();
+    // [L106 · Phase 2 · V] parquage DURCI : la fiche partielle est DÉJÀ envoyée — si le
+    // parquage échoue (stockage plein, Firestore KO), le solde disparaissait avec un simple
+    // console.warn. Désormais : 1 retry après 2 s, puis ALERTE bloquante à l'opérateur avec
+    // la consigne de secours (re-saisir le solde depuis le plan du reste de la fiche).
+    const _parkSolde=()=>{ const drafts=loadDrafts();
       drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label:soldeLabel,state:soldeState,owner:_ini(),fromFicheId:_ficheId||''});
-      persistDrafts(drafts);
+      persistDrafts(drafts); };
+    try{
+      _parkSolde();
       showToast('⛔ Solde ('+soldeState.lines.length+' bobine(s)) placé en brouillon — Données > Brouillons','ok');
-    }catch(e){ console.warn('Parking du solde manque matière :',e); }
+    }catch(e){
+      console.warn('Parking du solde manque matière (1er essai) :',e);
+      setTimeout(()=>{
+        try{
+          _parkSolde();
+          showToast('⛔ Solde placé en brouillon (2ᵉ essai réussi) — Données > Brouillons','ok');
+        }catch(e2){
+          console.warn('Parking du solde manque matière (2ᵉ essai) :',e2);
+          try{ alert('⛔ IMPORTANT — le brouillon du SOLDE n\'a PAS pu être enregistré ('+(e2&&e2.message||'stockage indisponible')+').\n\nLa fiche partielle EST enregistrée. Pour reprendre le solde plus tard : Données > Fiches > cette commande > « ▶ Reprendre la commande » (plan du reste), ou note le solde sur papier MAINTENANT.'); }catch(_){}
+        }
+      },2000);
+    }
   }
   }finally{
     _stoppingMM=false;   // [L73 · Lot 5 · B39] libéré quoi qu'il arrive
@@ -7799,6 +7831,36 @@ async function saveCommandeFiche(rows,useful,blade,opts){
             }catch(e){ console.warn('Plan correspondant non archiv\u00e9 (r\u00e9seau ?) :',e&&e.message); }
           }
         }
+        // [L108 \u00b7 Phase 4C \u00b7 validation Esteban] BROUILLONS de la m\u00eame commande : le brouillon
+        // REPRIS (manuel \ud83d\udcbe / solde \u26d4 / \u00ab non envoy\u00e9 \u00bb) + MES brouillons manuels au m\u00eame n\u00b0 de
+        // commande sont marqu\u00e9s consomm\u00e9s \u00e0 l'envoi \u2014 ils s'accumulaient (seuls les auto-drafts
+        // \u00e9taient purg\u00e9s, cf. clearCurrentDraft L1892). R\u00e8gles de s\u00fbret\u00e9 :
+        //  \u00b7 jamais un doc PARTAG\u00c9, jamais un autosave (d\u00e9j\u00e0 g\u00e9r\u00e9), jamais un solde \u00e0 fromFicheId
+        //    (le plan du reste le g\u00e8re par lien direct \u2014 un solde PAS ENCORE coup\u00e9 est intouchable) ;
+        //  \u00b7 jamais le brouillon d'un AUTRE poste \u2014 sauf celui explicitement repris ici (_resumedDraftId) ;
+        //  \u00b7 le balayage par CL\u00c9 exige un n\u00b0 de commande NON vide (deux commandes l\u00e9gitimement
+        //    identiques sans n\u00b0 ne se touchent jamais). Soft (consumed:true) + logAudit, comme DRAFT-4.
+        try{
+          const _mineIni=_ini();
+          const _victims=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>{
+            if(!d||d.consumed||d.kind==='shared'||/^d_shared_/.test(String(d.id))) return false;
+            if(/^d_autosave/.test(String(d.id))) return false;
+            if(d.id===_resumedDraftId) return true;
+            if(d.fromFicheId) return false;
+            if(!nrm(_ncSend)) return false;
+            if(d.owner&&d.owner!==_mineIni) return false;
+            const _p=(d.state&&d.state.plan)||{};
+            return (nrm(_p.client)+'\u00a6'+nrm(_p.ref)+'\u00a6'+nrm((_p.numCmd&&_p.numCmd!=='\u2014')?_p.numCmd:''))===_kSend;
+          });
+          for(const d of _victims){
+            try{
+              await boundedWrite(db.collection('brouillons').doc(d.id).set({consumed:true,ficheId:(ficheRef&&ficheRef.id)||'',consumedAt:isoNow()},{merge:true}),8000);
+              d.consumed=true;
+              logAudit('delete','brouillons',d.id,`Brouillon consomm\u00e9 (fiche envoy\u00e9e \u2014 m\u00eame commande) \u2014 ${client||''} / ${ref||''}${numCmd&&numCmd!=='\u2014'?' \u00b7 N\u00b0 '+numCmd:''}`).catch(function(){});
+            }catch(e){ console.warn('Brouillon non consomm\u00e9 (r\u00e9seau ?) :',e&&e.message); }
+          }
+          if(_victims.length){ _resumedDraftId=null; try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){} }
+        }catch(e){}
       }catch(e){}
     }catch(e){
       // DRAFT-1 : ne plus affirmer « placée en BROUILLON » sans preuve. On tente Firestore
@@ -7870,6 +7932,7 @@ function resetSiteConfirm(){
 function resetAll(){
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
+  _resumedDraftId=null;          // [L108 · Phase 4C]
   // [L67 · Audit] « Nouveau plan » clôt le partage émetteur : sans ça, la commande SUIVANTE
   // était poussée aux collègues sous l'ancien partage (10 s) → découpe d'une commande fantôme.
   try{ shareEndAfterSend(); }catch(e){}
@@ -8781,7 +8844,7 @@ var stockMouvementsCache=[];
 var stockLoaded=false;
 var stockMvtType='entree';
 let stockFilterRef='';
-let stockSecOpen={mvt:true,imp:false,art:false,prev:false,mvts:false};   // [L98 · #12] état replié/déplié des sections (moins de défilement)   // [L94] filtre par référence (ex. « DQ1000 ») appliqué aux tableaux, articles et mouvements
+let stockSecOpen={mvt:true,imp:false,art:false,prev:false,mvts:false,loc_step:true,loc_bk:false,loc_prod:false};   // [L98 · #12] état replié/déplié des sections (moins de défilement) — [L106 · Phase 1 · Q] + les 3 emplacements (STEP déplié, B+K/prod repliés)   // [L94] filtre par référence (ex. « DQ1000 ») appliqué aux tableaux, articles et mouvements
 let _stockFilterTimer=null;
 function stockSetFilter(v){ stockFilterRef=v||''; clearTimeout(_stockFilterTimer); _stockFilterTimer=setTimeout(function(){ renderStock(); setTimeout(function(){ const i=stkEl('stockFilterInp'); if(i&&stockFilterRef){ i.focus(); const L=i.value.length; try{i.setSelectionRange(L,L);}catch(e){} } },30); },350); }
 
@@ -8983,11 +9046,13 @@ function stockViewHTML(){
         <div style="font-weight:800;font-size:14px">${o.lbl} <span style="color:var(--muted);font-weight:600;font-size:12px">— ${o.desc}</span></div>
         <div style="font-size:12px;color:var(--muted)">${nf(t.rolls)} rouleaux · ${nf(t.m2)} m²</div>
       </div>
+      <details ${stockSecOpen['loc_'+o.key]?'open':''} ontoggle="stockSecOpen['loc_'+'${o.key}']=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:4px 14px 8px;user-select:none">▾ afficher / replier</summary>
       ${rows?`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
         <th style="text-align:left;padding:6px 9px">Réf matière</th><th style="text-align:left;padding:6px 9px">Mère</th>
         <th style="text-align:right;padding:6px 9px">Rouleaux</th><th style="text-align:right;padding:6px 9px">Solde m²</th></tr></thead><tbody>${rows}</tbody></table>`
        :'<div class="text-muted" style="padding:10px 14px;font-size:13px">Aucun stock dans cet emplacement.</div>'}
-    </div>`;
+      </details>
+    </div>`;   /* [L106 · Phase 1 · Q] sections emplacement repliables — même pattern stockSecOpen (les totaux restent visibles dans le bandeau) */
   };
   // Solde TOTAL par réf (tous emplacements) pour les cartes de définition d'article.
   const _soldeTot={}; ['step','bk','prod'].forEach(l=>Object.entries(bal[l]).forEach(([rf,e])=>{_soldeTot[rf]=(_soldeTot[rf]||0)+e.m2;}));
@@ -9040,9 +9105,7 @@ function stockViewHTML(){
       </div>
     </div>
 
-    ${STOCK_LOCS.map(section).join('')}
-
-    <div id="stock-sec-mvt" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+    <div id="stock-sec-mvt" class="sspan2" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px"><!-- [L106 · Phase 1 · R] remonté TOUT EN HAUT, pleine largeur (sspan2) -->
       <div class="section-title">Nouveau mouvement</div><details ${stockSecOpen.mvt?'open':''} ontoggle="stockSecOpen.mvt=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Emplacement</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">${locBtns}</div>
@@ -9060,6 +9123,8 @@ function stockViewHTML(){
       </div>
       <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="saveStockMouvement(this)">✓ Enregistrer le mouvement</button></details>
     </div>
+
+    ${STOCK_LOCS.map(section).join('')}
 
     <div id="stock-sec-import" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
@@ -10123,7 +10188,7 @@ function exportMaintenance(){
 // ============================================================
 const DUJ_MACHINES=MACHINE_KEYS;
 const DUJ_LABEL2KEY={FEBA:'feba',MAVEG:'maveg',CEVENINI:'cevenini'};
-var dujQueue=[];
+/* [L106 · Phase 1 · M] dujQueue supprimée (File du jour retirée) */
 function dujMachKey(m){ if(!m) return ''; const k=DUJ_LABEL2KEY[m]; if(k) return k; const lo=String(m).toLowerCase(); return DUJ_MACHINES.includes(lo)?lo:''; }
 function dujMedian(arr){ if(!arr.length) return 0; const s=arr.slice().sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; }
 function dujPctile(arr,p){ if(!arr.length) return 0; const s=arr.slice().sort((a,b)=>a-b); const i=(s.length-1)*p; const lo=Math.floor(i),hi=Math.ceil(i); return lo===hi?s[lo]:s[lo]+(s[hi]-s[lo])*(i-lo); }
@@ -10172,6 +10237,13 @@ function buildDebitToolbox(){
   }).join('');
   const machOpts=DUJ_MACHINES.map(k=>`<option value="${k}">${getMachineLabel(k)}</option>`).join('');
   const opOpts='<option value="">Standard atelier</option>'+Object.values(USER_PROFILES).map(p=>`<option value="${esc(p.ini)}">${esc(p.ini)} — ${esc(p.nom||'')}</option>`).join('');
+  // [L106 · Phase 1 · P] sélecteur de RÉFÉRENCE : préremplit laize mère (standard catalogue)
+  // + métrage (ml) — l'opérateur n'a plus qu'à saisir les bobineaux nb × largeur.
+  const estRefOpts=(()=>{ const seen=new Set(); const opts=['<option value="">— choisir une référence (auto) —</option>'];
+    Object.values(CLIENT_DATA).flat().forEach(r=>{ if(!r.ref||seen.has(r.ref)) return; seen.add(r.ref);
+      const ml=(r.longueur!=null&&String(r.longueur).trim()!=='')?String(r.longueur):'';
+      opts.push(`<option value="${esc(r.ref)}" data-ml="${esc(ml)}">${esc(r.ref)}${ml?` · ${esc(ml)} ml`:''}</option>`); });
+    return opts.join(''); })();
   const tabBtn=(id,lbl,act)=>`<button id="dujTab_${id}" onclick="dujTab('${id}')" style="flex:1;padding:9px 6px;border:1px solid ${act?'var(--orange)':'var(--border2)'};background:${act?'rgba(245,158,11,.12)':'var(--card)'};color:${act?'var(--orange)':'var(--muted)'};font-size:12.5px;font-weight:700;cursor:pointer;border-radius:8px">${lbl}</button>`;
   return `
   <div style="background:var(--section);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:4px">
@@ -10179,13 +10251,17 @@ function buildDebitToolbox(){
     ${indicatif}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${machRows}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-      ${tabBtn('est','⏱ Durée commande',true)}${tabBtn('cap','📊 Capacité')}${tabBtn('best','🏆 Meilleure machine')}${tabBtn('duj','📅 File du jour')}
-    </div>
+      ${tabBtn('est','⏱ Durée commande',true)}${tabBtn('cap','📊 Capacité')}
+    </div><!-- [L106 · Phase 1 · M] onglets « 🏆 Meilleure machine » et « 📅 File du jour » supprimés (demande Esteban) -->
 
     <div id="dujPanel_est" class="duj-panel">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label class="stk-lbl">Machine</label><select id="est_mach" onchange="dujEstMachineDefaults();dujEstimate()" class="u-inp">${machOpts}</select></div>
         <div><label class="stk-lbl">Opérateur</label><select id="est_op" onchange="dujEstimate()" class="u-inp">${opOpts}</select></div>
+      </div>
+      <div style="margin-top:10px"><!-- [L106 · Phase 1 · P] la réf préremplit laize mère + métrage -->
+        <label class="stk-lbl">Référence <span style="color:var(--green);font-size:11px">préremplit laize mère + métrage</span></label>
+        <select id="est_ref" onchange="dujEstRefChange()" class="u-inp">${estRefOpts}</select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">
         <div><label class="stk-lbl">Laize mère (mm)</label><input id="est_mother" inputmode="decimal" placeholder="2100" oninput="dujEstimate()" class="u-inp"></div>
@@ -10197,11 +10273,11 @@ function buildDebitToolbox(){
         <div id="est_rows">${dujEstRowHTML('','')}</div>
         <button class="btn btn-ghost btn-sm" onclick="dujEstAddRow()" style="margin-top:6px">+ Ajouter une largeur</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
-        <div><label class="stk-lbl">Longueur bobine mère (m)</label><input id="est_long" inputmode="decimal" oninput="dujEstimate()" class="u-inp"></div>
-        <div><label class="stk-lbl">Marge réglage (min)</label><input id="est_marge" inputmode="numeric" value="0" oninput="dujEstimate()" class="u-inp"></div>
-      </div>
-      <div id="est_result" style="margin-top:14px;font-size:14px;color:var(--muted)">Renseigne la laize mère, au moins une largeur et la longueur.</div>
+      <div id="est_long_wrap" style="margin-top:12px"><!-- [L106 · Phase 1 · O] repli : métrage manuel si aucune réf choisie (l'estimateur ne peut rien calculer sans métrage) -->
+        <label class="stk-lbl">Métrage bobine mère (m) <span style="color:var(--muted);font-size:11px">— rempli automatiquement si une référence est choisie</span></label>
+        <input id="est_long" inputmode="decimal" oninput="dujEstimate()" class="u-inp" style="max-width:220px">
+      </div><!-- [L106 · Phase 1 · N] champ « Marge réglage (min) » supprimé -->
+      <div id="est_result" style="margin-top:14px;font-size:14px;color:var(--muted)">Choisis une référence (ou saisis laize mère + métrage), puis ajoute les largeurs.</div>
     </div>
 
     <div id="dujPanel_cap" class="duj-panel" style="display:none">
@@ -10211,38 +10287,24 @@ function buildDebitToolbox(){
       </div>
       <div id="cap_result" style="margin-top:14px;font-size:14px;color:var(--muted)"></div>
     </div>
-
-    <div id="dujPanel_best" class="duj-panel" style="display:none">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label class="stk-lbl">Longueur (m)</label><input id="best_long" inputmode="decimal" oninput="dujBest()" class="u-inp"></div>
-        <div><label class="stk-lbl">Nb bobines</label><input id="best_nb" inputmode="numeric" oninput="dujBest()" class="u-inp"></div>
-      </div>
-      <div id="best_result" style="margin-top:14px;font-size:14px;color:var(--muted)">Renseigne longueur et nb bobines.</div>
-    </div>
-
-    <div id="dujPanel_duj" class="duj-panel" style="display:none">
-      <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
-        <div><label class="stk-lbl">Réf. / libellé</label><input id="duj_ref" class="u-inp"></div>
-        <div><label class="stk-lbl">Longueur (m)</label><input id="duj_long" inputmode="decimal" class="u-inp"></div>
-        <div><label class="stk-lbl">Nb bob.</label><input id="duj_nb" inputmode="numeric" class="u-inp"></div>
-        <div><label class="stk-lbl">Machine</label><select id="duj_mach" class="u-inp">${machOpts}</select></div>
-        <div><button class="btn btn-green btn-sm" onclick="dujAddJob()" style="white-space:nowrap">+ Ajouter</button></div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
-        <label class="stk-lbl" style="margin:0">Début de journée</label>
-        <input type="time" id="duj_start" value="08:00" onchange="dujRenderQueue()" class="u-inp" style="width:auto">
-      </div>
-      <div id="duj_result" style="margin-top:14px"></div>
-    </div>
   </div>`;
 }
 function dujTab(id){
-  ['est','cap','best','duj'].forEach(t=>{
+  ['est','cap'].forEach(t=>{   // [L106 · Phase 1 · M] best/duj supprimés
     const p=document.getElementById('dujPanel_'+t); if(p) p.style.display=(t===id)?'':'none';
     const b=document.getElementById('dujTab_'+t); if(b){ const on=(t===id); b.style.background=on?'rgba(245,158,11,.12)':'var(--card)'; b.style.color=on?'var(--orange)':'var(--muted)'; b.style.borderColor=on?'var(--orange)':'var(--border2)'; }
   });
   if(id==='cap') dujCapacite();
-  if(id==='duj') dujRenderQueue();
+}
+// [L106 · Phase 1 · P] choix d'une référence : laize mère standard (catalogue) + métrage (ml).
+function dujEstRefChange(){
+  const sel=document.getElementById('est_ref'); if(!sel) return;
+  const opt=sel.selectedOptions&&sel.selectedOptions[0];
+  const ml=opt?(parseFloat(String(opt.dataset.ml||'').replace(',','.'))||0):0;
+  const std=(typeof refStdMother==='function'&&sel.value)?refStdMother(sel.value):0;
+  if(ml>0){ const l=document.getElementById('est_long'); if(l) l.value=String(ml); }
+  if(std>0){ const m=document.getElementById('est_mother'); if(m) m.value=String(std); }
+  dujEstimate();
 }
 // Une ligne "nb × largeur" de l'estimateur (façon plan).
 function dujEstRowHTML(q,w){
@@ -10271,7 +10333,7 @@ function dujEstimate(){
   const blade=clampBlade(parseNum(document.getElementById('est_blade')?.value));
   const longv=parseFloat((document.getElementById('est_long')?.value||'').replace(',','.'))||0;
   const mach=document.getElementById('est_mach').value, op=document.getElementById('est_op').value;
-  const marge=(parseFloat(document.getElementById('est_marge')?.value)||0)*60;
+  const marge=0;   // [L106 · Phase 1 · N] champ « Marge réglage » supprimé (demande Esteban)
   // Lignes bobineaux → liste de largeurs pour le moteur de placement.
   const items=[]; let totalBob=0, maxW=0;
   document.querySelectorAll('#est_rows .est-row').forEach(row=>{
@@ -10321,67 +10383,8 @@ function dujCapacite(){
     <div style="font-size:13px;color:var(--muted)">capacité théorique (médiane, ${r.n} cmd)</div>
   </div>`;
 }
-function dujBest(){
-  const out=document.getElementById('best_result'); if(!out) return;
-  const longv=parseFloat((document.getElementById('best_long').value||'').replace(',','.'))||0;
-  const nb=parseFloat(document.getElementById('best_nb').value)||0;
-  if(longv<=0||nb<=0){ out.innerHTML='Renseigne longueur et nb bobines.'; return; }
-  const metres=longv*nb;
-  const rows=DUJ_MACHINES.map(k=>{ const r=dujDebit(k,''); return {k,d:r.d,n:r.n,src:r.src,sec:r.d?metres/r.d*3600:Infinity}; })
-    .filter(x=>x.d>0&&x.src!=='global').sort((a,b)=>a.sec-b.sec);   // [L83 · Audit #41] le repli GLOBAL est exclu : une machine sans AUCUN relevé n'apparaît plus (elle était couronnée 🏆 avec le débit moyen des autres)
-  if(!rows.length){ out.innerHTML='<span style="color:#f87171">Pas de données machine (aucun relevé chronométré).</span>'; return; }
-  const SEUIL=3;   // [L79·AN-4] échantillon minimal pour COURONNER une machine (sinon « indicatif »)
-  const best=rows.find(x=>x.n>=SEUIL)||null;   // 1re machine FIABLE (assez de relevés), pas juste la + rapide sur 1 mesure
-  out.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
-      <th style="text-align:left;padding:6px">Machine</th><th style="text-align:right;padding:6px">Débit m/h</th><th style="text-align:right;padding:6px">Relevés</th><th style="text-align:right;padding:6px">Durée estimée</th></tr></thead>
-    <tbody>${rows.map(x=>{const crowned=(x===best);const faible=x.n<SEUIL;return `<tr style="border-top:1px solid var(--border)${crowned?';background:rgba(74,222,128,.08)':''}">
-      <td style="padding:8px 6px;font-weight:${crowned?'800':'600'}">${crowned?'🏆 ':''}${getMachineLabel(x.k)}${faible?' <span style="color:var(--orange);font-size:11px;font-weight:400">indicatif</span>':''}</td>
-      <td style="padding:8px 6px;text-align:right">${Math.round(x.d).toLocaleString('fr-FR')}</td>
-      <td style="padding:8px 6px;text-align:right;color:${faible?'var(--orange)':'var(--muted)'}">${x.n}</td>
-      <td style="padding:8px 6px;text-align:right;font-weight:700;color:${crowned?'#4ade80':'var(--text)'}">${dujSecToTxt(x.sec)}</td></tr>`;}).join('')}</tbody></table>
-    <div style="font-size:12px;color:var(--muted);margin-top:6px">${metres.toLocaleString('fr-FR')} m · médiane par machine.${best?'':` <span style="color:var(--orange)">Aucune machine avec ≥${SEUIL} relevés — classement indicatif.</span>`}</div>`;
-}
-function dujAddJob(){
-  const ref=(document.getElementById('duj_ref').value||'').trim();
-  const longv=parseFloat((document.getElementById('duj_long').value||'').replace(',','.'))||0;
-  const nb=parseFloat(document.getElementById('duj_nb').value)||0;
-  const mach=document.getElementById('duj_mach').value;
-  if(longv<=0||nb<=0){ showToast('Longueur et nb bobines obligatoires.','err'); return; }
-  dujQueue.push({ref:ref||'(sans réf)',longueur:longv,nb,machine:mach});
-  document.getElementById('duj_ref').value=''; document.getElementById('duj_long').value=''; document.getElementById('duj_nb').value='';
-  dujRenderQueue();
-}
-function dujRemoveJob(i){ dujQueue.splice(i,1); dujRenderQueue(); }
-function dujRenderQueue(){
-  const out=document.getElementById('duj_result'); if(!out) return;
-  if(!dujQueue.length){ out.innerHTML='<div style="color:var(--muted);font-size:13px">File vide — ajoute des commandes ci-dessus.</div>'; return; }
-  const startStr=document.getElementById('duj_start')?.value||'08:00';
-  const [sh,sm]=startStr.split(':').map(Number);
-  const jobs=dujQueue.map((j,i)=>{ const r=dujDebit(j.machine,''); const metres=j.longueur*j.nb; const sec=r.d?metres/r.d*3600:0; return {...j,i,metres,sec}; });
-  const list=jobs.map(j=>`<tr style="border-top:1px solid var(--border)">
-    <td style="padding:6px">${esc(j.ref)}</td><td style="padding:6px">${getMachineLabel(j.machine)}</td>
-    <td style="padding:6px;text-align:right">${j.metres.toLocaleString('fr-FR')} m</td>
-    <td style="padding:6px;text-align:right">${dujSecToTxt(j.sec)}</td>
-    <td style="padding:6px;text-align:center"><button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="dujRemoveJob(${j.i})">✕</button></td></tr>`).join('');
-  const perMach=DUJ_MACHINES.map(k=>{
-    const load=jobs.filter(j=>j.machine===k).reduce((s,j)=>s+j.sec,0);
-    if(load<=0) return '';
-    const endMin=sh*60+sm+load/60; const _tot=Math.round(endMin); const eh=Math.floor(_tot/60)%24, em=_tot%60;   // [L97 · relecture #16] arrondi AVANT découpage h/min — fini le « 08:60 »
-    const over=endMin>(sh*60+sm)+ (12*60); // simple repère charge > 12h
-    return `<div style="flex:1;min-width:130px;background:var(--card);border:1px solid var(--border2);border-top:3px solid var(--${k});border-radius:10px;padding:12px;text-align:center">
-      <div style="font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase">${getMachineLabel(k)}</div>
-      <div style="font-size:20px;font-weight:800;margin:4px 0">${dujSecToTxt(load)}</div>
-      <div style="font-size:12px;color:${over?'#f87171':'#4ade80'}">fin ≈ ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}</div>
-    </div>`;
-  }).filter(Boolean).join('');
-  out.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${perMach}</div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
-      <th style="text-align:left;padding:6px">Réf.</th><th style="text-align:left;padding:6px">Machine</th>
-      <th style="text-align:right;padding:6px">Mètres</th><th style="text-align:right;padding:6px">Durée</th><th></th></tr></thead>
-    <tbody>${list}</tbody></table>`;
-}
+// [L106 · Phase 1 · M] dujBest / dujAddJob / dujRemoveJob / dujRenderQueue supprimées avec les
+// onglets « 🏆 Meilleure machine » et « 📅 File du jour » (demande Esteban) — plus aucun appelant.
 
 // Rendu du tableau de bord Analyse (séparé du calcul — S4). Sortie identique.
 function buildAnalyseDashboard(d){
@@ -12667,16 +12670,23 @@ function fmmGenOrder(computed){
 }
 // Déplace une réf dans l'ordre de coupe (▲ dir=-1 / ▼ dir=+1).
 function fmmMoveRef(idx,dir){
+  // [L106 · Phase 3 · X] ORDRE DE DÉCOUPE FIGÉ dès qu'une production est engagée : avant,
+  // ▲▼ changeait ficheRefOrder même avec des bobines coupées — l'ordre mémorisé basculait
+  // et le PROCHAIN recalcul (fmmGenOrder) régénérait les bobines dans le nouvel ordre
+  // (« celle du haut passe en bas ») en pleine découpe. Garde côté UI, moteur intouché :
+  // no-op + toast. isFicheUntouched = la notion existante de « production engagée »
+  // (coupée / NC / photo / test 2ᵉ / action / étiquette éditée / conf modifiée).
+  if(typeof isFicheUntouched==='function' && !isFicheUntouched()){
+    showToast('🔒 Ordre de découpe FIGÉ : une bobine est déjà engagée (coupée, NC, photo ou étiquette saisie).\n\nTermine la commande — ou repars d\'une fiche neuve pour changer l\'ordre.','err');
+    return;
+  }
   const order=fmmCutOrder();
   const pos=order.indexOf(idx), to=pos+dir;
   if(pos<0||to<0||to>=order.length) return;
   const t=order[pos]; order[pos]=order[to]; order[to]=t;
   ficheRefOrder=order;
-  // Rien de coupé : on régénère les bobines dans le nouvel ordre.
-  // Sinon : les coupées restent en place, seuls les blocs/gating se réordonnent.
-  if(typeof isFicheUntouched==='function' && isFicheUntouched()){
-    importPlanToFiche({keepRefValidation:true});
-  }
+  // Rien d'engagé (garanti par la garde) : on régénère les bobines dans le nouvel ordre.
+  importPlanToFiche({keepRefValidation:true});
   renderFicheMachineBlocks();
 }
 function fmmIsMulti(){ return fmmRawRefs().length>1; }
@@ -12706,7 +12716,8 @@ function renderFicheMachineBlocks(opts){
   if(!mono||!multi) return;
   const refs=fmmGetRefs();
   // Nettoie d'éventuels blocs inline d'un rendu précédent.
-  document.querySelectorAll('#ficheLines .fmm-inline-block').forEach(n=>n.remove());
+  // [L107 · Phase 1 · J] sélecteur élargi : le bloc de la réf 1 vit désormais HORS de #ficheLines (au-dessus de l'en-tête).
+  document.querySelectorAll('.fmm-inline-block').forEach(n=>n.remove());
   if(refs.length<=1){
     // MONO-RÉF : comportement historique inchangé.
     mono.style.display='';
@@ -12781,6 +12792,14 @@ function renderFicheMachineBlocks(opts){
     block.style.borderLeft='6px solid '+rc;   // couleur par référence (miroir de l'ordre de coupe)
     const refChip='<span class="fmm-ref-chip" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">Réf '+(pos+1)+'</span>';
     block.innerHTML='<div class="fmm-head">'+refChip+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
+    // [L107 · Phase 1 · J] RÉF 1 : son bloc de validation vit JUSTE AU-DESSUS de la section
+    // « En-tête fiche » (demande Esteban) — l'opérateur la valide avant de remplir l'en-tête,
+    // sans descendre jusqu'à la 1re bobine. Réfs 2, 3, … : inchangées (bloc à leur 1re bobine).
+    if(pos===0){
+      const hdrSec=document.getElementById('fClient')?.closest('.section');
+      if(hdrSec&&hdrSec.parentNode){ hdrSec.parentNode.insertBefore(block,hdrSec); return; }
+      // repli (en-tête introuvable) : ancienne ancre ci-dessous
+    }
     // Ancre : 1re ligne bobine de cette réf dans le DOM.
     const key=nrm(r.ref);
     let anchor=null;
@@ -13036,6 +13055,37 @@ function fillBobineSelect(id){
   // et les NC sont attribuées à la mauvaise lame dans l'analyse.
   if(cur&&sel.value===''){ try{ showToast('⚠ Re-choisis la bobine '+_bobSelLabel(id)+' : la bobine visée n\'existe plus.','err'); }catch(e){} }
 }
+// ============================================================
+// [L108 · Phase 4D] APERÇU HYGIÈNE (dry-run) — NE TOUCHE À RIEN.
+// Usage : console admin → hygieneDryRun(). Liste ce qui SERAIT archivé/consommé :
+//  · plans encore visibles dont la commande (clé client¦ref¦n°cmd, n° NON vide) a déjà
+//    une fiche envoyée ;
+//  · brouillons manuels/fromSend d'une commande déjà envoyée (jamais les soldes à
+//    fromFicheId : un solde pas encore coupé est intouchable, ni les partagés/autosaves).
+// L'exécution réelle (soft-delete + logAudit par élément) n'existe volontairement PAS
+// encore : elle attend la validation d'Esteban sur cet aperçu (règle Phase 4D).
+// ============================================================
+function hygieneDryRun(){
+  const canon=v=>nrm((v&&v!=='—')?v:'');
+  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
+  const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
+  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  let soldesExclus=0;
+  const drafts=(brouillonsCache||[]).filter(d=>{
+    if(!d||d.consumed||d.kind==='shared'||/^d_(autosave|shared_)/.test(String(d.id))) return false;
+    if(d.fromFicheId){ soldesExclus++; return false; }
+    const p=(d.state&&d.state.plan)||{};
+    return canon(p.numCmd)&&sentKeys.has(keyOf(p.client,p.ref,p.numCmd));
+  });
+  console.log('=== HYGIÈNE — APERÇU (dry-run, RIEN n\'est touché) ===');
+  console.log(plans.length+' plan(s) « déjà coupés » encore visibles dans Données > Plans :');
+  plans.forEach(s=>console.log('  · save '+s._id+' — '+(s.client||'—')+' / '+(s.ref||'—')+' / N° '+(s.numCmd||'—')+' — '+(s.date||'')));
+  console.log(drafts.length+' brouillon(s) manuels/« non envoyé » d\'une commande déjà envoyée :');
+  drafts.forEach(d=>console.log('  · draft '+d.id+' — '+(d.label||'(sans label)')+' — '+(d.savedAt||'')));
+  if(soldesExclus) console.log('('+soldesExclus+' brouillon(s) de SOLDE exclus — à examiner à la main : un solde peut être encore à couper)');
+  console.log('Pour exécuter : valider cet aperçu avec Esteban — l\'action d\'archivage n\'est pas encore câblée (volontaire).');
+  return {plans:plans.map(s=>s._id),drafts:drafts.map(d=>d.id),soldesExclus};
+}
 // [L70 · Audit B20] libellé humain d'un select bobine (toasts).
 function _bobSelLabel(id){ return id==='fLameChgBob'?'du changement de lame':(id==='fMachChgBob'?'du changement de machine':'de reprise de l\'opérateur 2'); }
 function refreshOp2BobineList(){ fillBobineSelect('fOp2Bobine'); fillBobineSelect('fLameChgBob'); fillBobineSelect('fMachChgBob'); }   // [L65] + select changement machine
@@ -13155,14 +13205,10 @@ function addFicheLine(data){
   div.className='fiche-line'+machineCls(data.machine);div.id=id;
   if(data.rattrapage){ div.style.borderColor='#caa15a'; div.style.background='rgba(245,158,11,0.05)'; }
   div.innerHTML=`
-    <div class="fiche-line-header">
+    <div class="fiche-line-header"><!-- [L107 · Phase 1 · C] le ✂ descend en GROS bouton en bas de carte -->
       <span class="fl-pos" id="pos_${id}">—</span>
       <span class="fl-title">Bobine <span id="badge_${id}" class="fl-badge badge-green">RAS</span></span>
-      <button id="coupeeBtn_${id}" onclick="toggleCoupee('${id}')" aria-label="Marquer cette bobine comme coupée"
-        style="padding:14px 18px;min-height:48px;border-radius:8px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap">
-        ✂ Coupée
-      </button>
-      <button class="btn btn-red btn-sm" style="margin-left:14px;min-width:48px" aria-label="Supprimer cette bobine" onclick="removeFicheLine('${id}')">✕</button>
+      <button class="btn btn-red btn-sm" style="margin-left:auto;min-width:48px" aria-label="Supprimer cette bobine" onclick="removeFicheLine('${id}')">✕</button>
     </div>
     <div class="fiche-grid">
       <div class="field" style="grid-column:1/-1"><label>Étiquette bobine mère</label>
@@ -13178,19 +13224,9 @@ function addFicheLine(data){
         <label>Cumul bobineaux par laize</label>
         <div class="cumul-box" id="flCumul_${id}"><span style="color:var(--muted);font-size:13px">—</span></div>
       </div>
-      <details class="fl-more" id="flMore_${id}"><!-- [L102 · M2-F] contrôles secondaires repliés — flux principal épuré : config → ✂. Ouverture auto par syncFlMore (NC) et toggleCoupee (test 2ᵉ requis). Tous les id/handlers inchangés. -->
-        <summary>⋯ Contrôles — test 2ᵉ · NC · photo <span class="fl-more-stat" id="flMoreStat_${id}"><span class="st-todo">test 2ᵉ à faire</span></span></summary>
-        <div class="fl-more-body">
-      <div class="field">
+      <div class="field" style="grid-column:1/-1"><!-- [L107 · Phase 1 · B/C] test 2ᵉ VISIBLE directement (plus d'étape cachée) : Dévidage/Droit d'abord, puis Conforme / Non conforme CÔTE À CÔTE (A). FEBA : Droit masqué par updateTest2Subs (ids inchangés). -->
         <label>Test 2ème bobineaux</label>
         <div class="test2-block">
-          <div class="test2-main">
-            <input type="checkbox" id="flTest2main_${id}" disabled>
-            <span id="test2desc_${id}">Conforme — auto si Dévidage ET Droit cochés ci-dessous</span>
-          </div>
-          <label class="test2-nc" id="test2nc_${id}">
-            <input type="checkbox" id="flTest2nc_${id}" onchange="updateTest2Subs('${id}')"> ⚠ Non conforme — coche le ou les défauts ci-dessous
-          </label>
           <div class="test2-subs">
             <label class="test2-sub" id="sub_devi_${id}">
               <input type="checkbox" id="flDevi_${id}" onchange="updateTest2Subs('${id}')"> ↔ Dévidage
@@ -13199,12 +13235,26 @@ function addFicheLine(data){
               <input type="checkbox" id="flDroit_${id}" onchange="updateTest2Subs('${id}')"> ➡ Droit
             </label>
           </div>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:stretch">
+            <div class="test2-main" style="flex:1;margin-bottom:0">
+              <input type="checkbox" id="flTest2main_${id}" disabled>
+              <span id="test2desc_${id}">Conforme — auto si Dévidage ET Droit cochés ci-dessus</span>
+            </div>
+            <label class="test2-nc" id="test2nc_${id}" style="flex:1;margin-bottom:0">
+              <input type="checkbox" id="flTest2nc_${id}" onchange="updateTest2Subs('${id}')"> ⚠ Non conforme
+            </label>
+          </div>
         </div>
       </div>
+      <div class="field" style="grid-column:1/-1;margin-bottom:0"><!-- [L107 · Phase 1 · C] R.A.S. visible dans le flux principal -->
+        <label class="nc-check ras sel" id="nc_ras_${id}" style="width:100%;justify-content:center"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ R.A.S.</label>
+      </div>
+      <details class="fl-more" id="flMore_${id}"><!-- [L107 · Phase 1 · F] zone Défaut REPLIÉE par défaut (aucune place prise) ; s'ouvre au tap, ou AUTO si NC / action requise (syncFlMore, toggleCoupee) -->
+        <summary>⚠ Défaut — NC · photo · chutes/déchet <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary>
+        <div class="fl-more-body">
       <div class="field">
-        <label>Non-conformité</label>
-        <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts (1 ligne mobile), ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
-          <label class="nc-check ras sel" id="nc_ras_${id}"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ RAS</label>
+        <label>Problème constaté</label>
+        <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts, ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
           <label class="nc-check bad" id="nc_ang_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Angle</label>
           <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
           <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
@@ -13218,11 +13268,11 @@ function addFicheLine(data){
           <button class="photo-btn" onclick="triggerPhoto('${id}')">📷 Ajouter photo</button>
         </div>
       </div>
-      <div class="field" style="margin-bottom:0">
+      <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes -->
         <label>Action</label>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1">🗑 Déchet</button>
           <button class="btn btn-ghost btn-sm" id="act_chutes_${id}" onclick="toggleAction('${id}','chutes')" style="flex:1">✂ Chutes</button>
+          <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1">🗑 Déchet</button>
           <!-- [L65] bouton « + Acceptable » retiré (demande atelier — jamais utilisé).
                toggleAction/restore/PDF tolèrent son absence : les anciennes fiches
                archivées avec actAccept continuent de s'afficher normalement. -->
@@ -13230,6 +13280,10 @@ function addFicheLine(data){
       </div>
         </div>
       </details>
+      <button id="coupeeBtn_${id}" onclick="toggleCoupee('${id}')" aria-label="Marquer cette bobine comme coupée"
+        style="grid-column:1/-1;width:100%;margin-top:2px;padding:16px 18px;min-height:56px;border-radius:10px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:17px;font-weight:800;cursor:pointer;transition:all .2s;white-space:nowrap">
+        ✂ Coupée
+      </button><!-- [L107 · Phase 1 · C] GROS bouton ✂ en bas — dernière action du flux (toggleCoupee/restore écrivent style+texte par id : inchangés) -->
     </div>`;
   document.getElementById('ficheLines').appendChild(div);
   refreshPhotoZone(id);
@@ -13356,7 +13410,8 @@ function toggleCoupee(id){
     // Le test 2ème bobineaux doit être tranché : Conforme (Dévidage+Droit)
     // OU Non conforme avec au moins un motif (Dévidage ou Droit).
     if(!test2Resolved(id)){
-      const _det=document.getElementById('flMore_'+id); if(_det) _det.open=true;   // [L102 · M2-F] le contrôle requis s'ouvre tout seul sous le doigt
+      // [L107 · Phase 1 · B] le test 2ᵉ est désormais VISIBLE sur la carte : plus d'ouverture
+      // auto du volet (qui ne contient plus que NC/photo/action) — le toast suffit.
       const elNC=document.getElementById('flTest2nc_'+id);
       const feba=(_flMachineOf(id)==='feba');   // [L65] machine de la ligne
       if(elNC&&elNC.checked){
@@ -13553,7 +13608,7 @@ function updateTest2Subs(id){
   const droitSub=document.getElementById('sub_droit_'+id);
   if(droitSub) droitSub.style.display=feba?'none':'';
   const desc=document.getElementById('test2desc_'+id);
-  if(desc) desc.textContent=feba?'Conforme — auto si Dévidage coché ci-dessous':'Conforme — auto si Dévidage ET Droit cochés ci-dessous';
+  if(desc) desc.textContent=feba?'Conforme — auto si Dévidage coché ci-dessus':'Conforme — auto si Dévidage ET Droit cochés ci-dessus';   // [L107 · Phase 1 · B] les cases sont désormais AU-DESSUS
   const ncMode=elNC&&elNC.checked;
   // En mode Non conforme, la case Conforme auto ne peut pas être cochée.
   if(ncMode){
@@ -13574,17 +13629,16 @@ function updateTest2Subs(id){
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] statut du volet « ⋯ Contrôles »
   updateCoupeeStatus();
 }
-// [L102 · Design M2-F] Volet « ⋯ Contrôles » : statut compact dans le résumé
-// (test 2ᵉ à faire / ✓ test OK / ⚠ NC) + ouverture AUTO dès qu'une NC ou un
-// test 2ᵉ non conforme est coché (saisie directe OU restauration brouillon/
-// partage) — rien d'alarmant ne reste replié. Redondance forme+texte (H).
+// [L102 · Design M2-F → L107 · Phase 1 · F] Volet « ⚠ Défaut » : statut compact dans le
+// résumé (⚠ NC quand un problème est coché) + ouverture AUTO dès qu'une NC ou un test 2ᵉ
+// non conforme est coché (saisie directe OU restauration brouillon/partage) — rien
+// d'alarmant ne reste replié. Le statut du test 2ᵉ n'y figure plus : il est VISIBLE sur la carte.
 function syncFlMore(id){
   const det=document.getElementById('flMore_'+id); if(!det) return;
   const nc=['larg','qty','casse','ang'].some(k=>{const el=document.getElementById('nc_'+k+'_'+id);return el&&el.querySelector('input').checked;});
   const t2nc=!!(document.getElementById('flTest2nc_'+id)?.checked);
-  const t2ok=(typeof test2Resolved==='function')&&test2Resolved(id);
   const stat=document.getElementById('flMoreStat_'+id);
-  if(stat) stat.innerHTML=(nc||t2nc)?'<span class="st-nc">⚠ NC</span>':(t2ok?'<span class="st-ok">✓ test OK</span>':'<span class="st-todo">test 2ᵉ à faire</span>');
+  if(stat) stat.innerHTML=(nc||t2nc)?'<span class="st-nc">⚠ NC</span>':'';
   if(nc||t2nc) det.open=true;
 }
 // Réapplique la règle FEBA (masquage « Droit » + conformité) sur toutes les bobines.
@@ -14443,6 +14497,7 @@ function _deviceId(){
 function autosaveId(){ return 'd_autosave_'+_uid()+'_'+_deviceId(); }
 function planAutosaveId(){ return 'd_autosave_plan_'+_uid()+'_'+_deviceId(); }
 let _resumedForeignDraftId=null;   // [L103 · audit-max] brouillon AUTO d'un autre poste repris ici (passation) — purgé à l'envoi réussi (clearCurrentDraft)
+let _resumedDraftId=null;          // [L108 · Phase 4C] brouillon (manuel 💾 / solde ⛔ / fromSend) repris à l'écran — marqué consommé à l'envoi réussi de la commande
 // [L73 · Lot 5 · B38] borne TOTALE ~900 Ko (marge sous la limite dure Firestore 1 Mo/doc).
 // Le strip unitaire (>10k par string) laisse passer une SOMME de petites images data:
 // qui peut dépasser 1 Mo → écriture rejetée à CHAQUE renvoi (échec définitif, pas réseau).
@@ -15012,6 +15067,7 @@ function resumeDraft(id){
   const _foreignId=(/^d_autosave_/.test(String(id))&&id!==autosaveId()&&id!==planAutosaveId())?id:null;
   restoreFicheState(d.state);
   _resumedForeignDraftId=_foreignId;
+  _resumedDraftId=id;   // [L108 · Phase 4C] reprise = ce brouillon sera consommé à l'envoi (validation Esteban : « reprise = consommer l'ancien »)
   // [L103 · audit-max] flux L67 « reprends ta commande (brouillon) » : la reprise CONSCIENTE
   // de la commande partagée libère le gel post-reload. L'ancienne libération exigeait une
   // égalité BYTE-IDENTIQUE écran↔doc partagé qui ne se produisait presque jamais (autosave
@@ -15077,6 +15133,7 @@ function restoreFicheState(st){
   // resumeLastCommand) le laissaient posé → clearCurrentDraft consommait à l'envoi le
   // brouillon d'un poste sans rapport. resumeDraft le RE-pose juste après cet appel.
   _resumedForeignDraftId=null;
+  _resumedDraftId=null;   // [L108 · Phase 4C] idem pour le brouillon repris
   // ENVOI-1 : reprendre l'id réservé du brouillon → un renvoi écrira sur le MÊME doc
   // (idempotent, pas de doublon). null si le brouillon est antérieur à ce mécanisme.
   _pendingFicheId=st.pendingFicheId||null;
