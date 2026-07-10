@@ -1233,7 +1233,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     <!-- [L65] onglet « Piste d'audit » retiré de l'écran (demande atelier). Le journal
          d'audit continue d'être ÉCRIT dans Firestore (logAudit — exigence ISO) : les
          données restent consultables dans la console Firebase si besoin. -->
-    <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Lame / Machine</button>
+    <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Lame</button><!-- [L125] « Lame / Machine » → « Lame » (ne traite que les lames) -->
   </div>
   <div style="text-align:center;margin:2px 0 10px">
     <button id="btnLoadFull" class="btn btn-ghost btn-sm" onclick="loadFullHistory(this)">📥 Charger l'historique complet</button>
@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L124';
+const APP_VERSION='2026.07.10-L125';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8540,35 +8540,53 @@ function _plnPlanMeters(s){
     if(gs.length){
       const packed=packRefGroups(gs);
       let total=0,ok=true; const byMach={};
+      const byMachDet={}; let totMother=0, totDaught=0;   // [L125 · T5] nb mères + nb bobines filles (pour le modèle corrigé-laize)
       packed.forEach((p,i)=>{
         const lg=parseFloat(String(gs[i].longueur).replace(',','.'))||0;
         const nb=(p.stats&&p.stats.totalBobines)||0;
         if(lg<=0||nb<=0){ ok=false; return; }
-        total+=lg*nb; const mk=gs[i].machine||''; byMach[mk]=(byMach[mk]||0)+lg*nb;
+        const daught=(gs[i].rows||[]).reduce((a,r)=>a+(Number(r.qty)||0),0);
+        total+=lg*nb; totMother+=nb; totDaught+=daught;
+        const mk=gs[i].machine||''; byMach[mk]=(byMach[mk]||0)+lg*nb;
+        const dd=byMachDet[mk]||(byMachDet[mk]={metres:0,nbMother:0,nbDaughters:0});
+        dd.metres+=lg*nb; dd.nbMother+=nb; dd.nbDaughters+=daught;
       });
-      out=(ok&&total>0)?{metres:total,byMach}:null;
+      out=(ok&&total>0)?{metres:total,byMach,byMachDetail:byMachDet,nbMother:totMother,nbDaughters:totDaught}:null;
     }
   }catch(e){ out=null; }
   _plnEstCache[ck]=out; return out;
 }
+// [L125 · T5] cache de calibration corrigé-laize par machine (vidé à chaque rendu planning — évite
+// une régression par cellule). Repli m/h si non calibré (< 10 relevés).
+let _plnAddCalCache={};
+function _plnAddCal(mk){
+  if(_dujAddOverride&&_dujAddOverride[mk]) return {coef:_dujAddOverride[mk]};
+  if(!(mk in _plnAddCalCache)) _plnAddCalCache[mk]=(typeof dujCalibrateAdditive==='function')?dujCalibrateAdditive(mk):null;
+  return _plnAddCalCache[mk];
+}
+function _plnHoursPart(mk,part){   // heures pour une part {metres,nbMother,nbDaughters} sur machine mk
+  if(!part||!(part.metres>0)) return null;
+  const cal=_plnAddCal(mk);   // [L125 · T5] modèle CORRIGÉ-LAIZE si calibré (plus juste sur petites laizes)
+  if(cal&&cal.coef){ const c=cal.coef; return Math.max(60, c[0]+c[1]*part.nbMother+c[2]*part.metres+c[3]*part.nbDaughters)/3600; }
+  const deb=dujDebit(mk,null);   // repli débit m/h
+  if(!deb||!deb.d||deb.src==='global') return null;
+  return part.metres/deb.d;
+}
 function _plnHoursOn(s,machKey){
   const est=_plnPlanMeters(s); if(!est) return null;
   const mk=dujMachKey(machKey);
-  // [L118 · audit #17] plan MULTI-machines posé sur une case : ne charger que la part de CETTE
-  // machine (byMach[mk]) — sinon tout le métrage était imputé à la seule machine posée. Repli sur
-  // le total si le plan n'a pas de part pour mk (opérateur qui pose sur une autre machine).
-  const m=(est.byMach&&est.byMach[mk]!=null)?est.byMach[mk]:est.metres;
-  const deb=dujDebit(mk,null);
-  if(!deb||!deb.d||deb.src==='global'||!(m>0)) return null;
-  return m/deb.d;
+  // [L118 · audit #17] plan MULTI-machines posé sur une case : ne charger que la part de CETTE machine.
+  const part=(est.byMachDetail&&est.byMachDetail[mk])||{metres:(est.byMach&&est.byMach[mk]!=null)?est.byMach[mk]:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};
+  return _plnHoursPart(mk,part);
 }
 function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
   const est=_plnPlanMeters(s); if(!est) return null;
   let h=0;
   for(const mk of Object.keys(est.byMach)){
-    const deb=dujDebit(mk,null);
-    if(!deb||!deb.d||deb.src==='global') return null;
-    h+=est.byMach[mk]/deb.d;
+    const part=(est.byMachDetail&&est.byMachDetail[mk])||{metres:est.byMach[mk],nbMother:0,nbDaughters:0};
+    const hp=_plnHoursPart(mk,part);
+    if(hp==null) return null;
+    h+=hp;
   }
   return h||null;
 }
@@ -8807,7 +8825,7 @@ document.addEventListener('touchmove',function(e){ if(_plnDrag&&_plnDrag.lifted&
 function renderPlanning(){
   const el=document.getElementById('planningContent'); if(!el) return;
   plnDisarm();
-  _plnEstCache={};
+  _plnEstCache={}; _plnAddCalCache={};   // [L125 · T5] vider aussi le cache de calibration corrigé-laize
   const ctx=_plnSentKeys();
   const todayIso=_plnIso(new Date());
   const all=(savesCache||[]).filter(s=>s&&!s.deleted&&!_plnDejaCoupe(s,ctx));
@@ -10762,6 +10780,14 @@ function buildDebitToolbox(){
       <div style="font-size:12px;color:var(--muted)">m/h médian${m.n?` · ${m.n} cmd`:' · pas de donnée'}</div>
     </div>`;
   }).join('');
+  // [L125 · T5] Synthèse du modèle CORRIGÉ-LAIZE (calibré sur l'historique, aussi utilisé estimateur + planning)
+  const laizeRows=DUJ_MACHINES.map(k=>{
+    const cal=(typeof dujCalibrateAdditive==='function')?dujCalibrateAdditive(k):null;
+    if(!cal) return `<span style="display:inline-block;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11.5px"><b style="color:var(--${k})">${getMachineLabel(k)}</b> <span style="color:var(--muted)">pas encore calibré</span></span>`;
+    const better=(cal.mapeA!=null&&cal.mapeM!=null&&cal.mapeA<cal.mapeM);
+    return `<span style="display:inline-block;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11.5px" title="Calibré sur ${cal.n} relevé(s)${cal.scope==='global'?' toutes machines':''}"><b style="color:var(--${k})">${getMachineLabel(k)}</b> écart ${Math.round(cal.mapeA)}%${cal.mapeM!=null?` <span style="color:var(--muted)">(m/h ${Math.round(cal.mapeM)}%)</span>`:''}${better?' <span style="color:var(--green)">✅</span>':''}</span>`;
+  }).join(' ');
+  const laizeBlock=`<div style="margin:2px 0 14px"><div style="font-size:12px;color:var(--muted);margin-bottom:5px">🎯 Modèle <b style="color:var(--orange)">corrigé par la laize</b> (nb de coupes / bobines filles) — écart moyen vs réel sur ton historique. Aussi appliqué à l'estimateur ci-dessous ET à la charge du Planning :</div><div style="display:flex;gap:6px;flex-wrap:wrap">${laizeRows}</div></div>`;
   const machOpts=DUJ_MACHINES.map(k=>`<option value="${k}">${getMachineLabel(k)}</option>`).join('');
   const opOpts='<option value="">Standard atelier</option>'+Object.values(USER_PROFILES).map(p=>`<option value="${esc(p.ini)}">${esc(p.ini)} — ${esc(p.nom||'')}</option>`).join('');
   // [L106 · Phase 1 · P] sélecteur de RÉFÉRENCE : préremplit laize mère (standard catalogue)
@@ -10782,7 +10808,8 @@ function buildDebitToolbox(){
     <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--muted)"><span class="dbx-chev">▸</span> ⏱ <b style="color:var(--orange);font-weight:800">Temps de découpe</b> — estimation &amp; capacité <span style="margin-left:auto;font-size:11px;color:var(--muted)">toucher pour ouvrir / fermer</span></summary>
     <div style="padding:0 16px 16px">
     ${indicatif}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${machRows}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${machRows}</div>
+    ${laizeBlock}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
       ${tabBtn('est','⏱ Durée commande',true)}${tabBtn('cap','📊 Capacité')}
     </div><!-- [L106 · Phase 1 · M] onglets « 🏆 Meilleure machine » et « 📅 File du jour » supprimés (demande Esteban) -->
