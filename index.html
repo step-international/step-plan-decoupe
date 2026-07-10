@@ -281,6 +281,11 @@ body.atelier .cumul-row{font-size:16px}
 .photo-thumb{width:54px;height:54px;border-radius:8px;object-fit:cover;border:1px solid var(--border2);cursor:pointer;background:#111}
 .photo-btn{padding:11px 14px;min-height:44px;border-radius:7px;border:1px dashed var(--border2);background:#1a1a18;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
 body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
+/* [L110] case photo dans l'EN-TÊTE de la carte bobine (à droite de « 1/9 Bobine RAS ») : version compacte */
+.photo-zone-hd{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
+.photo-zone-hd .photo-btn{padding:8px 10px;min-height:40px;font-size:13px;white-space:nowrap}
+body.atelier .photo-zone-hd .photo-btn{padding:8px 10px;min-height:44px;font-size:13px}
+.photo-zone-hd .photo-thumb{width:40px;height:40px;border-radius:7px}
 .photo-btn:hover{border-color:var(--blue);color:var(--blue)}
 .photo-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9000;align-items:center;justify-content:center;padding:16px}
 .photo-overlay.open{display:flex}
@@ -1173,6 +1178,8 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
     <div id="backupBtnZone" class="flex-wrap" style="margin-bottom:12px;display:none">
       <button class="btn btn-orange btn-sm" onclick="downloadFullBackup()">📦 Sauvegarde complète JSON</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadColdArchive()">🧊 Archive froide</button>
+      <button class="btn btn-ghost btn-sm" id="hygieneBtn" onclick="hygieneApply()" title="Retire les plans dont la commande a déjà une fiche découpe (validée ou à valider) — récupérables 45 j via la Corbeille">🧹 Nettoyer les plans déjà coupés</button><!-- [L110 · hygiène 4D] admin/pilotage (masqué par applyRole) -->
+
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
       <select id="saveFilterClient" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
@@ -1420,7 +1427,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L109';
+const APP_VERSION='2026.07.10-L110';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2105,6 +2112,7 @@ function applyRole(){
   document.getElementById('tabAnalyse').style.display=canViewAnalyse()?'':'none';
   document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
   document.getElementById('tabNc').style.display=canManageData()?'':'none';
+  { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
   document.getElementById('tabStock').style.display=canViewStock()?'':'none';
   { const _ta=document.getElementById('tabAudit'); if(_ta) _ta.style.display=canViewAudit()?'':'none'; }   // [L65] onglet retiré du HTML — garde de survie si réintroduit
   document.getElementById('tabMaintenance').style.display=canAccessMaintenance()?'':'none';
@@ -2562,6 +2570,10 @@ const CLIENT_DATA = {
     {ref:"TacFlex® KX1045",largeur:2100,longueur:250}
   ]
 };
+// [L110] Client spécial « ÉCHANTILLON » : toutes les références du catalogue sélectionnables
+// (essais / échantillons). Union des réfs clients (dédoublonnées par libellé, triées) →
+// présent partout où CLIENT_DATA est lu (selects plan, estimateur, préremplissage laize/métrage).
+CLIENT_DATA['ÉCHANTILLON']=(function(){const seen=new Set(),out=[];Object.values(CLIENT_DATA).flat().forEach(function(r){if(!r||!r.ref||seen.has(r.ref))return;seen.add(r.ref);out.push(r);});out.sort(function(a,b){return String(a.ref).localeCompare(String(b.ref),'fr');});return out;})();
 
 // ============================================================
 // MATRICE PACKAGING / CONDITIONNEMENT PAR CLIENT
@@ -2967,10 +2979,10 @@ function refreshPhotoZone(lineId){
   const data=ficholinePhotos[lineId];
   if(data){
     zone.innerHTML=`<img src="${esc(safeUrl(data))}" class="photo-thumb" onclick="openPhotoViewer('${lineId}')" alt="photo">
-      <button class="photo-btn" onclick="triggerPhoto('${lineId}')">🔄 Changer</button>
-      <button class="photo-btn" onclick="deletePhoto('${lineId}')" style="border-color:#7a2222;color:var(--red)">🗑</button>`;
+      <button class="photo-btn" onclick="triggerPhoto('${lineId}')" title="Changer la photo">🔄</button>
+      <button class="photo-btn" onclick="deletePhoto('${lineId}')" title="Supprimer la photo" style="border-color:#7a2222;color:var(--red)">🗑</button>`;
   } else {
-    zone.innerHTML=`<button class="photo-btn" onclick="triggerPhoto('${lineId}')">📷 Ajouter photo</button>`;
+    zone.innerHTML=`<button class="photo-btn" onclick="triggerPhoto('${lineId}')" title="Ajouter une photo">📷 Photo</button>`;   // [L110] libellé compact (la case vit dans l'en-tête de carte)
   }
 }
 async function deletePhoto(lineId){
@@ -10187,6 +10199,7 @@ function exportMaintenance(){
 // Source : enregistrements 'temps'. débit m/h = longueur×nbBobines×3600/durée.
 // ============================================================
 const DUJ_MACHINES=MACHINE_KEYS;
+let dujBoxOpen=false;   // [L110] case « ⏱ Temps » d'Analyse repliée par défaut (état conservé au re-rendu — renderAnalyse reconstruit le HTML à chaque filtre)
 const DUJ_LABEL2KEY={FEBA:'feba',MAVEG:'maveg',CEVENINI:'cevenini'};
 /* [L106 · Phase 1 · M] dujQueue supprimée (File du jour retirée) */
 function dujMachKey(m){ if(!m) return ''; const k=DUJ_LABEL2KEY[m]; if(k) return k; const lo=String(m).toLowerCase(); return DUJ_MACHINES.includes(lo)?lo:''; }
@@ -10246,8 +10259,9 @@ function buildDebitToolbox(){
     return opts.join(''); })();
   const tabBtn=(id,lbl,act)=>`<button id="dujTab_${id}" onclick="dujTab('${id}')" style="flex:1;padding:9px 6px;border:1px solid ${act?'var(--orange)':'var(--border2)'};background:${act?'rgba(245,158,11,.12)':'var(--card)'};color:${act?'var(--orange)':'var(--muted)'};font-size:12.5px;font-weight:700;cursor:pointer;border-radius:8px">${lbl}</button>`;
   return `
-  <div style="background:var(--section);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:4px">
-    <div style="font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--orange);margin-bottom:12px">🔧 Boîte à outils production — débit m/h</div>
+  <details id="dujBox" ${dujBoxOpen?'open':''} ontoggle="dujBoxOpen=this.open" style="background:var(--section);border:1px solid var(--border2);border-radius:12px;margin-bottom:4px"><!-- [L110] case Temps PETITE et repliable (demande Esteban) -->
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:12px 16px;font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--orange)">⏱ Temps de découpe — estimation &amp; capacité <span style="margin-left:auto;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)">afficher / replier</span></summary>
+    <div style="padding:0 16px 16px">
     ${indicatif}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${machRows}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
@@ -10287,7 +10301,8 @@ function buildDebitToolbox(){
       </div>
       <div id="cap_result" style="margin-top:14px;font-size:14px;color:var(--muted)"></div>
     </div>
-  </div>`;
+    </div>
+  </details>`;
 }
 function dujTab(id){
   ['est','cap'].forEach(t=>{   // [L106 · Phase 1 · M] best/duj supprimés
@@ -13083,8 +13098,33 @@ function hygieneDryRun(){
   console.log(drafts.length+' brouillon(s) manuels/« non envoyé » d\'une commande déjà envoyée :');
   drafts.forEach(d=>console.log('  · draft '+d.id+' — '+(d.label||'(sans label)')+' — '+(d.savedAt||'')));
   if(soldesExclus) console.log('('+soldesExclus+' brouillon(s) de SOLDE exclus — à examiner à la main : un solde peut être encore à couper)');
-  console.log('Pour exécuter : valider cet aperçu avec Esteban — l\'action d\'archivage n\'est pas encore câblée (volontaire).');
+  console.log('Pour exécuter (PLANS uniquement) : bouton « 🧹 Nettoyer les plans déjà coupés » dans Données > Plans, ou hygieneApply() ici. Les brouillons se gèrent à la main (Données > Brouillons).');
   return {plans:plans.map(s=>s._id),drafts:drafts.map(d=>d.id),soldesExclus};
+}
+// [L110 · hygiène 4D — EXÉCUTION validée par Esteban le 10/07 (« on supprime les 14 », filet 45 j gardé)]
+// Retire de Données > Plans les plans dont la commande a DÉJÀ une fiche découpe (validée ou à
+// valider) : la fiche garde le vrai enregistrement, le plan n'est qu'un doublon d'avant-envoi.
+// Soft-delete UNIQUEMENT (deleted:true → Corbeille, récupérable RETENTION_DRAFT_DAYS jours, puis
+// purge auto + archive froide) + logAudit par plan. Même détection que hygieneDryRun. PLANS SEULS —
+// jamais les brouillons (gérés à la main par Esteban).
+async function hygieneApply(){
+  if(typeof canManageData==='function'&&!canManageData()){showToast('⛔ Réservé au pilotage/admin.','err');return;}
+  const canon=v=>nrm((v&&v!=='—')?v:'');
+  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
+  const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
+  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  if(!plans.length){showToast('Aucun plan « déjà coupé » à nettoyer. 👍','ok');return;}
+  const apercu=plans.slice(0,8).map(s=>'· '+(s.client||'—')+' / N° '+(s.numCmd||'—')).join('\n');
+  if(!confirm('🧹 Retirer '+plans.length+' plan(s) « déjà coupés » de Données > Plans ?\n\n'+apercu+(plans.length>8?'\n… et '+(plans.length-8)+' autre(s)':'')+'\n\nLeur fiche découpe garde le vrai enregistrement.\nRécupérables 45 jours via la Corbeille, puis purge automatique.')) return;
+  let okN=0,koN=0;
+  for(const s of plans){
+    try{
+      await boundedWrite(db.collection('saves').doc(s._id).update({deleted:true,deletedAt:isoNow()}),10000);
+      try{ await logAudit('delete','saves',s._id,'Hygiène — plan déjà coupé archivé ('+(s.client||'')+' / '+(s.ref||'')+' / N°'+(s.numCmd||'')+')',{client:s.client||'',ref:s.ref||'',dateCmd:s.date||''}); }catch(e){}
+      okN++;
+    }catch(e){ koN++; console.warn('Hygiène (plan '+s._id+') :',e&&e.message); }
+  }
+  showToast('🧹 '+okN+' plan(s) retiré(s) — récupérables 45 j via la Corbeille.'+(koN?('\n⚠ '+koN+' échec(s) — réappuie pour réessayer.'):''),koN?'err':'ok');
 }
 // [L70 · Audit B20] libellé humain d'un select bobine (toasts).
 function _bobSelLabel(id){ return id==='fLameChgBob'?'du changement de lame':(id==='fMachChgBob'?'du changement de machine':'de reprise de l\'opérateur 2'); }
@@ -13205,10 +13245,13 @@ function addFicheLine(data){
   div.className='fiche-line'+machineCls(data.machine);div.id=id;
   if(data.rattrapage){ div.style.borderColor='#caa15a'; div.style.background='rgba(245,158,11,0.05)'; }
   div.innerHTML=`
-    <div class="fiche-line-header"><!-- [L107 · Phase 1 · C] le ✂ descend en GROS bouton en bas de carte -->
+    <div class="fiche-line-header"><!-- [L107 · Phase 1 · C] le ✂ descend en GROS bouton en bas de carte · [L110] case photo remontée ICI, à droite de « 1/9 Bobine RAS » (demande Esteban) -->
       <span class="fl-pos" id="pos_${id}">—</span>
       <span class="fl-title">Bobine <span id="badge_${id}" class="fl-badge badge-green">RAS</span></span>
-      <button class="btn btn-red btn-sm" style="margin-left:auto;min-width:48px" aria-label="Supprimer cette bobine" onclick="removeFicheLine('${id}')">✕</button>
+      <div class="photo-zone photo-zone-hd" id="photoZone_${id}">
+        <button class="photo-btn" onclick="triggerPhoto('${id}')" title="Ajouter une photo">📷 Photo</button>
+      </div>
+      <button class="btn btn-red btn-sm" style="min-width:48px" aria-label="Supprimer cette bobine" onclick="removeFicheLine('${id}')">✕</button>
     </div>
     <div class="fiche-grid">
       <div class="field" style="grid-column:1/-1"><label>Étiquette bobine mère</label>
@@ -13250,7 +13293,7 @@ function addFicheLine(data){
         <label class="nc-check ras sel" id="nc_ras_${id}" style="width:100%;justify-content:center"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ R.A.S.</label>
       </div>
       <details class="fl-more" id="flMore_${id}"><!-- [L107 · Phase 1 · F] zone Défaut REPLIÉE par défaut (aucune place prise) ; s'ouvre au tap, ou AUTO si NC / action requise (syncFlMore, toggleCoupee) -->
-        <summary>⚠ Défaut — NC · photo · chutes/déchet <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary>
+        <summary>⚠ Défaut — NC · chutes/déchet <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary>
         <div class="fl-more-body">
       <div class="field">
         <label>Problème constaté</label>
@@ -13262,13 +13305,7 @@ function addFicheLine(data){
         </div>
         <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci -->
       </div>
-      <div class="field">
-        <label>Photo bobine</label>
-        <div class="photo-zone" id="photoZone_${id}">
-          <button class="photo-btn" onclick="triggerPhoto('${id}')">📷 Ajouter photo</button>
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes -->
+      <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes · [L110] la photo est remontée dans l'en-tête de carte -->
         <label>Action</label>
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" id="act_chutes_${id}" onclick="toggleAction('${id}','chutes')" style="flex:1">✂ Chutes</button>
