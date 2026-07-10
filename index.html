@@ -3339,6 +3339,14 @@ function importPlanToFiche(opts){
   // sinon : clic explicite sur le bouton (confirmations + bascule + toast)
   opts=opts||{};
   const auto=!!opts.auto;
+  // [L103 · audit-max] STRUCTURE FIGÉE pendant un partage (émetteur OU vue miroir) : régénérer
+  // la fiche depuis le Plan décalerait les verrous cuts.<idx> (indexés par POSITION) chez tous
+  // les postes — même invariant que addFicheLine/removeFicheLine (L67). Silencieux en auto
+  // (simple passage d'onglet), toast au clic explicite.
+  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){
+    if(!auto) showToast('🔒 Commande PARTAGÉE : impossible de régénérer la fiche depuis le Plan pendant le partage.\n\nArrête le partage (ou quitte la vue) d\'abord.','err');
+    return;
+  }
   try{
     const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
     if(!computed.length){
@@ -4835,7 +4843,7 @@ function _seqMinPalettes(pg,prefix){
   let bestOrder=base.concat([solde]), bestPeak=_seqPeak(prefix.concat(bestOrder));
   const lb=Math.max(0,...prefix.concat(pg).map(g=>_pgW(g).length));   // borne : un motif à N largeurs impose N palettes
   if(bestPeak<=PALETTES_MAX||bestPeak<=lb||base.length>12) return {order:bestOrder,peak:bestPeak};
-  let _budget=200000;   // [L92 · Audit #1] 9-12 motifs : DFS à BUDGET (~ms) au lieu d'abandonner — l'abandon partait en re-pack (chute en +) alors qu'un simple réordonnancement du plan moteur INTACT tenait souvent ≤4 palettes
+  let _budget=2000;   // [L92 · Audit #1] 9-12 motifs : DFS à BUDGET au lieu d'abandonner — [L103 · audit-max] 200000 nœuds GELAIT l'UI 11-12 s (mesuré, 7 laizes banales, à CHAQUE frappe via recalcPlan ; bien pire sur vieil iPad). Balayage mesuré 500→200000 : résultat STRICTEMENT identique (mêmes bobines/chute/pic — ≤4 se trouve dans les premiers nœuds grâce à l'ordre grandes-laizes, sinon le repack phasé reprend la main). 2000 nœuds ≈ 150 ms au pire, DÉTERMINISTE entre appareils (une borne en temps donnerait des plans différents PC/tablette — interdit règle « toutes les surfaces »)
   // Recherche exhaustive élaguée (≤8 motifs → rapide) : candidats grandes laizes d'abord,
   // donc le PREMIER optimum trouvé est aussi le plus « grandes laizes d'abord ».
   const n=base.length, used=new Array(n).fill(false), cur=[];
@@ -6359,6 +6367,12 @@ function _newCmdClearLiveFiche(){
   const d=document.getElementById('ficheLines'); if(d) d.innerHTML='';
   ficheLines=[];
   ficholinePhotos={};
+  // [L103 · audit-max CRITIQUE] purger les ids réservés : après un envoi en échec/timeout,
+  // _pendingFicheId restait posé — la commande SUIVANTE (chargée via Parquer/Effacer) était
+  // écrite sur le doc réservé de la PRÉCÉDENTE, puis le renvoi du brouillon précédent
+  // l'écrasait définitivement (perte de fiche silencieuse). Le brouillon parqué a déjà
+  // sérialisé SES ids AVANT ce clear (newCmdPark → saveDraftManual) : son renvoi reste idempotent.
+  _pendingFicheId=null; _pendingTempsId=null; _autosaveLastSig='';
   try{ chronoReset(true); }catch(e){ console.warn('chronoReset:',e); }   // [L79] reset forcé (nouvelle commande)
 }
 async function newCmdPark(){
@@ -6416,6 +6430,14 @@ function updateSaveBtnLabel(){
 }
 async function doLoad(){
   if(!loadTargetIdx) return;
+  // [L103 · audit-max] chargement d'un plan pendant un partage actif : la nouvelle commande
+  // passerait SOUS le partage en cours (structure remplacée, verrous cuts transplantés chez
+  // les collègues). Bloqué — même règle que l'ajout/suppression de bobine (L67).
+  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){
+    showToast('🔒 Commande PARTAGÉE en cours : arrête le partage (ou quitte la vue miroir) avant de charger un autre plan.','err');
+    try{ closeLoadModal(); }catch(e){}
+    return;
+  }
   const s=savesCache.find(x=>x._id===loadTargetIdx);
   if(!s) return;
   // B1 : le cache local peut encore montrer un plan qu'un AUTRE poste a déjà consommé
@@ -7703,6 +7725,14 @@ function resetAll(){
   // [L67 · Audit] « Nouveau plan » clôt le partage émetteur : sans ça, la commande SUIVANTE
   // était poussée aux collègues sous l'ancien partage (10 s) → découpe d'une commande fantôme.
   try{ shareEndAfterSend(); }catch(e){}
+  // [L103 · audit-max] récepteur en VUE MIROIR : ↺ Réinitialiser doit aussi QUITTER la vue —
+  // sinon _viewingSharedId survivait au reset et la synchro 10 s ré-hydratait la commande du
+  // collègue par-dessus le nouveau plan local (avec les verrous _shareCutsLocal transplantés).
+  if(_viewingSharedId){
+    _viewingSharedId=null; _viewingSharedRev=0; _viewingSharedFrom=null; _shareCutsLocal={};
+    try{ _clearSharedLocks(); }catch(e){}
+    try{ refreshShareReception(); }catch(e){}
+  }
   _localCopyFromShare=null;   // [L72 · Audit B59] plan vierge = drapeau levé
   try{ renderSharedViewBar(); }catch(e){}
   // [L67 · Audit] plan manuel : un ✏️ de la commande précédente ne doit JAMAIS contaminer
@@ -13615,6 +13645,7 @@ function _opColor(uid){ return OP_COLORS[_iniOf(uid)]||OP_COLORS['?']; }
 function _shareOtherUids(){ const me=_uid(); return Object.keys(USER_PROFILES).filter(function(u){return u!==me;}); }
 function toggleSharePanel(show){
   const p=document.getElementById('sharePanel'); if(!p) return;
+  if(show && _viewingSharedId){ showToast('🔒 Tu consultes la commande d\'un collègue (miroir) — quitte la vue avant de partager à ton tour.','err'); return; }   // [L103 · audit-max]
   if(show && !_shareActive){ _shareSel=new Set(); renderShareChips(); }
   p.style.display=show?'block':'none';
 }
@@ -13644,6 +13675,10 @@ function renderShareChips(){
   if(btn){ btn.disabled=(n===0); btn.textContent=n===0?'Partager':('Partager avec '+n+' opérateur'+(n>1?'s':'')); }
 }
 function doShareLocal(){
+  // [L103 · audit-max] récepteur en vue MIROIR : partager « sa » commande partagerait en fait
+  // celle du collègue sous un 2e doc (verrous cuts alternant entre les deux). Garde symétrique
+  // d'openSharedCommand (qui bloque déjà l'inverse).
+  if(_viewingSharedId){ showToast('🔒 Tu consultes la commande d\'un collègue (miroir) — quitte la vue avant de partager à ton tour.','err'); return; }
   if(!Array.isArray(ficheLines)||!ficheLines.length){ showToast('Ajoute des bobines avant de partager.','err'); return; }
   if(_shareSel.size<1){ showToast('Choisis au moins un opérateur.','err'); return; }
   _shareActive=true;
@@ -14765,6 +14800,22 @@ function resumeDraft(id){
   const d=loadDrafts().find(x=>x.id===id);
   if(!d){showToast('Brouillon introuvable.','err');return;}
   if(d.consumed){showToast('⚠ Ce brouillon correspond à une commande déjà enregistrée — reprise bloquée pour éviter une double découpe.','err');return;}   // DRAFT-4
+  // [L103 · audit-max CRITIQUE] reprise pendant un partage : la commande reprise passerait SOUS
+  // le partage en cours (cuts.<idx> de l'ancienne commande transplantés sur la nouvelle).
+  // - Vue MIROIR (récepteur) : toujours bloqué.
+  // - ÉMETTEUR : autorisé UNIQUEMENT pendant le gel post-reload (_sharePushHold) — c'est le flux
+  //   voulu L67 « reprends ta commande (brouillon) pour relancer la synchro » — et seulement si
+  //   le brouillon repris correspond à la commande partagée (label client / n° cmd concordant).
+  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){
+    if(_viewingSharedId){ showToast('🔒 Tu consultes la commande d\'un collègue (miroir) — quitte la vue avant de reprendre un brouillon.','err'); return; }
+    if(!_sharePushHold){ showToast('🔒 Commande PARTAGÉE en cours de synchro : arrête le partage avant de reprendre un autre brouillon.','err'); return; }
+    try{
+      const _sd=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(x=>x&&x.id===_shareDocId);
+      const _p=(d.state&&d.state.plan)||{};
+      const _dl=((_p.client||'—')+' / '+(_p.numCmd||'sans n°'));
+      if(_sd&&_sd.label&&_sd.label!==_dl){ showToast('🔒 Ce brouillon ne correspond pas à la commande PARTAGÉE ('+_sd.label+') — reprends celle-ci, ou arrête le partage d\'abord.','err'); return; }
+    }catch(e){}
+  }
   // [L72 · Audit B09] une commande est EN COURS à l'écran : sans garde, la reprise
   // l'écrasait (chrono compris) et l'autosave 15 s détruisait ensuite sa sauvegarde.
   if(typeof isFicheUntouched==='function'&&!isFicheUntouched()
