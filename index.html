@@ -303,6 +303,10 @@ body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 /* [L83 · Audit #28] .save-refs/.save-refrow/.rdot supprimés (ne matchaient plus aucun HTML) */
 .save-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
 .save-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+/* [L106 · Phase 1 · S] corbeille 🗑 TOUJOURS en dernier, calée à droite — harmonisé Plans/Corbeille/Brouillons (+ Fiches via .fc-actions) */
+.save-actions .btn-red{order:99;margin-left:auto}
+#savesList .save-actions .btn-red{grid-column:2}
+.fc-actions .fc-btn-red-ghost{order:99}
 /* [L79] Cartes Plans (Données) : boutons en 2×2 (deux en haut, deux en bas) */
 #savesList .save-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;width:auto;max-width:260px}
 #savesList .save-actions .btn{width:100%;min-height:46px;justify-content:center}
@@ -314,6 +318,7 @@ body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 .save-card{padding:13px;gap:10px;flex-direction:column;align-items:stretch}
 .save-info{width:100%}
 .save-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;width:100%;margin-top:2px}
+.save-actions .btn-red{grid-column:-2/-1}   /* [L106 · Phase 1 · S] mobile : 🗑 dans la dernière colonne (à droite) */
 .save-actions .btn{min-height:48px;width:100%;justify-content:center;white-space:nowrap;font-size:14px}
 .action-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .action-bar .btn{width:100%;justify-content:center;white-space:nowrap;padding:12px 6px;font-size:13px}}
@@ -1413,7 +1418,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L105';
+const APP_VERSION='2026.07.10-L106';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2767,6 +2772,7 @@ let _pendingFicheId=null, _pendingTempsId=null;
 let packTruncated=false;          // pack() a coupé : pièces non placées (quantités aberrantes)
 let fichesRenderLimit=30;         // pagination de la liste des fiches
 let tempsRenderLimit=50;          // pagination de la liste des temps
+let savesRenderLimit=50;          // [L106 · Phase 2 · W] pagination de Données > Plans
 // fullHistoryLoaded déclaré en tête du script
 let chronoRunning = false;
 let chronoInterval = null;
@@ -6321,6 +6327,10 @@ function renderSaves(){
   const empty=document.getElementById('savesEmpty');
   if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');empty.textContent=(fC||fR||fCmd)?'Aucun résultat pour ces filtres.':'Aucune sauvegarde.';return;}
   empty.classList.add('hidden');
+  // [L106 · Phase 2 · W] pagination (même pattern que Fiches/Temps) : renderSaves rendait
+  // TOUT d'un coup — lent sur tablette dès que l'historique grossit.
+  const totalSaves=saves.length;
+  saves=saves.slice(0,savesRenderLimit);
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
@@ -6379,11 +6389,14 @@ function renderSaves(){
         <button class="btn btn-red btn-sm" onclick="deleteSave('${s._id}')" title="Archiver (récupérable 45 j)">🗑️ Archiver</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('')+(totalSaves>savesRenderLimit
+    ?`<div style="text-align:center;margin-top:12px"><button class="btn btn-ghost" onclick="savesRenderLimit+=50;renderSaves()">⬇ Voir plus (${totalSaves-saves.length} restant${totalSaves-saves.length>1?'s':''})</button></div>`
+    :'');   // [L106 · Phase 2 · W]
 }
 function resetSaveFilters(){
   ['saveFilterClient','saveFilterRef'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const c=document.getElementById('saveFilterCmd');if(c)c.value='';
+  savesRenderLimit=50;   // [L106 · Phase 2 · W] repartir en haut de liste
   renderSaves();
 }
 function openLoadModal(id){
@@ -6953,12 +6966,28 @@ async function stopManqueMatiere(){
   // 4. Parquer le solde APRÈS l'envoi réussi (brouillon manuel : clearCurrentDraft
   //    ne purge que l'auto, resetAll ne touche pas brouillonsCache).
   if(soldeState&&soldeState.lines&&soldeState.lines.length){
-    try{
-      const drafts=loadDrafts();
+    // [L106 · Phase 2 · V] parquage DURCI : la fiche partielle est DÉJÀ envoyée — si le
+    // parquage échoue (stockage plein, Firestore KO), le solde disparaissait avec un simple
+    // console.warn. Désormais : 1 retry après 2 s, puis ALERTE bloquante à l'opérateur avec
+    // la consigne de secours (re-saisir le solde depuis le plan du reste de la fiche).
+    const _parkSolde=()=>{ const drafts=loadDrafts();
       drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label:soldeLabel,state:soldeState,owner:_ini(),fromFicheId:_ficheId||''});
-      persistDrafts(drafts);
+      persistDrafts(drafts); };
+    try{
+      _parkSolde();
       showToast('⛔ Solde ('+soldeState.lines.length+' bobine(s)) placé en brouillon — Données > Brouillons','ok');
-    }catch(e){ console.warn('Parking du solde manque matière :',e); }
+    }catch(e){
+      console.warn('Parking du solde manque matière (1er essai) :',e);
+      setTimeout(()=>{
+        try{
+          _parkSolde();
+          showToast('⛔ Solde placé en brouillon (2ᵉ essai réussi) — Données > Brouillons','ok');
+        }catch(e2){
+          console.warn('Parking du solde manque matière (2ᵉ essai) :',e2);
+          try{ alert('⛔ IMPORTANT — le brouillon du SOLDE n\'a PAS pu être enregistré ('+(e2&&e2.message||'stockage indisponible')+').\n\nLa fiche partielle EST enregistrée. Pour reprendre le solde plus tard : Données > Fiches > cette commande > « ▶ Reprendre la commande » (plan du reste), ou note le solde sur papier MAINTENANT.'); }catch(_){}
+        }
+      },2000);
+    }
   }
   }finally{
     _stoppingMM=false;   // [L73 · Lot 5 · B39] libéré quoi qu'il arrive
@@ -8781,7 +8810,7 @@ var stockMouvementsCache=[];
 var stockLoaded=false;
 var stockMvtType='entree';
 let stockFilterRef='';
-let stockSecOpen={mvt:true,imp:false,art:false,prev:false,mvts:false};   // [L98 · #12] état replié/déplié des sections (moins de défilement)   // [L94] filtre par référence (ex. « DQ1000 ») appliqué aux tableaux, articles et mouvements
+let stockSecOpen={mvt:true,imp:false,art:false,prev:false,mvts:false,loc_step:true,loc_bk:false,loc_prod:false};   // [L98 · #12] état replié/déplié des sections (moins de défilement) — [L106 · Phase 1 · Q] + les 3 emplacements (STEP déplié, B+K/prod repliés)   // [L94] filtre par référence (ex. « DQ1000 ») appliqué aux tableaux, articles et mouvements
 let _stockFilterTimer=null;
 function stockSetFilter(v){ stockFilterRef=v||''; clearTimeout(_stockFilterTimer); _stockFilterTimer=setTimeout(function(){ renderStock(); setTimeout(function(){ const i=stkEl('stockFilterInp'); if(i&&stockFilterRef){ i.focus(); const L=i.value.length; try{i.setSelectionRange(L,L);}catch(e){} } },30); },350); }
 
@@ -8983,11 +9012,13 @@ function stockViewHTML(){
         <div style="font-weight:800;font-size:14px">${o.lbl} <span style="color:var(--muted);font-weight:600;font-size:12px">— ${o.desc}</span></div>
         <div style="font-size:12px;color:var(--muted)">${nf(t.rolls)} rouleaux · ${nf(t.m2)} m²</div>
       </div>
+      <details ${stockSecOpen['loc_'+o.key]?'open':''} ontoggle="stockSecOpen['loc_'+'${o.key}']=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:4px 14px 8px;user-select:none">▾ afficher / replier</summary>
       ${rows?`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
         <th style="text-align:left;padding:6px 9px">Réf matière</th><th style="text-align:left;padding:6px 9px">Mère</th>
         <th style="text-align:right;padding:6px 9px">Rouleaux</th><th style="text-align:right;padding:6px 9px">Solde m²</th></tr></thead><tbody>${rows}</tbody></table>`
        :'<div class="text-muted" style="padding:10px 14px;font-size:13px">Aucun stock dans cet emplacement.</div>'}
-    </div>`;
+      </details>
+    </div>`;   /* [L106 · Phase 1 · Q] sections emplacement repliables — même pattern stockSecOpen (les totaux restent visibles dans le bandeau) */
   };
   // Solde TOTAL par réf (tous emplacements) pour les cartes de définition d'article.
   const _soldeTot={}; ['step','bk','prod'].forEach(l=>Object.entries(bal[l]).forEach(([rf,e])=>{_soldeTot[rf]=(_soldeTot[rf]||0)+e.m2;}));
@@ -9040,9 +9071,7 @@ function stockViewHTML(){
       </div>
     </div>
 
-    ${STOCK_LOCS.map(section).join('')}
-
-    <div id="stock-sec-mvt" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
+    <div id="stock-sec-mvt" class="sspan2" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px"><!-- [L106 · Phase 1 · R] remonté TOUT EN HAUT, pleine largeur (sspan2) -->
       <div class="section-title">Nouveau mouvement</div><details ${stockSecOpen.mvt?'open':''} ontoggle="stockSecOpen.mvt=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Emplacement</div>
       <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">${locBtns}</div>
@@ -9060,6 +9089,8 @@ function stockViewHTML(){
       </div>
       <button class="btn btn-green" style="margin-top:10px;width:100%" onclick="saveStockMouvement(this)">✓ Enregistrer le mouvement</button></details>
     </div>
+
+    ${STOCK_LOCS.map(section).join('')}
 
     <div id="stock-sec-import" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
@@ -10123,7 +10154,7 @@ function exportMaintenance(){
 // ============================================================
 const DUJ_MACHINES=MACHINE_KEYS;
 const DUJ_LABEL2KEY={FEBA:'feba',MAVEG:'maveg',CEVENINI:'cevenini'};
-var dujQueue=[];
+/* [L106 · Phase 1 · M] dujQueue supprimée (File du jour retirée) */
 function dujMachKey(m){ if(!m) return ''; const k=DUJ_LABEL2KEY[m]; if(k) return k; const lo=String(m).toLowerCase(); return DUJ_MACHINES.includes(lo)?lo:''; }
 function dujMedian(arr){ if(!arr.length) return 0; const s=arr.slice().sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; }
 function dujPctile(arr,p){ if(!arr.length) return 0; const s=arr.slice().sort((a,b)=>a-b); const i=(s.length-1)*p; const lo=Math.floor(i),hi=Math.ceil(i); return lo===hi?s[lo]:s[lo]+(s[hi]-s[lo])*(i-lo); }
@@ -10172,6 +10203,13 @@ function buildDebitToolbox(){
   }).join('');
   const machOpts=DUJ_MACHINES.map(k=>`<option value="${k}">${getMachineLabel(k)}</option>`).join('');
   const opOpts='<option value="">Standard atelier</option>'+Object.values(USER_PROFILES).map(p=>`<option value="${esc(p.ini)}">${esc(p.ini)} — ${esc(p.nom||'')}</option>`).join('');
+  // [L106 · Phase 1 · P] sélecteur de RÉFÉRENCE : préremplit laize mère (standard catalogue)
+  // + métrage (ml) — l'opérateur n'a plus qu'à saisir les bobineaux nb × largeur.
+  const estRefOpts=(()=>{ const seen=new Set(); const opts=['<option value="">— choisir une référence (auto) —</option>'];
+    Object.values(CLIENT_DATA).flat().forEach(r=>{ if(!r.ref||seen.has(r.ref)) return; seen.add(r.ref);
+      const ml=(r.longueur!=null&&String(r.longueur).trim()!=='')?String(r.longueur):'';
+      opts.push(`<option value="${esc(r.ref)}" data-ml="${esc(ml)}">${esc(r.ref)}${ml?` · ${esc(ml)} ml`:''}</option>`); });
+    return opts.join(''); })();
   const tabBtn=(id,lbl,act)=>`<button id="dujTab_${id}" onclick="dujTab('${id}')" style="flex:1;padding:9px 6px;border:1px solid ${act?'var(--orange)':'var(--border2)'};background:${act?'rgba(245,158,11,.12)':'var(--card)'};color:${act?'var(--orange)':'var(--muted)'};font-size:12.5px;font-weight:700;cursor:pointer;border-radius:8px">${lbl}</button>`;
   return `
   <div style="background:var(--section);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:4px">
@@ -10179,13 +10217,17 @@ function buildDebitToolbox(){
     ${indicatif}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">${machRows}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-      ${tabBtn('est','⏱ Durée commande',true)}${tabBtn('cap','📊 Capacité')}${tabBtn('best','🏆 Meilleure machine')}${tabBtn('duj','📅 File du jour')}
-    </div>
+      ${tabBtn('est','⏱ Durée commande',true)}${tabBtn('cap','📊 Capacité')}
+    </div><!-- [L106 · Phase 1 · M] onglets « 🏆 Meilleure machine » et « 📅 File du jour » supprimés (demande Esteban) -->
 
     <div id="dujPanel_est" class="duj-panel">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label class="stk-lbl">Machine</label><select id="est_mach" onchange="dujEstMachineDefaults();dujEstimate()" class="u-inp">${machOpts}</select></div>
         <div><label class="stk-lbl">Opérateur</label><select id="est_op" onchange="dujEstimate()" class="u-inp">${opOpts}</select></div>
+      </div>
+      <div style="margin-top:10px"><!-- [L106 · Phase 1 · P] la réf préremplit laize mère + métrage -->
+        <label class="stk-lbl">Référence <span style="color:var(--green);font-size:11px">préremplit laize mère + métrage</span></label>
+        <select id="est_ref" onchange="dujEstRefChange()" class="u-inp">${estRefOpts}</select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">
         <div><label class="stk-lbl">Laize mère (mm)</label><input id="est_mother" inputmode="decimal" placeholder="2100" oninput="dujEstimate()" class="u-inp"></div>
@@ -10197,11 +10239,11 @@ function buildDebitToolbox(){
         <div id="est_rows">${dujEstRowHTML('','')}</div>
         <button class="btn btn-ghost btn-sm" onclick="dujEstAddRow()" style="margin-top:6px">+ Ajouter une largeur</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
-        <div><label class="stk-lbl">Longueur bobine mère (m)</label><input id="est_long" inputmode="decimal" oninput="dujEstimate()" class="u-inp"></div>
-        <div><label class="stk-lbl">Marge réglage (min)</label><input id="est_marge" inputmode="numeric" value="0" oninput="dujEstimate()" class="u-inp"></div>
-      </div>
-      <div id="est_result" style="margin-top:14px;font-size:14px;color:var(--muted)">Renseigne la laize mère, au moins une largeur et la longueur.</div>
+      <div id="est_long_wrap" style="margin-top:12px"><!-- [L106 · Phase 1 · O] repli : métrage manuel si aucune réf choisie (l'estimateur ne peut rien calculer sans métrage) -->
+        <label class="stk-lbl">Métrage bobine mère (m) <span style="color:var(--muted);font-size:11px">— rempli automatiquement si une référence est choisie</span></label>
+        <input id="est_long" inputmode="decimal" oninput="dujEstimate()" class="u-inp" style="max-width:220px">
+      </div><!-- [L106 · Phase 1 · N] champ « Marge réglage (min) » supprimé -->
+      <div id="est_result" style="margin-top:14px;font-size:14px;color:var(--muted)">Choisis une référence (ou saisis laize mère + métrage), puis ajoute les largeurs.</div>
     </div>
 
     <div id="dujPanel_cap" class="duj-panel" style="display:none">
@@ -10211,38 +10253,24 @@ function buildDebitToolbox(){
       </div>
       <div id="cap_result" style="margin-top:14px;font-size:14px;color:var(--muted)"></div>
     </div>
-
-    <div id="dujPanel_best" class="duj-panel" style="display:none">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label class="stk-lbl">Longueur (m)</label><input id="best_long" inputmode="decimal" oninput="dujBest()" class="u-inp"></div>
-        <div><label class="stk-lbl">Nb bobines</label><input id="best_nb" inputmode="numeric" oninput="dujBest()" class="u-inp"></div>
-      </div>
-      <div id="best_result" style="margin-top:14px;font-size:14px;color:var(--muted)">Renseigne longueur et nb bobines.</div>
-    </div>
-
-    <div id="dujPanel_duj" class="duj-panel" style="display:none">
-      <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
-        <div><label class="stk-lbl">Réf. / libellé</label><input id="duj_ref" class="u-inp"></div>
-        <div><label class="stk-lbl">Longueur (m)</label><input id="duj_long" inputmode="decimal" class="u-inp"></div>
-        <div><label class="stk-lbl">Nb bob.</label><input id="duj_nb" inputmode="numeric" class="u-inp"></div>
-        <div><label class="stk-lbl">Machine</label><select id="duj_mach" class="u-inp">${machOpts}</select></div>
-        <div><button class="btn btn-green btn-sm" onclick="dujAddJob()" style="white-space:nowrap">+ Ajouter</button></div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
-        <label class="stk-lbl" style="margin:0">Début de journée</label>
-        <input type="time" id="duj_start" value="08:00" onchange="dujRenderQueue()" class="u-inp" style="width:auto">
-      </div>
-      <div id="duj_result" style="margin-top:14px"></div>
-    </div>
   </div>`;
 }
 function dujTab(id){
-  ['est','cap','best','duj'].forEach(t=>{
+  ['est','cap'].forEach(t=>{   // [L106 · Phase 1 · M] best/duj supprimés
     const p=document.getElementById('dujPanel_'+t); if(p) p.style.display=(t===id)?'':'none';
     const b=document.getElementById('dujTab_'+t); if(b){ const on=(t===id); b.style.background=on?'rgba(245,158,11,.12)':'var(--card)'; b.style.color=on?'var(--orange)':'var(--muted)'; b.style.borderColor=on?'var(--orange)':'var(--border2)'; }
   });
   if(id==='cap') dujCapacite();
-  if(id==='duj') dujRenderQueue();
+}
+// [L106 · Phase 1 · P] choix d'une référence : laize mère standard (catalogue) + métrage (ml).
+function dujEstRefChange(){
+  const sel=document.getElementById('est_ref'); if(!sel) return;
+  const opt=sel.selectedOptions&&sel.selectedOptions[0];
+  const ml=opt?(parseFloat(String(opt.dataset.ml||'').replace(',','.'))||0):0;
+  const std=(typeof refStdMother==='function'&&sel.value)?refStdMother(sel.value):0;
+  if(ml>0){ const l=document.getElementById('est_long'); if(l) l.value=String(ml); }
+  if(std>0){ const m=document.getElementById('est_mother'); if(m) m.value=String(std); }
+  dujEstimate();
 }
 // Une ligne "nb × largeur" de l'estimateur (façon plan).
 function dujEstRowHTML(q,w){
@@ -10271,7 +10299,7 @@ function dujEstimate(){
   const blade=clampBlade(parseNum(document.getElementById('est_blade')?.value));
   const longv=parseFloat((document.getElementById('est_long')?.value||'').replace(',','.'))||0;
   const mach=document.getElementById('est_mach').value, op=document.getElementById('est_op').value;
-  const marge=(parseFloat(document.getElementById('est_marge')?.value)||0)*60;
+  const marge=0;   // [L106 · Phase 1 · N] champ « Marge réglage » supprimé (demande Esteban)
   // Lignes bobineaux → liste de largeurs pour le moteur de placement.
   const items=[]; let totalBob=0, maxW=0;
   document.querySelectorAll('#est_rows .est-row').forEach(row=>{
@@ -10321,67 +10349,8 @@ function dujCapacite(){
     <div style="font-size:13px;color:var(--muted)">capacité théorique (médiane, ${r.n} cmd)</div>
   </div>`;
 }
-function dujBest(){
-  const out=document.getElementById('best_result'); if(!out) return;
-  const longv=parseFloat((document.getElementById('best_long').value||'').replace(',','.'))||0;
-  const nb=parseFloat(document.getElementById('best_nb').value)||0;
-  if(longv<=0||nb<=0){ out.innerHTML='Renseigne longueur et nb bobines.'; return; }
-  const metres=longv*nb;
-  const rows=DUJ_MACHINES.map(k=>{ const r=dujDebit(k,''); return {k,d:r.d,n:r.n,src:r.src,sec:r.d?metres/r.d*3600:Infinity}; })
-    .filter(x=>x.d>0&&x.src!=='global').sort((a,b)=>a.sec-b.sec);   // [L83 · Audit #41] le repli GLOBAL est exclu : une machine sans AUCUN relevé n'apparaît plus (elle était couronnée 🏆 avec le débit moyen des autres)
-  if(!rows.length){ out.innerHTML='<span style="color:#f87171">Pas de données machine (aucun relevé chronométré).</span>'; return; }
-  const SEUIL=3;   // [L79·AN-4] échantillon minimal pour COURONNER une machine (sinon « indicatif »)
-  const best=rows.find(x=>x.n>=SEUIL)||null;   // 1re machine FIABLE (assez de relevés), pas juste la + rapide sur 1 mesure
-  out.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
-      <th style="text-align:left;padding:6px">Machine</th><th style="text-align:right;padding:6px">Débit m/h</th><th style="text-align:right;padding:6px">Relevés</th><th style="text-align:right;padding:6px">Durée estimée</th></tr></thead>
-    <tbody>${rows.map(x=>{const crowned=(x===best);const faible=x.n<SEUIL;return `<tr style="border-top:1px solid var(--border)${crowned?';background:rgba(74,222,128,.08)':''}">
-      <td style="padding:8px 6px;font-weight:${crowned?'800':'600'}">${crowned?'🏆 ':''}${getMachineLabel(x.k)}${faible?' <span style="color:var(--orange);font-size:11px;font-weight:400">indicatif</span>':''}</td>
-      <td style="padding:8px 6px;text-align:right">${Math.round(x.d).toLocaleString('fr-FR')}</td>
-      <td style="padding:8px 6px;text-align:right;color:${faible?'var(--orange)':'var(--muted)'}">${x.n}</td>
-      <td style="padding:8px 6px;text-align:right;font-weight:700;color:${crowned?'#4ade80':'var(--text)'}">${dujSecToTxt(x.sec)}</td></tr>`;}).join('')}</tbody></table>
-    <div style="font-size:12px;color:var(--muted);margin-top:6px">${metres.toLocaleString('fr-FR')} m · médiane par machine.${best?'':` <span style="color:var(--orange)">Aucune machine avec ≥${SEUIL} relevés — classement indicatif.</span>`}</div>`;
-}
-function dujAddJob(){
-  const ref=(document.getElementById('duj_ref').value||'').trim();
-  const longv=parseFloat((document.getElementById('duj_long').value||'').replace(',','.'))||0;
-  const nb=parseFloat(document.getElementById('duj_nb').value)||0;
-  const mach=document.getElementById('duj_mach').value;
-  if(longv<=0||nb<=0){ showToast('Longueur et nb bobines obligatoires.','err'); return; }
-  dujQueue.push({ref:ref||'(sans réf)',longueur:longv,nb,machine:mach});
-  document.getElementById('duj_ref').value=''; document.getElementById('duj_long').value=''; document.getElementById('duj_nb').value='';
-  dujRenderQueue();
-}
-function dujRemoveJob(i){ dujQueue.splice(i,1); dujRenderQueue(); }
-function dujRenderQueue(){
-  const out=document.getElementById('duj_result'); if(!out) return;
-  if(!dujQueue.length){ out.innerHTML='<div style="color:var(--muted);font-size:13px">File vide — ajoute des commandes ci-dessus.</div>'; return; }
-  const startStr=document.getElementById('duj_start')?.value||'08:00';
-  const [sh,sm]=startStr.split(':').map(Number);
-  const jobs=dujQueue.map((j,i)=>{ const r=dujDebit(j.machine,''); const metres=j.longueur*j.nb; const sec=r.d?metres/r.d*3600:0; return {...j,i,metres,sec}; });
-  const list=jobs.map(j=>`<tr style="border-top:1px solid var(--border)">
-    <td style="padding:6px">${esc(j.ref)}</td><td style="padding:6px">${getMachineLabel(j.machine)}</td>
-    <td style="padding:6px;text-align:right">${j.metres.toLocaleString('fr-FR')} m</td>
-    <td style="padding:6px;text-align:right">${dujSecToTxt(j.sec)}</td>
-    <td style="padding:6px;text-align:center"><button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="dujRemoveJob(${j.i})">✕</button></td></tr>`).join('');
-  const perMach=DUJ_MACHINES.map(k=>{
-    const load=jobs.filter(j=>j.machine===k).reduce((s,j)=>s+j.sec,0);
-    if(load<=0) return '';
-    const endMin=sh*60+sm+load/60; const _tot=Math.round(endMin); const eh=Math.floor(_tot/60)%24, em=_tot%60;   // [L97 · relecture #16] arrondi AVANT découpage h/min — fini le « 08:60 »
-    const over=endMin>(sh*60+sm)+ (12*60); // simple repère charge > 12h
-    return `<div style="flex:1;min-width:130px;background:var(--card);border:1px solid var(--border2);border-top:3px solid var(--${k});border-radius:10px;padding:12px;text-align:center">
-      <div style="font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase">${getMachineLabel(k)}</div>
-      <div style="font-size:20px;font-weight:800;margin:4px 0">${dujSecToTxt(load)}</div>
-      <div style="font-size:12px;color:${over?'#f87171':'#4ade80'}">fin ≈ ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}</div>
-    </div>`;
-  }).filter(Boolean).join('');
-  out.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${perMach}</div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
-      <th style="text-align:left;padding:6px">Réf.</th><th style="text-align:left;padding:6px">Machine</th>
-      <th style="text-align:right;padding:6px">Mètres</th><th style="text-align:right;padding:6px">Durée</th><th></th></tr></thead>
-    <tbody>${list}</tbody></table>`;
-}
+// [L106 · Phase 1 · M] dujBest / dujAddJob / dujRemoveJob / dujRenderQueue supprimées avec les
+// onglets « 🏆 Meilleure machine » et « 📅 File du jour » (demande Esteban) — plus aucun appelant.
 
 // Rendu du tableau de bord Analyse (séparé du calcul — S4). Sortie identique.
 function buildAnalyseDashboard(d){
@@ -12667,16 +12636,23 @@ function fmmGenOrder(computed){
 }
 // Déplace une réf dans l'ordre de coupe (▲ dir=-1 / ▼ dir=+1).
 function fmmMoveRef(idx,dir){
+  // [L106 · Phase 3 · X] ORDRE DE DÉCOUPE FIGÉ dès qu'une production est engagée : avant,
+  // ▲▼ changeait ficheRefOrder même avec des bobines coupées — l'ordre mémorisé basculait
+  // et le PROCHAIN recalcul (fmmGenOrder) régénérait les bobines dans le nouvel ordre
+  // (« celle du haut passe en bas ») en pleine découpe. Garde côté UI, moteur intouché :
+  // no-op + toast. isFicheUntouched = la notion existante de « production engagée »
+  // (coupée / NC / photo / test 2ᵉ / action / étiquette éditée / conf modifiée).
+  if(typeof isFicheUntouched==='function' && !isFicheUntouched()){
+    showToast('🔒 Ordre de découpe FIGÉ : une bobine est déjà engagée (coupée, NC, photo ou étiquette saisie).\n\nTermine la commande — ou repars d\'une fiche neuve pour changer l\'ordre.','err');
+    return;
+  }
   const order=fmmCutOrder();
   const pos=order.indexOf(idx), to=pos+dir;
   if(pos<0||to<0||to>=order.length) return;
   const t=order[pos]; order[pos]=order[to]; order[to]=t;
   ficheRefOrder=order;
-  // Rien de coupé : on régénère les bobines dans le nouvel ordre.
-  // Sinon : les coupées restent en place, seuls les blocs/gating se réordonnent.
-  if(typeof isFicheUntouched==='function' && isFicheUntouched()){
-    importPlanToFiche({keepRefValidation:true});
-  }
+  // Rien d'engagé (garanti par la garde) : on régénère les bobines dans le nouvel ordre.
+  importPlanToFiche({keepRefValidation:true});
   renderFicheMachineBlocks();
 }
 function fmmIsMulti(){ return fmmRawRefs().length>1; }
