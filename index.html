@@ -586,7 +586,9 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 .pln-card .pc-meta{color:var(--muted);font-size:11.5px;margin-top:2px}
 .pln-card.late{border-color:var(--red);background:rgba(239,68,68,.08)}
 .pln-card.feba{--mc:var(--feba)} .pln-card.maveg{--mc:var(--maveg)} .pln-card.cevenini{--mc:var(--cevenini)}
-#plnPool{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}
+/* [L116 · ergonomie] liste « À planifier » : hauteur limitée + scroll interne → le calendrier reste
+   visible sans faire défiler toute la page (avant : 29 cartes enterraient la grille). */
+#plnPool{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px;max-height:42vh;overflow-y:auto;padding:2px;border:1px solid var(--border2);border-radius:10px;align-content:flex-start}
 #plnPool .pln-card{max-width:250px;min-width:170px}
 .pln-report{background:rgba(239,68,68,.07);border:1px solid #7a2222;border-radius:10px;padding:9px 11px;margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px}
 @media(max-width:700px){ .pln-grid{grid-template-columns:70px repeat(5,minmax(132px,1fr));min-width:740px} #plnPool .pln-card{max-width:none;flex:1 1 46%} }
@@ -1467,7 +1469,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L115';
+const APP_VERSION='2026.07.10-L116';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8773,7 +8775,12 @@ function renderPlanning(){
       <div class="pc-meta">${esc(s.ref||'—')}${liv?' · livr. '+new Date(liv+'T12:00:00').toLocaleDateString('fr-FR'):''}${kind==='report'?' · <b style="color:var(--red)">prévu S'+_plnIsoWeekNum(new Date(s.plannedDate+'T12:00:00'))+' · non fait</b>':''}${h!=null?' · '+_plnH(h):''}${late&&kind==='pool'?' · <b style="color:var(--red)">⚠ urgent</b>':''}</div>
     </div>`;
   };
-  const reports=all.filter(s=>s.plannedDate&&s.plannedDate<todayIso).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
+  // [L116 · fix Esteban] « Reportés » = posé sur une semaine STRICTEMENT ANTÉRIEURE à la semaine
+  // ACTUELLE (pas « avant aujourd'hui »). Sinon poser sur un jour déjà passé de la semaine en cours
+  // (ex. mardi alors qu'on est vendredi) marquait la commande « non fait » à la seconde où on la
+  // planifiait. Bande affichée uniquement quand on regarde la semaine courante (plnWeekOffset===0).
+  const thisMondayIso=_plnIso(_plnMonday(0));
+  const reports=(plnWeekOffset===0?all.filter(s=>s.plannedDate&&s.plannedDate<thisMondayIso):[]).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
   const _poolSorters={
     recent:(a,b)=>String(b.date||'').localeCompare(String(a.date||'')),                                   // plan le plus récemment enregistré d'abord
     liv:(a,b)=>String(_plnDateLivMin(a)||'9999-99-99').localeCompare(String(_plnDateLivMin(b)||'9999-99-99')), // livraison la plus proche d'abord
