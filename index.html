@@ -121,9 +121,7 @@ button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:
 .fmm-ref-chip{font-size:12px;font-weight:800;padding:3px 9px;border-radius:6px;letter-spacing:.02em;white-space:nowrap}
 /* ORDER */
 .order-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
-.step-btn{flex:0 0 auto;min-width:44px;min-height:44px;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:20px;font-weight:800;line-height:1;cursor:pointer;-webkit-appearance:none}
-.step-btn:active{background:#333}
-body.atelier .step-btn{min-width:48px;min-height:48px;font-size:24px}
+/* [L104] .step-btn (steppers −/+ des largeurs) retirés — item L : saisie clavier directe, moins de wrap mobile */
 .tab-badge{display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;border-radius:9px;background:var(--orange);color:#1c1c1b;font-size:12px;font-weight:800;vertical-align:middle;text-align:center}
 .order-row input{flex:1;min-width:0}
 /* [L64 · Lot 6] Multi-clients : pastilles par ligne (couleur + LETTRE, lisible en N&B),
@@ -241,6 +239,8 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 .fiche-line.coupee.coupee-other{border-color:#8a2857;background:#241019;border-left-color:var(--shared)}
 /* [L62] Masquage des bobines coupées sur la fiche (moins de défilement pendant la coupe) */
 #ficheLines.hide-coupees .fiche-line.coupee:not(.flash-cut){display:none}   /* [L102 · M2-D] la carte reste visible le temps du flash de confirmation (~0,9 s) avant d'être masquée */
+/* [L105 · Phase 1 · E] chrono arrêté : indice rouge sur chaque ✂ non coupé (prévient avant le tap) */
+#ficheLines.chrono-off .fiche-line:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⏱ arrêté";color:var(--red);font-weight:800;font-size:.85em}
 .fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .fl-pos{font-size:15px;font-weight:800;color:var(--mc,var(--blue));background:rgba(255,255,255,.05);border-radius:8px;padding:6px 12px;white-space:nowrap}
 .fl-title{flex:1;font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -251,7 +251,7 @@ body.atelier .fl-badge{font-size:17px;padding:3px 10px}
 @media(max-width:480px){.fiche-grid{grid-template-columns:1fr}}
 /* [L79] Cases de conformité compactées (moins encombrantes / moins de texte sur mobile) — restent tapables (~36px) */
 .nc-checks{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
-.nc-check{display:flex;align-items:center;gap:5px;padding:7px 11px;min-height:36px;border-radius:7px;border:1px solid var(--border2);background:#1a1a18;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;user-select:none}
+.nc-check{display:flex;align-items:center;gap:5px;padding:9px 12px;min-height:44px;border-radius:7px;border:1px solid var(--border2);background:#1a1a18;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;user-select:none}   /* [L105 · Phase 1 · G] 36→44px (cible tactile gants) */
 .nc-check input{display:none}
 .nc-check.ras.sel{background:#14371f;border-color:var(--green);color:var(--green)}
 .nc-check.bad.sel{background:#3d1414;border-color:var(--red);color:var(--red)}
@@ -889,7 +889,7 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
         <div class="row2">
           <div class="field">
             <label>Nouvelle lame N°</label>
-            <input type="text" id="fLameNew" placeholder="ex : L-15" inputmode="text">
+            <input type="text" id="fLameNew" placeholder="ex : L-15" inputmode="text" onchange="lameNewRewriteWarn(this)"><!-- [L103 · audit-max] réécriture = lame intermédiaire non tracée : avertir -->
           </div>
           <div class="field">
             <label>À partir de la bobine n°</label>
@@ -1056,8 +1056,7 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
       <button class="btn btn-ghost btn-sm" onclick="addFicheLine()">+ Ligne manuelle</button>
       <!-- [L62] Bascule d'affichage : les bobines coupées disparaissent de la liste (moins de défilement) -->
       <button class="btn btn-ghost btn-sm" id="hideCoupeesBtn" onclick="toggleHideCoupees()">🙈 Masquer les coupées</button>
-      <button class="btn btn-ghost btn-sm" id="beepCoupeeBtn" onclick="toggleBeepCoupee()" title="Bip sonore à chaque bobine marquée coupée (préférence par poste)">🔕 Bip coupée : OFF</button><!-- [L102 · M2-D] -->
-      <button class="btn btn-ghost btn-sm" onclick="resetFicheBobines()">↺ Reset bobines</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetFicheBobines()">↺ Reset bobines</button><!-- [L104] bouton « Bip coupée » retiré (demande Esteban) -->
       <button class="btn btn-ghost btn-sm" id="btnDraftManual" onclick="saveDraftManual()">💾 Brouillon</button><!-- [L73 · Lot 5 · B41] id pour désactivation pendant l'écriture (anti double-tap) -->
     </div><!-- [L79] « Imprimer fiche » retiré de la barre (printFiche conservée, sans accès UI) -->
 
@@ -1414,7 +1413,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L103';
+const APP_VERSION='2026.07.10-L105';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3305,7 +3304,6 @@ function initAtelier(){
   try{ if(localStorage.getItem('step_atelier')==='0') on=false; }catch(e){}
   document.body.classList.toggle('atelier',on);
   const btn=document.getElementById('atelierBtn'); if(btn) btn.classList.toggle('on',on);
-  try{ if(typeof _syncBeepBtn==='function') _syncBeepBtn(); }catch(e){}   // [L102 · M2-D] libellé 🔔/🔕 selon la préférence du poste
 }
 // F2 — état de décalage des bannières fixes (nouvelle version / alerte lame) pour ne pas masquer la nav.
 function _syncTopBanner(){
@@ -3488,11 +3486,16 @@ function importPlanToFiche(opts){
           }
         });
         _planGroupsByLaize(c.planGroups,c.ref).forEach(g=>{   // [L80] la FICHE suit le MÊME ordre trié (grandes laizes d'abord, solde en dernier) que l'écran plan et le PDF — avant : ordre moteur brut → la numérotation BOB-xxx de la fiche ne correspondait pas au PDF imprimé
-          const chuteNote=g.chute?('✂ '+Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')+' mm pris dans chute stock (déjà en stock, ne pas découper)'):'';
+          // [L103 · audit-max] plan PHASÉ (≤4 palettes) : le reste de FIN DE PHASE est une chute
+          // RÉUTILISABLE que l'écran plan et le PDF annonçaient (« solde conservé ») mais que la
+          // fiche taisait — l'opérateur pouvait le jeter. Note sur la carte + flag pour l'étiquette solde.
+          const _phNote=g._phaseEnd?('⟲ FIN DE PHASE — reste ≈'+fmt(Math.max(0,Math.round(c.useful-calcStats(g.pattern,c.blade).total)))+' mm à CONSERVER (chute réutilisable, pas un déchet)'):'';
+          const chuteNote=[g.chute?('✂ '+Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')+' mm pris dans chute stock (déjà en stock, ne pas découper)'):'',_phNote].filter(Boolean).join(' · ');
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote});
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
+              phaseEnd:!!g._phaseEnd});
             bi++;
           }
         });
@@ -3992,12 +3995,10 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli=
   div.className='order-row';
   if(rattrapage){div.dataset.rattrapage='1';div.style.borderLeft='3px solid var(--orange)';div.style.paddingLeft='6px';}
   div.innerHTML=`<span class="order-lbl">Qté</span>
-    <input type="text" data-type="qty" placeholder="400" value="${esc(qty)}" inputmode="decimal" oninput="debouncedRecalcPlan()" style="max-width:64px;text-align:center">
+    <input type="text" data-type="qty" placeholder="400" value="${esc(qty)}" inputmode="numeric" oninput="debouncedRecalcPlan()" style="max-width:72px;text-align:center">
     <span class="order-lbl">× Larg.</span>
-    <button type="button" class="step-btn" aria-label="Diminuer la largeur" onclick="stepField(this,-1)">−</button>
-    <input type="text" data-type="width" placeholder="80" value="${esc(width)}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:64px;text-align:center">
-    <button type="button" class="step-btn" aria-label="Augmenter la largeur" onclick="stepField(this,1)">+</button>
-    <span class="order-lbl">mm</span>
+    <input type="text" data-type="width" placeholder="80" value="${esc(width)}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:80px;text-align:center">
+    <span class="order-lbl">mm</span><!-- [L104] steppers −/+ retirés (item L) : ils faisaient wrapper chaque largeur sur 3-4 lignes en mobile. Saisie clavier directe conservée ; Qté en inputmode numeric (pas de point décimal parasite) -->
     <span class="order-lbl carton-cell" style="display:none">· Carton</span>
     <input type="text" data-type="carton" placeholder="3" value="${esc(carton)}" inputmode="numeric" oninput="debouncedRecalcPlan()" class="carton-cell" style="max-width:70px;display:none">
     <span class="order-lbl mandrin-cell" style="display:none">· Mandrin</span>
@@ -4008,13 +4009,7 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli=
   return div;
 }
 // Incrémente/décrémente le champ numérique adjacent (steppers Qté/Largeur, tablette).
-function stepField(btn,delta){
-  const input = delta<0 ? btn.nextElementSibling : btn.previousElementSibling;
-  if(!input || input.tagName!=='INPUT') return;
-  const v=Math.max(0,(parseNum(input.value)||0)+delta);
-  input.value=String(v);
-  input.dispatchEvent(new Event('input',{bubbles:true}));   // déclenche recalc + autofill
-}
+// [L104] stepField supprimée avec les steppers −/+ des largeurs (item L) : saisie clavier directe.
 // Ajoute une ligne au premier bloc réf (rétro-compat appels existants).
 function addOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli='A'){
   const first=document.querySelector('.ref-block .rb-rows');
@@ -4693,6 +4688,15 @@ function applySavedRef(selectEl,savedRef,client){
 // Le bloc #1 réutilise les champs historiques ; les suivants sont des blocs "extra".
 function restoreRefGroups(arr){
   if(!arr||!arr.length) return;
+  // [L103 · audit-max] SUSPENDRE la fusion des blocs en double pendant la reconstruction :
+  // addRefBlock() déclenche recalcPlan() synchrone → mergeDuplicateRefBlocks pouvait fusionner
+  // un bloc fraîchement créé (encore vide = même clé qu'un autre) PENDANT que la boucle indexe
+  // les blocs par position → plan sauvegardé chargé partiellement. La fusion reprend après.
+  _restoringRefGroups=true;
+  try{ _restoreRefGroupsBody(arr); }finally{ _restoringRefGroups=false; }
+}
+let _restoringRefGroups=false;
+function _restoreRefGroupsBody(arr){
   const client=document.getElementById('planClient')?.value||'';
   // Réinitialise : retire les blocs extra, vide les lignes du bloc #1
   document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
@@ -5076,7 +5080,25 @@ function refStdMother(refStr){
 // bobines mères en trop. Un VRAI homonyme (film, métrage ou machine différents) n'est
 // JAMAIS fusionné : c'est une référence distincte légitime (cf. Lot 2 de l'audit).
 // ============================================================
+// [L103 · audit-max] lignes de commande SEMI-remplies : quantité sans largeur (ou l'inverse),
+// ou largeur illisible (« O80 » → parseNum 0). Ignorées par getRefGroups (qty>0&&w>0) : sans
+// signal, des pièces manquaient au plan et à l'envoi. Consommée par recalcPlan (bannière) et
+// confirmCommande (confirm bloquant).
+function _halfFilledRows(){
+  const out=[];
+  document.querySelectorAll('.order-row').forEach(r=>{
+    const qEl=r.querySelector('[data-type="qty"]'), wEl=r.querySelector('[data-type="width"]');
+    if(!qEl||!wEl) return;
+    const qs=String(qEl.value||'').trim(), ws=String(wEl.value||'').trim();
+    if(!qs&&!ws) return;                          // ligne vide : normal
+    const q=parseNum(qs), w=parseNum(ws);
+    if(q>0&&w>0) return;                          // ligne complète : ok
+    out.push({q:qs,w:ws});
+  });
+  return out;
+}
 function mergeDuplicateRefBlocks(){
+  if(_restoringRefGroups) return false;   // [L103 · audit-max] jamais pendant la reconstruction d'un plan sauvegardé (indexation par position en cours)
   const blocks=[...document.querySelectorAll('.ref-block')];
   if(blocks.length<2) return false;
   const keyOf=bl=>{
@@ -5275,17 +5297,25 @@ function recalcPlan(){
   const {totalBobines,totalMat,totalUsed,pct,chuteStockMm,
          perteMm,resteRouleauxMm,perteMereMm,pertePct,
          chutesUsedAll,chutesPieces,recutCountAll}=agg;
-  const multi=computed.length>1;
+  const _nbRefs=computed.filter(c=>(c.rows||[]).length).length;   // [L103 · audit-max] un bloc réf VIDE (+ Ajouter une référence sans rien saisir) comptait dans le chip « 🎞 N références » et déclenchait le rendu multi (bandeaux)
+  const multi=_nbRefs>1;
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
     : '';
   const perteCls=pctCls(pertePct);   // [L87 · simpl.9]
   const chutesChipLabel=Object.keys(chutesUsedAll).map(w=>chutesUsedAll[w]+'×'+fmt(Number(w))).join(' + ');
-  if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+`
+  // [L103 · audit-max] lignes SEMI-remplies (qté sans largeur, largeur illisible « O80 », valeur ≤0) :
+  // getRefGroups les ignore en silence (qty>0&&w>0) → pièces absentes du plan SANS le moindre signal
+  // (contrairement à l'oversize, banni en rouge juste au-dessus). Bannière orange + confirm à l'envoi.
+  const _halfN=(typeof _halfFilledRows==='function')?_halfFilledRows().length:0;
+  const halfBanner=_halfN
+    ? `<div style="flex-basis:100%;width:100%;background:#3d2a00;border:2px solid var(--orange);color:var(--orange);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ ${_halfN} ligne(s) de commande incomplète(s) (quantité sans largeur, ou largeur illisible) — NON comprises dans le plan. Complète ou vide ces lignes.</div>`
+    : '';
+  if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+halfBanner+`
     <div class="stat-chip">📦 <span>${totalBobines}</span> bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">⚙ <span>${planGroups.length}</span> config${planGroups.length>1?'s':''}</div>
     ${cliMulti()?`<div class="stat-chip">👥 <span>${cliIds().length}</span> clients</div>`:''}
-    ${multi?`<div class="stat-chip">🎞 <span>${computed.length}</span> références</div>`:`<div class="stat-chip">utile <span>${fmt(computed[0].useful)} mm</span></div>`}
+    ${multi?`<div class="stat-chip">🎞 <span>${_nbRefs}</span> références</div>`:`<div class="stat-chip">utile <span>${fmt((computed.find(c=>(c.rows||[]).length)||computed[0]).useful)} mm</span></div>`}
     <div class="stat-chip ${perteCls}">🗑 Perte ${multi?'globale ':''}<span>${fmt(perteMereMm)} mm · ${pertePct.toFixed(1)}%</span></div>
     ${resteRouleauxMm>0?`<div class="stat-chip" style="border-color:#115e52;background:#06231c">♻ Reste rouleaux <span style="color:#5eead4">${fmt(resteRouleauxMm)} mm</span></div>`:''}
     <div class="stat-chip pct-green">✂ Chute stock <span>${fmt(chuteStockMm)} mm</span></div>
@@ -5570,14 +5600,19 @@ function renderPlanManual(){
       const used=calcStats(parseConf(b.conf),r.blade).total;
       const waste=r.useful-used;
       const over=used>r.useful+0.01;
-      html+=`<div class="bobine-card bobine-card-edit" style="${over?'border-color:var(--red)':''}">
+      // [L103 · audit-max] conf AMBIGUË dans l'éditeur manuel (« 2×80,3×60 » → lu 2×80.3, « ×60 » jeté ;
+      // « 5×80 3×60 » → 5×80 seul) : parseConf ne lit qu'UNE occurrence par segment — la garde
+      // _confIllisible (L99) n'était consultée qu'au recalcul de fiche, jamais ici. Signal rouge
+      // sur la carte (le badge ⚠ plan ≠ commande signalait déjà l'écart de couverture, sans dire où).
+      const _ill=(String(b.conf||'').trim())?_confIllisible(b.conf,0,0):'';
+      html+=`<div class="bobine-card bobine-card-edit" style="${(over||_ill)?'border-color:var(--red)':''}">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input type="number" min="1" data-mri="${ri}" data-mbi="${bi}" data-mf="count" value="${Math.max(1,parseInt(b.count)||1)}" onchange="updateManualBobine(${ri},${bi},'count',this.value)" style="width:64px" title="Nb de bobines">
           <span style="color:var(--muted)">×</span>
           <input type="text" data-mri="${ri}" data-mbi="${bi}" data-mf="conf" value="${esc(b.conf)}" onchange="updateManualBobine(${ri},${bi},'conf',this.value)" placeholder="4×100 + 2×120" style="flex:1;min-width:160px" title="Configuration (laizes)">
           <button onclick="removeManualBobine(${ri},${bi})" title="Supprimer cette bobine" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:15px">🗑</button>
         </div>
-        <div class="card-sub" style="margin-top:5px">${fmt(used)} / ${fmt(r.useful)} mm · ${over?'<span style="color:var(--red);font-weight:700">⛔ dépasse la laize utile</span>':(waste<r.useful*0.03?'<span class="badge badge-green">':'<span class="badge badge-orange">')+fmt(waste)+' mm chute</span>'}</div>
+        <div class="card-sub" style="margin-top:5px">${_ill?`<span style="color:var(--red);font-weight:700">⛔ config illisible (${esc(_ill)}) — sépare les blocs avec « + »</span> · `:''}${fmt(used)} / ${fmt(r.useful)} mm · ${over?'<span style="color:var(--red);font-weight:700">⛔ dépasse la laize utile</span>':(waste<r.useful*0.03?'<span class="badge badge-green">':'<span class="badge badge-orange">')+fmt(waste)+' mm chute</span>'}</div>
       </div>`;
     });
     html+=`<button class="btn btn-ghost btn-sm" style="margin:4px 0 10px" onclick="addManualBobine(${ri})">+ Ajouter une bobine${multi?' à cette réf':''}</button>`;
@@ -5981,8 +6016,23 @@ function getEtiquetteSoldeList(){
     const refsSeen=[];
     ficheLines.forEach(l=>{const r=l.ref||'';if(!refsSeen.includes(r))refsSeen.push(r);});
     const multi=refsSeen.filter(r=>r).length>1;
+    // [L103 · audit-max] FINS DE PHASE (plan phasé ≤4 palettes) : leur reste est une chute à
+    // CONSERVER — écran plan et PDF l'annonçaient (« solde conservé ») mais aucune étiquette
+    // solde n'était proposée. Une étiquette par bobine fin-de-phase, en plus du solde final.
+    const _phaseEtiq=(lines)=>{
+      const out=[];
+      lines.forEach((l)=>{
+        if(!l.phaseEnd) return;
+        const u=l.useful>0?l.useful:getUseful(); const b=l.blade>0?l.blade:getBlade();
+        if(u<=0) return;
+        const pp=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
+        if(!pp.length) return;
+        out.push({key:'p_'+l.id,mn,ref:(l.ref||'—')+' ⟲ fin de phase',solde:fmt(u-calcStats(pp,b).total),date:today()});
+      });
+      return out;
+    };
     if(multi){
-      // Une étiquette par réf : dernière bobine de chaque réf.
+      // Une étiquette par réf : dernière bobine de chaque réf (+ fins de phase [L103]).
       const out=[];
       refsSeen.forEach((r,idx)=>{
         const lines=ficheLines.filter(l=>(l.ref||'')===r);
@@ -5990,6 +6040,7 @@ function getEtiquetteSoldeList(){
         const last=lines[lines.length-1];
         const useful=last.useful>0?last.useful:getUseful();
         const blade=last.blade>0?last.blade:getBlade();
+        out.push(..._phaseEtiq(lines.filter(l=>l!==last)));
         if(useful<=0) return;
         const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
         if(!p.length) return;
@@ -5998,16 +6049,17 @@ function getEtiquetteSoldeList(){
       });
       return out;
     }
-    // Mono-réf (fiche remplie) : dernière bobine globale.
+    // Mono-réf (fiche remplie) : dernière bobine globale (+ fins de phase [L103]).
     const last=ficheLines[ficheLines.length-1];
     let useful=last.useful>0?last.useful:getUseful();
     let blade=last.blade>0?last.blade:getBlade();
     let ref=last.ref||document.getElementById('fRef')?.value||document.getElementById('planRef')?.value||'';
-    if(useful<=0) return [];
+    const _outMono=_phaseEtiq(ficheLines.filter(l=>l!==last));
+    if(useful<=0) return _outMono;
     const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
-    if(!p.length) return [];
+    if(!p.length) return _outMono;
     const solde=useful-calcStats(p,blade).total;
-    return [{key:'r0',mn,ref,solde:fmt(solde),date:today()}];
+    return _outMono.concat([{key:'r0',mn,ref,solde:fmt(solde),date:today()}]);
   }
   // --- Cas fiche vide : repli sur la commande (mono-réf seulement) ---
   const useful=getUseful(),blade=getBlade();
@@ -6373,6 +6425,8 @@ function _newCmdClearLiveFiche(){
   // l'écrasait définitivement (perte de fiche silencieuse). Le brouillon parqué a déjà
   // sérialisé SES ids AVANT ce clear (newCmdPark → saveDraftManual) : son renvoi reste idempotent.
   _pendingFicheId=null; _pendingTempsId=null; _autosaveLastSig='';
+  _resumedForeignDraftId=null;   // [L103 · audit-max] idem resetAll : passation abandonnée
+  _localCopyFromShare=null; try{ renderSharedViewBar(); }catch(e){}   // [L103 · audit-max] fiche vidée : le bandeau « copie d'un partage terminé » ne concerne plus rien
   try{ chronoReset(true); }catch(e){ console.warn('chronoReset:',e); }   // [L79] reset forcé (nouvelle commande)
 }
 async function newCmdPark(){
@@ -6650,6 +6704,7 @@ function chronoReset(force){
   document.getElementById('chronoStatus').textContent='Prêt — appuie sur Démarrer quand tu commences la commande';
   stopAutosave();
   persistChronoLive();
+  if(force){ try{ localStorage.removeItem(CHRONO_LS_KEY); _wroteChronoLive=false; }catch(e){} }   // [L103 · audit-max] frontière de commande (envoi / nouveau plan / reset site) : purge INCONDITIONNELLE — une clé périmée d'une session plantée ne doit jamais ressusciter (L79)
   releaseWakeLock();
   try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B]
 }
@@ -6722,11 +6777,24 @@ function chronoCatchUp(){ if(chronoRunning) chronoTick(); }
 // pour qu'elle ne soit JAMAIS perdue, même si le téléphone tue l'onglet pendant la
 // veille — et on garde l'écran allumé via Wake Lock tant que le chrono tourne.
 const CHRONO_LS_KEY='step_chrono_live';
+let _wroteChronoLive=false;   // [L103 · audit-max] CET onglet a-t-il écrit la clé live ? (2 onglets même tablette)
 function persistChronoLive(){
   try{
     if(chronoRunning && chronoRunStart!=null){
       localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||''}));
-    }else{ localStorage.removeItem(CHRONO_LS_KEY); }
+      _wroteChronoLive=true;
+    }else{
+      // [L103 · audit-max] 2 onglets sur la même tablette : l'onglet au chrono ARRÊTÉ effaçait
+      // (visibilitychange/pagehide) la sauvegarde live du chrono qui TOURNE dans l'autre onglet
+      // → crash pendant la veille = temps perdu. On n'efface que si CET onglet a écrit la clé,
+      // ou si l'entrée correspond à NOTRE chrono (même startTs). Les resets forcés aux frontières
+      // de commande purgent toujours, inconditionnellement (chronoReset(force)).
+      if(_wroteChronoLive){ localStorage.removeItem(CHRONO_LS_KEY); _wroteChronoLive=false; }
+      else{
+        const _cur=JSON.parse(localStorage.getItem(CHRONO_LS_KEY)||'null');
+        if(_cur&&chronoStartTs&&_cur.startTs===chronoStartTs) localStorage.removeItem(CHRONO_LS_KEY);
+      }
+    }
   }catch(e){}
 }
 function readChronoLive(){ try{ return JSON.parse(localStorage.getItem(CHRONO_LS_KEY)||'null'); }catch(e){ return null; } }
@@ -6804,12 +6872,30 @@ async function stopManqueMatiere(){
   if(reste>0){
     try{
       const st=serializeFicheState();
+      const _allLines=(st.lines||[]).slice();   // [L103 · audit-max] positions ORIGINALES + flags coupée (pour remapper les bascules ci-dessous)
       st.lines=(st.lines||[]).filter(l=>!l.coupee).map(l=>Object.assign({},l,{
         coupee:false, devi:false, droit:false, conforme:false, test2nc:false,
         ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false,
         ncDetail:'', photo:'', actDechet:false, actChutes:false, actAccept:false
       }));
       st.chrono={sec:0, startTs:null, wasRunning:false, runStart:null};
+      // [L103 · audit-max] les bascules « dès la bobine N » (lame / machine / op.2) sont des
+      // POSITIONS de la fiche COMPLÈTE — le solde ne garde que les non-coupées, renumérotées :
+      // le solde repartait avec l'ANCIENNE lame/machine en tête et une bascule au mauvais rang.
+      // Bascule déjà EFFECTIVE (toutes les bobines d'avant coupées) → appliquée (lame=lameNew,
+      // machine=machChgTo) et créneau vidé ; sinon → position remappée (N − coupées d'avant).
+      try{
+        const _cb=v=>{ const n=parseInt(v,10)||0; if(!n) return null;
+          return {n, cb:_allLines.slice(0,n-1).filter(l=>l&&l.coupee).length}; };
+        const F=st.fiche||{};
+        if(F.lameChg){ const r=_cb(F.lameChgBob);
+          if(r){ if(r.cb>=r.n-1){ if(F.lameNew&&F.lameNew!=='—') F.lame=F.lameNew; F.lameChg=false; F.lameNew=''; F.lameChgBob=''; }
+                 else F.lameChgBob=String(r.n-r.cb); } }
+        if(F.machChg){ const r=_cb(F.machChgBob);
+          if(r){ if(r.cb>=r.n-1){ if(F.machChgTo) F.machine=F.machChgTo; F.machChg=false; F.machChgTo=''; F.machChgBob=''; }
+                 else F.machChgBob=String(r.n-r.cb); } }
+        if(F.op2Active&&F.op2Bob){ const r=_cb(F.op2Bob); if(r) F.op2Bob=String(Math.max(1,r.n-r.cb)); }
+      }catch(e){ console.warn('Remap bascules solde:',e); }
       // [L68 · Audit B25] le solde est une NOUVELLE fiche : sans cette purge, il héritait
       // de _pendingFicheId → son envoi ÉCRASAIT la fiche manque-matière déjà archivée
       // (production des bobines coupées perdue). Le plan source est déjà consommé → null.
@@ -6904,6 +6990,8 @@ function confirmCommandeRecap(){
   // fiche partait avec « dès la bobine ? » et l'analyse NC-par-lame devenait fausse.
   if(document.getElementById('fLameChg')?.checked&&!(document.getElementById('fLameChgBob')?.value)){
     showToast('⚠ « Lame changée » est coché : choisis « À partir de la bobine n° » avant de confirmer.','err'); return; }
+  if(document.getElementById('fLameChg')?.checked&&!((document.getElementById('fLameNew')?.value||'').trim())){
+    showToast('⚠ « Lame changée » est coché : saisis le n° de la NOUVELLE lame avant de confirmer.','err'); return; }   // [L103 · audit-max] symétrique de la garde machine — la fiche partait avec lameNew « — » (analyse NC-par-lame faussée)
   if(document.getElementById('fOp2Active')?.checked&&!(document.getElementById('fOp2Bobine')?.value)){
     showToast('⚠ Opérateur 2 activé : choisis sa bobine de reprise avant de confirmer.','err'); return; }
   if(document.getElementById('fMachChg')?.checked&&!(document.getElementById('fMachChgTo')?.value&&document.getElementById('fMachChgBob')?.value)){
@@ -6952,6 +7040,11 @@ async function confirmCommande(){
   const multi=computed.length>1;
   const rows=multi?[].concat(...computed.map(c=>c.rows)):getOrderRows();
   if(!rows.length){showToast('Aucune commande à confirmer.','err');return;}
+  // [L103 · audit-max] lignes semi-remplies : jamais dans le plan → confirm EXPLICITE avant
+  // d'envoyer une commande qui ne couvre pas ce que l'opérateur croyait avoir saisi.
+  { const _half=(typeof _halfFilledRows==='function')?_halfFilledRows():[];
+    if(_half.length&&typeof confirm==='function'
+       &&!confirm('⚠ '+_half.length+' ligne(s) de commande INCOMPLÈTE(S) — quantité sans largeur, ou largeur illisible ('+_half.map(h=>(h.q||'?')+'×'+(h.w||'?')).slice(0,4).join(' · ')+').\n\nElles ne sont PAS dans le plan et ne seront PAS coupées.\n\nEnvoyer quand même ?')) return; }
   // Garde-fous quantités aberrantes (zéro en trop, etc.)
   if(getRefGroups().some(g=>(g.rows||[]).some(r=>r.qty>5000))){
     showToast('⛔ Envoi bloqué : une ligne dépasse 5 000 pièces.\n\nVérifie la saisie (zéro en trop ?).','err');
@@ -7343,8 +7436,13 @@ function recalcEcartsFromFiche(opts){
         const bobines=pack(rr.remaining,pu,pb);
         // [L92 · Audit #6] le reliquat suit la MÊME contrainte ≤4 palettes que le plan initial :
         // les bobines déjà coupées (figées) comptent comme palettes déjà ouvertes (préfixe).
+        // [L103 · audit-max] + les ROULEAUX CHUTE régénérés ci-dessus (coupés en 1er, leurs laizes
+        // ouvrent des palettes) — ils étaient omis du préfixe, le pic réel pouvait dépasser 4.
         const _frozenPref=frozenMetas.filter(fl=>lineKey(fl)===k).map(fl=>({pattern:parseConf(document.getElementById('flConf_'+fl.id)?.value||'')})).filter(p=>p.pattern.length);
-        const groups=_seqMinPalettes(groupBobines(bobines,pb),_frozenPref).order;
+        const _rollPref=groupRecutRolls(rr.rolls).map(g=>({pattern:g.pattern}));
+        const _ord=_seqMinPalettes(groupBobines(bobines,pb),_frozenPref.concat(_rollPref));
+        const groups=_ord.order;
+        if(_ord.peak>PALETTES_MAX) recap.push('⚠ '+(multi?('Réf '+(c.ref||'#'+(ci+1))+' : '):'')+'le reste ouvre jusqu\'à '+_ord.peak+' palettes en même temps (>4) — bobines figées + rouleaux imposent cet ordre.');   // [L103 · audit-max] pic >4 signalé au lieu de silencieux
         groups.forEach(g=>{
           waste+=(pu-calcStats(g.pattern,pb).total)*g.count;
           for(let n=0;n<g.count;n++){
@@ -7658,7 +7756,16 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       // Détection lame : si le n° lame de la fiche diffère de la lame courante
       // de la machine, propose la pose. Sur changement de lame en cours de
       // commande, c'est la NOUVELLE lame (lameNew) qui devient courante.
-      try{ await lameDetectOnFiche(ficheMachine,(lameChg&&lameNew&&lameNew!=='—')?lameNew:lame); }
+      // [L103 · audit-max] machine CIBLE : un changement de lame DANS la plage op.2 (autre
+      // machine) ou APRÈS une bascule machine op.1 concerne l'AUTRE machine — la pose était
+      // proposée sur ficheMachine à tort (registre lame faussé, lame fantôme sur l'op.1).
+      let _lameMach=ficheMachine;
+      try{
+        const _lcb=parseInt(lameChgBob,10)||0, _o2b=parseInt(op2Bob,10)||0, _mcb=machChg?(parseInt(machChg.bob,10)||0):0;
+        if(lameChg&&_lcb&&op2Diff&&_o2b&&_lcb>=_o2b&&ficheMachine2) _lameMach=ficheMachine2;
+        else if(lameChg&&_lcb&&machChg&&_mcb&&_lcb>=_mcb&&MACHINE_KEYS.includes(String(machChg.to||'').toLowerCase())) _lameMach=String(machChg.to).toLowerCase();
+      }catch(e){}
+      try{ await lameDetectOnFiche(_lameMach,(lameChg&&lameNew&&lameNew!=='—')?lameNew:lame); }
       catch(e){ console.warn('Détection lame:',e); }
       chronoReset(true);      // [L79] reset forcé (envoi) — pas de confirm, purge la clé live
       clearCurrentDraft(ficheRef.id);    // …puis purge FIABLE des brouillons AUTO (delete attendu, repli consumed) — DRAFT-4
@@ -7762,6 +7869,7 @@ function resetSiteConfirm(){
 }
 function resetAll(){
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
+  _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
   // [L67 · Audit] « Nouveau plan » clôt le partage émetteur : sans ça, la commande SUIVANTE
   // était poussée aux collègues sous l'ancien partage (10 s) → découpe d'une commande fantôme.
   try{ shareEndAfterSend(); }catch(e){}
@@ -7873,7 +7981,7 @@ function getFicheLinesData(){
       conf:get('flConf')?.value||'',
       ref:L.ref||'', refIdKey:L.refIdKey||null, useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',
       origConf:(L.origConf!==undefined?L.origConf:undefined), rattrapage:L.rattrapage||undefined, autoLabel:String(L.label||''),   // [L97 · relecture #19] le gel « conf modifiée » et le flag rattrapage survivent au brouillon/partage — [L102 · BUG L97] la clé meta s'appelait « label » : DOUBLON avec l'étiquette saisie (ligne du dessus), la dernière gagnait → l'archive/PDF/brouillon portaient l'étiquette AUTO au lieu du vrai n° de bobine tapé par l'opérateur, et le retour de brouillon dé-gelait la ligne. Clé renommée autoLabel, toujours émise (même vide : le gel d'une ligne manuelle survit aussi au round-trip).
-      recut:L.recut||false, rollW:L.rollW||0,
+      recut:L.recut||false, rollW:L.rollW||0, phaseEnd:L.phaseEnd||undefined,   // [L103 · audit-max]
       cliParts:(Array.isArray(L.cliParts)&&L.cliParts.length)?L.cliParts:undefined,   // [L71 · Audit B14] snapshot figé (undefined = retiré au JSON)
       devi:get('flDevi')?.checked||false,
       droit:get('flDroit')?.checked||false,
@@ -12911,7 +13019,17 @@ function fillBobineSelect(id){
   const sel=document.getElementById(id);
   if(!sel) return;
   const cur=sel.value;
+  // [L103 · audit-max] resélection par IDENTITÉ (data-lid), plus par position : supprimer une
+  // bobine AVANT la visée décalait le select d'un cran EN SILENCE (position 6 conservée mais
+  // bobine physique changée) — lame/op.2/machine basculaient sur la mauvaise bobine.
+  const curLid=(cur&&sel.selectedOptions&&sel.selectedOptions[0]&&sel.selectedOptions[0].dataset)?(sel.selectedOptions[0].dataset.lid||null):null;
   sel.innerHTML=buildFicheBobineOptions();
+  if(curLid){
+    const hit=[...sel.options].find(o=>o.dataset&&o.dataset.lid===curLid);
+    sel.value=hit?hit.value:'';
+    if(!hit){ try{ showToast('⚠ Re-choisis la bobine '+_bobSelLabel(id)+' : la bobine visée n\'existe plus.','err'); }catch(e){} }
+    return;
+  }
   if(cur) sel.value=cur;
   // [L70 · Audit B20] la position sélectionnée n'existe plus (bobine supprimée) :
   // prévenir au lieu d'effacer en silence — sinon la fiche part avec « dès la bobine ? »
@@ -12945,6 +13063,19 @@ function toggleLameChg(){
   const on=document.getElementById('fLameChg').checked;
   document.getElementById('lameChgZone').classList.toggle('hidden',!on);
   if(on) refreshOp2BobineList();
+}
+// [L103 · audit-max] une lame changée DEUX fois dans la même commande n'est pas représentable
+// (modèle mono-créneau) : la 2ᵉ saisie écrase la 1ʳᵉ — la lame intermédiaire disparaît de la
+// traçabilité SANS avertissement. On prévient et on oriente vers le registre (pose manuelle).
+function lameNewRewriteWarn(el){
+  try{
+    const prev=(el.dataset.prevLame||'').trim();
+    const cur=(el.value||'').trim();
+    if(prev&&cur&&prev!==cur){
+      showToast('⚠ Lame « '+prev+' » remplacée par « '+cur+' » : une seule bascule est tracée par commande.\n\nSi la lame '+prev+' a réellement coupé des bobines, enregistre sa pose au registre (🔧 Lame / Machine) pour la traçabilité.','err');
+    }
+    el.dataset.prevLame=cur;
+  }catch(e){}
 }
 // ============================================================
 // [L65] CHANGEMENT DE MACHINE OP.1 EN COURS DE COMMANDE — miroir du pattern lame.
@@ -13018,7 +13149,8 @@ function addFicheLine(data){
     cliParts:(Array.isArray(data.cliParts)&&data.cliParts.length)?data.cliParts.slice():null,
     // Marqueur bobine ROULEAU CHUTE : permet au ♻ Recalculer de savoir quels
     // rouleaux saisis sont déjà consommés par des bobines figées (coupées).
-    recut:!!data.recut, rollW:data.rollW||0});
+    recut:!!data.recut, rollW:data.rollW||0,
+    phaseEnd:!!data.phaseEnd});   // [L103 · audit-max] fin de phase (plan phasé ≤4 palettes) : reste à CONSERVER — porté par la ligne pour l'étiquette solde
   const div=document.createElement('div');
   div.className='fiche-line'+machineCls(data.machine);div.id=id;
   if(data.rattrapage){ div.style.borderColor='#caa15a'; div.style.background='rgba(245,158,11,0.05)'; }
@@ -13071,14 +13203,14 @@ function addFicheLine(data){
       </div>
       <div class="field">
         <label>Non-conformité</label>
-        <div class="nc-checks">
+        <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts (1 ligne mobile), ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
           <label class="nc-check ras sel" id="nc_ras_${id}"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ RAS</label>
-          <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Largeur</label>
-          <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Quantité</label>
-          <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
           <label class="nc-check bad" id="nc_ang_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Angle</label>
+          <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
+          <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
+          <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Qté</label>
         </div>
-        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" style="margin-top:8px"></textarea>
+        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci -->
       </div>
       <div class="field">
         <label>Photo bobine</label>
@@ -13162,33 +13294,14 @@ function resetFicheBobines(){
   updateAllCumuls();   // [L97 · relecture #20] compteurs clients recalculés sans les snapshots purgés
   updateCoupeeStatus();
 }
-// [L102 · Design M2-D] Confirmation FORTE au ✂ : flash vert bref sur la carte
-// + vibration (navigator.vibrate — absent sur iOS : silencieux) + bip optionnel
-// togglable (🔔 #beepCoupeeBtn, préférence par poste). L'opérateur sait que le
-// marquage est enregistré sans regarder l'écran. Pur affichage, zéro métier.
-let _audioCtxCut=null;
-function _beepCutOn(){ try{ return localStorage.getItem('step_beep_coupee')==='1'; }catch(e){ return false; } }
-function _syncBeepBtn(){ const b=document.getElementById('beepCoupeeBtn'); if(b) b.textContent=_beepCutOn()?'🔔 Bip coupée : ON':'🔕 Bip coupée : OFF'; }
-function toggleBeepCoupee(){
-  const on=!_beepCutOn();
-  try{ localStorage.setItem('step_beep_coupee',on?'1':'0'); }catch(e){}
-  _syncBeepBtn();
-  if(on) _playCutBeep();   // aperçu immédiat — et l'AudioContext se déverrouille DANS le geste utilisateur (règle autoplay iOS)
-}
-function _playCutBeep(){
-  try{
-    _audioCtxCut=_audioCtxCut||new (window.AudioContext||window.webkitAudioContext)();
-    if(_audioCtxCut.state==='suspended') _audioCtxCut.resume();
-    const t=_audioCtxCut.currentTime, o=_audioCtxCut.createOscillator(), g=_audioCtxCut.createGain();
-    o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(_audioCtxCut.destination);
-    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.2,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
-    o.start(t); o.stop(t+0.3);
-  }catch(e){}
-}
+// [L102 · Design M2-D] Confirmation FORTE au ✂ : flash vert bref sur la carte +
+// vibration (navigator.vibrate — absent sur iOS : silencieux). L'opérateur sait que
+// le marquage est enregistré sans regarder l'écran. Pur affichage, zéro métier.
+// [L104 · Esteban] Le bip sonore optionnel a été RETIRÉ (bouton « 🔕 Bip coupée » jugé
+// inutile en atelier). On garde flash + vibration.
 function _cutFeedback(line){
   try{ line.classList.remove('flash-cut'); void line.offsetWidth; line.classList.add('flash-cut'); setTimeout(function(){ line.classList.remove('flash-cut'); },900); }catch(e){}
   try{ if(navigator.vibrate) navigator.vibrate(120); }catch(e){}
-  if(_beepCutOn()) _playCutBeep();
 }
 // [L73 · Lot 5 · B40] anti-rebond ✂ : instant du dernier MARQUAGE (tous boutons confondus).
 // Couvre aussi le double-tap dont le 2e tap atterrit sur la bobine SUIVANTE remontée
@@ -13357,6 +13470,10 @@ function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.get
 function updateNextAction(){
   try{
     document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
+    // [L105 · Phase 1 · E] état chrono visible SUR le bouton ✂ : quand le chrono est arrêté,
+    // chaque ✂ non coupé affiche « · ⏱ arrêté » en rouge (CSS ::after) → l'opérateur voit
+    // AVANT de taper qu'il faut démarrer le chrono (avant : simple toast, chrono hors écran).
+    document.getElementById('ficheLines')?.classList.toggle('chrono-off',!chronoRunning);
     const total=ficheLines.length;
     const done=total?countCoupees():0;
     let mode='none';
@@ -14006,6 +14123,7 @@ function _shareCloneForReceiver(state){
   const st=JSON.parse(JSON.stringify(state||{}));
   st.chrono={sec:0,startTs:null,wasRunning:false,runStart:null};
   st.pendingFicheId=null; st.pendingTempsId=null;
+  st.loadedSaveId=null;   // [L104 · Phase 2 · U] le destinataire ne doit pas hériter du plan sauvegardé chargé par l'ÉMETTEUR : sinon, après « Quitter la vue » (copie locale renvoyable), son envoi archiverait (soft-delete) le plan de l'émetteur — un plan qu'il n'a pas produit.
   return st;
 }
 function openSharedCommand(id){
@@ -14324,6 +14442,7 @@ function _deviceId(){
 }
 function autosaveId(){ return 'd_autosave_'+_uid()+'_'+_deviceId(); }
 function planAutosaveId(){ return 'd_autosave_plan_'+_uid()+'_'+_deviceId(); }
+let _resumedForeignDraftId=null;   // [L103 · audit-max] brouillon AUTO d'un autre poste repris ici (passation) — purgé à l'envoi réussi (clearCurrentDraft)
 // [L73 · Lot 5 · B38] borne TOTALE ~900 Ko (marge sous la limite dure Firestore 1 Mo/doc).
 // Le strip unitaire (>10k par string) laisse passer une SOMME de petites images data:
 // qui peut dépasser 1 Mo → écriture rejetée à CHAQUE renvoi (échec définitif, pas réseau).
@@ -14468,6 +14587,7 @@ async function clearCurrentDraft(ficheId){
   // attendant le résultat ; en cas d'échec on marque {consumed:true, ficheId} — ces
   // brouillons sont filtrés au rendu et refusés à la reprise.
   const ids=[autosaveId(), planAutosaveId()];
+  if(_resumedForeignDraftId){ ids.push(_resumedForeignDraftId); _resumedForeignDraftId=null; }   // [L103 · audit-max] passation : le brouillon auto du poste précédent est consommé par CET envoi
   // 1) local : ne plus proposer ces brouillons immédiatement
   brouillonsCache=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>ids.indexOf(d.id)<0);
   try{ _planAutosaveLast=JSON.stringify(serializeFicheState().plan); }catch(e){ _planAutosaveLast=''; }   // [L97 · relecture #22] baseline = état COURANT : '' faisait l'INVERSE (le tick suivant recréait le brouillon de la commande qui vient d'être envoyée)
@@ -14883,7 +15003,15 @@ function resumeDraft(id){
   // l'écrasait (chrono compris) et l'autosave 15 s détruisait ensuite sa sauvegarde.
   if(typeof isFicheUntouched==='function'&&!isFicheUntouched()
      &&!confirm('⚠ Une commande est EN COURS à l\'écran (bobines/chrono).\n\nLa remplacer par ce brouillon ? Sa saisie actuelle sera perdue.')) return;
+  // [L103 · audit-max] PASSATION inter-postes : reprise du brouillon AUTO d'un AUTRE poste
+  // (tablette A éteinte, poste B termine et envoie). Le brouillon de A n'était jamais purgé
+  // après l'envoi de B → il restait proposé sur A au redémarrage (double découpe possible).
+  // On mémorise son id : l'envoi réussi le purgera/consommera (clearCurrentDraft), comme les
+  // brouillons auto du poste courant. Un abandon (reset/parcage) annule le marquage.
+  // [L104 · Phase 2 · T] posé APRÈS restoreFicheState (qui remet désormais le marqueur à null).
+  const _foreignId=(/^d_autosave_/.test(String(id))&&id!==autosaveId()&&id!==planAutosaveId())?id:null;
   restoreFicheState(d.state);
+  _resumedForeignDraftId=_foreignId;
   // [L103 · audit-max] flux L67 « reprends ta commande (brouillon) » : la reprise CONSCIENTE
   // de la commande partagée libère le gel post-reload. L'ancienne libération exigeait une
   // égalité BYTE-IDENTIQUE écran↔doc partagé qui ne se produisait presque jamais (autosave
@@ -14910,6 +15038,7 @@ function restoreFicheLineFromData(ld){
   addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',refIdKey:ld.refIdKey||null,useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',
     origConf:(ld.origConf!==undefined?ld.origConf:undefined), rattrapage:!!ld.rattrapage,   // [L97 · relecture #19]
     autoLabel:(ld.autoLabel!==undefined?ld.autoLabel:undefined),   // [L102 · BUG L97] étiquette AUTO (meta du gel) restaurée séparément de la saisie
+    phaseEnd:!!ld.phaseEnd,   // [L103 · audit-max] fin de phase restaurée (étiquette solde)
     cliParts:Array.isArray(ld.cliParts)?ld.cliParts:null,   // [L71 · Audit B14] snapshot figé restauré (brouillon/partage)
     recut:!!ld.recut, rollW:ld.rollW||0,
     // La note turquoise des bobines rouleau est reconstruite (déterministe depuis rollW).
@@ -14935,6 +15064,19 @@ function restoreFicheLineFromData(ld){
 }
 function restoreFicheState(st){
   if(!st) return;
+  // [L103 · audit-max] l'écran est intégralement REMPLACÉ : le drapeau « copie locale d'un
+  // partage terminé » (bandeau orange + confirm anti-doublon à l'envoi) ne concerne plus ce
+  // contenu — il survivait à la reprise d'un brouillon SANS RAPPORT et bloquait/inquiétait
+  // à tort. Les flux partage le reposent après coup s'il y a lieu (leaveSharedView/_sharedViewEnded).
+  _localCopyFromShare=null;
+  try{ renderSharedViewBar(); }catch(e){}
+  // [L104 · Phase 2 · T] l'écran est REMPLACÉ : le marquage « passation » (brouillon auto d'un
+  // AUTRE poste à consommer à l'envoi) ne concerne plus ce nouveau contenu. resetAll et le
+  // clear-fiche le faisaient déjà, mais les chemins qui passent par restoreFicheState SANS
+  // eux (openSharedCommand, syncSharedView, maybeResumeRunningChrono, maybeResumePlan,
+  // resumeLastCommand) le laissaient posé → clearCurrentDraft consommait à l'envoi le
+  // brouillon d'un poste sans rapport. resumeDraft le RE-pose juste après cet appel.
+  _resumedForeignDraftId=null;
   // ENVOI-1 : reprendre l'id réservé du brouillon → un renvoi écrira sur le MÊME doc
   // (idempotent, pas de doublon). null si le brouillon est antérieur à ce mécanisme.
   _pendingFicheId=st.pendingFicheId||null;
