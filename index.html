@@ -1467,7 +1467,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L113';
+const APP_VERSION='2026.07.10-L114';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5189,9 +5189,12 @@ function mergeDuplicateRefBlocks(){
       if(bl===target) return;
       const rowsT=target.querySelector('.rb-rows');
       bl.querySelectorAll('.rb-rows .order-row').forEach(row=>{
-        const q=parseNum(row.querySelector('[data-type="qty"]')?.value);
-        const w=parseNum(row.querySelector('[data-type="width"]')?.value);
-        if((q>0||w>0)&&rowsT) rowsT.appendChild(row);     // déplacée avec ses valeurs (client compris) — [L103 · audit-max] une ligne PARTIELLE (qté tapée sans largeur, ou l'inverse) était DÉTRUITE avec le bloc source : toute ligne non vide est déplacée
+        // [L113 · audit U14] garder toute ligne dont un champ TEXTE est non vide (pas seulement
+        // parse>0) : une double faute de frappe (« O5 » / « O80 », lettre O) donnait q=w=0 → la
+        // ligne (signalée par la bannière) était DÉTRUITE au recalcul avec le bloc source.
+        const qT=(row.querySelector('[data-type="qty"]')?.value||'').trim();
+        const wT=(row.querySelector('[data-type="width"]')?.value||'').trim();
+        if((qT!==''||wT!=='')&&rowsT) rowsT.appendChild(row);     // déplacée avec ses valeurs (client compris)
       });
       const chT=target.querySelector('.rb-chutes');
       bl.querySelectorAll('.rb-chutes .rb-chute-row').forEach(r=>{ if(chT) chT.appendChild(r); });
@@ -13084,16 +13087,27 @@ function fmmGenOrder(computed){
 }
 // Déplace une réf dans l'ordre de coupe (▲ dir=-1 / ▼ dir=+1).
 function fmmMoveRef(idx,dir){
+  // [L113 · audit U11] partage actif : refuser AVANT toute mutation de ficheRefOrder — sinon
+  // l'ordre était échangé PUIS importPlanToFiche refusait (garde L103) → ordre affiché/poussé
+  // aux miroirs incohérent avec les bobines.
+  if(typeof _shareCurrentDocId==='function' && _shareCurrentDocId()){
+    showToast('🔒 Commande PARTAGÉE : arrête le partage avant de changer l\'ordre de découpe.','err');
+    return;
+  }
   // [L106 · Phase 3 · X] ORDRE DE DÉCOUPE FIGÉ dès qu'une production est engagée : avant,
   // ▲▼ changeait ficheRefOrder même avec des bobines coupées — l'ordre mémorisé basculait
   // et le PROCHAIN recalcul (fmmGenOrder) régénérait les bobines dans le nouvel ordre
   // (« celle du haut passe en bas ») en pleine découpe. Garde côté UI, moteur intouché :
   // no-op + toast. isFicheUntouched = la notion existante de « production engagée »
-  // (coupée / NC / photo / test 2ᵉ / action / étiquette éditée / conf modifiée).
+  // (coupée / NC / photo / test 2ᵉ / action).
   if(typeof isFicheUntouched==='function' && !isFicheUntouched()){
-    showToast('🔒 Ordre de découpe FIGÉ : une bobine est déjà engagée (coupée, NC, photo ou étiquette saisie).\n\nTermine la commande — ou repars d\'une fiche neuve pour changer l\'ordre.','err');
+    showToast('🔒 Ordre de découpe FIGÉ : une bobine est déjà engagée (coupée, NC, photo ou test 2ᵉ).\n\nTermine la commande — ou repars d\'une fiche neuve pour changer l\'ordre.','err');
     return;
   }
+  // [L113 · audit U12] isFicheUntouched ne voit NI étiquette tapée NI conf éditée, mais régénérer
+  // les EFFACE. Si des n° de bobine mère ont été saisis, confirmer avant de perdre la saisie.
+  const _typed=ficheLines.some(({id})=>((document.getElementById('flLabel_'+id)?.value||'').trim()!==''));
+  if(_typed && !confirm('Changer l\'ordre va RÉGÉNÉRER les bobines et effacer les n° d\'étiquette bobine mère déjà saisis.\n\nContinuer ?')) return;
   const order=fmmCutOrder();
   const pos=order.indexOf(idx), to=pos+dir;
   if(pos<0||to<0||to>=order.length) return;
