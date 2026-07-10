@@ -3488,11 +3488,16 @@ function importPlanToFiche(opts){
           }
         });
         _planGroupsByLaize(c.planGroups,c.ref).forEach(g=>{   // [L80] la FICHE suit le MÊME ordre trié (grandes laizes d'abord, solde en dernier) que l'écran plan et le PDF — avant : ordre moteur brut → la numérotation BOB-xxx de la fiche ne correspondait pas au PDF imprimé
-          const chuteNote=g.chute?('✂ '+Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')+' mm pris dans chute stock (déjà en stock, ne pas découper)'):'';
+          // [L103 · audit-max] plan PHASÉ (≤4 palettes) : le reste de FIN DE PHASE est une chute
+          // RÉUTILISABLE que l'écran plan et le PDF annonçaient (« solde conservé ») mais que la
+          // fiche taisait — l'opérateur pouvait le jeter. Note sur la carte + flag pour l'étiquette solde.
+          const _phNote=g._phaseEnd?('⟲ FIN DE PHASE — reste ≈'+fmt(Math.max(0,Math.round(c.useful-calcStats(g.pattern,c.blade).total)))+' mm à CONSERVER (chute réutilisable, pas un déchet)'):'';
+          const chuteNote=[g.chute?('✂ '+Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')+' mm pris dans chute stock (déjà en stock, ne pas découper)'):'',_phNote].filter(Boolean).join(' · ');
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote});
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
+              phaseEnd:!!g._phaseEnd});
             bi++;
           }
         });
@@ -4693,6 +4698,15 @@ function applySavedRef(selectEl,savedRef,client){
 // Le bloc #1 réutilise les champs historiques ; les suivants sont des blocs "extra".
 function restoreRefGroups(arr){
   if(!arr||!arr.length) return;
+  // [L103 · audit-max] SUSPENDRE la fusion des blocs en double pendant la reconstruction :
+  // addRefBlock() déclenche recalcPlan() synchrone → mergeDuplicateRefBlocks pouvait fusionner
+  // un bloc fraîchement créé (encore vide = même clé qu'un autre) PENDANT que la boucle indexe
+  // les blocs par position → plan sauvegardé chargé partiellement. La fusion reprend après.
+  _restoringRefGroups=true;
+  try{ _restoreRefGroupsBody(arr); }finally{ _restoringRefGroups=false; }
+}
+let _restoringRefGroups=false;
+function _restoreRefGroupsBody(arr){
   const client=document.getElementById('planClient')?.value||'';
   // Réinitialise : retire les blocs extra, vide les lignes du bloc #1
   document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
@@ -5094,6 +5108,7 @@ function _halfFilledRows(){
   return out;
 }
 function mergeDuplicateRefBlocks(){
+  if(_restoringRefGroups) return false;   // [L103 · audit-max] jamais pendant la reconstruction d'un plan sauvegardé (indexation par position en cours)
   const blocks=[...document.querySelectorAll('.ref-block')];
   if(blocks.length<2) return false;
   const keyOf=bl=>{
@@ -5292,7 +5307,8 @@ function recalcPlan(){
   const {totalBobines,totalMat,totalUsed,pct,chuteStockMm,
          perteMm,resteRouleauxMm,perteMereMm,pertePct,
          chutesUsedAll,chutesPieces,recutCountAll}=agg;
-  const multi=computed.length>1;
+  const _nbRefs=computed.filter(c=>(c.rows||[]).length).length;   // [L103 · audit-max] un bloc réf VIDE (+ Ajouter une référence sans rien saisir) comptait dans le chip « 🎞 N références » et déclenchait le rendu multi (bandeaux)
+  const multi=_nbRefs>1;
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
     : '';
@@ -5309,7 +5325,7 @@ function recalcPlan(){
     <div class="stat-chip">📦 <span>${totalBobines}</span> bobine${totalBobines>1?'s':''}</div>
     <div class="stat-chip">⚙ <span>${planGroups.length}</span> config${planGroups.length>1?'s':''}</div>
     ${cliMulti()?`<div class="stat-chip">👥 <span>${cliIds().length}</span> clients</div>`:''}
-    ${multi?`<div class="stat-chip">🎞 <span>${computed.length}</span> références</div>`:`<div class="stat-chip">utile <span>${fmt(computed[0].useful)} mm</span></div>`}
+    ${multi?`<div class="stat-chip">🎞 <span>${_nbRefs}</span> références</div>`:`<div class="stat-chip">utile <span>${fmt((computed.find(c=>(c.rows||[]).length)||computed[0]).useful)} mm</span></div>`}
     <div class="stat-chip ${perteCls}">🗑 Perte ${multi?'globale ':''}<span>${fmt(perteMereMm)} mm · ${pertePct.toFixed(1)}%</span></div>
     ${resteRouleauxMm>0?`<div class="stat-chip" style="border-color:#115e52;background:#06231c">♻ Reste rouleaux <span style="color:#5eead4">${fmt(resteRouleauxMm)} mm</span></div>`:''}
     <div class="stat-chip pct-green">✂ Chute stock <span>${fmt(chuteStockMm)} mm</span></div>
@@ -5594,14 +5610,19 @@ function renderPlanManual(){
       const used=calcStats(parseConf(b.conf),r.blade).total;
       const waste=r.useful-used;
       const over=used>r.useful+0.01;
-      html+=`<div class="bobine-card bobine-card-edit" style="${over?'border-color:var(--red)':''}">
+      // [L103 · audit-max] conf AMBIGUË dans l'éditeur manuel (« 2×80,3×60 » → lu 2×80.3, « ×60 » jeté ;
+      // « 5×80 3×60 » → 5×80 seul) : parseConf ne lit qu'UNE occurrence par segment — la garde
+      // _confIllisible (L99) n'était consultée qu'au recalcul de fiche, jamais ici. Signal rouge
+      // sur la carte (le badge ⚠ plan ≠ commande signalait déjà l'écart de couverture, sans dire où).
+      const _ill=(String(b.conf||'').trim())?_confIllisible(b.conf,0,0):'';
+      html+=`<div class="bobine-card bobine-card-edit" style="${(over||_ill)?'border-color:var(--red)':''}">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input type="number" min="1" data-mri="${ri}" data-mbi="${bi}" data-mf="count" value="${Math.max(1,parseInt(b.count)||1)}" onchange="updateManualBobine(${ri},${bi},'count',this.value)" style="width:64px" title="Nb de bobines">
           <span style="color:var(--muted)">×</span>
           <input type="text" data-mri="${ri}" data-mbi="${bi}" data-mf="conf" value="${esc(b.conf)}" onchange="updateManualBobine(${ri},${bi},'conf',this.value)" placeholder="4×100 + 2×120" style="flex:1;min-width:160px" title="Configuration (laizes)">
           <button onclick="removeManualBobine(${ri},${bi})" title="Supprimer cette bobine" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:15px">🗑</button>
         </div>
-        <div class="card-sub" style="margin-top:5px">${fmt(used)} / ${fmt(r.useful)} mm · ${over?'<span style="color:var(--red);font-weight:700">⛔ dépasse la laize utile</span>':(waste<r.useful*0.03?'<span class="badge badge-green">':'<span class="badge badge-orange">')+fmt(waste)+' mm chute</span>'}</div>
+        <div class="card-sub" style="margin-top:5px">${_ill?`<span style="color:var(--red);font-weight:700">⛔ config illisible (${esc(_ill)}) — sépare les blocs avec « + »</span> · `:''}${fmt(used)} / ${fmt(r.useful)} mm · ${over?'<span style="color:var(--red);font-weight:700">⛔ dépasse la laize utile</span>':(waste<r.useful*0.03?'<span class="badge badge-green">':'<span class="badge badge-orange">')+fmt(waste)+' mm chute</span>'}</div>
       </div>`;
     });
     html+=`<button class="btn btn-ghost btn-sm" style="margin:4px 0 10px" onclick="addManualBobine(${ri})">+ Ajouter une bobine${multi?' à cette réf':''}</button>`;
@@ -6005,8 +6026,23 @@ function getEtiquetteSoldeList(){
     const refsSeen=[];
     ficheLines.forEach(l=>{const r=l.ref||'';if(!refsSeen.includes(r))refsSeen.push(r);});
     const multi=refsSeen.filter(r=>r).length>1;
+    // [L103 · audit-max] FINS DE PHASE (plan phasé ≤4 palettes) : leur reste est une chute à
+    // CONSERVER — écran plan et PDF l'annonçaient (« solde conservé ») mais aucune étiquette
+    // solde n'était proposée. Une étiquette par bobine fin-de-phase, en plus du solde final.
+    const _phaseEtiq=(lines)=>{
+      const out=[];
+      lines.forEach((l)=>{
+        if(!l.phaseEnd) return;
+        const u=l.useful>0?l.useful:getUseful(); const b=l.blade>0?l.blade:getBlade();
+        if(u<=0) return;
+        const pp=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
+        if(!pp.length) return;
+        out.push({key:'p_'+l.id,mn,ref:(l.ref||'—')+' ⟲ fin de phase',solde:fmt(u-calcStats(pp,b).total),date:today()});
+      });
+      return out;
+    };
     if(multi){
-      // Une étiquette par réf : dernière bobine de chaque réf.
+      // Une étiquette par réf : dernière bobine de chaque réf (+ fins de phase [L103]).
       const out=[];
       refsSeen.forEach((r,idx)=>{
         const lines=ficheLines.filter(l=>(l.ref||'')===r);
@@ -6014,6 +6050,7 @@ function getEtiquetteSoldeList(){
         const last=lines[lines.length-1];
         const useful=last.useful>0?last.useful:getUseful();
         const blade=last.blade>0?last.blade:getBlade();
+        out.push(..._phaseEtiq(lines.filter(l=>l!==last)));
         if(useful<=0) return;
         const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
         if(!p.length) return;
@@ -6022,16 +6059,17 @@ function getEtiquetteSoldeList(){
       });
       return out;
     }
-    // Mono-réf (fiche remplie) : dernière bobine globale.
+    // Mono-réf (fiche remplie) : dernière bobine globale (+ fins de phase [L103]).
     const last=ficheLines[ficheLines.length-1];
     let useful=last.useful>0?last.useful:getUseful();
     let blade=last.blade>0?last.blade:getBlade();
     let ref=last.ref||document.getElementById('fRef')?.value||document.getElementById('planRef')?.value||'';
-    if(useful<=0) return [];
+    const _outMono=_phaseEtiq(ficheLines.filter(l=>l!==last));
+    if(useful<=0) return _outMono;
     const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
-    if(!p.length) return [];
+    if(!p.length) return _outMono;
     const solde=useful-calcStats(p,blade).total;
-    return [{key:'r0',mn,ref,solde:fmt(solde),date:today()}];
+    return _outMono.concat([{key:'r0',mn,ref,solde:fmt(solde),date:today()}]);
   }
   // --- Cas fiche vide : repli sur la commande (mono-réf seulement) ---
   const useful=getUseful(),blade=getBlade();
@@ -7388,8 +7426,13 @@ function recalcEcartsFromFiche(opts){
         const bobines=pack(rr.remaining,pu,pb);
         // [L92 · Audit #6] le reliquat suit la MÊME contrainte ≤4 palettes que le plan initial :
         // les bobines déjà coupées (figées) comptent comme palettes déjà ouvertes (préfixe).
+        // [L103 · audit-max] + les ROULEAUX CHUTE régénérés ci-dessus (coupés en 1er, leurs laizes
+        // ouvrent des palettes) — ils étaient omis du préfixe, le pic réel pouvait dépasser 4.
         const _frozenPref=frozenMetas.filter(fl=>lineKey(fl)===k).map(fl=>({pattern:parseConf(document.getElementById('flConf_'+fl.id)?.value||'')})).filter(p=>p.pattern.length);
-        const groups=_seqMinPalettes(groupBobines(bobines,pb),_frozenPref).order;
+        const _rollPref=groupRecutRolls(rr.rolls).map(g=>({pattern:g.pattern}));
+        const _ord=_seqMinPalettes(groupBobines(bobines,pb),_frozenPref.concat(_rollPref));
+        const groups=_ord.order;
+        if(_ord.peak>PALETTES_MAX) recap.push('⚠ '+(multi?('Réf '+(c.ref||'#'+(ci+1))+' : '):'')+'le reste ouvre jusqu\'à '+_ord.peak+' palettes en même temps (>4) — bobines figées + rouleaux imposent cet ordre.');   // [L103 · audit-max] pic >4 signalé au lieu de silencieux
         groups.forEach(g=>{
           waste+=(pu-calcStats(g.pattern,pb).total)*g.count;
           for(let n=0;n<g.count;n++){
@@ -7919,7 +7962,7 @@ function getFicheLinesData(){
       conf:get('flConf')?.value||'',
       ref:L.ref||'', refIdKey:L.refIdKey||null, useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',
       origConf:(L.origConf!==undefined?L.origConf:undefined), rattrapage:L.rattrapage||undefined, autoLabel:String(L.label||''),   // [L97 · relecture #19] le gel « conf modifiée » et le flag rattrapage survivent au brouillon/partage — [L102 · BUG L97] la clé meta s'appelait « label » : DOUBLON avec l'étiquette saisie (ligne du dessus), la dernière gagnait → l'archive/PDF/brouillon portaient l'étiquette AUTO au lieu du vrai n° de bobine tapé par l'opérateur, et le retour de brouillon dé-gelait la ligne. Clé renommée autoLabel, toujours émise (même vide : le gel d'une ligne manuelle survit aussi au round-trip).
-      recut:L.recut||false, rollW:L.rollW||0,
+      recut:L.recut||false, rollW:L.rollW||0, phaseEnd:L.phaseEnd||undefined,   // [L103 · audit-max]
       cliParts:(Array.isArray(L.cliParts)&&L.cliParts.length)?L.cliParts:undefined,   // [L71 · Audit B14] snapshot figé (undefined = retiré au JSON)
       devi:get('flDevi')?.checked||false,
       droit:get('flDroit')?.checked||false,
@@ -13064,7 +13107,8 @@ function addFicheLine(data){
     cliParts:(Array.isArray(data.cliParts)&&data.cliParts.length)?data.cliParts.slice():null,
     // Marqueur bobine ROULEAU CHUTE : permet au ♻ Recalculer de savoir quels
     // rouleaux saisis sont déjà consommés par des bobines figées (coupées).
-    recut:!!data.recut, rollW:data.rollW||0});
+    recut:!!data.recut, rollW:data.rollW||0,
+    phaseEnd:!!data.phaseEnd});   // [L103 · audit-max] fin de phase (plan phasé ≤4 palettes) : reste à CONSERVER — porté par la ligne pour l'étiquette solde
   const div=document.createElement('div');
   div.className='fiche-line'+machineCls(data.machine);div.id=id;
   if(data.rattrapage){ div.style.borderColor='#caa15a'; div.style.background='rgba(245,158,11,0.05)'; }
@@ -14964,6 +15008,7 @@ function restoreFicheLineFromData(ld){
   addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',refIdKey:ld.refIdKey||null,useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',
     origConf:(ld.origConf!==undefined?ld.origConf:undefined), rattrapage:!!ld.rattrapage,   // [L97 · relecture #19]
     autoLabel:(ld.autoLabel!==undefined?ld.autoLabel:undefined),   // [L102 · BUG L97] étiquette AUTO (meta du gel) restaurée séparément de la saisie
+    phaseEnd:!!ld.phaseEnd,   // [L103 · audit-max] fin de phase restaurée (étiquette solde)
     cliParts:Array.isArray(ld.cliParts)?ld.cliParts:null,   // [L71 · Audit B14] snapshot figé restauré (brouillon/partage)
     recut:!!ld.recut, rollW:ld.rollW||0,
     // La note turquoise des bobines rouleau est reconstruite (déterministe depuis rollW).
