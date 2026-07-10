@@ -243,7 +243,7 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 #ficheLines.chrono-off .fiche-line:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⏱ arrêté";color:var(--red);font-weight:800;font-size:.85em}
 /* [L107 · Phase 1 · K] fiche : plus de largeur utile sur téléphone (marges réduites) */
 @media(max-width:700px){#page1{padding-left:8px;padding-right:8px}.fiche-line{padding:12px 10px}}
-.fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}/* [L113 · audit #2/#18] wrap : sur téléphone ≤360px la case photo passe en 2e ligne au lieu de pousser le ✕ hors de la carte (défilement horizontal) */
 .fl-pos{font-size:15px;font-weight:800;color:var(--mc,var(--blue));background:rgba(255,255,255,.05);border-radius:8px;padding:6px 12px;white-space:nowrap}
 .fl-title{flex:1;font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .fl-badge{display:inline-block;border-radius:5px;padding:2px 8px;font-size:14px;font-weight:800;margin-left:8px}
@@ -282,10 +282,10 @@ body.atelier .cumul-row{font-size:16px}
 .photo-btn{padding:11px 14px;min-height:44px;border-radius:7px;border:1px dashed var(--border2);background:#1a1a18;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
 body.atelier .photo-btn{font-size:15px;padding:14px;min-height:52px}
 /* [L110] case photo dans l'EN-TÊTE de la carte bobine (à droite de « 1/9 Bobine RAS ») : version compacte */
-.photo-zone-hd{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
-.photo-zone-hd .photo-btn{padding:8px 10px;min-height:40px;font-size:13px;white-space:nowrap}
-body.atelier .photo-zone-hd .photo-btn{padding:8px 10px;min-height:44px;font-size:13px}
-.photo-zone-hd .photo-thumb{width:40px;height:40px;border-radius:7px}
+.photo-zone-hd{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;margin-top:0}
+.photo-zone-hd .photo-btn{padding:10px 12px;min-height:44px;min-width:44px;font-size:13px;white-space:nowrap}/* [L113 · audit #15] cible tactile 44px (gants) */
+body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-size:13px}
+.photo-zone-hd .photo-thumb{width:44px;height:44px;border-radius:7px}
 .photo-btn:hover{border-color:var(--blue);color:var(--blue)}
 .photo-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9000;align-items:center;justify-content:center;padding:16px}
 .photo-overlay.open{display:flex}
@@ -531,10 +531,14 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
   padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}
 @media(max-width:700px){
   body.has-actionbar #actionBar{display:block}
-  body.has-actionbar #page1{padding-bottom:126px}
+  body.has-actionbar #page1{padding-bottom:calc(126px + env(safe-area-inset-bottom,0px))}/* [L113 · audit U22] suit la safe-area comme la barre (sinon dernier élément masqué sur iPhone à encoche) */
   body.has-actionbar #globalToast{bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
   body.has-actionbar #dbLoadingBanner{bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
+  body.has-actionbar #dbErrorMsg{bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}/* [L113 · audit U5] au-dessus de la barre (évitait un tap capté par la bannière d'erreur) */
 }
+/* [L113 · audit U2/U16] une modale ouverte MASQUE la barre d'action (z-index 3000 > overlay 200) :
+   sinon la barre recouvrait le bas des modales de la page Fiche (op.2 / lame / enreg. temps) et restait tappable. */
+body:has(.modal-overlay.open) #actionBar{display:none!important}
 #abBtn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:15px 16px;min-height:56px;
   border-radius:12px;border:2px solid var(--border2);background:#1a1a18;color:var(--text);font-size:16px;font-weight:800}
 #abBtn.ab-primary{background:var(--action);border-color:#b8860b;color:#141310;animation:actionPulse 1.8s ease-out infinite}
@@ -1463,7 +1467,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L112';
+const APP_VERSION='2026.07.10-L113';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3023,6 +3027,10 @@ function refreshPhotoZone(lineId){
   }
 }
 async function deletePhoto(lineId){
+  // [L113 · audit #1] confirmation OBLIGATOIRE : depuis L110 le 🗑 photo est dans l'en-tête de carte,
+  // à ~10 px du ✕ « supprimer la bobine ». Un mis-tap ganté détruisait DÉFINITIVEMENT (Firebase
+  // Storage) une preuve qualité NC (ISO), sans retour possible. deletePhoto n'avait aucun confirm.
+  if(!confirm('Supprimer la photo de cette bobine ?\n\n⚠ Définitif — elle sert de preuve qualité (NC).')) return;
   if(ficholinePhotos[lineId]) await deletePhotoFromStorage(ficholinePhotos[lineId]);
   delete ficholinePhotos[lineId];
   refreshPhotoZone(lineId);
@@ -3703,7 +3711,7 @@ function onParamChange(){
 function initClientDropdown(){
   const sel=document.getElementById('planClient');
   sel.innerHTML='<option value="">— Client —</option>'+
-    Object.keys(CLIENT_DATA).sort().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    Object.keys(CLIENT_DATA).sort((a,b)=>a.localeCompare(b,'fr')).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
 }
 
 // Affiche le menu "VEKA" (Profilé / VEKA) uniquement pour le client VEKA.
@@ -3966,7 +3974,7 @@ function renderCliPanel(){
   }
   const cliOpts=sel=>{
     let h='<option value="">— Client —</option>';
-    try{ Object.keys(CLIENT_DATA).sort().forEach(n=>{ h+=`<option value="${esc(n)}"${n===sel?' selected':''}>${esc(n)}</option>`; }); }catch(e){}
+    try{ Object.keys(CLIENT_DATA).sort((a,b)=>a.localeCompare(b,'fr')).forEach(n=>{ h+=`<option value="${esc(n)}"${n===sel?' selected':''}>${esc(n)}</option>`; }); }catch(e){}
     if(sel&&(typeof CLIENT_DATA==='undefined'||!CLIENT_DATA[sel])) h+=`<option value="${esc(sel)}" selected>${esc(sel)} (hors liste)</option>`;
     return h;
   };
@@ -6607,6 +6615,10 @@ async function doLoad(){
     return;
   }
   _newCmdResolved=false;
+  // [L113 · audit U6] charger un plan REMPLACE le travail repris : sans ça, un brouillon repris
+  // (_resumedDraftId / passation _resumedForeignDraftId) restait « armé » et se faisait consommer
+  // à l'envoi de CETTE nouvelle commande — comme le fait déjà _newCmdClearLiveFiche/resetAll.
+  _resumedDraftId=null; _resumedForeignDraftId=null;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
   editingSaveId=null; _editSaveBase=null; // un chargement normal annule un éventuel mode modification
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
@@ -6843,6 +6855,7 @@ function autoStopChrono(){
   // Rafraîchir le brouillon auto (wasRunning:false) → une réouverture ne proposera pas une reprise gonflée.
   try{ if(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length) autosaveDraftTick(true); }catch(e){}
   try{ showToast('⏸ Fin de journée — chrono mis en pause. Reprends-le pour des heures supplémentaires.','ok'); }catch(e){}
+  try{ updateNextAction(); }catch(e){}   // [L113 · audit U3] sinon la barre d'action + le ✂ ambre restaient figés sur « en cours » alors que le chrono est arrêté
 }
 function chronoCatchUp(){ if(chronoRunning) chronoTick(); }
 // ── Robustesse veille / téléphone dans la poche ──────────────────────────────
@@ -7102,8 +7115,17 @@ function confirmCommandeRecap(){
   // (dé-cochage accidentel en relisant la fiche) — la fiche partait « conforme:false » sans motif,
   // introuvable ensuite dans l'analyse NC. La garde du marquage (toggleCoupee) reste inchangée.
   for(const l of ficheLines){
+    const _el=document.getElementById(l.id);
+    // [L113 · audit U10 CRITIQUE] bobine coupée par un COLLÈGUE en partage (coupee-other) : son
+    // test 2ᵉ a été tranché sur SON écran ; le champ cuts.<idx> ne transporte pas les cases
+    // Dévidage/Droit → sans cette exclusion, TOUTE commande partagée était bloquée à l'envoi.
+    if(_el&&_el.classList.contains('coupee-other')) continue;
     if(!test2Resolved(l.id)){
-      const _det=document.getElementById('flMore_'+l.id); if(_det) _det.open=true;
+      // [L113 · audit #3/U13] depuis L107 les cases Dévidage/Droit ne sont PLUS dans le volet ⚠ Défaut :
+      // au lieu d'ouvrir un volet vide (et si la carte est masquée « coupées cachées » on ne voyait rien),
+      // on démasque + défile jusqu'à la carte fautive + repère visuel (comme la barre d'action).
+      try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){}
+      if(_el){ try{ _el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} _el.classList.add('fl-spot'); setTimeout(()=>{try{_el.classList.remove('fl-spot');}catch(e){}},2200); }
       showToast('⚠ Test 2ᵉ bobineaux dé-validé sur la bobine « '+((document.getElementById('flLabel_'+l.id)?.value||'').trim()||l.label||'?')+' ».\n\nRe-coche Dévidage'+(_flMachineOf(l.id)==='feba'?'':' / Droit')+' (ou ⚠ Non conforme + motif) avant d\'envoyer.','err');
       return;
     }
@@ -9428,7 +9450,7 @@ function stockViewHTML(){
         <div style="font-weight:800;font-size:14px">${o.lbl} <span style="color:var(--muted);font-weight:600;font-size:12px">— ${o.desc}</span></div>
         <div style="font-size:12px;color:var(--muted)">${nf(t.rolls)} rouleaux · ${nf(t.m2)} m²</div>
       </div>
-      <details ${stockSecOpen['loc_'+o.key]?'open':''} ontoggle="stockSecOpen['loc_'+'${o.key}']=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:4px 14px 8px;user-select:none">▾ afficher / replier</summary>
+      <details ${stockSecOpen['loc_'+o.key]?'open':''} ontoggle="stockSecOpen['loc_'+'${o.key}']=this.open"><summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--blue);margin:2px 8px 6px;padding:11px 6px;min-height:44px;display:flex;align-items:center;user-select:none">▾ afficher / replier</summary><!-- [L113 · audit U20] cible tactile 44px (gants) -->
       ${rows?`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--muted);font-size:12px;text-transform:uppercase">
         <th style="text-align:left;padding:6px 9px">Réf matière</th><th style="text-align:left;padding:6px 9px">Mère</th>
         <th style="text-align:right;padding:6px 9px">Rouleaux</th><th style="text-align:right;padding:6px 9px">Solde m²</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -10622,9 +10644,14 @@ function buildDebitToolbox(){
   const opOpts='<option value="">Standard atelier</option>'+Object.values(USER_PROFILES).map(p=>`<option value="${esc(p.ini)}">${esc(p.ini)} — ${esc(p.nom||'')}</option>`).join('');
   // [L106 · Phase 1 · P] sélecteur de RÉFÉRENCE : préremplit laize mère (standard catalogue)
   // + métrage (ml) — l'opérateur n'a plus qu'à saisir les bobineaux nb × largeur.
+  // [L113 · audit #19] dédoublonnage par ref+MÉTRAGE (plus par ref seul) : les homonymes à métrages
+  // différents (ex. KX1045-1 en 250 ml et 500 ml) apparaissent en options DISTINCTES → l'estimateur
+  // prend le vrai métrage de l'option choisie (dujEstRefChange lit le data-ml de l'option sélectionnée),
+  // au lieu de fusionner silencieusement sur la 1re variante (durée faussée jusqu'à ×2).
   const estRefOpts=(()=>{ const seen=new Set(); const opts=['<option value="">— choisir une référence (auto) —</option>'];
-    Object.values(CLIENT_DATA).flat().forEach(r=>{ if(!r.ref||seen.has(r.ref)) return; seen.add(r.ref);
+    Object.values(CLIENT_DATA).flat().sort((a,b)=>String(a.ref).localeCompare(String(b.ref),'fr')||((a.longueur||0)-(b.longueur||0))).forEach(r=>{ if(!r.ref) return;
       const ml=(r.longueur!=null&&String(r.longueur).trim()!=='')?String(r.longueur):'';
+      const k=r.ref+'¦'+ml; if(seen.has(k)) return; seen.add(k);
       opts.push(`<option value="${esc(r.ref)}" data-ml="${esc(ml)}">${esc(r.ref)}${ml?` · ${esc(ml)} ml`:''}</option>`); });
     return opts.join(''); })();
   const tabBtn=(id,lbl,act)=>`<button id="dujTab_${id}" onclick="dujTab('${id}')" style="flex:1;padding:9px 6px;border:1px solid ${act?'var(--orange)':'var(--border2)'};background:${act?'rgba(245,158,11,.12)':'var(--card)'};color:${act?'var(--orange)':'var(--muted)'};font-size:12.5px;font-weight:700;cursor:pointer;border-radius:8px">${lbl}</button>`;
@@ -11201,11 +11228,13 @@ function renderFiches(){
   }
   let fiches=showValidatedFiches?_fVal:(fichesPendingOnly?_fPend:_fCur);
   // Recherche texte (client, n° commande, nom de fiche, réf).
-  const q=(document.getElementById('ficheSearch')?.value||'').trim().toLowerCase();
+  // [L113 · audit #21] insensible aux ACCENTS des deux côtés : taper « ech » trouve « ÉCHANTILLON ».
+  const _noAcc=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const q=_noAcc((document.getElementById('ficheSearch')?.value||'').trim());
   if(q){
     fiches=fiches.filter(f=>{
       const refs=Array.isArray(f.refGroups)?f.refGroups.map(g=>g.ref||'').join(' '):(f.ref||'');
-      return [f.client,f.numCmd,f.name,refs].filter(Boolean).join(' ').toLowerCase().includes(q);
+      return _noAcc([f.client,f.numCmd,f.name,refs].filter(Boolean).join(' ')).includes(q);
     });
   }
   const list=document.getElementById('fichesList');
@@ -13482,24 +13511,29 @@ function hygieneDryRun(){
 // jamais les brouillons (gérés à la main par Esteban).
 async function hygieneApply(){
   if(typeof canManageData==='function'&&!canManageData()){showToast('⛔ Réservé au pilotage/admin.','err');return;}
+  // [L113 · audit #14] caches pas encore chargés → ne rien présenter comme « rien à nettoyer »
+  if(!Array.isArray(fichesCache)||!fichesCache.length||!Array.isArray(savesCache)||!savesCache.length){showToast('⏳ Données pas encore chargées — ouvre « 📥 Charger l\'historique complet » puis réessaie.','err');return;}
   const canon=v=>nrm((v&&v!=='—')?v:'');
   const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
-  const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
+  // [L113 · audit #11] fiches REFUSÉES (valide===false) exclues : une commande refusée n'est PAS « déjà coupée »
+  const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&f.valide!==false&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
   // [L112 · CRITIQUE] plans « ♻ RESTE manque matière » EXCLUS : même numCmd que la fiche
   // d'origine mais le solde reste À COUPER — les archiver = perdre le plan du solde.
   const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.reste&&!s.resteFromFiche&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
   if(!plans.length){showToast('Aucun plan « déjà coupé » à nettoyer. 👍','ok');return;}
   const apercu=plans.slice(0,8).map(s=>'· '+(s.client||'—')+' / N° '+(s.numCmd||'—')).join('\n');
   if(!confirm('🧹 Retirer '+plans.length+' plan(s) « déjà coupés » de Données > Plans ?\n\n'+apercu+(plans.length>8?'\n… et '+(plans.length-8)+' autre(s)':'')+'\n\nLeur fiche découpe garde le vrai enregistrement.\nRécupérables 45 jours via la Corbeille, puis purge automatique.')) return;
-  let okN=0,koN=0;
+  let okN=0,koN=0; const stamp=isoNow();
   for(const s of plans){
     try{
-      await boundedWrite(db.collection('saves').doc(s._id).update({deleted:true,deletedAt:isoNow()}),10000);
+      await boundedWrite(db.collection('saves').doc(s._id).update({deleted:true,deletedAt:stamp}),10000);
+      s.deleted=true; s.deletedAt=stamp;   // [L113 · audit #12] optimiste : la liste se met à jour tout de suite ; un 2ᵉ appui ne re-détecte plus (pas de doublon d'audit)
       try{ await logAudit('delete','saves',s._id,'Hygiène — plan déjà coupé archivé ('+(s.client||'')+' / '+(s.ref||'')+' / N°'+(s.numCmd||'')+')',{client:s.client||'',ref:s.ref||'',dateCmd:s.date||''}); }catch(e){}
       okN++;
     }catch(e){ koN++; console.warn('Hygiène (plan '+s._id+') :',e&&e.message); }
   }
-  showToast('🧹 '+okN+' plan(s) retiré(s) — récupérables 45 j via la Corbeille.'+(koN?('\n⚠ '+koN+' échec(s) — réappuie pour réessayer.'):''),koN?'err':'ok');
+  try{ if(document.getElementById('savesList')) renderSaves(); }catch(e){}   // [L113 · audit #12] rafraîchit la liste + le compteur immédiatement
+  showToast('🧹 '+okN+' plan(s) retiré(s) — récupérables 45 j via la Corbeille.'+(koN?('\n⚠ '+koN+' échec(s) — l\'écriture repartira au retour du réseau ; ne ré-appuie pas tout de suite.'):''),koN?'err':'ok');
 }
 // [L70 · Audit B20] libellé humain d'un select bobine (toasts).
 function _bobSelLabel(id){ return id==='fLameChgBob'?'du changement de lame':(id==='fMachChgBob'?'du changement de machine':'de reprise de l\'opérateur 2'); }
@@ -13944,7 +13978,9 @@ function updateNextAction(){
     const total=ficheLines.length;
     const done=total?countCoupees():0;
     let mode='none';
-    if(total){ if(done===total) mode='confirm'; else if(!chronoRunning) mode='start'; else mode='cut'; }
+    // [L113 · audit U4] vue MIROIR (commande d'un collègue) : ne JAMAIS pulser « ✓ Confirmer » —
+    // l'envoi est réservé à l'émetteur (_shareBlockSend). Le mode « cut » reste utile (le récepteur marque ses coupes).
+    if(total){ if(done===total) mode=_viewingSharedId?'none':'confirm'; else if(!chronoRunning) mode='start'; else mode='cut'; }
     if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
     else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); }
     else if(mode==='cut'){ const l=_nextUncutLine(); if(l) document.getElementById('coupeeBtn_'+l.id)?.classList.add('next-action'); }
@@ -13969,12 +14005,13 @@ function _syncActionBar(mode,done,total){
   if(fill) fill.style.width=(total?Math.round(done/total*100):0)+'%';
   if(mode==='start'){ btn.className='ab-primary'; btn.innerHTML=_AB_SVG.play+' '+((typeof chronoSec==='number'&&chronoSec>0)?'Reprendre le chrono':'Démarrer le chrono'); }
   else if(mode==='confirm'){ btn.className='ab-primary'; btn.innerHTML=_AB_SVG.check+' Confirmer la commande ('+done+'/'+total+')'; }
-  else{ btn.className='ab-nav'; btn.innerHTML='✂ Bobine '+Math.min(done+1,total)+'/'+total+' — voir '+_AB_SVG.down; }
+  else{ btn.className='ab-nav'; btn.innerHTML=_AB_SVG.down+' Aller à la bobine '+Math.min(done+1,total)+'/'+total; }   // [L113 · audit U19] ✂ RETIRÉ du bouton nav : il ne coupe pas (il défile) — ✂ réservé au seul geste de marquage (principe M2 « un sens par symbole »)
 }
 // Tap sur la barre : Démarrer / Confirmer directement ; en cours de coupe, on
 // DÉFILE vers la bobine à couper (jamais de marquage à distance : le ✂ reste
 // sur la carte, avec ses gardes test 2ᵉ / NC — sécurité inchangée).
 function actionBarTap(){
+  if(document.querySelector('.modal-overlay.open')) return;   // [L113 · audit U2/U16] filet JS si :has() indisponible (vieux iOS) : jamais d'action barre pendant une modale
   if(_abMode==='start'){ chronoStart(); }
   else if(_abMode==='confirm'){ confirmCommandeRecap(); }
   else if(_abMode==='cut'){
@@ -14051,7 +14088,11 @@ function syncFlMore(id){
   const t2nc=!!(document.getElementById('flTest2nc_'+id)?.checked);
   const stat=document.getElementById('flMoreStat_'+id);
   if(stat) stat.innerHTML=(nc||t2nc)?'<span class="st-nc">⚠ NC</span>':'';
-  if(nc||t2nc) det.open=true;
+  // [L113 · audit #4/U21] n'ouvrir QUE sur transition faux→vrai d'une NC RÉELLE (larg/qty/casse/ang, qui
+  // vivent DANS le volet). PAS sur t2nc (test 2ᵉ = sur la carte depuis L107, seulement le badge) ni à
+  // chaque interaction — sinon l'opérateur ne peut jamais garder le volet replié.
+  if(nc && det.dataset.ncSeen!=='1') det.open=true;
+  det.dataset.ncSeen=nc?'1':'';
 }
 // Réapplique la règle FEBA (masquage « Droit » + conformité) sur toutes les bobines.
 function refreshAllTest2(){
@@ -15093,13 +15134,14 @@ function serializeFicheState(){
 let _savingDraftManual=false;   // [L73 · Lot 5 · B41] verrou anti double-tap « 💾 Brouillon »
 async function saveDraftManual(){
   if(ficheLines.length===0){showToast('Aucune bobine à enregistrer en brouillon.','err');return;}
+  if(_viewingSharedId){ showToast('🔒 Vue miroir (commande d\'un collègue) : le doc partagé EST déjà la sauvegarde — pas de brouillon perso ici.','err'); return; }   // [L113 · audit #17] sinon un 💾 côté récepteur CONSOMMAIT le brouillon de l'émetteur (L109 sans garde propriétaire)
   if(_savingDraftManual) return;   // [L73 · Lot 5 · B41] double-tap : les 2 invocations passaient tout le tronçon synchrone avant le 1er await → deux ids 'd_'+Date.now() → deux brouillons de la même commande
   _savingDraftManual=true;
   const _btnDM=document.getElementById('btnDraftManual'); if(_btnDM) _btnDM.disabled=true;   // [L73 · Lot 5 · B41] retour visuel + blocage du tap pendant l'écriture
   try{   // [L73 · Lot 5 · B41] verrou libéré en finally, même si serializeFicheState/Firestore jette
   const st=serializeFicheState();
   const label=(st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°');
-  const draft={id:'d_'+Date.now(),savedAt:isoNow(),label,state:st};
+  const draft={id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,owner:_ini()};   // [L113 · audit #7] owner → la garde « jamais le brouillon d'un AUTRE poste » redevient effective (anti-doublon L109)
   const stripped=_draftStrip(draft);
   const _photosDropped=_draftStripLastCount;   // DRAFT-3 : capturé AVANT tout await (un autosave concurrent réécrit _draftStripLastCount)
   // DRAFT-2 : avant, persistDrafts (fire-and-forget) renvoyait true même si tous les
@@ -15109,12 +15151,6 @@ async function saveDraftManual(){
   const local=_draftFallbackPush(stripped);
   try{ brouillonsCache=[stripped].concat((Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(x){return x.id!==stripped.id;}));
     if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
-  // [L109] Anti-doublon : ce nouveau brouillon 💾 REMPLACE l'ancien du même travail (celui repris,
-  // ou même « client / n° de commande »). L'ancien est marqué consumed → disparaît de Données >
-  // Brouillons, reste récupérable 45 j (filet) puis purge auto. Jamais autosave / partagé / solde.
-  if(local){
-    try{ const _old=_supersededManualDrafts(draft.id,label); if(_old.length){ await _consumeSupersededDrafts(_old,draft.id); if(document.getElementById('draftsList')) renderDrafts(); } }catch(e){ console.warn('Anti-doublon brouillon :',e&&e.message); }
-  }
   let firestore=false;
   if(db){
     try{
@@ -15124,6 +15160,14 @@ async function saveDraftManual(){
       ]);
       firestore=true; _draftFallbackRemove(draft.id);
     }catch(e){ console.warn('Brouillon manuel (Firestore) :',e&&e.message); }
+  }
+  // [L109/L113 · audit #8] Anti-doublon APRÈS l'écriture du nouveau brouillon (le nouveau est persisté
+  // d'abord : local durable + Firestore tenté). REMPLACE l'ancien du même travail (repris, ou même
+  // « client / n° » ET même poste). L'ancien → consumed (disparaît, récupérable 45 j). Jamais
+  // autosave / partagé / solde / brouillon d'un autre poste. Écritures BORNÉES (audit #5 : hors-ligne,
+  // un set() non borné gelait le flux Parquer).
+  if(local){
+    try{ const _old=_supersededManualDrafts(draft.id,label); if(_old.length){ await _consumeSupersededDrafts(_old,draft.id); if(document.getElementById('draftsList')) renderDrafts(); } }catch(e){ console.warn('Anti-doublon brouillon :',e&&e.message); }
   }
   if(firestore) showToast('💾 Brouillon enregistré — Données > Brouillons','ok');
   else if(local) showToast('💾 Brouillon gardé en LOCAL sur ce poste (base indisponible) — il partira au retour réseau.','ok');
@@ -15138,12 +15182,14 @@ async function saveDraftManual(){
 // (fromSend) SAUF s'ils sont justement celui repris.
 function _supersededManualDrafts(newId,newLabel){
   const hasNum=!/\/\s*sans n°\s*$/.test(String(newLabel||''));
+  const me=(typeof _ini==='function')?_ini():'';
   return (Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(d){
     if(!d||d.id===newId||d.consumed||d.deleted) return false;
     if(d.auto||(typeof d.id==='string'&&d.id.indexOf('d_autosave_')===0)) return false;
     if(_isSharedDoc(d)||d.fromFicheId) return false;
-    if(d.id===_resumedDraftId) return true;
+    if(d.id===_resumedDraftId) return true;   // repris explicitement (choix conscient) — doLoad/resetAll/newCmd annulent _resumedDraftId au changement de commande
     if(d.fromSend) return false;
+    if(d.owner&&me&&d.owner!==me) return false;   // [L113 · audit #7] JAMAIS le brouillon manuel d'un AUTRE poste (les legacy sans owner restent supersédables par leur créateur)
     return hasNum && d.label===newLabel;
   });
 }
@@ -15156,7 +15202,7 @@ async function _consumeSupersededDrafts(list,newId){
   const ids=list.map(function(d){return d.id;});
   try{ brouillonsCache=(Array.isArray(brouillonsCache)?brouillonsCache:[]).map(function(d){ return (d&&ids.indexOf(d.id)>=0)?Object.assign({},d,{consumed:true,consumedAt:stamp}):d; }); }catch(e){}
   for(const d of list){
-    if(db){ try{ await db.collection('brouillons').doc(d.id).set({consumed:true,consumedAt:stamp},{merge:true}); }catch(e){ console.warn('Anti-doublon (Firestore) :',e&&e.message); } }
+    if(db){ try{ await boundedWrite(db.collection('brouillons').doc(d.id).set({consumed:true,consumedAt:stamp},{merge:true}),8000); }catch(e){ console.warn('Anti-doublon (Firestore) :',e&&e.message); } }   // [L113 · audit #5] BORNÉ : hors-ligne, un set() non borné gelait Parquer ~indéfiniment
     try{ _draftFallbackRemove(d.id); }catch(e){}
     try{ logAudit('delete','brouillons',d.id,'Brouillon remplacé par une version plus récente — '+(d.label||d.id),{supersededBy:newId}).catch(function(){}); }catch(e){}
   }
