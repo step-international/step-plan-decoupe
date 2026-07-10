@@ -564,6 +564,28 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
   #page1.active>#ficheLines{grid-column:2;grid-row:1/span 40}
   #page1.active>div:has(#sendPlanBtn){grid-column:2;grid-row:41}
 }
+/* ===== [L111 · 📅 Planning — ÉTAPE 1 squelette] grille semaine (lun→ven × machines).
+   La grille scrolle HORIZONTALEMENT dans son conteneur (jamais la page). ===== */
+#plnHead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+#plnTitle{font-size:16px;font-weight:800;margin-left:4px}
+.pln-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border2);border-radius:12px}
+.pln-grid{display:grid;grid-template-columns:88px repeat(5,minmax(150px,1fr));min-width:850px}
+.pln-hcell{padding:9px 6px;text-align:center;font-size:12.5px;font-weight:800;color:var(--muted);border-bottom:1px solid var(--border2);background:var(--section)}
+.pln-hcell.today{color:var(--action)}
+.pln-mach{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--border2);border-bottom:1px solid var(--border2);background:var(--section)}
+.pln-cell{min-height:96px;border-bottom:1px solid var(--border2);border-right:1px solid var(--border2);padding:6px;display:flex;flex-direction:column;gap:6px;background:var(--card)}
+.pln-cell.today{background:rgba(245,179,1,.05)}
+.pln-load{font-size:11px;color:var(--muted);font-weight:700;text-align:right}
+.pln-load.warn{color:var(--orange)} .pln-load.over{color:var(--red)}
+.pln-card{border:1px solid var(--border2);border-left:4px solid var(--mc,#666);border-radius:8px;background:var(--section);padding:7px 9px;font-size:12.5px;line-height:1.35}
+.pln-card b{font-size:13px}
+.pln-card .pc-meta{color:var(--muted);font-size:11.5px;margin-top:2px}
+.pln-card.late{border-color:var(--red);background:rgba(239,68,68,.08)}
+.pln-card.feba{--mc:var(--feba)} .pln-card.maveg{--mc:var(--maveg)} .pln-card.cevenini{--mc:var(--cevenini)}
+#plnPool{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}
+#plnPool .pln-card{max-width:250px;min-width:170px}
+.pln-report{background:rgba(239,68,68,.07);border:1px solid #7a2222;border-radius:10px;padding:9px 11px;margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px}
+@media(max-width:700px){ .pln-grid{grid-template-columns:70px repeat(5,minmax(132px,1fr));min-width:740px} #plnPool .pln-card{max-width:none;flex:1 1 46%} }
 </style>
 </head>
 <body>
@@ -1148,6 +1170,7 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 <div class="page" id="page2">
   <div class="tab-bar">
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
+    <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] maquette admin/pilotage (applyRole) — ouverture à tous en ÉTAPE 2 -->
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
     <button class="tab-btn" id="tabNc" onclick="switchTab('nc')">⚠ Registre NC</button>
     <button class="tab-btn" id="tabTemps" onclick="switchTab('temps')">⏱ Temps</button>
@@ -1240,6 +1263,11 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
     </div>
     <div id="tempsList"></div>
     <div id="tempsEmpty" class="text-muted hidden" style="padding:8px 0">Aucune donnée de temps enregistrée.</div>
+  </div>
+
+  <!-- ONGLET PLANNING [L111 · ÉTAPE 1 squelette] -->
+  <div id="tabContentPlanning" class="hidden">
+    <div id="planningContent"></div>
   </div>
 
   <!-- ONGLET ANALYSE -->
@@ -1427,7 +1455,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L110';
+const APP_VERSION='2026.07.10-L111';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2113,6 +2141,7 @@ function applyRole(){
   document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
   document.getElementById('tabNc').style.display=canManageData()?'':'none';
   { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
+  { const _tp=document.getElementById('tabPlanning'); if(_tp) _tp.style.display=canManageData()?'':'none'; }   // [L111 · ÉTAPE 1] maquette Planning : admin/pilotage seulement (à ouvrir à tous en ÉTAPE 2)
   document.getElementById('tabStock').style.display=canViewStock()?'':'none';
   { const _ta=document.getElementById('tabAudit'); if(_ta) _ta.style.display=canViewAudit()?'':'none'; }   // [L65] onglet retiré du HTML — garde de survie si réintroduit
   document.getElementById('tabMaintenance').style.display=canAccessMaintenance()?'':'none';
@@ -3565,7 +3594,8 @@ function switchTab(tab){
   if(tab==='stock'&&!canViewStock()) tab='saves';
   if(tab==='audit'&&!canViewAudit()) tab='saves';
   if(tab==='maintenance'&&!canAccessMaintenance()) tab='saves';
-  ['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance'].forEach(t=>{
+  if(tab==='planning'&&!canManageData()) tab='saves';   // [L111 · ÉTAPE 1] maquette réservée admin/pilotage — lecture pour tous en ÉTAPE 2
+  ['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','planning'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
@@ -3579,6 +3609,7 @@ function switchTab(tab){
   else if(tab==='stock') renderStock();
   else if(tab==='audit') renderAudit();
   else if(tab==='maintenance') renderMaintenance();
+  else if(tab==='planning') renderPlanning();   // [L111 · ÉTAPE 1]
   else renderFiches();
 }
 // Charge l'historique complet en arrière-plan puis ré-affiche l'onglet (NC/Analyse),
@@ -8399,6 +8430,68 @@ async function exportTemps(){
   const csv='\ufeff'+headers+'\n'+rows.join('\n');
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   downloadBlob(b,'step_temps_'+todayISO()+'.csv');   // [L98 · simpl.8]
+}
+
+// ============================================================
+// [L111 · 📅 PLANNING — ÉTAPE 1 squelette (maquette, AUCUNE écriture)]
+// Calendrier de production hebdo : à terme (ÉTAPE 2, après feu vert Esteban)
+// les plans de Données > Plans se posent sur jour × machine par glisser-déposer
+// tactile, persistés par plannedDate + plannedMachine sur le doc « saves »
+// existant → cohérence AUTOMATIQUE : le planning lit savesCache filtré
+// !deleted, un plan archivé/coupé disparaît tout seul.
+// ÉTAPE 1 : layout seul — cartes d'exemple posées + vrais plans « à planifier »
+// en lecture seule. Onglet limité admin/pilotage (applyRole) tant que maquette.
+// ============================================================
+let plnWeekOffset=0;
+function _plnMonday(off){ const now=new Date(); const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const wd=(d.getDay()||7); d.setDate(d.getDate()-(wd-1)+off*7); return d; }
+function _plnIsoWeekNum(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const wd=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-wd); const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil(((t-y0)/86400000+1)/7); }
+function _plnIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function plnNav(n){ plnWeekOffset=(n===0)?0:plnWeekOffset+n; renderPlanning(); }
+function renderPlanning(){
+  const el=document.getElementById('planningContent'); if(!el) return;
+  const mon=_plnMonday(plnWeekOffset);
+  const days=[...Array(5)].map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
+  const todayIso=_plnIso(new Date());
+  const kw=_plnIsoWeekNum(mon);
+  const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const titre=`S${kw} · ${days[0].getDate()} → ${days[4].getDate()} ${MOIS[days[4].getMonth()]} ${days[4].getFullYear()}`;
+  const JOURS=['lun','mar','mer','jeu','ven'];
+  // À PLANIFIER : les VRAIS plans non supprimés sans planification (lecture seule en maquette)
+  const pool=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.plannedDate);
+  const poolCards=pool.slice(0,12).map(s=>{
+    const liv=s.dateLiv?new Date(s.dateLiv):null;
+    const urgent=liv&&((liv-new Date())/86400000)<7;
+    return `<div class="pln-card${urgent?' late':''}"${urgent?' title="⚠ livraison sous 7 jours"':''}><b>${esc(s.client||'—')}</b>${s.numCmd?' · N° '+esc(s.numCmd):''}<div class="pc-meta">${esc(s.ref||'—')}${s.dateLiv?' · livr. '+new Date(s.dateLiv).toLocaleDateString('fr-FR'):''}${urgent?' · <b style="color:var(--red)">⚠ urgent</b>':''}</div></div>`;
+  }).join('');
+  // Cartes d'EXEMPLE posées (maquette — remplacées par les vrais plans plannedDate/plannedMachine en ÉTAPE 2)
+  const demo={}; const dk=(i,m)=>i+'¦'+m;
+  demo[dk(0,'feba')]={h:'≈ 3 h 10',cards:[{c:'VEKA',n:'4501935987',t:'≈ 3 h 10'}]};
+  demo[dk(0,'maveg')]={h:'≈ 3 h 35',cards:[{c:'Cougnaud',n:'e260700007',t:'≈ 2 h 05'},{c:'PRIMA',n:'pr772002',t:'≈ 1 h 30'}]};
+  demo[dk(2,'cevenini')]={h:'≈ 4 h 45',cards:[{c:'Legrand France',n:'366814',t:'≈ 4 h 45'}]};
+  demo[dk(3,'feba')]={h:'≈ 6 h 20',warn:true,cards:[{c:'DECEUNINCK NV',n:'4500864108',t:'≈ 5 h 20'},{c:'ADHETEC',n:'a02602604',t:'≈ 1 h 00'}]};
+  let grid=`<div class="pln-hcell"></div>`+days.map((d,i)=>`<div class="pln-hcell${_plnIso(d)===todayIso?' today':''}">${JOURS[i]} ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</div>`).join('');
+  DUJ_MACHINES.forEach(m=>{
+    grid+=`<div class="pln-mach" style="color:var(--${m})">${esc(getMachineLabel(m))}</div>`;
+    days.forEach((d,i)=>{
+      const cell=(plnWeekOffset===0)?demo[dk(i,m)]:null;   // exemples posés uniquement sur la semaine courante
+      const cards=cell?cell.cards.map(c=>`<div class="pln-card ${m}"><b>${esc(c.c)}</b> · N° ${esc(c.n)}<div class="pc-meta">${c.t} · <i>EXEMPLE</i></div></div>`).join(''):'';
+      grid+=`<div class="pln-cell${_plnIso(d)===todayIso?' today':''}"><div class="pln-load${cell&&cell.warn?' warn':''}">${cell?cell.h:'—'}</div>${cards}</div>`;
+    });
+  });
+  el.innerHTML=`
+    <div style="background:#3a2a0e;border:1px solid #7a5a12;color:#fbbf24;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px">🚧 <b>Maquette — étape 1.</b> Valide la mise en page : les cartes posées dans la grille sont des <b>exemples</b> ; « À planifier » montre tes vrais plans. Le glisser-déposer tactile + l'enregistrement + les retards/reportés/charges réels arrivent après ton feu vert.</div>
+    <div id="plnHead">
+      <button class="btn btn-ghost btn-sm" onclick="plnNav(-1)">◀ Semaine préc.</button>
+      <button class="btn btn-ghost btn-sm" onclick="plnNav(0)">Aujourd'hui</button>
+      <button class="btn btn-ghost btn-sm" onclick="plnNav(1)">Semaine suiv. ▶</button>
+      <span id="plnTitle">${titre}</span>
+    </div>
+    <div class="pln-report">↪ <b>Reportés</b> · prévu S${kw-1}, non fait :
+      <span class="pln-card"><b>EXEMPLE SA</b> · N° 999999<div class="pc-meta">à re-glisser sur la semaine · <i>EXEMPLE</i></div></span>
+    </div>
+    <div style="font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">📥 À planifier — ${pool.length} plan(s)${pool.length>12?' (12 premiers affichés en maquette)':''}</div>
+    <div id="plnPool">${poolCards||'<span style="color:var(--muted);font-size:13px">Aucun plan en attente.</span>'}</div>
+    <div class="pln-wrap"><div class="pln-grid">${grid}</div></div>`;
 }
 
 // ============================================================
