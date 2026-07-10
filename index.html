@@ -6919,6 +6919,16 @@ function confirmCommandeRecap(){
   if(!total){ confirmCommande(); return; }
   const done=countCoupees();   // [L85 · Audit #27]
   if(done<total){ confirmCommande(); return; }
+  // [L103 · audit-max] re-valider le test 2ᵉ à l'ENVOI : les cases restent actives après le ✂
+  // (dé-cochage accidentel en relisant la fiche) — la fiche partait « conforme:false » sans motif,
+  // introuvable ensuite dans l'analyse NC. La garde du marquage (toggleCoupee) reste inchangée.
+  for(const l of ficheLines){
+    if(!test2Resolved(l.id)){
+      const _det=document.getElementById('flMore_'+l.id); if(_det) _det.open=true;
+      showToast('⚠ Test 2ᵉ bobineaux dé-validé sur la bobine « '+((document.getElementById('flLabel_'+l.id)?.value||'').trim()||l.label||'?')+' ».\n\nRe-coche Dévidage'+(_flMachineOf(l.id)==='feba'?'':' / Droit')+' (ou ⚠ Non conforme + motif) avant d\'envoyer.','err');
+      return;
+    }
+  }
   const ncCount=document.querySelectorAll('#ficheLines .fl-badge.badge-red').length;
   const machSet=new Set();
   ficheLines.forEach(({id})=>{
