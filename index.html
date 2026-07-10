@@ -586,6 +586,14 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 #plnPool .pln-card{max-width:250px;min-width:170px}
 .pln-report{background:rgba(239,68,68,.07);border:1px solid #7a2222;border-radius:10px;padding:9px 11px;margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px}
 @media(max-width:700px){ .pln-grid{grid-template-columns:70px repeat(5,minmax(132px,1fr));min-width:740px} #plnPool .pln-card{max-width:none;flex:1 1 46%} }
+/* [L112 · ÉTAPE 2] interactions : cartes prenables, mode « pose », survol du drag, barre d'aide */
+.pln-card{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.pln-grab{cursor:grab}
+.pln-armed{outline:2px solid var(--action);box-shadow:0 0 0 3px rgba(245,179,1,.25)}
+.pln-droppable{outline:1.5px dashed rgba(245,179,1,.55);outline-offset:-3px}
+.pln-cell.pln-droppable{cursor:pointer;background:rgba(245,179,1,.03)}
+.pln-hover{background:rgba(245,179,1,.14)!important;outline:2px solid var(--action)}
+#plnHint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));background:#3a2a0e;border:1px solid var(--action);color:#fbbf24;border-radius:12px;padding:10px 14px;font-size:13.5px;z-index:1200;display:flex;gap:10px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.5);max-width:94vw}
 </style>
 </head>
 <body>
@@ -1455,7 +1463,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L111';
+const APP_VERSION='2026.07.10-L112';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2141,7 +2149,7 @@ function applyRole(){
   document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
   document.getElementById('tabNc').style.display=canManageData()?'':'none';
   { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
-  { const _tp=document.getElementById('tabPlanning'); if(_tp) _tp.style.display=canManageData()?'':'none'; }   // [L111 · ÉTAPE 1] maquette Planning : admin/pilotage seulement (à ouvrir à tous en ÉTAPE 2)
+  { const _tp=document.getElementById('tabPlanning'); if(_tp) _tp.style.display=''; }   // [L112 · ÉTAPE 2] Planning visible par tous (atelier = lecture seule)
   document.getElementById('tabStock').style.display=canViewStock()?'':'none';
   { const _ta=document.getElementById('tabAudit'); if(_ta) _ta.style.display=canViewAudit()?'':'none'; }   // [L65] onglet retiré du HTML — garde de survie si réintroduit
   document.getElementById('tabMaintenance').style.display=canAccessMaintenance()?'':'none';
@@ -3594,7 +3602,7 @@ function switchTab(tab){
   if(tab==='stock'&&!canViewStock()) tab='saves';
   if(tab==='audit'&&!canViewAudit()) tab='saves';
   if(tab==='maintenance'&&!canAccessMaintenance()) tab='saves';
-  if(tab==='planning'&&!canManageData()) tab='saves';   // [L111 · ÉTAPE 1] maquette réservée admin/pilotage — lecture pour tous en ÉTAPE 2
+  // [L112 · ÉTAPE 2] Planning visible par TOUS (atelier = lecture seule ; pose/retrait gardés par plnCanEdit)
   ['saves','temps','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','planning'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
@@ -6417,12 +6425,20 @@ function renderSaves(){
         ?`<div class="save-meta" style="color:#c4b5fd">🎞 ${parts.join(' &nbsp;|&nbsp; ')}</div>`
         :'';
     })();
+    const plnBadge=(s.plannedDate)?(()=>{   // [L112 · Planning] badge « 📅 S29 · mer 15/07 · MAVEG » (rouge si posé après la livraison)
+      const pd=new Date(s.plannedDate+'T12:00:00');
+      const J=['dim','lun','mar','mer','jeu','ven','sam'];
+      const liv=(typeof _plnDateLivMin==='function')?_plnDateLivMin(s):(s.dateLiv||'');
+      const late=liv&&s.plannedDate>liv;
+      return `<div style="margin-top:5px"><span style="display:inline-block;background:${late?'#7a2222':'#14532d'};color:#fff;font-weight:800;font-size:12.5px;padding:3px 10px;border-radius:6px">📅 S${_plnIsoWeekNum(pd)} · ${J[pd.getDay()]} ${String(pd.getDate()).padStart(2,'0')}/${String(pd.getMonth()+1).padStart(2,'0')} · ${esc(getMachineLabel(s.plannedMachine||'')||'—')}${late?' ⚠':''}</span></div>`;
+    })():'';
     return `<div class="save-card">
       <div class="save-info">
         ${s.reste?`<div style="display:inline-block;background:#06231c;color:#5eead4;border:1px solid #115e52;border-radius:6px;padding:2px 9px;font-size:12px;font-weight:800;margin-bottom:6px">♻ RESTE manque matière</div>`:''}
         ${titleHtml}
         ${machBadge}
         ${cmdLine}
+        ${plnBadge}
         <div class="save-meta">${ds} · Bobine ${s.mother} mm</div>
         ${filmLine}
         ${filesLine}
@@ -8433,65 +8449,326 @@ async function exportTemps(){
 }
 
 // ============================================================
-// [L111 · 📅 PLANNING — ÉTAPE 1 squelette (maquette, AUCUNE écriture)]
-// Calendrier de production hebdo : à terme (ÉTAPE 2, après feu vert Esteban)
-// les plans de Données > Plans se posent sur jour × machine par glisser-déposer
-// tactile, persistés par plannedDate + plannedMachine sur le doc « saves »
-// existant → cohérence AUTOMATIQUE : le planning lit savesCache filtré
-// !deleted, un plan archivé/coupé disparaît tout seul.
-// ÉTAPE 1 : layout seul — cartes d'exemple posées + vrais plans « à planifier »
-// en lecture seule. Onglet limité admin/pilotage (applyRole) tant que maquette.
+// [L112 · 📅 PLANNING — ÉTAPE 2 complète (feu vert Esteban 10/07)]
+// Calendrier de production hebdo. VISIBLE par tous (atelier = lecture seule) ;
+// pose / déplacement / retrait réservés admin + pilotage (canManageData).
+// Persistance : plannedDate ('aaaa-mm-jj') + plannedMachine (clé 'feba'|'maveg'|
+// 'cevenini') sur le doc « saves » existant — PAS de nouvelle collection.
+// COHÉRENCE AUTOMATIQUE : le planning lit savesCache filtré !deleted ET « pas
+// déjà coupé » (même détection que l'hygiène : une fiche existe pour la
+// commande) → un plan archivé OU déjà produit disparaît tout seul, zéro synchro.
+// REPORTÉS : plannedDate < aujourd'hui → bande dédiée, AUCUNE réécriture
+// automatique (règle maison anti écriture de masse) : re-glisser = seule écriture.
+// RÈGLES FIRESTORE : test prudent au 1er write (décision Esteban 10/07) — refus
+// permission ⇒ retour arrière local + message clair, rien de cassé.
+// Tactile : maintien ~250 ms pour « prendre » une carte (Pointer Events + fantôme),
+// REPLI tap-pour-poser (carte → cases surlignées → case). Souris : glisser direct.
 // ============================================================
 let plnWeekOffset=0;
+let plnArmedSid=null;            // carte « armée » (tap-pour-poser)
+let _plnDrag=null;               // état du glisser en cours
+let _plnLastDrop=0;              // anti-clic fantôme après un drop
+let _plnEstCache={};             // cache durée estimée par plan (vidé à chaque rendu)
+const PLN_WARN_H=6, PLN_OVER_H=7.5;   // seuils charge jour×machine (heures) — faciles à régler
+const PLN_JOURS=['lun','mar','mer','jeu','ven'];
+const PLN_MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+function plnCanEdit(){ return (typeof canManageData==='function')&&canManageData(); }
 function _plnMonday(off){ const now=new Date(); const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const wd=(d.getDay()||7); d.setDate(d.getDate()-(wd-1)+off*7); return d; }
 function _plnIsoWeekNum(d){ const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const wd=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-wd); const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil(((t-y0)/86400000+1)/7); }
 function _plnIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function plnNav(n){ plnWeekOffset=(n===0)?0:plnWeekOffset+n; renderPlanning(); }
+// « déjà coupé » = une fiche existe pour la commande (client¦réf¦n° NON vide) — même clé que l'hygiène
+function _plnSentKeys(){
+  const canon=v=>nrm((v&&v!=='—')?v:'');
+  const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
+  return {set:new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd))),keyOf,canon};
+}
+function _plnDejaCoupe(s,ctx){
+  if(s.reste||s.resteFromFiche) return false;   // [L112 · CRITIQUE] un plan RESTE porte le numCmd de la fiche d'ORIGINE mais reste À COUPER → il doit rester planifiable
+  return !!(ctx.canon(s.numCmd)&&ctx.set.has(ctx.keyOf(s.client,s.ref,s.numCmd)));
+}
+// Livraison la plus proche (multi-clients : min des dateLiv par client — ISO triable)
+function _plnDateLivMin(s){
+  const ds=[]; if(s.dateLiv) ds.push(String(s.dateLiv));
+  if(Array.isArray(s.cmdClients)) s.cmdClients.forEach(c=>{ if(c&&c.dateLiv) ds.push(String(c.dateLiv)); });
+  return ds.length?ds.sort()[0]:'';
+}
+// ── Durée estimée « ≈ » : métrage × nb bobines mères ÷ débit m/h médian machine ──
+// nb bobines mères = MÊME moteur que le plan (packRefGroups, lecture seule, chutes/recuts
+// ignorés = léger surplus côté sûr). Pas de donnée de débit pour LA machine → null (jamais
+// un faux chiffre : dujDebit en repli « global » est refusé).
+function _plnPlanMeters(s){
+  const ck=(s._id||'?')+'¦'+(s.date||'');
+  if(Object.prototype.hasOwnProperty.call(_plnEstCache,ck)) return _plnEstCache[ck];
+  let out=null;
+  try{
+    const raw=(Array.isArray(s.refGroups)&&s.refGroups.length)?s.refGroups
+      :[{ref:s.ref,longueur:s.longueur,mother:s.mother,edge:10,blade:s.blade,machine:s.machine,rows:s.rows||[]}];
+    const gs=raw.map(g=>({ref:g.ref||'',longueur:g.longueur,machine:dujMachKey(g.machine||s.machine||''),
+      useful:clampUseful(parseNum(g.mother)-parseNum(g.edge!=null?g.edge:10)),
+      blade:clampBlade(parseNum(g.blade)),
+      rows:(g.rows||[]).map(r=>({qty:Number(r.qty)||0,width:Number(r.width)||0})).filter(r=>r.qty>0&&r.width>0),
+      chutes:[],recuts:[]})).filter(g=>g.useful>0&&g.rows.length);
+    if(gs.length){
+      const packed=packRefGroups(gs);
+      let total=0,ok=true; const byMach={};
+      packed.forEach((p,i)=>{
+        const lg=parseFloat(String(gs[i].longueur).replace(',','.'))||0;
+        const nb=(p.stats&&p.stats.totalBobines)||0;
+        if(lg<=0||nb<=0){ ok=false; return; }
+        total+=lg*nb; const mk=gs[i].machine||''; byMach[mk]=(byMach[mk]||0)+lg*nb;
+      });
+      out=(ok&&total>0)?{metres:total,byMach}:null;
+    }
+  }catch(e){ out=null; }
+  _plnEstCache[ck]=out; return out;
+}
+function _plnHoursOn(s,machKey){
+  const est=_plnPlanMeters(s); if(!est) return null;
+  const deb=dujDebit(dujMachKey(machKey),null);
+  if(!deb||!deb.d||deb.src==='global') return null;
+  return est.metres/deb.d;
+}
+function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
+  const est=_plnPlanMeters(s); if(!est) return null;
+  let h=0;
+  for(const mk of Object.keys(est.byMach)){
+    const deb=dujDebit(mk,null);
+    if(!deb||!deb.d||deb.src==='global') return null;
+    h+=est.byMach[mk]/deb.d;
+  }
+  return h||null;
+}
+function _plnH(h){ if(h==null||!isFinite(h)||h<=0) return '—'; const H=Math.floor(h),M=Math.round((h-H)*60); return '≈ '+(H>0?(H+' h'+(M?' '+String(M).padStart(2,'0'):'')):(M+' min')); }
+// ── ÉCRITURE pose / déplacement / retrait (optimiste + retour arrière + logAudit) ──
+async function plnSetPlan(sid,dateIso,machKey){
+  if(!plnCanEdit()){ showToast('🔒 Lecture seule — la planification est réservée au pilotage/admin.','err'); return false; }
+  const s=(savesCache||[]).find(x=>x&&x._id===sid);
+  if(!s){ showToast('Plan introuvable — recharge la page.','err'); return false; }
+  const before={d:s.plannedDate||null,m:s.plannedMachine||null};
+  const after={d:dateIso||null,m:machKey||null};
+  if(before.d===after.d&&before.m===after.m) return true;
+  s.plannedDate=after.d; s.plannedMachine=after.m;   // optimiste — onSnapshot confirmera
+  renderPlanning();
+  try{
+    await boundedWrite(db.collection('saves').doc(sid).update({plannedDate:after.d,plannedMachine:after.m}),10000);
+    const lbl=(s.client||'—')+' / N° '+(s.numCmd||'—');
+    const txt=after.d
+      ?('Planning : posé '+after.d+' × '+getMachineLabel(after.m)+' — '+lbl+(before.d?(' (était '+before.d+' × '+getMachineLabel(before.m)+')'):''))
+      :('Planning : retiré — '+lbl+' (était '+before.d+' × '+getMachineLabel(before.m)+')');
+    try{ await logAudit('planning','saves',sid,txt,{client:s.client||'',numCmd:s.numCmd||'',plannedDate:after.d||'',plannedMachine:after.m||''}); }catch(e){}
+    return true;
+  }catch(e){
+    s.plannedDate=before.d; s.plannedMachine=before.m;   // retour arrière : rien de cassé
+    renderPlanning();
+    const perm=/permission|insufficient/i.test(String((e&&e.message)||e));
+    showToast(perm
+      ?'⛔ Firestore a REFUSÉ l\'écriture (règles) — rien n\'a été modifié.\nDis-le à Claude : les règles doivent autoriser plannedDate/plannedMachine sur « saves ».'
+      :'⚠ Écriture planning échouée ('+((e&&e.message)||e)+') — réessaie.','err');
+    if(perm) console.warn('[Planning] Règles à compléter : autoriser aux rôles admin/pilotage l\'update des champs plannedDate (string|null) et plannedMachine (string|null) de la collection saves.');
+    return false;
+  }
+}
+// ── Tap-pour-poser ──
+function plnDisarm(){
+  plnArmedSid=null;
+  const h=document.getElementById('plnHint'); if(h) h.remove();
+  document.querySelectorAll('.pln-armed').forEach(el=>el.classList.remove('pln-armed'));
+  document.querySelectorAll('.pln-droppable').forEach(el=>el.classList.remove('pln-droppable'));
+}
+function plnArm(sid){
+  if(!plnCanEdit()) return;
+  if(plnArmedSid===sid){ plnDisarm(); return; }
+  plnDisarm(); plnArmedSid=sid;
+  const card=document.querySelector('.pln-card[data-pln-sid="'+sid+'"]'); if(card) card.classList.add('pln-armed');
+  document.querySelectorAll('.pln-cell').forEach(el=>el.classList.add('pln-droppable'));
+  const s=(savesCache||[]).find(x=>x&&x._id===sid);
+  if(s&&s.plannedDate){ const p=document.getElementById('plnPool'); if(p) p.classList.add('pln-droppable'); }
+  const bar=document.createElement('div'); bar.id='plnHint';
+  bar.innerHTML='📍 <b>'+esc((s&&s.client)||'—')+((s&&s.numCmd)?' · N° '+esc(s.numCmd):'')+'</b> — touche une case du planning'+((s&&s.plannedDate)?' (ou « À planifier » pour le retirer)':'')+' <button class="btn btn-ghost btn-sm" onclick="plnDisarm()">✕</button>';
+  document.body.appendChild(bar);
+}
+async function plnCellTap(dateIso,machKey){
+  if(!plnArmedSid) return;
+  const sid=plnArmedSid; plnDisarm();
+  await plnSetPlan(sid,dateIso,machKey);
+}
+async function plnPoolTap(){
+  if(!plnArmedSid) return;
+  const sid=plnArmedSid; plnDisarm();
+  await plnSetPlan(sid,null,null);
+}
+function plnCardTap(sid,kind,ev){
+  if(ev) ev.stopPropagation();
+  if(Date.now()-_plnLastDrop<450) return;   // clic fantôme post-drop
+  if(plnArmedSid){
+    const cell=ev&&ev.target&&ev.target.closest?ev.target.closest('.pln-cell'):null;
+    if(cell&&cell.dataset.day){ plnCellTap(cell.dataset.day,cell.dataset.mach); return; }   // armé + tap sur carte D'UNE CASE → poser dans cette case
+    if(sid===plnArmedSid){ plnDisarm(); return; }
+  }
+  if(kind==='placed'){ plnOpenCard(sid); return; }
+  if(plnCanEdit()) plnArm(sid); else plnOpenCard(sid);
+}
+// ── Mini-popup d'une carte ──
+function plnOpenCard(sid){
+  const s=(savesCache||[]).find(x=>x&&x._id===sid); if(!s) return;
+  let ov=document.getElementById('plnCardModal');
+  if(!ov){ ov=document.createElement('div'); ov.id='plnCardModal'; ov.className='modal-overlay'; ov.addEventListener('click',function(e){ if(e.target===ov) ov.classList.remove('open'); }); document.body.appendChild(ov); }
+  const liv=_plnDateLivMin(s);
+  const h=s.plannedMachine?_plnHoursOn(s,s.plannedMachine):_plnHoursAuto(s);
+  const late=!!(s.plannedDate&&liv&&s.plannedDate>liv);
+  const canE=plnCanEdit();
+  ov.innerHTML='<div class="modal">'
+    +'<h3>📅 '+esc(s.client||'—')+(s.numCmd?' · N° '+esc(s.numCmd):'')+'</h3>'
+    +'<div style="font-size:13.5px;line-height:1.8;color:var(--muted);margin-bottom:12px">'
+      +'<div><b style="color:var(--text)">Réf :</b> '+esc(s.ref||'—')+'</div>'
+      +(s.laizes?'<div><b style="color:var(--text)">Laizes :</b> '+esc(s.laizes)+'</div>':'')
+      +'<div><b style="color:var(--text)">Livraison :</b> '+(liv?new Date(liv+'T12:00:00').toLocaleDateString('fr-FR'):'—')+(late?' <b style="color:var(--red)">⚠ dépassée par la date posée</b>':'')+'</div>'
+      +(s.plannedDate?'<div><b style="color:var(--text)">Posé :</b> S'+_plnIsoWeekNum(new Date(s.plannedDate+'T12:00:00'))+' · '+new Date(s.plannedDate+'T12:00:00').toLocaleDateString('fr-FR')+' × '+esc(getMachineLabel(s.plannedMachine||'')||'—')+'</div>':'')
+      +'<div><b style="color:var(--text)">Durée estimée :</b> '+_plnH(h)+'</div>'
+      +(s.notesEmballage?'<div><b style="color:var(--text)">Notes :</b> '+esc(s.notesEmballage)+'</div>':'')
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px">'
+      +(canE?'<button class="btn btn-blue" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\');plnArm(\''+esc(sid)+'\')">📍 '+(s.plannedDate?'Déplacer':'Poser sur le planning')+'</button>':'')
+      +(canE&&s.plannedDate?'<button class="btn btn-red" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\');plnSetPlan(\''+esc(sid)+'\',null,null)">↩ Retirer du planning</button>':'')
+      +'<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\');plnGotoSave(\''+esc(sid)+'\')">👁 Voir dans Plans</button>'
+      +'<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\')">Fermer</button>'
+    +'</div></div>';
+  ov.classList.add('open');
+}
+function plnGotoSave(sid){
+  const s=(savesCache||[]).find(x=>x&&x._id===sid); if(!s) return;
+  plnDisarm();
+  const c=document.getElementById('saveFilterCmd'); if(c) c.value=s.numCmd||'';
+  switchTab('saves');
+}
+// ── Glisser-déposer Pointer Events (souris : direct ; tactile : maintien ~250 ms) ──
+function plnPointerDown(ev,sid){
+  if(!plnCanEdit()) return;
+  if(ev.button!==undefined&&ev.button!==0&&ev.pointerType==='mouse') return;
+  const card=ev.currentTarget;
+  _plnDrag={sid,card,x0:ev.clientX,y0:ev.clientY,lifted:false,timer:null,moved:false,hover:null};
+  if(ev.pointerType!=='mouse'){ _plnDrag.timer=setTimeout(function(){ if(_plnDrag&&!_plnDrag.moved) _plnLift(); },250); }
+  try{ card.setPointerCapture(ev.pointerId); }catch(e){}
+}
+function _plnLift(){
+  if(!_plnDrag||_plnDrag.lifted) return;
+  _plnDrag.lifted=true;
+  plnDisarm();
+  const c=_plnDrag.card, r=c.getBoundingClientRect();
+  const g=c.cloneNode(true);
+  g.id='plnGhost';
+  g.style.cssText='position:fixed;left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;z-index:9999;opacity:.9;pointer-events:none;transform:rotate(1.5deg);box-shadow:0 8px 24px rgba(0,0,0,.55);background:var(--section)';
+  document.body.appendChild(g);
+  _plnDrag.ghost=g; _plnDrag.dx=_plnDrag.x0-r.left; _plnDrag.dy=_plnDrag.y0-r.top;
+  c.style.opacity='.35';
+  document.querySelectorAll('.pln-cell').forEach(el=>el.classList.add('pln-droppable'));
+  const s=(savesCache||[]).find(x=>x&&x._id===_plnDrag.sid);
+  if(s&&s.plannedDate){ const p=document.getElementById('plnPool'); if(p) p.classList.add('pln-droppable'); }
+  try{ if(navigator.vibrate) navigator.vibrate(12); }catch(e){}
+}
+function plnPointerMove(ev){
+  if(!_plnDrag) return;
+  const dx=ev.clientX-_plnDrag.x0, dy=ev.clientY-_plnDrag.y0;
+  if(!_plnDrag.lifted){
+    if(Math.abs(dx)>8||Math.abs(dy)>8){
+      _plnDrag.moved=true;
+      if(ev.pointerType==='mouse') _plnLift();
+      else { clearTimeout(_plnDrag.timer); _plnDrag=null; }   // tactile : mouvement avant la prise = défilement normal
+    }
+    return;
+  }
+  if(ev.cancelable) ev.preventDefault();
+  _plnDrag.ghost.style.left=(ev.clientX-_plnDrag.dx)+'px';
+  _plnDrag.ghost.style.top=(ev.clientY-_plnDrag.dy)+'px';
+  const under=document.elementFromPoint(ev.clientX,ev.clientY);
+  const cell=under&&under.closest?under.closest('.pln-cell,#plnPool'):null;
+  if(_plnDrag.hover&&_plnDrag.hover!==cell) _plnDrag.hover.classList.remove('pln-hover');
+  if(cell){ cell.classList.add('pln-hover'); _plnDrag.hover=cell; }
+}
+async function plnPointerUp(ev){
+  if(!_plnDrag) return;
+  clearTimeout(_plnDrag.timer);
+  const d=_plnDrag; _plnDrag=null;
+  if(!d.lifted) return;   // tap court → onclick (plnCardTap) prend le relais
+  _plnLastDrop=Date.now();
+  if(d.ghost) d.ghost.remove();
+  d.card.style.opacity='';
+  document.querySelectorAll('.pln-hover').forEach(el=>el.classList.remove('pln-hover'));
+  document.querySelectorAll('.pln-droppable').forEach(el=>el.classList.remove('pln-droppable'));
+  const under=document.elementFromPoint(ev.clientX,ev.clientY);
+  const cell=under&&under.closest?under.closest('.pln-cell'):null;
+  const pool=under&&under.closest?under.closest('#plnPool'):null;
+  if(cell&&cell.dataset.day) await plnSetPlan(d.sid,cell.dataset.day,cell.dataset.mach);
+  else if(pool) await plnSetPlan(d.sid,null,null);
+  else renderPlanning();
+}
+function plnPointerCancel(){
+  if(!_plnDrag) return;
+  clearTimeout(_plnDrag.timer);
+  if(_plnDrag.ghost) _plnDrag.ghost.remove();
+  if(_plnDrag.card) _plnDrag.card.style.opacity='';
+  document.querySelectorAll('.pln-hover').forEach(el=>el.classList.remove('pln-hover'));
+  document.querySelectorAll('.pln-droppable').forEach(el=>el.classList.remove('pln-droppable'));
+  _plnDrag=null;
+}
+// iOS : une fois la carte « prise », bloquer le défilement de la page (sinon pointercancel tue le drag)
+document.addEventListener('touchmove',function(e){ if(_plnDrag&&_plnDrag.lifted&&e.cancelable) e.preventDefault(); },{passive:false});
+// ── RENDU ──
 function renderPlanning(){
   const el=document.getElementById('planningContent'); if(!el) return;
+  plnDisarm();
+  _plnEstCache={};
+  const ctx=_plnSentKeys();
+  const todayIso=_plnIso(new Date());
+  const all=(savesCache||[]).filter(s=>s&&!s.deleted&&!_plnDejaCoupe(s,ctx));
   const mon=_plnMonday(plnWeekOffset);
   const days=[...Array(5)].map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
-  const todayIso=_plnIso(new Date());
+  const dayIsos=days.map(_plnIso);
   const kw=_plnIsoWeekNum(mon);
-  const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  const titre=`S${kw} · ${days[0].getDate()} → ${days[4].getDate()} ${MOIS[days[4].getMonth()]} ${days[4].getFullYear()}`;
-  const JOURS=['lun','mar','mer','jeu','ven'];
-  // À PLANIFIER : les VRAIS plans non supprimés sans planification (lecture seule en maquette)
-  const pool=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.plannedDate);
-  const poolCards=pool.slice(0,12).map(s=>{
-    const liv=s.dateLiv?new Date(s.dateLiv):null;
-    const urgent=liv&&((liv-new Date())/86400000)<7;
-    return `<div class="pln-card${urgent?' late':''}"${urgent?' title="⚠ livraison sous 7 jours"':''}><b>${esc(s.client||'—')}</b>${s.numCmd?' · N° '+esc(s.numCmd):''}<div class="pc-meta">${esc(s.ref||'—')}${s.dateLiv?' · livr. '+new Date(s.dateLiv).toLocaleDateString('fr-FR'):''}${urgent?' · <b style="color:var(--red)">⚠ urgent</b>':''}</div></div>`;
-  }).join('');
-  // Cartes d'EXEMPLE posées (maquette — remplacées par les vrais plans plannedDate/plannedMachine en ÉTAPE 2)
-  const demo={}; const dk=(i,m)=>i+'¦'+m;
-  demo[dk(0,'feba')]={h:'≈ 3 h 10',cards:[{c:'VEKA',n:'4501935987',t:'≈ 3 h 10'}]};
-  demo[dk(0,'maveg')]={h:'≈ 3 h 35',cards:[{c:'Cougnaud',n:'e260700007',t:'≈ 2 h 05'},{c:'PRIMA',n:'pr772002',t:'≈ 1 h 30'}]};
-  demo[dk(2,'cevenini')]={h:'≈ 4 h 45',cards:[{c:'Legrand France',n:'366814',t:'≈ 4 h 45'}]};
-  demo[dk(3,'feba')]={h:'≈ 6 h 20',warn:true,cards:[{c:'DECEUNINCK NV',n:'4500864108',t:'≈ 5 h 20'},{c:'ADHETEC',n:'a02602604',t:'≈ 1 h 00'}]};
-  let grid=`<div class="pln-hcell"></div>`+days.map((d,i)=>`<div class="pln-hcell${_plnIso(d)===todayIso?' today':''}">${JOURS[i]} ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</div>`).join('');
+  const titre=`S${kw} · ${days[0].getDate()} → ${days[4].getDate()} ${PLN_MOIS[days[4].getMonth()]} ${days[4].getFullYear()}`;
+  const canEdit=plnCanEdit();
+  const dragAttrs=canEdit?`onpointermove="plnPointerMove(event)" onpointerup="plnPointerUp(event)" onpointercancel="plnPointerCancel()"`:'';
+  const cardHtml=(s,kind)=>{
+    const liv=_plnDateLivMin(s);
+    const late=(kind==='placed')?!!(liv&&s.plannedDate>liv):!!(liv&&((new Date(liv+'T12:00:00')-new Date())/86400000)<7);
+    const h=(kind==='placed'||kind==='report')?_plnHoursOn(s,s.plannedMachine):_plnHoursAuto(s);
+    const machCls=(kind==='placed'||kind==='report')?dujMachKey(s.plannedMachine||''):'';
+    return `<div class="pln-card ${machCls}${late?' late':''}${canEdit?' pln-grab':''}" data-pln-sid="${esc(s._id)}"
+      ${canEdit?`onpointerdown="plnPointerDown(event,'${esc(s._id)}')" ${dragAttrs}`:''}
+      onclick="plnCardTap('${esc(s._id)}','${kind}',event)"
+      ${late?'title="⚠ livraison dépassée / sous 7 jours"':''}>
+      <b>${esc(s.client||'—')}</b>${s.numCmd?' · N° '+esc(s.numCmd):''}
+      <div class="pc-meta">${esc(s.ref||'—')}${liv?' · livr. '+new Date(liv+'T12:00:00').toLocaleDateString('fr-FR'):''}${kind==='report'?' · <b style="color:var(--red)">prévu S'+_plnIsoWeekNum(new Date(s.plannedDate+'T12:00:00'))+' · non fait</b>':''}${h!=null?' · '+_plnH(h):''}${late&&kind==='pool'?' · <b style="color:var(--red)">⚠ urgent</b>':''}</div>
+    </div>`;
+  };
+  const reports=all.filter(s=>s.plannedDate&&s.plannedDate<todayIso).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
+  const pool=all.filter(s=>!s.plannedDate).sort((a,b)=>String(_plnDateLivMin(a)||'9999').localeCompare(String(_plnDateLivMin(b)||'9999')));
+  let grid=`<div class="pln-hcell"></div>`+days.map((d,i)=>`<div class="pln-hcell${dayIsos[i]===todayIso?' today':''}">${PLN_JOURS[i]} ${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</div>`).join('');
   DUJ_MACHINES.forEach(m=>{
     grid+=`<div class="pln-mach" style="color:var(--${m})">${esc(getMachineLabel(m))}</div>`;
-    days.forEach((d,i)=>{
-      const cell=(plnWeekOffset===0)?demo[dk(i,m)]:null;   // exemples posés uniquement sur la semaine courante
-      const cards=cell?cell.cards.map(c=>`<div class="pln-card ${m}"><b>${esc(c.c)}</b> · N° ${esc(c.n)}<div class="pc-meta">${c.t} · <i>EXEMPLE</i></div></div>`).join(''):'';
-      grid+=`<div class="pln-cell${_plnIso(d)===todayIso?' today':''}"><div class="pln-load${cell&&cell.warn?' warn':''}">${cell?cell.h:'—'}</div>${cards}</div>`;
+    dayIsos.forEach((iso,i)=>{
+      const cellPlans=all.filter(s=>s.plannedDate===iso&&dujMachKey(s.plannedMachine||'')===m);
+      let hSum=0,every=cellPlans.length>0,any=false;
+      cellPlans.forEach(s=>{ const h=_plnHoursOn(s,m); if(h==null) every=false; else {hSum+=h;any=true;} });
+      const loadTxt=cellPlans.length?(any?_plnH(hSum)+(every?'':' +?'):'—'):'—';
+      const loadCls=(any&&hSum>PLN_OVER_H)?' over':((any&&hSum>PLN_WARN_H)?' warn':'');
+      grid+=`<div class="pln-cell${iso===todayIso?' today':''}" data-day="${iso}" data-mach="${m}" onclick="plnCellTap('${iso}','${m}')"><div class="pln-load${loadCls}" title="charge estimée du jour sur cette machine">${loadTxt}</div>${cellPlans.map(s=>cardHtml(s,'placed')).join('')}</div>`;
     });
   });
   el.innerHTML=`
-    <div style="background:#3a2a0e;border:1px solid #7a5a12;color:#fbbf24;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px">🚧 <b>Maquette — étape 1.</b> Valide la mise en page : les cartes posées dans la grille sont des <b>exemples</b> ; « À planifier » montre tes vrais plans. Le glisser-déposer tactile + l'enregistrement + les retards/reportés/charges réels arrivent après ton feu vert.</div>
     <div id="plnHead">
       <button class="btn btn-ghost btn-sm" onclick="plnNav(-1)">◀ Semaine préc.</button>
       <button class="btn btn-ghost btn-sm" onclick="plnNav(0)">Aujourd'hui</button>
       <button class="btn btn-ghost btn-sm" onclick="plnNav(1)">Semaine suiv. ▶</button>
       <span id="plnTitle">${titre}</span>
+      ${canEdit?'':'<span style="font-size:12px;color:var(--muted)">🔒 lecture seule</span>'}
     </div>
-    <div class="pln-report">↪ <b>Reportés</b> · prévu S${kw-1}, non fait :
-      <span class="pln-card"><b>EXEMPLE SA</b> · N° 999999<div class="pc-meta">à re-glisser sur la semaine · <i>EXEMPLE</i></div></span>
-    </div>
-    <div style="font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">📥 À planifier — ${pool.length} plan(s)${pool.length>12?' (12 premiers affichés en maquette)':''}</div>
-    <div id="plnPool">${poolCards||'<span style="color:var(--muted);font-size:13px">Aucun plan en attente.</span>'}</div>
-    <div class="pln-wrap"><div class="pln-grid">${grid}</div></div>`;
+    ${reports.length?`<div class="pln-report">↪ <b>Reportés (${reports.length})</b> — à re-glisser :${reports.map(s=>cardHtml(s,'report')).join('')}</div>`:''}
+    <div style="font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px">📥 À planifier — ${pool.length} plan(s)</div>
+    <div id="plnPool" onclick="plnPoolTap()">${pool.map(s=>cardHtml(s,'pool')).join('')||'<span style="color:var(--muted);font-size:13px">Aucun plan en attente. 👍</span>'}</div>
+    <div class="pln-wrap"><div class="pln-grid">${grid}</div></div>
+    ${canEdit?'<div style="font-size:12px;color:var(--muted);margin-top:8px">🖱 Souris : glisse une carte. ✋ Tactile : garde le doigt appuyé ~½ s pour prendre la carte, ou touche-la puis touche une case. Touche une carte posée pour détail / retirer.</div>':''}`;
 }
 
 // ============================================================
@@ -13177,7 +13454,10 @@ function hygieneDryRun(){
   const canon=v=>nrm((v&&v!=='—')?v:'');
   const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
   const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
-  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  // [L112 · CRITIQUE] plans « ♻ RESTE manque matière » EXCLUS : ils portent le numCmd de la
+  // fiche d'ORIGINE (déjà envoyée) alors que le solde reste À COUPER — sans cette garde,
+  // le nettoyage les aurait archivés (perte du plan du solde).
+  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.reste&&!s.resteFromFiche&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
   let soldesExclus=0;
   const drafts=(brouillonsCache||[]).filter(d=>{
     if(!d||d.consumed||d.kind==='shared'||/^d_(autosave|shared_)/.test(String(d.id))) return false;
@@ -13205,7 +13485,9 @@ async function hygieneApply(){
   const canon=v=>nrm((v&&v!=='—')?v:'');
   const keyOf=(c,r,n)=>nrm(c)+'¦'+nrm(r)+'¦'+canon(n);
   const sentKeys=new Set((fichesCache||[]).filter(f=>f&&!f.deleted&&canon(f.numCmd)).map(f=>keyOf(f.client,f.ref,f.numCmd)));
-  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
+  // [L112 · CRITIQUE] plans « ♻ RESTE manque matière » EXCLUS : même numCmd que la fiche
+  // d'origine mais le solde reste À COUPER — les archiver = perdre le plan du solde.
+  const plans=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.reste&&!s.resteFromFiche&&canon(s.numCmd)&&sentKeys.has(keyOf(s.client,s.ref,s.numCmd)));
   if(!plans.length){showToast('Aucun plan « déjà coupé » à nettoyer. 👍','ok');return;}
   const apercu=plans.slice(0,8).map(s=>'· '+(s.client||'—')+' / N° '+(s.numCmd||'—')).join('\n');
   if(!confirm('🧹 Retirer '+plans.length+' plan(s) « déjà coupés » de Données > Plans ?\n\n'+apercu+(plans.length>8?'\n… et '+(plans.length-8)+' autre(s)':'')+'\n\nLeur fiche découpe garde le vrai enregistrement.\nRécupérables 45 jours via la Corbeille, puis purge automatique.')) return;
