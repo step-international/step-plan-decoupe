@@ -889,7 +889,7 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
         <div class="row2">
           <div class="field">
             <label>Nouvelle lame N°</label>
-            <input type="text" id="fLameNew" placeholder="ex : L-15" inputmode="text">
+            <input type="text" id="fLameNew" placeholder="ex : L-15" inputmode="text" onchange="lameNewRewriteWarn(this)"><!-- [L103 · audit-max] réécriture = lame intermédiaire non tracée : avertir -->
           </div>
           <div class="field">
             <label>À partir de la bobine n°</label>
@@ -6882,12 +6882,30 @@ async function stopManqueMatiere(){
   if(reste>0){
     try{
       const st=serializeFicheState();
+      const _allLines=(st.lines||[]).slice();   // [L103 · audit-max] positions ORIGINALES + flags coupée (pour remapper les bascules ci-dessous)
       st.lines=(st.lines||[]).filter(l=>!l.coupee).map(l=>Object.assign({},l,{
         coupee:false, devi:false, droit:false, conforme:false, test2nc:false,
         ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false,
         ncDetail:'', photo:'', actDechet:false, actChutes:false, actAccept:false
       }));
       st.chrono={sec:0, startTs:null, wasRunning:false, runStart:null};
+      // [L103 · audit-max] les bascules « dès la bobine N » (lame / machine / op.2) sont des
+      // POSITIONS de la fiche COMPLÈTE — le solde ne garde que les non-coupées, renumérotées :
+      // le solde repartait avec l'ANCIENNE lame/machine en tête et une bascule au mauvais rang.
+      // Bascule déjà EFFECTIVE (toutes les bobines d'avant coupées) → appliquée (lame=lameNew,
+      // machine=machChgTo) et créneau vidé ; sinon → position remappée (N − coupées d'avant).
+      try{
+        const _cb=v=>{ const n=parseInt(v,10)||0; if(!n) return null;
+          return {n, cb:_allLines.slice(0,n-1).filter(l=>l&&l.coupee).length}; };
+        const F=st.fiche||{};
+        if(F.lameChg){ const r=_cb(F.lameChgBob);
+          if(r){ if(r.cb>=r.n-1){ if(F.lameNew&&F.lameNew!=='—') F.lame=F.lameNew; F.lameChg=false; F.lameNew=''; F.lameChgBob=''; }
+                 else F.lameChgBob=String(r.n-r.cb); } }
+        if(F.machChg){ const r=_cb(F.machChgBob);
+          if(r){ if(r.cb>=r.n-1){ if(F.machChgTo) F.machine=F.machChgTo; F.machChg=false; F.machChgTo=''; F.machChgBob=''; }
+                 else F.machChgBob=String(r.n-r.cb); } }
+        if(F.op2Active&&F.op2Bob){ const r=_cb(F.op2Bob); if(r) F.op2Bob=String(Math.max(1,r.n-r.cb)); }
+      }catch(e){ console.warn('Remap bascules solde:',e); }
       // [L68 · Audit B25] le solde est une NOUVELLE fiche : sans cette purge, il héritait
       // de _pendingFicheId → son envoi ÉCRASAIT la fiche manque-matière déjà archivée
       // (production des bobines coupées perdue). Le plan source est déjà consommé → null.
@@ -6982,6 +7000,8 @@ function confirmCommandeRecap(){
   // fiche partait avec « dès la bobine ? » et l'analyse NC-par-lame devenait fausse.
   if(document.getElementById('fLameChg')?.checked&&!(document.getElementById('fLameChgBob')?.value)){
     showToast('⚠ « Lame changée » est coché : choisis « À partir de la bobine n° » avant de confirmer.','err'); return; }
+  if(document.getElementById('fLameChg')?.checked&&!((document.getElementById('fLameNew')?.value||'').trim())){
+    showToast('⚠ « Lame changée » est coché : saisis le n° de la NOUVELLE lame avant de confirmer.','err'); return; }   // [L103 · audit-max] symétrique de la garde machine — la fiche partait avec lameNew « — » (analyse NC-par-lame faussée)
   if(document.getElementById('fOp2Active')?.checked&&!(document.getElementById('fOp2Bobine')?.value)){
     showToast('⚠ Opérateur 2 activé : choisis sa bobine de reprise avant de confirmer.','err'); return; }
   if(document.getElementById('fMachChg')?.checked&&!(document.getElementById('fMachChgTo')?.value&&document.getElementById('fMachChgBob')?.value)){
@@ -7746,7 +7766,16 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       // Détection lame : si le n° lame de la fiche diffère de la lame courante
       // de la machine, propose la pose. Sur changement de lame en cours de
       // commande, c'est la NOUVELLE lame (lameNew) qui devient courante.
-      try{ await lameDetectOnFiche(ficheMachine,(lameChg&&lameNew&&lameNew!=='—')?lameNew:lame); }
+      // [L103 · audit-max] machine CIBLE : un changement de lame DANS la plage op.2 (autre
+      // machine) ou APRÈS une bascule machine op.1 concerne l'AUTRE machine — la pose était
+      // proposée sur ficheMachine à tort (registre lame faussé, lame fantôme sur l'op.1).
+      let _lameMach=ficheMachine;
+      try{
+        const _lcb=parseInt(lameChgBob,10)||0, _o2b=parseInt(op2Bob,10)||0, _mcb=machChg?(parseInt(machChg.bob,10)||0):0;
+        if(lameChg&&_lcb&&op2Diff&&_o2b&&_lcb>=_o2b&&ficheMachine2) _lameMach=ficheMachine2;
+        else if(lameChg&&_lcb&&machChg&&_mcb&&_lcb>=_mcb&&MACHINE_KEYS.includes(String(machChg.to||'').toLowerCase())) _lameMach=String(machChg.to).toLowerCase();
+      }catch(e){}
+      try{ await lameDetectOnFiche(_lameMach,(lameChg&&lameNew&&lameNew!=='—')?lameNew:lame); }
       catch(e){ console.warn('Détection lame:',e); }
       chronoReset(true);      // [L79] reset forcé (envoi) — pas de confirm, purge la clé live
       clearCurrentDraft(ficheRef.id);    // …puis purge FIABLE des brouillons AUTO (delete attendu, repli consumed) — DRAFT-4
@@ -13000,7 +13029,17 @@ function fillBobineSelect(id){
   const sel=document.getElementById(id);
   if(!sel) return;
   const cur=sel.value;
+  // [L103 · audit-max] resélection par IDENTITÉ (data-lid), plus par position : supprimer une
+  // bobine AVANT la visée décalait le select d'un cran EN SILENCE (position 6 conservée mais
+  // bobine physique changée) — lame/op.2/machine basculaient sur la mauvaise bobine.
+  const curLid=(cur&&sel.selectedOptions&&sel.selectedOptions[0]&&sel.selectedOptions[0].dataset)?(sel.selectedOptions[0].dataset.lid||null):null;
   sel.innerHTML=buildFicheBobineOptions();
+  if(curLid){
+    const hit=[...sel.options].find(o=>o.dataset&&o.dataset.lid===curLid);
+    sel.value=hit?hit.value:'';
+    if(!hit){ try{ showToast('⚠ Re-choisis la bobine '+_bobSelLabel(id)+' : la bobine visée n\'existe plus.','err'); }catch(e){} }
+    return;
+  }
   if(cur) sel.value=cur;
   // [L70 · Audit B20] la position sélectionnée n'existe plus (bobine supprimée) :
   // prévenir au lieu d'effacer en silence — sinon la fiche part avec « dès la bobine ? »
@@ -13034,6 +13073,19 @@ function toggleLameChg(){
   const on=document.getElementById('fLameChg').checked;
   document.getElementById('lameChgZone').classList.toggle('hidden',!on);
   if(on) refreshOp2BobineList();
+}
+// [L103 · audit-max] une lame changée DEUX fois dans la même commande n'est pas représentable
+// (modèle mono-créneau) : la 2ᵉ saisie écrase la 1ʳᵉ — la lame intermédiaire disparaît de la
+// traçabilité SANS avertissement. On prévient et on oriente vers le registre (pose manuelle).
+function lameNewRewriteWarn(el){
+  try{
+    const prev=(el.dataset.prevLame||'').trim();
+    const cur=(el.value||'').trim();
+    if(prev&&cur&&prev!==cur){
+      showToast('⚠ Lame « '+prev+' » remplacée par « '+cur+' » : une seule bascule est tracée par commande.\n\nSi la lame '+prev+' a réellement coupé des bobines, enregistre sa pose au registre (🔧 Lame / Machine) pour la traçabilité.','err');
+    }
+    el.dataset.prevLame=cur;
+  }catch(e){}
 }
 // ============================================================
 // [L65] CHANGEMENT DE MACHINE OP.1 EN COURS DE COMMANDE — miroir du pattern lame.
