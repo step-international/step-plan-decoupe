@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L123';
+const APP_VERSION='2026.07.10-L124';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10857,6 +10857,73 @@ function dujEstMachineDefaults(){
   const eg=document.getElementById('est_edge'), bl=document.getElementById('est_blade');
   if(eg) eg.value=d.edge; if(bl) bl.value=d.blade;
 }
+// [L124 · T5 — demande Esteban] MODÈLE ADDITIF d'estimation du temps. Constat métier : les petites
+// laizes prennent beaucoup plus de temps (plus de coupes + plus de bobines filles à sortir/étiqueter/
+// mandriner) à métrage égal. Le modèle m/h seul (durée = mètres ÷ débit) l'ignore. Ici on ajoute des
+// inducteurs, CALIBRÉS PAR RÉGRESSION sur l'historique 'temps' (jamais inventés) :
+//   duree ≈ a(setup) + b·nbMères + c·(long·nbMères = déroulé) + f·nbFilles(coupes+manip)
+// nbCoupes = nbFilles − nbMères est linéairement dépendant → absorbé dans f et b (pas de colinéarité).
+// Rétro-compatible : si a=b=f=0 et c=1/débit, on retrouve exactement le modèle m/h.
+let _dujAddOverride=null;   // surcharge manuelle éventuelle des coefficients {feba:[a,b,c,f],...}
+function _dujAddSamples(machKey){
+  const out=[];
+  (tempsCache||[]).filter(t=>t&&!t.deleted).forEach(t=>{
+    const mk=dujMachKey(t.machine||'');
+    if(machKey&&mk!==machKey) return;
+    const nm=Number(t.nbBobines)||0, nf=Number(t.totalLaizes)||0, sec=Number(t.duree)||0;
+    const lg=parseFloat(String(t.longueur).replace(',','.'))||0;
+    if(nm<=0||nf<=0||sec<=0||lg<=0||nf<nm) return;   // nf<nm = données incohérentes
+    out.push({nm,nf,lg,sec});
+  });
+  return out;
+}
+// Résout A·x=b (n×n) par Gauss-Jordan (pivot partiel). null si singulier.
+function _lsqSolve(A,b){
+  const n=b.length, M=[];
+  for(let i=0;i<n;i++) M.push(A[i].slice().concat([b[i]]));
+  for(let col=0;col<n;col++){
+    let piv=col; for(let r=col+1;r<n;r++) if(Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r;
+    if(Math.abs(M[piv][col])<1e-9) return null;
+    const t=M[col]; M[col]=M[piv]; M[piv]=t;
+    const d=M[col][col]; for(let k=col;k<=n;k++) M[col][k]/=d;
+    for(let r=0;r<n;r++){ if(r===col) continue; const f=M[r][col]; for(let k=col;k<=n;k++) M[r][k]-=f*M[col][k]; }
+  }
+  return M.map(r=>r[n]);
+}
+// Calibration (moindres carrés) des coefficients additifs pour une machine (repli global si trop peu).
+function dujCalibrateAdditive(machKey){
+  let S=_dujAddSamples(machKey), scope='machine';
+  if(S.length<10){ S=_dujAddSamples(''); scope='global'; }
+  if(S.length<10) return null;   // pas assez de relevés pour calibrer → on laisse le modèle m/h seul
+  const feat=s=>[1,s.nm,s.lg*s.nm,s.nf];
+  const p=4, A=Array.from({length:p},()=>new Array(p).fill(0)), B=new Array(p).fill(0);
+  S.forEach(s=>{ const x=feat(s); for(let i=0;i<p;i++){ B[i]+=x[i]*s.sec; for(let j=0;j<p;j++) A[i][j]+=x[i]*x[j]; } });
+  const coef=_lsqSolve(A,B);
+  if(!coef||coef.some(c=>!isFinite(c))) return null;
+  // Qualité : MAPE du modèle ADDITIF vs modèle m/h (mètres ÷ débit), globale + par densité de coupes.
+  const deb=dujDebit(machKey,null), dmh=(deb&&deb.d)||0;
+  let mapeA=0,mapeM=0,nMh=0, fine={a:0,m:0,n:0}, large={a:0,m:0,n:0};
+  S.forEach(s=>{
+    const estA=coef[0]+coef[1]*s.nm+coef[2]*s.lg*s.nm+coef[3]*s.nf;
+    const eA=Math.abs(estA-s.sec)/s.sec; mapeA+=eA;
+    const dens=s.nf/s.nm;   // bobines filles par mère (proxy de finesse de laize)
+    const bkt=dens>=6?fine:large; bkt.n++; bkt.a+=eA;
+    if(dmh>0){ const estM=(s.lg*s.nm)/dmh*3600; const eM=Math.abs(estM-s.sec)/s.sec; mapeM+=eM; nMh++; bkt.m+=eM; }
+  });
+  const n=S.length;
+  return {coef,n,scope,
+    mapeA:mapeA/n*100, mapeM:nMh?mapeM/nMh*100:null,
+    fineMapeA:fine.n?fine.a/fine.n*100:null, fineMapeM:fine.n?fine.m/fine.n*100:null, fineN:fine.n,
+    largeMapeA:large.n?large.a/large.n*100:null, largeN:large.n};
+}
+// Estimation additive d'une commande (secondes) — coefficients calibrés OU surcharge manuelle.
+function dujEstimateAdditive(machKey,nbMother,longueur,nbDaughters){
+  const cal=(_dujAddOverride&&_dujAddOverride[machKey])?{coef:_dujAddOverride[machKey],override:true}:dujCalibrateAdditive(machKey);
+  if(!cal||!cal.coef) return null;
+  const c=cal.coef;
+  const est=c[0]+c[1]*nbMother+c[2]*(longueur*nbMother)+c[3]*nbDaughters;
+  return {sec:Math.max(60,est), cal};   // plancher 1 min (garde contre un coefficient qui donnerait un négatif sur un cas extrême)
+}
 // Estimateur : saisie commande (largeurs × qté) → nb de bobines mères via le moteur
 // de placement (pack), puis métrage (longueur × nb mères) et durée via le débit m/h.
 function dujEstimate(){
@@ -10898,11 +10965,26 @@ function dujEstimate(){
   const dBas =s.length>=3?dujPctile(s,.25):r.d*0.8;
   const secMid=metres/r.d*3600+marge, secLow=metres/dHaut*3600+marge, secHigh=metres/dBas*3600+marge;
   const srcTxt=r.src==='op'?`perf ${op}`:r.src==='machine'?`standard ${getMachineLabel(mach)}`:'standard atelier (global)';
+  // [L124 · T5] Estimation ADDITIVE (corrigée par la laize) — EN PLUS du modèle m/h, jamais à la place.
+  const add=dujEstimateAdditive(mach,nbMother,longv,totalBob);
+  let addBlock;
+  if(add){
+    const cal=add.cal, better=(cal.mapeA!=null&&cal.mapeM!=null&&cal.mapeA<cal.mapeM);
+    addBlock=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2)">
+      <div style="font-size:12.5px;color:var(--muted)">⏱ Temps estimé <b style="color:var(--text)">corrigé par la laize</b> (tient compte des coupes &amp; des ${totalBob.toLocaleString('fr-FR')} bobines filles à manipuler) :</div>
+      <div style="font-size:26px;font-weight:800;color:var(--orange);margin:3px 0">${dujSecToTxt(add.sec)}</div>
+      <div style="font-size:11.5px;color:var(--muted)">Calibré sur ${cal.n} relevé(s) ${cal.scope==='global'?'(toutes machines)':'de cette machine'}${cal.mapeA!=null?` · écart moyen ${Math.round(cal.mapeA)}%${cal.mapeM!=null?` (modèle m/h : ${Math.round(cal.mapeM)}%)`:''}`:''}${better?' <b style="color:var(--green)">✅ plus fiable</b>':''}${(cal.fineMapeA!=null&&cal.fineMapeM!=null&&cal.fineN>=3)?`<br>Sur les petites laizes (${cal.fineN} cmd) : ${Math.round(cal.fineMapeA)}% vs <b>${Math.round(cal.fineMapeM)}%</b> pour le m/h`:''}</div>
+    </div>`;
+  } else {
+    addBlock=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2);font-size:12px;color:var(--muted)">⏱ Modèle « corrigé laize » : pas encore assez de relevés chronométrés pour le calibrer (min. 10) — l'estimation m/h ci-dessus reste utilisée.</div>`;
+  }
   out.innerHTML=`<div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px">
     ${head}
     <div style="font-size:13px;color:var(--muted)">${metres.toLocaleString('fr-FR')} m à découper (${longv.toLocaleString('fr-FR')} m × ${nbMotherTxt}) · débit ${Math.round(r.d).toLocaleString('fr-FR')} m/h (${srcTxt}, ${r.n} cmd)</div>
-    <div style="font-size:30px;font-weight:800;color:var(--green);margin:6px 0">${dujSecToTxt(secMid)}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px">Modèle métrage (m/h) :</div>
+    <div style="font-size:30px;font-weight:800;color:var(--green);margin:2px 0">${dujSecToTxt(secMid)}</div>
     <div style="font-size:13px;color:var(--muted)">Fourchette : ${dujSecToTxt(secLow)} → ${dujSecToTxt(secHigh)}${marge?` · dont ${marge/60} min de réglage`:''}</div>
+    ${addBlock}
   </div>`;
 }
 function dujCapacite(){
