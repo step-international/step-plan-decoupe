@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.11-L127';
+const APP_VERSION='2026.07.11-L128';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6343,7 +6343,7 @@ async function doSave(){
     }else{
       const docRef=await raceTimeout(db.collection('saves').add(entry),10000);   // [L79] borné : anti bouton-mort
       savesCache.unshift({_id:docRef.id,...entry});
-      if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
+      if(!fullHistoryLoaded && savesCache.length>1000) savesCache=savesCache.slice(0,1000);   // [L128 · audit #20] ne PAS tronquer si l'historique complet est chargé (sinon export « COMPLET » et Analyse sur données amputées)
       logAudit('create','saves',docRef.id,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
       if(typeof showToast==='function') showToast('💾 Plan sauvegardé','ok');
     }
@@ -7884,8 +7884,8 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : envoi confirmé → ids libérés pour le prochain plan
       _ficheIdOut=ficheRef.id;   // [L67 · Audit A]
       fichesCache.unshift({_id:ficheRef.id,...ficheSafe});
-      if(fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);
-      if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});if(tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);}
+      if(!fullHistoryLoaded && fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);   // [L128 · audit #20] pas de troncature quand l'historique complet est chargé (export/Analyse resteraient « COMPLET » sur données amputées)
+      if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});if(!fullHistoryLoaded && tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);}
       // [L72 · Audit B47] journal NON BLOQUANT : une coupure réseau juste après le commit
       // figeait le flux post-envoi (chrono jamais arrêté, brouillon jamais purgé, plan
       // source jamais consommé). L'audit part en file et s'écrira au retour du réseau.
@@ -7934,8 +7934,12 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       try{
         const _ncSend=(numCmd&&numCmd!=='\u2014')?numCmd:'';   // [L100 · audit e2e #7] n\u00b0 vide canonique : la fiche a '\u2014' par d\u00e9faut, le plan sauv\u00e9 a '' \u2192 sans \u00e7a la cl\u00e9 ne matchait jamais et le plan n'\u00e9tait PAS consomm\u00e9
         const _kSend=nrm(client)+'\u00a6'+nrm(ref)+'\u00a6'+nrm(_ncSend);
-        if(nrm(client)||nrm(ref)){
-          const _dupes=savesCache.filter(sv=>sv&&!sv.deleted&&(nrm(sv.client)+'\u00a6'+nrm(sv.ref)+'\u00a6'+nrm((sv.numCmd&&sv.numCmd!=='\u2014')?sv.numCmd:''))===_kSend);   // [L100 · #7] m\u00eame canonicalisation c\u00f4t\u00e9 plan
+        // [L128 audit #10/#19] balayage par CLE aligne sur ses jumeaux (brouillons L7963, _plnDejaCoupe L8514) :
+        //  - n0 de commande NON vide EXIGE -> deux commandes legitimes sans n0 (client/ref defaut) ne se
+        //    touchent jamais (le plan reellement charge est deja consomme via loadedSaveId ci-dessus, sans n0) ;
+        //  - soldes reste/resteFromFiche EXCLUS -> jamais archiver un << reste manque matiere >> encore a couper.
+        if(nrm(_ncSend)&&(nrm(client)||nrm(ref))){
+          const _dupes=savesCache.filter(sv=>sv&&!sv.deleted&&!sv.reste&&!sv.resteFromFiche&&(nrm(sv.client)+'\u00a6'+nrm(sv.ref)+'\u00a6'+nrm((sv.numCmd&&sv.numCmd!=='\u2014')?sv.numCmd:''))===_kSend);   // [L100 · #7] m\u00eame canonicalisation c\u00f4t\u00e9 plan
           for(const sv of _dupes){
             try{
               await boundedWrite(db.collection('saves').doc(sv._id).update({deleted:true,deletedAt:isoNow()}),8000);
@@ -10212,7 +10216,14 @@ async function bkRunImport(btn){
     const _bkHash=t=>{ let h=5381; for(let i=0;i<t.length;i++){ h=((h*33)^t.charCodeAt(i))>>>0; } return h.toString(36)+'_'+(t.length%97).toString(36); };
     const batch=db.batch();
     const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc('bkart_'+_bkHash(String(a.ref))); batch.set(dr,a); return dr; });
-    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const dr=db.collection('stockMouvements').doc('bk_'+_bkHash(tok+'|'+m.type+'|'+m.location)); batch.set(dr,m); return dr; });
+    // [L128 · audit #18] un id déterministe déjà pris (mouvement ANNULÉ après « Remplacer par l'Excel » —
+    // corrigePar posé, contre-écriture −Q flottante) NE DOIT PAS être réécrasé : batch.set l'écraserait,
+    // effacerait son corrigePar et laisserait la −Q → la ligne (identique dans les deux listes) retombe à 0 m².
+    // On génère alors un id neuf DÉTERMINISTE (suffixe _rN) : la nouvelle entrée coexiste avec l'ancienne
+    // annulée (traçabilité intacte), le solde revient à +Q, et un réessai après timeout retombe sur le même
+    // id (cache inchangé si le commit a échoué) → idempotence L97 préservée. Couvre aussi un doublon intra-lot.
+    const _bkUsedIds=new Set((stockMouvementsCache||[]).map(m=>m&&m.id).filter(Boolean));
+    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const base='bk_'+_bkHash(tok+'|'+m.type+'|'+m.location); let docId=base,g=1; while(_bkUsedIds.has(docId)){ docId=base+'_r'+g; g++; } _bkUsedIds.add(docId); const dr=db.collection('stockMouvements').doc(docId); batch.set(dr,m); return dr; });
     await raceTimeout(batch.commit(),25000);   // borné : jamais de bouton gelé
     arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
     mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
@@ -11824,7 +11835,7 @@ async function createRemainingPlan(f){
   try{
     const docRef=await db.collection('saves').add(entry);
     savesCache.unshift({_id:docRef.id,...entry});
-    if(savesCache.length>1000) savesCache=savesCache.slice(0,1000);
+    if(!fullHistoryLoaded && savesCache.length>1000) savesCache=savesCache.slice(0,1000);   // [L128 · audit #20] cf. supra : jamais tronquer avec l'historique complet chargé
     try{ await logAudit('create','saves',docRef.id,`Plan du reste — ${entry.client} / ${entry.ref}`); }catch(e){}
     return docRef.id;
   }catch(e){ showToast('Erreur création du plan du reste : '+e.message,'err'); return null; }
@@ -13118,16 +13129,37 @@ async function permanentDeleteAll(){
 
 async function restoreItem(collection,id){
   try{
-    await db.collection(collection).doc(id).update({deleted:false,deletedAt:''});
-    // Repasse l'item dans le cache actif
     const restored=corbeilleCache.find(x=>x._id===id);
+    const upd={deleted:false,deletedAt:''};
+    // [L128 · audit #11] plan « déjà coupé » restauré à la main (recoupe) : sans ça l'auto-hygiène le
+    // ré-archive au prochain boot (fiche postérieure toujours là). On lui redonne une DATE NEUVE (champ
+    // EXISTANT, pas de schéma neuf) → il devient postérieur à sa fiche → _plnDejaCoupe le laisse tranquille,
+    // conforme au sens « nouveau plan de recoupe à date neuve ». Ne touche QUE les plans réellement concernés.
+    let reDated=false;
+    if(collection==='saves' && restored && typeof _plnDejaCoupe==='function' && typeof _plnSentKeys==='function'){
+      try{ if(_plnDejaCoupe(Object.assign({},restored,{deleted:false}),_plnSentKeys())){ upd.date=isoNow(); reDated=true; } }catch(_){}
+    }
+    await db.collection(collection).doc(id).update(upd);
+    // Repasse l'item dans le cache actif
     corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
     if(restored){
-      const copy=Object.assign({},restored);delete copy._col;copy.deleted=false;copy.deletedAt='';
       const caches={saves:savesCache,temps:tempsCache,fiches:fichesCache};
-      if(caches[collection]&&!caches[collection].some(x=>x._id===id)) caches[collection].unshift(copy);
+      // [L128 · audit #17] l'archivage (deleteSave/deleteFiche/deleteTempo) LAISSE l'item dans son cache
+      // avec deleted=true → la garde `!some(...)` sautait la réinsertion et l'item restait INVISIBLE
+      // (renderSaves/buildNcRows filtrent !deleted) jusqu'au rechargement complet. On déflagge SUR PLACE
+      // s'il est encore là, sinon on réinsère une copie fraîche.
+      const ex=caches[collection]&&caches[collection].find(x=>x._id===id);
+      if(ex){ ex.deleted=false; ex.deletedAt=''; if(reDated) ex.date=upd.date; }
+      else if(caches[collection]){ const copy=Object.assign({},restored);delete copy._col;copy.deleted=false;copy.deletedAt='';if(reDated) copy.date=upd.date;caches[collection].unshift(copy); }
     }
-    await logAudit('restore',collection,id,'');
+    await logAudit('restore',collection,id,reDated?'Restauré avec date rafraîchie (recoupe — évite le ré-archivage automatique)':'');
+    // [L128 · audit #17] rafraîchir l'onglet cible + les badges (sinon l'utilisateur croit la restauration ratée).
+    try{
+      if(collection==='saves'){ if(document.getElementById('savesList')&&typeof renderSaves==='function') renderSaves(); if(document.getElementById('planningContent')&&typeof renderPlanning==='function') renderPlanning(); }
+      else if(collection==='temps'){ if(typeof renderTemps==='function') renderTemps(); }
+      else if(collection==='fiches'){ if(typeof renderFiches==='function') renderFiches(); if(typeof renderNc==='function') renderNc(); }
+      if(typeof updateTabBadges==='function') updateTabBadges();
+    }catch(_){}
     // INT-1 : le cache maintenance utilise `id` (pas `_id`) et un rendu dédié → on le recharge proprement.
     if(collection==='maintenance' && typeof loadMaintenance==='function'){
       loadMaintenance().then(()=>{ try{ if(typeof renderMaintenance==='function' && document.getElementById('tabContentMaintenance')) renderMaintenance(); if(typeof renderLameStats==='function') renderLameStats(); }catch(_){} });
@@ -13136,6 +13168,7 @@ async function restoreItem(collection,id){
     if(collection==='stockArticles' && typeof loadStock==='function'){
       loadStock().then(()=>{ try{ if(typeof renderStock==='function') renderStock(); }catch(_){} });
     }
+    if(reDated){ try{ showToast('↩ Plan restauré — date rafraîchie pour une recoupe (il ne sera plus rangé automatiquement).','ok'); }catch(_){} }
   }catch(e){showToast('Erreur restauration : '+e.message,'err');}
   renderCorbeille();
 }
