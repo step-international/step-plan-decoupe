@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.11-L126';
+const APP_VERSION='2026.07.11-L127';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8602,14 +8602,21 @@ function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
 }
 function _plnH(h){ if(h==null||!isFinite(h)||h<=0) return '—'; const H=Math.floor(h),M=Math.round((h-H)*60); return '≈ '+(H>0?(H+' h'+(M?' '+String(M).padStart(2,'0'):'')):(M+' min')); }
 // [L119 · demande Esteban] commande longue : ÉTALÉE sur plusieurs jours. plannedDays (1..14) = nb de
-// jours CONSÉCUTIFS occupés à partir de plannedDate, sur la même machine. Les ISO occupés :
+// jours OUVRÉS occupés à partir de plannedDate, sur la même machine. Les ISO occupés :
 function _plnDays(s){ return Math.max(1,Math.min(14,parseInt(s&&s.plannedDays,10)||1)); }
 function _plnSpanIsos(s){
   if(!s||!s.plannedDate) return [];
   const p=String(s.plannedDate).split('-').map(Number); if(p.length<3) return [s.plannedDate];
-  const D=_plnDays(s), out=[];
-  for(let i=0;i<D;i++){ out.push(_plnIso(new Date(p[0],p[1]-1,p[2]+i))); }
-  return out;
+  // [L127 · audit #8] on ne compte QUE les jours ouvrés : l'atelier ne coupe pas le week-end. Une
+  // commande de 3 j posée un jeudi occupe jeu+ven+lun (pas jeu+ven+sam), donc l'étalement colle au réel.
+  const D=_plnDays(s), out=[]; let cur=new Date(p[0],p[1]-1,p[2]);
+  let guard=0;
+  while(out.length<D && guard++<400){
+    const wd=cur.getDay();   // 0=dim … 6=sam
+    if(wd!==0&&wd!==6) out.push(_plnIso(cur));
+    cur=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1);
+  }
+  return out.length?out:[s.plannedDate];
 }
 // ── ÉCRITURE pose / déplacement / retrait / étalement (optimiste + retour arrière + logAudit) ──
 const _plnWriteBusy=new Set();   // [L118 · audit #3] sids avec une écriture planning en vol
@@ -8880,7 +8887,10 @@ function renderPlanning(){
   // (ex. mardi alors qu'on est vendredi) marquait la commande « non fait » à la seconde où on la
   // planifiait. Bande affichée uniquement quand on regarde la semaine courante (plnWeekOffset===0).
   const thisMondayIso=_plnIso(_plnMonday(0));
-  const reports=(plnWeekOffset===0?all.filter(s=>s.plannedDate&&s.plannedDate<thisMondayIso):[]).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
+  // [L127 · audit #9] une commande de la semaine passée dont l'étalement mord ENCORE sur la semaine
+  // affichée est déjà rendue comme segment dans la grille (case × machine) → on l'exclut des
+  // « Reportés » pour ne pas la montrer deux fois avec des chips contradictoires (« non fait » vs « J k/n »).
+  const reports=(plnWeekOffset===0?all.filter(s=>s.plannedDate&&s.plannedDate<thisMondayIso&&!_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0)):[]).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
   const _poolSorters={
     recent:(a,b)=>String(b.date||'').localeCompare(String(a.date||'')),                                   // plan le plus récemment enregistré d'abord
     liv:(a,b)=>String(_plnDateLivMin(a)||'9999-99-99').localeCompare(String(_plnDateLivMin(b)||'9999-99-99')), // livraison la plus proche d'abord
