@@ -295,7 +295,7 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 .ini-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}  /* [L79] les 5 opérateurs tiennent sur UNE ligne */
 .ini-btn{padding:9px 4px;border-radius:8px;border:2px solid var(--border);background:var(--card);color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center;min-width:0}
 /* [L79] Barre d'actions fiche (+ Ligne / Reset / Brouillon) : boutons à largeur égale sur une ligne */
-.flex-wrap.mt12>.btn{flex:1 1 0;min-width:0;white-space:nowrap;padding-left:8px;padding-right:8px}
+.flex-wrap.mt12>.btn{flex:1 1 140px;white-space:nowrap;padding-left:10px;padding-right:10px}/* [L126 · audit #22] largeur mini lisible → les 5 boutons passent sur 2-3 rangées au lieu de se tronquer sur téléphone */
 .ini-btn.sel{border-color:var(--blue);color:var(--blue);background:#1a2e47}
 .ini-btn.sel2{border-color:var(--orange);color:var(--orange);background:#3d2a00}
 /* SAVES / ANALYTICS */
@@ -385,7 +385,7 @@ body.atelier .ini-btn{font-size:18px;padding:14px 18px;min-width:64px}
 body.atelier [id^="coupeeBtn_"]{font-size:18px !important;padding:16px !important;min-height:60px !important}
 body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
-@media(max-width:700px){ body.has-actionbar #coupeeBanner{display:none!important} }/* [L121·T4-A3] progression déjà portée par la barre d'action fixe en bas → pas de doublon sur téléphone */
+@media(max-width:700px){ body.has-actionbar.ab-progress #coupeeBanner{display:none!important} }/* [L121·T4-A3] progression déjà portée par la barre d'action fixe en bas → pas de doublon sur téléphone · [L126·audit #23] seulement quand la barre porte la jauge (découpe/confirmation), pas en mode « Démarrer » */
 /* [L83 · Audit #29] contrôles qualité ISO tapables/lisibles en mode atelier */
 body.atelier .nc-check,body.atelier .test2-sub,body.atelier .test2-nc{font-size:15px;min-height:48px;padding:10px 14px}
 body.atelier .test2-main{font-size:14px}
@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.10-L125';
+const APP_VERSION='2026.07.11-L126';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3220,7 +3220,7 @@ function blCardBlock(f){
     const scope=b.ref==null?'Global':esc(b.ref);
     body+=`<div style="font-size:12px;margin:2px 0">${scope} : ${blChip(b)}${trash(i)}</div>`;
   });
-  if(!bls.length) body+=`<div style="font-size:12px;margin:2px 0;color:#f87171">Aucun BL joint</div>`;
+  if(!bls.length) body+=`<div style="font-size:12px;margin:2px 0;color:var(--muted)">Aucun BL joint pour l'instant.</div>`;   // [L126 · audit A2] BL non bloquant : ton informatif (muted), plus de rouge d'alarme
   // En multi-réf sans BL global : signaler les réfs encore sans BL (bouton joindre ciblé).
   if(multi && !bls.some(b=>b.ref==null)){
     refs.forEach(r=>{
@@ -8560,17 +8560,27 @@ function _plnPlanMeters(s){
 // une régression par cellule). Repli m/h si non calibré (< 10 relevés).
 let _plnAddCalCache={};
 function _plnAddCal(mk){
-  if(_dujAddOverride&&_dujAddOverride[mk]) return {coef:_dujAddOverride[mk]};
+  if(_dujAddOverride&&_dujAddOverride[mk]) return {coef:_dujAddOverride[mk],override:true};
   if(!(mk in _plnAddCalCache)) _plnAddCalCache[mk]=(typeof dujCalibrateAdditive==='function')?dujCalibrateAdditive(mk):null;
   return _plnAddCalCache[mk];
 }
 function _plnHoursPart(mk,part){   // heures pour une part {metres,nbMother,nbDaughters} sur machine mk
   if(!part||!(part.metres>0)) return null;
-  const cal=_plnAddCal(mk);   // [L125 · T5] modèle CORRIGÉ-LAIZE si calibré (plus juste sur petites laizes)
-  if(cal&&cal.coef){ const c=cal.coef; return Math.max(60, c[0]+c[1]*part.nbMother+c[2]*part.metres+c[3]*part.nbDaughters)/3600; }
-  const deb=dujDebit(mk,null);   // repli débit m/h
-  if(!deb||!deb.d||deb.src==='global') return null;
-  return part.metres/deb.d;
+  const deb=dujDebit(mk,null);
+  const mhH=(deb&&deb.d&&deb.src!=='global')?part.metres/deb.d:null;   // repli m/h (refuse le global)
+  const cal=_plnAddCal(mk);
+  // [L126 · audit #7/#13/#15] additif SEULEMENT si (surcharge manuelle) OU (calibré SUR CETTE machine
+  // ET au moins aussi fiable que le m/h). Jamais de charge fabriquée depuis les données d'une AUTRE
+  // machine (scope global) ni un modèle moins bon que le m/h → sinon écran/planning divergent.
+  const useAdd=cal&&cal.coef&&(cal.override||(cal.scope==='machine'&&(cal.mapeM==null||cal.mapeA==null||cal.mapeA<=cal.mapeM)));
+  if(useAdd){
+    const c=cal.coef;
+    let h=(c[0]+c[1]*part.nbMother+c[2]*part.metres+c[3]*part.nbDaughters)/3600;
+    // [L126 · audit #14] encadrer par le m/h (0,3×–3×) : ne pas masquer une aberration (case quasi vide → sur-réservation)
+    if(mhH!=null&&(h<0.3*mhH||h>3*mhH)) h=mhH;
+    return (h>0)?Math.max(1/60,h):(mhH!=null?mhH:null);
+  }
+  return mhH;
 }
 function _plnHoursOn(s,machKey){
   const est=_plnPlanMeters(s); if(!est) return null;
@@ -10923,10 +10933,16 @@ function dujCalibrateAdditive(machKey){
   if(S.length<10){ S=_dujAddSamples(''); scope='global'; }
   if(S.length<10) return null;   // pas assez de relevés pour calibrer → on laisse le modèle m/h seul
   const feat=s=>[1,s.nm,s.lg*s.nm,s.nf];
-  const p=4, A=Array.from({length:p},()=>new Array(p).fill(0)), B=new Array(p).fill(0);
-  S.forEach(s=>{ const x=feat(s); for(let i=0;i<p;i++){ B[i]+=x[i]*s.sec; for(let j=0;j<p;j++) A[i][j]+=x[i]*x[j]; } });
-  const coef=_lsqSolve(A,B);
-  if(!coef||coef.some(c=>!isFinite(c))) return null;
+  const p=4;
+  // [L126 · audit #12] NORMALISATION des colonnes (échelles très différentes : 1 / ~5 / ~5000 / ~50) →
+  // XᵀX bien conditionnée, coefficients stables (avant : matrice mal mise à l'échelle + pivot laxiste).
+  const scale=new Array(p).fill(1);
+  for(let j=1;j<p;j++){ let mx=0; S.forEach(s=>{ const v=Math.abs(feat(s)[j]); if(v>mx) mx=v; }); scale[j]=mx>0?mx:1; }
+  const A=Array.from({length:p},()=>new Array(p).fill(0)), B=new Array(p).fill(0);
+  S.forEach(s=>{ const x=feat(s).map((v,j)=>v/scale[j]); for(let i=0;i<p;i++){ B[i]+=x[i]*s.sec; for(let j=0;j<p;j++) A[i][j]+=x[i]*x[j]; } });
+  const coefN=_lsqSolve(A,B);
+  if(!coefN||coefN.some(c=>!isFinite(c))) return null;
+  const coef=coefN.map((c,j)=>c/scale[j]);   // dé-normalisation
   // Qualité : MAPE du modèle ADDITIF vs modèle m/h (mètres ÷ débit), globale + par densité de coupes.
   const deb=dujDebit(machKey,null), dmh=(deb&&deb.d)||0;
   let mapeA=0,mapeM=0,nMh=0, fine={a:0,m:0,n:0}, large={a:0,m:0,n:0};
@@ -12690,7 +12706,7 @@ function buildFichePrintHTML(d){
       ${pkgLine}
       ${notesLine}
       <span>Temps</span><span style="color:${f.tempsStr==='non enregistré'?'#888':'#4ade80'}">${f.tempsStr}</span>
-      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:#f87171;font-weight:700">⛔ Aucun BL joint</span>';return bls.map(b=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span>
+      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:var(--orange);font-weight:700">📎 BL non joint <span style="color:#888;font-weight:600">(recommandé — traçabilité ISO)</span></span>';return bls.map(b=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span><!-- [L126 · audit A2] BL non bloquant (L122) propagé au détail : message informatif orange, plus de ⛔ rouge -->
       <span>Validation</span><span>${f.valide===true?'✓ Validée'+(f.valideBy?' par '+esc(f.valideBy):'')+(f.valideAt?' le '+new Date(f.valideAt).toLocaleDateString('fr-FR'):''):f.valide===false?'✗ Refusée'+(f.valideBy?' par '+esc(f.valideBy):''):'⏳ En attente'}</span>
     </div>
   </div>
@@ -14244,6 +14260,10 @@ function _syncActionBar(mode,done,total){
   const onFiche=document.getElementById('page1')?.classList.contains('active');
   const show=onFiche&&mode!=='none';
   document.body.classList.toggle('has-actionbar',!!show);
+  // [L126 · audit #23] la barre ne PORTE la progression qu'en découpe/confirmation → on ne masque
+  // #coupeeBanner que dans ces modes. En mode « Démarrer », la barre n'a pas de jauge : cacher la
+  // bannière ferait perdre l'avancement (0/n) sur téléphone.
+  document.body.classList.toggle('ab-progress',!!show&&(mode==='cut'||mode==='confirm'));
   if(!show) return;
   const btn=document.getElementById('abBtn'), pr=document.getElementById('abProgress'), fill=document.getElementById('abProgressFill');
   if(!btn) return;
