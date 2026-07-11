@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.11-L128';
+const APP_VERSION='2026.07.11-L129';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6978,6 +6978,28 @@ async function stopManqueMatiere(){
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
   if(done===0){showToast('⚠ Aucune bobine coupée.\n\nMarque au moins une bobine comme "Coupée" avant de déclarer un manque de matière.','err');return;}
+  // [L129 · audit #4/#6] l'arrêt manque-matière court-circuitait TOUTES les re-validations d'envoi de
+  // confirmCommandeRecap. On les rejoue ici, portées sur les bobines RÉELLEMENT coupées (seules envoyées) :
+  //  · #6 copie locale d'un partage terminé → confirm anti-doublon (miroir 7140, absent de cette voie) ;
+  //  · #4 op.2 activé sans bobine (temps op.2 invisible), test 2ᵉ dé-validé, NC sans motif/sans action.
+  if(_localCopyFromShare&&!confirm('⚠ Cette commande vient d\'un PARTAGE terminé ('+(_localCopyFromShare.from||'?')+').\n\nElle a peut-être DÉJÀ été enregistrée par l\'émetteur (vérifie dans Données > Fiches).\n\nEnregistrer cet arrêt manque-matière quand même ?')) return;
+  if(document.getElementById('fOp2Active')?.checked&&!(document.getElementById('fOp2Bobine')?.value)){
+    showToast('⚠ Opérateur 2 activé : choisis sa bobine de reprise avant l\'arrêt manque-matière (sinon son temps devient invisible dans les stats).','err'); return; }
+  { const _fd=getFicheLinesData();
+    for(let i=0;i<ficheLines.length;i++){
+      const l=ficheLines[i], _el=document.getElementById(l.id);
+      if(!_el||!_el.classList.contains('coupee')||_el.classList.contains('coupee-other')) continue;   // seules les bobines coupées par MOI partent dans la fiche partielle
+      if(!test2Resolved(l.id)){
+        try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){}
+        try{ _el.scrollIntoView({behavior:'smooth',block:'center'}); _el.classList.add('fl-spot'); setTimeout(()=>{try{_el.classList.remove('fl-spot');}catch(e){}},2200); }catch(e){}
+        showToast('⚠ Test 2ᵉ bobineaux dé-validé sur « '+((document.getElementById('flLabel_'+l.id)?.value||'').trim()||l.label||'?')+' ».\n\nRe-coche Dévidage'+(_flMachineOf(l.id)==='feba'?'':' / Droit')+' (ou ⚠ Non conforme + motif) avant l\'arrêt manque-matière.','err');
+        return;
+      }
+      const fd=_fd[i], hasNC=fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng);
+      if(hasNC&&!String(fd.ncDetail||'').trim()){ showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité cochée sans explication.\n\nRenseigne le détail avant l\'arrêt manque-matière.','err'); return; }
+      if(hasNC&&!(fd.actDechet||fd.actChutes||fd.actAccept)){ showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité sans destination.\n\nChoisis l\'action — Chutes ou Déchet — avant l\'arrêt.','err'); return; }
+    }
+  }
   const reste=total-done;
   _stoppingMM=true;   // [L73 · Lot 5 · B39] posé AVANT le confirm : garde le 2e tap dehors même boîte ouverte
   try{
@@ -7812,21 +7834,33 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     // est surévalué et le sec/laize sous-évalué. Fiches normales : inchangées.
     let totalLaizes=rows.reduce((s,r)=>s+r.qty,0);
     let nbBobinesT=bobines.length;
+    let nbLignesT=(Array.isArray(ficheLines)?ficheLines.length:0);   // dénominateur ventilation op.2 (plan complet par défaut)
+    let op2BobT=op2Bob||'';
     if(opts.manqueMatiere===true){
-      const cut=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee'));
-      nbBobinesT=cut.length;
-      totalLaizes=cut.reduce((s,l)=>{
+      const cutSet=ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee'));
+      nbBobinesT=cutSet.length;
+      totalLaizes=cutSet.reduce((s,l)=>{
         const p=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
         return s+p.reduce((a,x)=>a+(Number(x.qty)||0),0);
       },0);
+      // [L129 · audit #3] ventiler le temps/les mètres op.2 sur les bobines RÉELLEMENT coupées, pas sur le
+      // plan complet : sinon op.2 est crédité d'un travail non fait (den = plan). On pose den = nb coupées et
+      // on recale la position de reprise op.2 sur le sous-ensemble coupé (nb de coupées AVANT la reprise + 1),
+      // en NEUTRALISANT le relais si op.2 n'a rien coupé (reprise au-delà des bobines effectivement coupées).
+      nbLignesT=cutSet.length;
+      const op2Pos=Number(op2Bob)||0;
+      if(op2Pos>0){
+        let op1Cut=0; ficheLines.forEach((l,idx)=>{ if(idx+1<op2Pos && document.getElementById(l.id)?.classList.contains('coupee')) op1Cut++; });
+        op2BobT=(nbLignesT-op1Cut>0)?String(op1Cut+1):'';
+      } else op2BobT='';
     }
     tempsEntry={
       date:chronoStartTs||isoNow(),dateEnd:isoNow(),duree:chronoSec,
-      operateur:ini,operateur2:ini2||'',op2Bobine:op2Bob||'',
+      operateur:ini,operateur2:ini2||'',op2Bobine:op2BobT,
       machine,machine2,client,ref,rows,numCmd,deleted:false,
       commandeDetail:rows.map(r=>`${r.qty}×${r.width}mm`).join(' + '),
       totalLaizes,nbBobines:nbBobinesT,
-      nbLignes:(Array.isArray(ficheLines)?ficheLines.length:0),   // [L83 · Audit #5] même dénominateur que « Op.2 dès bobine »
+      nbLignes:nbLignesT,   // [L83 · Audit #5] même dénominateur que « Op.2 dès bobine » · [L129 · audit #3] = nb coupées en manque-matière
       largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',
       numJour:g('fNumJour')?.value||'',commentaire:''
     };
@@ -11569,9 +11603,13 @@ function renderFiches(){
     const editBtn=(f.valide!==true||canManageData())?`<button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="${f.valide===true?'Modifier (fiche validée — photos, etc.)':'Modifier'}">✏ Modifier</button>`:'';
     // Valider / Refuser : réservés au pilotage/admin.
     const blOk=ficheBLComplete(f);
+    // [L129 · audit #16] « ✓ Valider » (et le badge BL de validation) UNIQUEMENT sur une fiche EN ATTENTE
+    // (valide==null). Une fiche REFUSÉE (valide===false) n'affiche plus le bouton vert — sa réhabilitation
+    // passe par une action DISTINCTE confirmée (le bouton « ✗ Refuser » ayant été retiré en L122).
     const validBtns=canValidate()?`
-      ${f.valide!==true?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#caa15a'};color:${blOk?'#4ade80':'var(--orange)'};background:${blOk?'#14371f':'#3a2a0e'}" title="${blOk?'Bon de livraison joint':'BL non joint — recommandé (ISO), non obligatoire'}">${blOk?'📎 BL joint':'📎 BL non joint'}</span>`:''}
-      ${f.valide!==true?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}`:'';   // [L122 · T2-B] bouton « ✗ Refuser » retiré + BL non bloquant (choix Esteban)
+      ${f.valide==null?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#caa15a'};color:${blOk?'#4ade80':'var(--orange)'};background:${blOk?'#14371f':'#3a2a0e'}" title="${blOk?'Bon de livraison joint':'BL non joint — recommandé (ISO), non obligatoire'}">${blOk?'📎 BL joint':'📎 BL non joint'}</span>`:''}
+      ${f.valide==null?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
+      ${f.valide===false?`<button class="fc-btn fc-btn-ghost" onclick="rehabFiche('${f._id}')" title="Réhabiliter cette fiche refusée (repasse en attente de validation)">↩ Réhabiliter</button>`:''}`:'';
     // [L79] Bordure gauche colorée par ÉTAT (séparation nette) : vert=validée · orange=à valider · rouge=refusée/manque matière.
     const _stateBorder=(f.valide===true)?'#4ade80':(f.valide===false)?'#f87171':(f.manqueMatiere?'#f87171':'#f59e0b');
     return `<div class="fiche-card" style="border-left-color:${_stateBorder};border-left-width:6px">
@@ -11607,7 +11645,8 @@ function renderFiches(){
         ${f.manqueMatiere?`<button class="fc-btn fc-btn-green" onclick="reprendreCommandeManque('${f._id}')" title="Reprendre le solde non coupé (matière revenue)">▶ Reprendre la commande</button>`:''}
         ${editBtn}
         ${validBtns}
-        <button class="fc-btn fc-btn-red-ghost" onclick="deleteFiche('${f._id}')">🗑 Archiver</button>
+        ${(f.valide!==true||canManageData())?`<button class="fc-btn fc-btn-red-ghost" onclick="deleteFiche('${f._id}')">🗑 Archiver</button>`:''}<!-- [L129 · audit #21] fiche VALIDÉE (qualité/ISO) : archivage réservé au pilotage/admin, même condition que « Modifier » -->
+
       </div>
     </div>`;
   }).join('')+moreBtn;
@@ -11924,6 +11963,23 @@ async function confirmStockSortie(fid,n,btn){
     document.getElementById('ssoOverlay')?.remove();
     showToast('✓ '+outs.length+' sortie(s) de stock enregistrée(s)','ok');
   }catch(e){ showToast('Erreur sortie stock : '+e.message,'err'); if(btn) btn.disabled=false; }
+}
+// [L129 · audit #16] Réhabiliter une fiche REFUSÉE (valide===false) : action DISTINCTE et confirmée qui la
+// repasse « en attente » (valide=null) — elle repart alors dans le flux normal de validation (contrôles
+// habituels). Évite qu'un tap sur un bouton vert « ✓ Valider » réhabilite une fiche rejetée qualité sans trace.
+async function rehabFiche(id){
+  if(!canValidate()){ showToast('Réhabilitation réservée au pilotage et aux admins.','err'); return; }
+  const f=(fichesCache||[]).find(x=>x&&x._id===id);
+  if(!f){ showToast('Fiche introuvable.','err'); return; }
+  if(f.valide!==false){ showToast('Cette fiche n\'est pas refusée.','err'); return; }
+  if(!(await confirmDlg('↩ Réhabiliter cette fiche REFUSÉE ?\n\nElle repasse « en attente de validation » : tu pourras la valider normalement (contrôles habituels).',{ok:'Réhabiliter'}))) return;
+  try{
+    await boundedWrite(db.collection('fiches').doc(id).update({valide:null,valideBy:null,valideAt:null}),8000);
+    f.valide=null; f.valideBy=null; f.valideAt=null;
+    logAudit('update','fiches',id,'Fiche refusée réhabilitée (→ en attente de validation)').catch(function(){});
+    showToast('↩ Fiche remise « en attente de validation ».','ok');
+    try{ if(typeof renderFiches==='function') renderFiches(); if(typeof updateTabBadges==='function') updateTabBadges(); }catch(_){}
+  }catch(e){ showToast('Erreur : '+(e&&e.message||e),'err'); }
 }
 async function validateFiche(id){
   if(!canValidate()){showToast('Validation réservée au pilotage et aux admins.','err');return;}
@@ -13008,6 +13064,13 @@ function showFicheDetail(id,autoPrint,cliFilter){
 }
 
 async function deleteFiche(id){
+  // [L129 · audit #21] défense en profondeur (miroir de editFicheConfigs) : une fiche VALIDÉE est un
+  // enregistrement qualité/ISO — son archivage est réservé au pilotage/admin (l'opérateur n'a même pas
+  // accès à la Corbeille pour la restaurer). Le bouton est déjà masqué côté UI ; on re-garde ici.
+  const _tgt=(fichesCache||[]).find(x=>x&&x._id===id);
+  if(_tgt&&_tgt.valide===true&&typeof canManageData==='function'&&!canManageData()){
+    showToast('🔒 Fiche validée — archivage réservé au pilotage et aux admins.','err'); return;
+  }
   if(!(await confirmDlg('Archiver cette fiche ? (récupérable 45 jours)',{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
     await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
@@ -15582,7 +15645,11 @@ function autosaveDraftTick(force){
   // [L67 · Audit] vue MIROIR d'une commande partagée : pas de brouillon perso — le doc
   // partagé EST la sauvegarde. Sinon la commande resurgissait chez l'invité comme brouillon
   // « à reprendre » après l'envoi par l'émetteur → renvoi = fiche en double.
-  if(_viewingSharedId) return;
+  // [L129 · audit #5 CRITIQUE] la garde doit AUSSI couvrir la COPIE LOCALE qui survit à la fin du
+  // partage (_localCopyFromShare) : sinon, chrono encore actif, le tick d'autosave matérialise la
+  // commande de l'émetteur en brouillon perso → après reload (maybeResumeRunningChrono) elle
+  // ressort comme une commande normale, sans bandeau ni confirm → double découpe.
+  if(_viewingSharedId||_localCopyFromShare) return;
   const st=serializeFicheState();
   // CO-2 : ne réécrire le brouillon auto que si le CONTENU a changé (comme planAutosaveTick).
   // On EXCLUT le chrono de la signature (chrono.sec ticke chaque seconde et ferait un write
