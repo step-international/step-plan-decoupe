@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.11-L129';
+const APP_VERSION='2026.07.11-L130';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5577,15 +5577,31 @@ function enterPlanManual(){
 }
 // L32 — Adapte les PARAMÈTRES du plan manuel (mère/laize/lame/machine/longueur…)
 // à la saisie courante SANS toucher aux bobines saisies. Appariement par index
-// de référence (l'ordre des ref-blocks est stable). Une réf ajoutée à la commande
-// après passage en manuel n'entre pas dans le plan (signalée par le badge désync).
+// de référence (l'ordre des ref-blocks est stable). Une réf AJOUTÉE à la commande
+// après passage en manuel n'entre pas dans le plan manuel ; depuis [L130 · audit #2]
+// planManualCoherence la détecte (groupe non rattaché → écart = toute la quantité,
+// badge rouge + envoi bloqué). AVANT L130 elle passait totalement inaperçue.
 // [L70 · Audit B29] Appariement ROBUSTE entrée manuelle ↔ réf de la commande : par
 // refIdKey (identité par contenu) d'abord, puis nom normalisé (si unique), puis index en
 // dernier recours. L'ancien appariement par index PUR se désalignait dès qu'une réf était
 // vidée (base FILTRÉE à la création vs NON filtrée à l'adaptation) → la fiche d'une réf
 // pouvait être générée avec les bobines d'une AUTRE réf, sans alerte.
+// [L130 · audit #1 CRITIQUE] _refIdKey n'inclut PAS la machine : une même réf (mêmes film/veka/longueur/
+// useful/blade) répartie sur DEUX machines (bloc MAVEG + bloc CEVENINI) produit deux entrées à clé
+// IDENTIQUE. Un simple find()/premier match cousait alors le plan d'une machine sur l'autre (fiche BOB,
+// archive, PDF, adaptation — l'opérateur d'une machine découpait le plan de l'autre, en silence). On rend
+// le rattachement INJECTIF : match par clé s'il est UNIQUE ; sinon on désambiguïse par la machine ;
+// sinon on retombe sur l'appariement POSITIONNEL (cur[i]/planManual[ci]), lui 1-à-1.
 function _pmFindGroup(r,i,cur){
-  if(r&&r.refIdKey){ const hit=cur.find(c=>_refIdKey(c)===r.refIdKey); if(hit) return hit; }
+  if(r&&r.refIdKey){
+    const hits=cur.filter(c=>_refIdKey(c)===r.refIdKey);
+    if(hits.length===1) return hits[0];
+    if(hits.length>1){
+      const sameMach=hits.filter(c=>nrm(c.machine)===nrm(r&&r.machine));
+      if(sameMach.length===1) return sameMach[0];
+      return cur[i]||null;   // homonymes non départageables par la machine → position (1-à-1)
+    }
+  }
   const byName=cur.filter(c=>nrm(c.ref)===nrm(r&&r.ref));
   if(byName.length===1) return byName[0];
   return cur[i]||null;
@@ -5593,8 +5609,13 @@ function _pmFindGroup(r,i,cur){
 function _pmFindEntry(c,ci){
   if(!planManual) return null;
   const k=_refIdKey(c);
-  const hit=planManual.find(r=>r.refIdKey===k);
-  if(hit) return hit;
+  const hits=planManual.filter(r=>r.refIdKey===k);
+  if(hits.length===1) return hits[0];
+  if(hits.length>1){
+    const sameMach=hits.filter(r=>nrm(r.machine)===nrm(c.machine));
+    if(sameMach.length===1) return sameMach[0];
+    return planManual[ci]||null;   // homonymes 2 machines → appariement positionnel 1-à-1
+  }
   const byName=planManual.filter(r=>nrm(r.ref)===nrm(c.ref));
   if(byName.length===1) return byName[0];
   return planManual[ci]||null;
@@ -5616,8 +5637,11 @@ function adaptPlanManualToInputs(){
 // écart (diff>0 = manque ; diff<0 = surplus / HORS PLAN).
 function planManualCoherence(pm, refGroups){
   const out=[];
+  const filtered=(refGroups||[]).filter(x=>(x.rows||[]).length);   // [L70 · Audit B29]
+  const consumed=new Set();   // [L130 · audit #2] groupes de commande rattachés à une entrée du plan manuel
   (pm||[]).forEach((r,i)=>{
-    const g=_pmFindGroup(r,i,(refGroups||[]).filter(x=>(x.rows||[]).length)); if(!g) return;   // [L70 · Audit B29]
+    const g=_pmFindGroup(r,i,filtered); if(!g) return;
+    consumed.add(g);
     const ordered={}, covered={};
     (g.rows||[]).forEach(x=>{ if(x.width>0&&x.qty>0) ordered[x.width]=(ordered[x.width]||0)+x.qty; });
     { const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{}; Object.entries(cu).forEach(([w,q])=>{ covered[w]=(covered[w]||0)+q; }); }   // [L97 · relecture #7] chutes PLAFONNÉES par la demande (comme le moteur) — un stock déclaré > commandé n'affiche plus un faux « surplus »
@@ -5629,6 +5653,16 @@ function planManualCoherence(pm, refGroups){
       const o=ordered[w]||0, c=covered[w]||0;
       if(o!==c) out.push({ref:r.ref||('Réf '+(i+1)), width:w, ordered:o, covered:c, diff:o-c});
     });
+  });
+  // [L130 · audit #2] réf AJOUTÉE (ou séparée) APRÈS le passage en manuel : absente de planManual, elle
+  // n'était vue par AUCUNE boucle → badge « ✓ plan = commande » faux, stats sous-comptées, envoi non
+  // bloqué. On émet un écart diff>0 = TOUTE la quantité commandée (couverture 0) pour chaque groupe non
+  // rattaché → le badge passe au rouge et le garde d'envoi (filter diff>0) bloque comme prévu.
+  filtered.forEach((g,gi)=>{
+    if(consumed.has(g)) return;
+    const ordered={};
+    (g.rows||[]).forEach(x=>{ if(x.width>0&&x.qty>0) ordered[x.width]=(ordered[x.width]||0)+x.qty; });
+    Object.keys(ordered).map(Number).forEach(w=>{ out.push({ref:g.ref||('Réf +'+(gi+1)), width:w, ordered:ordered[w], covered:0, diff:ordered[w]}); });
   });
   return out;
 }
@@ -9981,6 +10015,7 @@ async function saveStockMouvement(btn){
     mvt.id=r.id; stockMouvementsCache.unshift(mvt);
     await logAudit('create','stockMouvements',r.id,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`);
     renderStock();
+    showToast(`✓ Mouvement enregistré (${signed>0?'+':''}${signed.toLocaleString('fr-FR')} m² · ${ref})`,'ok');   // [L130 · audit A4] retour explicite (comme annulStockMouvement/import B+K) → pas de ressaisie par doute
   }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); if(btn) btn.disabled=false; }
 }
 
@@ -11985,16 +12020,13 @@ async function validateFiche(id){
   if(!canValidate()){showToast('Validation réservée au pilotage et aux admins.','err');return;}
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
-  // [L122 · T2-B] blocage « BL manquant » LEVÉ (choix Esteban) : le BL reste joignable et
-  // recommandé (ISO) mais n'empêche plus la validation. Simple avertissement si absent.
-  if(!ficheBLComplete(f)){
-    if(!await confirmDlg('📎 Aucun bon de livraison joint à cette fiche.\n\nLe BL est recommandé pour la traçabilité ISO. Valider quand même sans BL ?',{ok:'Valider sans BL'})) return;
-  }
   const by=currentUser?(currentUser.nom||currentUser.ini):'?';
   // Lot B — on ne valide une commande que si TOUTES les bobines (op.1, op.2, hors
   // plan) sont coupées ET testées. Même logique que l'affichage de la fiche, donc
   // le manager ne peut valider rien qui montre « À couper » ou « Non testé ».
   // Exception : les fiches manque-matière (bobines non coupées = solde légitime).
+  // [L130 · audit A3] contrôles DURS coupe/test placés AVANT le waiver BL : on ne demande pas
+  // « Valider sans BL ? » sur une fiche qui sera de toute façon refusée (bobines non coupées/non testées).
   if(!f.manqueMatiere){
     const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
     const notCut=det.filter(fd=>!fd.coupee).length;
@@ -12008,6 +12040,11 @@ async function validateFiche(id){
       showToast(`⛔ Validation impossible : ${notTested} bobine(s) sans test 2ème bobineaux.\n\nChaque bobine doit être testée (conforme, ou non conforme + motif) avant validation.`,'err');
       return;
     }
+  }
+  // [L122 · T2-B] blocage « BL manquant » LEVÉ (choix Esteban) : le BL reste joignable et
+  // recommandé (ISO) mais n'empêche plus la validation. Simple avertissement si absent.
+  if(!ficheBLComplete(f)){
+    if(!await confirmDlg('📎 Aucun bon de livraison joint à cette fiche.\n\nLe BL est recommandé pour la traçabilité ISO. Valider quand même sans BL ?',{ok:'Valider sans BL'})) return;
   }
   const priorValide=(f.valide===undefined?null:f.valide);
   try{
@@ -14080,7 +14117,7 @@ function addFicheLine(data){
           <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
           <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Qté</label>
         </div>
-        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci -->
+        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" oninput="if(this.value.trim())this.style.borderColor=''" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise levée dès la saisie -->
       </div>
       <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes · [L110] la photo est remontée dans l'en-tête de carte -->
         <label>Action</label>
@@ -14499,6 +14536,10 @@ function updateNC(id){
   });
   const badge=document.getElementById('badge_'+id);
   if(badge){badge.textContent=hasNC?'NC':'RAS';badge.className='fl-badge '+(hasNC?'badge-red':'badge-green');}
+  // [L130 · audit A1] le détail est OBLIGATOIRE dès qu'une NC est cochée (bloque l'envoi) : on aligne le
+  // libellé sur la règle (fini le « facultatif » trompeur) et on met le champ en évidence tant qu'il est vide.
+  const det=document.getElementById('nc_detail_'+id);
+  if(det){ det.placeholder=hasNC?'⚠ Détail OBLIGATOIRE — motif de la non-conformité…':'Détail (facultatif)…'; det.style.borderColor=(hasNC&&!det.value.trim())?'var(--orange)':''; }
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] NC cochée → le volet s'ouvre + statut ⚠
 }
 function toggleAction(id,which){
