@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L134';
+const APP_VERSION='2026.07.12-L135';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10331,16 +10331,19 @@ async function bkRunImport(btn){
     const _bkHash=t=>{ let h=5381; for(let i=0;i<t.length;i++){ h=((h*33)^t.charCodeAt(i))>>>0; } return h.toString(36)+'_'+(t.length%97).toString(36); };
     const batch=db.batch();
     const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc('bkart_'+_bkHash(String(a.ref))); batch.set(dr,a); return dr; });
-    // [L128 · audit #18 · L132 revue] un id déterministe déjà pris par un mouvement ANNULÉ (« Remplacer par
-    // l'Excel » : corrigePar posé, contre-écriture −Q flottante) NE DOIT PAS être réécrasé : batch.set
-    // effacerait son corrigePar et laisserait la −Q → la ligne (identique aux deux listes) retombe à 0 m².
-    // On lui donne alors un id neuf déterministe (_rN) : la nouvelle entrée coexiste avec l'ancienne annulée.
-    // [L132] on ne génère un id neuf QUE sur collision ANNULÉE. Un id de base non annulé → on le garde tel
-    // quel : réessai après timeout idempotent (même id) ET doublon intra-lot fusionné par batch.set (comme
-    // AVANT L128 — les vrais doublons actifs sont déjà écartés en amont par noteHas dans bkAnalyseImport).
+    // Un id déterministe déjà pris NE DOIT PAS être réécrasé par batch.set, dans DEUX cas :
+    //  (a) [L128 · #18] mouvement ANNULÉ (corrigePar, après « Remplacer par l'Excel ») → l'écraser effacerait
+    //      son corrigePar et laisserait la contre-écriture −Q flotter → la ligne retombe à 0 m² ;
+    //  (b) [L135 · revue] DOUBLON de jeton INTRA-import : deux call-off du même lot/BL sur des palettes
+    //      DIFFÉRENTES ont le même tokCo (qui OMET la quantité) → même base → batch.set fusionne (dernier
+    //      gagne) et des m² disparaissent EN SILENCE. noteHas ne dédoublonne que contre le cache PERSISTÉ,
+    //      jamais à l'intérieur du même import (régression du resserrement L132, corrigée ici).
+    // → id neuf déterministe (_rN) sur collision ANNULÉE OU déjà attribué dans CET import. Un id de base sans
+    //   collision est conservé → réessai après timeout idempotent (cache inchangé → mêmes ids, batch.set écrase).
     const _bkAnnulled=new Set((stockMouvementsCache||[]).filter(m=>m&&m.corrigePar&&m.id).map(m=>m.id));
     const _bkAllIds=new Set((stockMouvementsCache||[]).map(m=>m&&m.id).filter(Boolean));
-    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const base='bk_'+_bkHash(tok+'|'+m.type+'|'+m.location); let docId=base; if(_bkAnnulled.has(base)){ let g=1; while(_bkAllIds.has(docId)){ docId=base+'_r'+g; g++; } _bkAllIds.add(docId); } const dr=db.collection('stockMouvements').doc(docId); batch.set(dr,m); return dr; });
+    const _bkSeen=new Set();   // ids attribués dans CET import (dédup intra-lot)
+    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const base='bk_'+_bkHash(tok+'|'+m.type+'|'+m.location); let docId=base; if(_bkAnnulled.has(base)||_bkSeen.has(base)){ let g=1; while(_bkAllIds.has(docId)||_bkSeen.has(docId)){ docId=base+'_r'+g; g++; } } _bkSeen.add(docId); const dr=db.collection('stockMouvements').doc(docId); batch.set(dr,m); return dr; });
     await raceTimeout(batch.commit(),25000);   // borné : jamais de bouton gelé
     arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
     mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
