@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L137';
+const APP_VERSION='2026.07.12-L139';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2818,8 +2818,14 @@ function csvCell(v){
 function downloadBlob(blob,filename){ const a=document.createElement('a'); const _bu=URL.createObjectURL(blob); a.href=_bu; setTimeout(function(){try{URL.revokeObjectURL(_bu);}catch(e){}},60000); a.download=filename; a.click(); }   // [L98 · simpl.8] queue de téléchargement répétée 7× factorisée
 const raceTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('__TIMEOUT__')),ms))]);   // [L98 · simpl.8] motif répété 9× factorisé
 function boundedWrite(p,ms){
-  return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.')),ms||10000))]);
+  // [L139 · audit hors-ligne] le rejet de TIMEOUT porte un drapeau `queued` : l'écriture n'a PAS échoué,
+  // Firestore l'a MISE EN FILE (persistance offline) et la committera au retour réseau. Les appelants
+  // doivent alors GARDER leur mise à jour optimiste (pas de rollback) et dire « ne re-saisis pas » —
+  // un vrai rejet (permission, quota…) n'a pas ce drapeau et doit, lui, déclencher le retour arrière.
+  return Promise.race([p,new Promise((_,rej)=>{ setTimeout(()=>{ const e=new Error('⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.'); e.queued=true; rej(e); }, ms||10000); })]);
 }
+// [L139] vrai « écriture en file offline » (à conserver optimiste) : soit le drapeau boundedWrite, soit __TIMEOUT__ (raceTimeout inline).
+function _isQueuedWrite(e){ return !!(e&&(e.queued||String(e.message)==='__TIMEOUT__')); }
 // [L85 · Audit #27] Comptage des bobines cochées ✂ Coupée — était copié-collé 7 fois.
 function countCoupees(){ return ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length; }
 
@@ -6414,11 +6420,17 @@ async function doSave(){
       logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
       if(typeof showToast==='function') showToast('✏️ Plan modifié','ok');
     }else{
-      const docRef=await raceTimeout(db.collection('saves').add(entry),10000);   // [L79] borné : anti bouton-mort
-      savesCache.unshift({_id:docRef.id,...entry});
+      // [L139 · audit #15] id RÉSERVÉ + set() : hors-ligne l'id est connu tout de suite → cache optimiste
+      // cohérent (pas de plan en double). Sur écriture MISE EN FILE, on GARDE l'optimiste + on ferme la
+      // modale + message « en file » (au lieu de « réessaie » qui poussait à un 2e Sauvegarder = plan doublé).
+      const docRef=db.collection('saves').doc(); const _sid=docRef.id;
+      let _queued=false;
+      try{ await boundedWrite(docRef.set(entry),10000); }
+      catch(e){ if(_isQueuedWrite(e)) _queued=true; else throw e; }
+      savesCache.unshift({_id:_sid,...entry});
       { const _cc=_capSessionCache(savesCache,1000); savesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E] pas de troncature si historique complet, sauf garde-fou mémoire (recharge honnête ensuite)
-      logAudit('create','saves',docRef.id,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
-      if(typeof showToast==='function') showToast('💾 Plan sauvegardé','ok');
+      logAudit('create','saves',_sid,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`+(_queued?' (mis en file offline)':'')).catch(function(){});   // [L79] non bloquant
+      if(typeof showToast==='function') showToast(_queued?'📡 Réseau lent/coupé — plan ENREGISTRÉ en file (visible dans Données > Plans). Ne re-sauvegarde pas.':'💾 Plan sauvegardé','ok');
     }
   }catch(e){showToast(String(e&&e.message)==='__TIMEOUT__'?'⏳ Réseau lent — sauvegarde interrompue, réessaie.':('Erreur sauvegarde : '+e.message),'err');return;}
   if(typeof clearPlanAutosaveDraft==='function') clearPlanAutosaveDraft(); // demande 4 : le plan est en base, le brouillon auto n'a plus lieu d'être
@@ -8787,6 +8799,14 @@ async function plnSetPlan(sid,dateIso,machKey,days){
     try{ await logAudit('planning','saves',sid,txt,{client:s.client||'',numCmd:s.numCmd||'',plannedDate:after.d||'',plannedMachine:after.m||'',plannedDays:after.days||1}); }catch(e){}
     return true;
   }catch(e){
+    // [L139 · audit #8/#28] écriture MISE EN FILE (offline) : NE PAS faire de retour arrière — l'update
+    // partira au retour réseau et la carte est déjà à la bonne place. Un rollback ferait « re-sauter » la
+    // carte à l'écran alors que la base la déplacera → écran qui ment. On ne rollback que sur un VRAI rejet.
+    if(_isQueuedWrite(e)){
+      try{ await logAudit('planning','saves',sid,'Planning (mise en file offline) — '+((s.client||'—')+' / N° '+(s.numCmd||'—')),{client:s.client||'',numCmd:s.numCmd||'',plannedDate:after.d||'',plannedMachine:after.m||'',plannedDays:after.days||1}); }catch(_){}
+      showToast('📡 Réseau lent/coupé — pose ENREGISTRÉE en file (elle partira au retour réseau). Ne re-glisse pas.','ok');
+      return true;
+    }
     s.plannedDate=before.d; s.plannedMachine=before.m; s.plannedDays=before.days;   // retour arrière : rien de cassé
     renderPlanning();
     const perm=/permission|insufficient/i.test(String((e&&e.message)||e));
@@ -9930,12 +9950,24 @@ async function saveStockArticle(btn){
     deleted:false,
     createdAt:isoNow(), createdBy:currentUser?currentUser.ini:'?' };
   if(btn) btn.disabled=true;
+  // [L139 · audit #27] id RÉSERVÉ + set() : hors-ligne le garde anti-doublon .some(ref) était défait (push
+  // optimiste sauté sur timeout → re-création = 2 articles même ref). On pousse l'optimiste avec l'id définitif.
+  const docRef=db.collection('stockArticles').doc(); art.id=docRef.id;
   try{
-    const r=await boundedWrite(db.collection('stockArticles').add(art),10000);   // [L83 · Audit #36] borné
-    art.id=r.id; stockArticlesCache.push(art);
-    await logAudit('create','stockArticles',r.id,`Article stock ${ref}`);
+    await boundedWrite(docRef.set(art),10000);
+    stockArticlesCache.push(art);
+    await logAudit('create','stockArticles',art.id,`Article stock ${ref}`);
     renderStock();
-  }catch(e){ showToast('Erreur création : '+e.message,'err'); if(btn) btn.disabled=false; }
+  }catch(e){
+    if(_isQueuedWrite(e)){
+      stockArticlesCache.push(art);   // optimiste : article visible + garde .some(ref) ré-armé → pas de doublon à la re-saisie
+      logAudit('create','stockArticles',art.id,`Article stock ${ref} (mis en file offline)`).catch(function(){});
+      renderStock();
+      showToast('📡 Réseau lent/coupé — article ENREGISTRÉ en file ('+ref+'). Ne le re-crée pas.','ok');
+      return;
+    }
+    showToast('Erreur création : '+e.message,'err'); if(btn) btn.disabled=false;
+  }
 }
 // Lot 6 — édition d'un article stock (la référence reste la clé de jointure, non modifiable)
 function openStockArticleEdit(id){
@@ -10080,13 +10112,28 @@ async function saveStockMouvement(btn){
     note:(stkEl('stockNote').value||'').trim(),
     op:currentUser?currentUser.ini:'?', deleted:false };
   if(btn) btn.disabled=true;
+  // [L139 · audit #14] id RÉSERVÉ avant l'écriture + set() : l'id définitif est connu même hors-ligne, donc
+  // la mise à jour optimiste du cache porte le bon id (pas de doublon quand l'écriture en file se committe).
+  const docRef=db.collection('stockMouvements').doc(); mvt.id=docRef.id;
   try{
-    const r=await boundedWrite(db.collection('stockMouvements').add(mvt),10000);   // [L83 · Audit #36] borné
-    mvt.id=r.id; stockMouvementsCache.unshift(mvt);
-    await logAudit('create','stockMouvements',r.id,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`);
+    await boundedWrite(docRef.set(mvt),10000);
+    stockMouvementsCache.unshift(mvt);
+    await logAudit('create','stockMouvements',mvt.id,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`);
     renderStock();
     showToast(`✓ Mouvement enregistré (${signed>0?'+':''}${signed.toLocaleString('fr-FR')} m² · ${ref})`,'ok');   // [L130 · audit A4] retour explicite (comme annulStockMouvement/import B+K) → pas de ressaisie par doute
-  }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); if(btn) btn.disabled=false; }
+  }catch(e){
+    // [L139 · audit #14] écriture MISE EN FILE (offline) : le mouvement a son id définitif → on l'affiche tout
+    // de suite (cache optimiste) au lieu de dire « erreur » et de sauter le cache → l'opérateur le VOIT et ne
+    // le re-saisit pas (le stock est event-sourced, aucun jeton anti-doublon sur la voie manuelle).
+    if(_isQueuedWrite(e)){
+      stockMouvementsCache.unshift(mvt);
+      logAudit('create','stockMouvements',mvt.id,`${stockMvtType} ${signed} m² · ${ref} (mis en file offline)`).catch(function(){});
+      renderStock();
+      showToast(`📡 Réseau lent/coupé — mouvement ENREGISTRÉ en file (${signed>0?'+':''}${signed.toLocaleString('fr-FR')} m² · ${ref}). Il s'affiche ci-dessous, NE RE-SAISIS PAS.`,'ok');
+      return;
+    }
+    showToast('Erreur enregistrement : '+e.message,'err'); if(btn) btn.disabled=false;
+  }
 }
 
 // ============================================================
@@ -11986,11 +12033,15 @@ async function createRemainingPlan(f){
     deleted:false, date:isoNow()
   };
   try{
-    const docRef=await db.collection('saves').add(entry);
-    savesCache.unshift({_id:docRef.id,...entry});
+    // [L139 · audit #29] id RÉSERVÉ + set() borné : hors-ligne le plan du reste a son id tout de suite → il est
+    // lié à la fiche (restePlanId) et listé, même si l'écriture part en file (plus de bouton mort / lien perdu).
+    const docRef=db.collection('saves').doc(); const _rid=docRef.id;
+    try{ await boundedWrite(docRef.set(entry),10000); }
+    catch(e){ if(!_isQueuedWrite(e)) throw e; }
+    savesCache.unshift({_id:_rid,...entry});
     { const _cc=_capSessionCache(savesCache,1000); savesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E] cf. supra + garde-fou mémoire
-    try{ await logAudit('create','saves',docRef.id,`Plan du reste — ${entry.client} / ${entry.ref}`); }catch(e){}
-    return docRef.id;
+    try{ await logAudit('create','saves',_rid,`Plan du reste — ${entry.client} / ${entry.ref}`); }catch(e){}
+    return _rid;
   }catch(e){ showToast('Erreur création du plan du reste : '+e.message,'err'); return null; }
   }finally{ _resteCreating=null; }   // [L68 · Audit B12]
 }
@@ -13329,7 +13380,10 @@ async function restoreItem(collection,id){
         upd.date=isoNow(); reDated=true;
       }
     }
-    await db.collection(collection).doc(id).update(upd);
+    // [L139 · audit #29] borné : plus de bouton mort hors-ligne. Sur écriture MISE EN FILE, on continue en
+    // OPTIMISTE (la suite — cache/render/toast — s'exécute ; l'update part au retour réseau). Vrai rejet → catch.
+    try{ await boundedWrite(db.collection(collection).doc(id).update(upd),10000); }
+    catch(e){ if(!_isQueuedWrite(e)) throw e; }
     // Repasse l'item dans le cache actif
     corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
     if(restored){
@@ -13381,7 +13435,8 @@ async function permanentDelete(collection,id){
   }
   try{
     {const it=corbeilleCache.find(x=>x._id===id);if(it){addToColdArchive([it]);if(collection==='fiches') await deleteFichePhotos(it);}}   // [L85 · Audit #16] archive froide pour TOUT (la bannière corbeille le promet) — photos purgées seulement pour les fiches
-    await db.collection(collection).doc(id).delete();
+    try{ await boundedWrite(db.collection(collection).doc(id).delete(),10000); }
+    catch(e){ if(!_isQueuedWrite(e)) throw e; }   // [L139 · audit #29] borné : suppression MISE EN FILE hors-ligne → on continue (retrait cache/render), le delete part au retour réseau
     corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
     await logAudit('permanent_delete',collection,id,'');
   }catch(e){showToast('Erreur : '+e.message,'err');}
