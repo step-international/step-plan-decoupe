@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L133';
+const APP_VERSION='2026.07.12-L134';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8719,9 +8719,12 @@ function _plnH(h){ if(h==null||!isFinite(h)||h<=0) return '—'; const H=Math.fl
 // [L119 · demande Esteban] commande longue : ÉTALÉE sur plusieurs jours. plannedDays (1..14) = nb de
 // jours OUVRÉS occupés à partir de plannedDate, sur la même machine. Les ISO occupés :
 function _plnDays(s){ return Math.max(1,Math.min(14,parseInt(s&&s.plannedDays,10)||1)); }
+let _plnSpanCache={};   // [L133 · perf revue #9] span ISO mémoïsé par (date, nb jours) — sinon recalculé O(machines×5j×plans) avec un new Date par itération
 function _plnSpanIsos(s){
   if(!s||!s.plannedDate) return [];
-  const p=String(s.plannedDate).split('-').map(Number); if(p.length<3) return [s.plannedDate];
+  const key=String(s.plannedDate)+'¦'+_plnDays(s);   // le span ne dépend QUE de la date de pose et du nb de jours
+  if(key in _plnSpanCache) return _plnSpanCache[key];
+  const p=String(s.plannedDate).split('-').map(Number); if(p.length<3) return (_plnSpanCache[key]=[s.plannedDate]);
   // [L127 · audit #8] on ne compte QUE les jours ouvrés : l'atelier ne coupe pas le week-end. Une
   // commande de 3 j posée un jeudi occupe jeu+ven+lun (pas jeu+ven+sam), donc l'étalement colle au réel.
   const D=_plnDays(s), out=[]; let cur=new Date(p[0],p[1]-1,p[2]);
@@ -8731,7 +8734,7 @@ function _plnSpanIsos(s){
     if(wd!==0&&wd!==6) out.push(_plnIso(cur));
     cur=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1);
   }
-  return out.length?out:[s.plannedDate];
+  return (_plnSpanCache[key]=(out.length?out:[s.plannedDate]));
 }
 // ── ÉCRITURE pose / déplacement / retrait / étalement (optimiste + retour arrière + logAudit) ──
 const _plnWriteBusy=new Set();   // [L118 · audit #3] sids avec une écriture planning en vol
@@ -8957,7 +8960,7 @@ document.addEventListener('touchmove',function(e){ if(_plnDrag&&_plnDrag.lifted&
 function renderPlanning(){
   const el=document.getElementById('planningContent'); if(!el) return;
   plnDisarm();
-  _plnEstCache={}; _plnAddCalCache={}; _plnDebitCache={};   // [L125 · T5] cache calibration corrigé-laize · [L132 · perf] cache débit m/h
+  _plnEstCache={}; _plnAddCalCache={}; _plnDebitCache={}; _plnSpanCache={};   // [L125 · T5] cache calibration corrigé-laize · [L132 · perf] cache débit m/h · [L133 · perf] cache span jours ouvrés
   const ctx=_plnSentKeys();
   const todayIso=_plnIso(new Date());
   const all=(savesCache||[]).filter(s=>s&&!s.deleted&&!_plnDejaCoupe(s,ctx));
