@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L135';
+const APP_VERSION='2026.07.12-L136';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1524,9 +1524,11 @@ function updReload(){
   const btn=document.querySelector('#updBanner .btn-blue'); if(btn){btn.disabled=true;btn.textContent='⏳…';}
   const ctl=navigator.serviceWorker&&navigator.serviceWorker.controller;
   if(ctl){
+    let _fb=null;   // [L136 · audit #17] timer de repli CAPTURÉ pour pouvoir l'annuler
     const done=function(e){
-      if(e.data&&e.data.type==='INDEX_REFRESHED'){ try{navigator.serviceWorker.removeEventListener('message',done);}catch(_){} location.reload(); }
+      if(e.data&&e.data.type==='INDEX_REFRESHED'){ clearTimeout(_fb); try{navigator.serviceWorker.removeEventListener('message',done);}catch(_){} location.reload(); }
       else if(e.data&&e.data.type==='INDEX_REFRESH_FAILED'){   // [L96 · vérif #9] coupure réseau : on N'EMBARQUE PAS l'opérateur sur un faux rechargement
+        clearTimeout(_fb);   // [L136 · audit #17] CRUCIAL : annuler le repli, sinon location.reload() se déclenchait 25 s plus tard sur l'ANCIENNE version (état des modales/saisie perdu — contredit le gel L89)
         try{navigator.serviceWorker.removeEventListener('message',done);}catch(_){}
         _updReloading=false;
         const btn2=document.querySelector('#updBanner .btn-blue'); if(btn2){btn2.disabled=false;btn2.textContent='Recharger';}
@@ -1535,7 +1537,7 @@ function updReload(){
     };
     navigator.serviceWorker.addEventListener('message',done);
     ctl.postMessage({type:'REFRESH_INDEX'});
-    setTimeout(function(){ location.reload(); },25000);   // [L96 · vérif #2] repli si le SW ne répond pas — 25 s : sur 4G lente le re-téléchargement (~1 Mo) dépasse 6 s et le reload prématuré resservait l'ancienne version (clic « sans effet »)
+    _fb=setTimeout(function(){ location.reload(); },25000);   // [L96 · vérif #2] repli si le SW ne répond pas — 25 s : sur 4G lente le re-téléchargement (~1 Mo) dépasse 6 s et le reload prématuré resservait l'ancienne version (clic « sans effet »)
   } else location.reload();
 }
 async function checkAppUpdate(){
@@ -2310,8 +2312,10 @@ document.addEventListener('keydown',function(e){
       }
     }else{
       // Utilisateur déconnecté
-      stopAppCheckRefreshLoop();
-      stopVersionWatcher();
+      try{ stopAppCheckRefreshLoop(); }catch(_){}   // [L136 · audit CRITIQUE] wrap défensif : un appel qui jette ne doit plus jamais avorter le nettoyage chrono/session en cascade (poste partagé)
+      // [L136 · audit CRITIQUE] `stopVersionWatcher()` RETIRÉ : la fonction n'existe plus (watcher supprimé L96) →
+      // ReferenceError qui sautait TOUT le nettoyage ci-dessous (chrono ROB-1, Wake Lock, CHRONO_LS_KEY, timers,
+      // reset session) → sur tablette partagée, l'op suivant se voyait proposer la commande du précédent.
       // Arrêt des timers qui survivaient à la session (fuites).
       if(_lameAlertCycleTimer){ clearInterval(_lameAlertCycleTimer); _lameAlertCycleTimer=null; }
       if(_planAutosaveTimer){ clearInterval(_planAutosaveTimer); _planAutosaveTimer=null; }
@@ -6554,10 +6558,10 @@ function renderSaves(){
       </div>
       <div class="save-actions">
         <button class="btn btn-green btn-sm" onclick="openLoadModal('${s._id}')" title="Charger ce plan dans l'éditeur">📂 Charger</button>
-        <button class="btn btn-ghost btn-sm" onclick="editSavedPlan('${s._id}')" title="Modifier le plan">✏️ Modifier</button>
+        ${canManageData()?`<button class="btn btn-ghost btn-sm" onclick="editSavedPlan('${s._id}')" title="Modifier le plan">✏️ Modifier</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="printSavedPlan('${s._id}')" title="Imprimer le plan">🖨️ Imprimer</button>
-        <button class="btn btn-red btn-sm" onclick="deleteSave('${s._id}')" title="Archiver (récupérable 45 j)">🗑️ Archiver</button>
-      </div>
+        ${canManageData()?`<button class="btn btn-red btn-sm" onclick="deleteSave('${s._id}')" title="Archiver (récupérable 45 j)">🗑️ Archiver</button>`:''}
+      </div><!-- [L136 · audit #16] Modifier/Archiver réservés au pilotage/admin (règle Firestore saves.update) : un op ne voit plus une action interdite (échec permissions + réapparition silencieuse hors-ligne) -->
     </div>`;
   }).join('')+(totalSaves>savesRenderLimit
     ?`<div style="text-align:center;margin-top:12px"><button class="btn btn-ghost" onclick="savesRenderLimit+=50;renderSaves()">⬇ Voir plus (${totalSaves-saves.length} restant${totalSaves-saves.length>1?'s':''})</button></div>`
@@ -6653,6 +6657,7 @@ function newCmdErase(){
 // Charge un plan dans l'éditeur pour le MODIFIER : la prochaine sauvegarde
 // écrasera ce plan au lieu d'en créer un nouveau (voir doSave).
 async function editSavedPlan(id){
+  if(typeof canManageData==='function'&&!canManageData()){ showToast('Modification d\'un plan réservée au pilotage et aux admins.','err'); return; }   // [L136 · audit #16] défense en profondeur (le bouton est déjà masqué)
   const s=savesCache.find(x=>x._id===id);
   if(!s) return;
   loadTargetIdx=id;
@@ -6781,6 +6786,7 @@ async function doLoad(){
   closeLoadModal();showPage(0);
 }
 async function deleteSave(id){
+  if(typeof canManageData==='function'&&!canManageData()){ showToast('Archivage d\'un plan réservé au pilotage et aux admins.','err'); return; }   // [L136 · audit #16] garde de rôle (règle Firestore saves.update) : hors-ligne un « archivage » d'op réapparaît en silence à la reconnexion
   if(!(await confirmDlg('Archiver cette sauvegarde ? (récupérable 45 jours)',{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
     await boundedWrite(db.collection('saves').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   // [L83 · Audit #39] borné
@@ -8357,6 +8363,16 @@ function renderTemps(){
     const curVal=selClient.value;
     const uniqClients=[...new Set(allTemps.map(t=>t.client).filter(Boolean))].sort();
     selClient.innerHTML='<option value="">Tous clients</option>'+uniqClients.map(c=>`<option value="${esc(c)}"${c===curVal?' selected':''}>${esc(c)}</option>`).join('');
+  }
+  // [L136 · audit #25] filtre « découpeurs » peuplé DYNAMIQUEMENT (comme filterClient) : la liste HTML figée
+  // (TB/JF/MT/DC/ER) rendait CH et tout futur opérateur invisibles au filtre, alors qu'on filtre bien op.1 ET op.2.
+  const selOp=document.getElementById('filterOp');
+  if(selOp){
+    const curOp=selOp.value;
+    const fromProfiles=(typeof USER_PROFILES==='object'&&USER_PROFILES)?Object.values(USER_PROFILES).map(p=>p&&p.ini).filter(Boolean):[];
+    const fromTemps=allTemps.flatMap(t=>[t.operateur,t.operateur2]).filter(Boolean);
+    const uniqOps=[...new Set([...fromProfiles,...fromTemps])].sort();
+    selOp.innerHTML='<option value="">Tous découpeurs</option>'+uniqOps.map(o=>`<option value="${esc(o)}"${o===curOp?' selected':''}>${esc(o)}</option>`).join('');
   }
 
   const fMachine=document.getElementById('filterMachine')?.value||'';
@@ -10248,7 +10264,7 @@ function bkAnalyseImport(){
   const rows=_bkParseTable(el.value);
   if(!rows.length){ out.innerHTML='<div style="color:var(--red);font-size:13px">Aucune ligne article reconnue. Colle la liste B+K (Excel ou CSV) — colonnes matno, typ, mm, ml…</div>'; if(btn) btn.classList.add('hidden'); _bkPlanned=null; return; }
   const op=currentUser?currentUser.ini:'?';
-  const noteHas=tok=>stockMouvementsCache.some(m=>!m.deleted&&!m.corrigePar&&String(m.note||'').includes(tok));   // [L94] un mouvement ANNULÉ ne bloque plus la ré-importation — « Remplacer par l'Excel » sautait les lignes communes avec le 01/07 (annulées juste avant !)
+  const noteHas=tok=>stockMouvementsCache.some(m=>!m.deleted&&!m.corrigePar&&!m.corrige&&String(m.note||'').includes(tok));   // [L94] un mouvement ANNULÉ ne bloque plus la ré-importation · [L136 · audit #11] exclut AUSSI les contre-écritures (m.corrige) : annulStockMouvement recopie le jeton [BK:…] dans sa note → sans ça la ré-import après annulation MANUELLE (↺) était ignorée à tort (« déjà importé »)
   const arts=[], mvts=[]; let skipped=0;
   const artSeen=new Set();
   rows.forEach(r=>{
@@ -10851,7 +10867,7 @@ function maintRenderList(){
           <div class="save-meta">${esc(r.description||'')}</div>
           <div class="save-meta">${ds}${r.responsable?` · Resp. ${esc(r.responsable)}`:''}</div>
         </div>
-        <div style="flex-shrink:0"><button class="btn btn-red btn-sm" onclick="maintDelete('${r.id}')" aria-label="Archiver l'entrée" title="Archiver (récupérable via la Corbeille)">🗑</button></div>
+        ${canManageData()?`<div style="flex-shrink:0"><button class="btn btn-red btn-sm" onclick="maintDelete('${r.id}')" aria-label="Archiver l'entrée" title="Archiver (récupérable via la Corbeille)">🗑</button></div>`:''}<!-- [L136 · audit #31] bouton d'archivage réservé au pilotage/admin (maintDelete exige déjà canManageData) : l'op ne voit plus une action refusée -->
       </div>
     </div>`;
   }).join('');
@@ -11999,10 +12015,14 @@ function proposeStockSortie(f){
     const dets=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
     const rows=[];
     const push=(refName,mother,longueur,nb)=>{ const m2=Math.round((parseNum(mother)||0)/1000*(parseNum(longueur)||0)*nb); if(nb>0&&m2>0) rows.push({refName:refName||'—',nb,m2}); };
+    // [L136 · audit #10] ne compter que les mères RÉELLEMENT coupées : sur une fiche manque-matière la sortie
+    // de stock comptait aussi les mères non coupées (matière jamais consommée — c'est la cause du manque) →
+    // sur-décompte, puis double décompte quand le plan du reste est coupé. Fiches normales : inchangé (toutes
+    // coupées avant validation). Une bobine au Déchet garde coupee=true (mère bien consommée) → toujours comptée.
     if(Array.isArray(f.refGroups)&&f.refGroups.length){
-      f.refGroups.forEach(gr=>{ const nb=dets.filter(fd=>fd&&!fd.recut&&nrm(fd.ref)===nrm(gr.ref)).length; push(gr.ref,gr.mother,gr.longueur,nb); });
+      f.refGroups.forEach(gr=>{ const nb=dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true&&nrm(fd.ref)===nrm(gr.ref)).length; push(gr.ref,gr.mother,gr.longueur,nb); });
     } else {
-      const nb=dets.filter(fd=>fd&&!fd.recut).length||Number(f.totalBobines)||0;
+      const nb=dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true).length||(f.manqueMatiere?0:Number(f.totalBobines))||0;
       push(f.ref,f.mother,f.longueur,nb);
     }
     if(!rows.length) return;
