@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.11-L130';
+const APP_VERSION='2026.07.12-L131';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2178,7 +2178,13 @@ function applyRole(){
     tag.textContent='OP'+(prenom?' · '+prenom:'');tag.className='role-op';
   }
   // Analyse : admin uniquement · Corbeille + NC : admin + pilotage
-  document.getElementById('tabAnalyse').style.display=canViewAnalyse()?'':'none';
+  // [L131 · audit #24/A5 · choix Esteban] le pilotage (DC) retrouve les RELEVÉS DE TEMPS : l'onglet
+  // s'ouvre pour admin OU pilotage, mais un pilotage n'y voit QUE le bloc Temps (analytics masquées) —
+  // le libellé devient « ⏱ Temps » pour lui. Le garde openTempsEdit/deleteTempo l'autorisait déjà.
+  { const _tA=document.getElementById('tabAnalyse');
+    _tA.style.display=(canViewAnalyse()||canManageData())?'':'none';
+    _tA.textContent=canViewAnalyse()?'📈 Analyse':'⏱ Temps'; }
+  _applyAnalyseScope();
   document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
   document.getElementById('tabNc').style.display=canManageData()?'':'none';
   { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
@@ -2190,7 +2196,7 @@ function applyRole(){
   // Si l'onglet actif n'est plus autorisé, rebascule sur Plans
   const active=document.querySelector('.tab-btn.active');
   if(active){
-    if((active.id==='tabAnalyse'&&!canViewAnalyse())||(active.id==='tabStock'&&!canViewStock())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');
+    if((active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabStock'&&!canViewStock())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){
@@ -2753,6 +2759,15 @@ function canPermanentDelete(){
 // Onglet Analyse : admins uniquement (DC = tout sauf Analyse)
 function canViewAnalyse(){
   return currentRole==='admin';
+}
+// [L131 · audit #24/A5] L'onglet « Analyse » héberge aussi les Relevés de temps (fusion L120). Un
+// pilotage y accède MAIS ne doit voir QUE le bloc Temps : on masque les analytics (#analyseContent,
+// #lameStatsBlock) et on déplie le bloc Temps. Admin : tout visible. Idempotent (appelé à chaque bascule).
+function _applyAnalyseScope(){
+  const full=canViewAnalyse();
+  const ac=document.getElementById('analyseContent'); if(ac) ac.style.display=full?'':'none';
+  const lb=document.getElementById('lameStatsBlock'); if(lb) lb.style.display=full?'':'none';
+  const tb=document.getElementById('tempsBox'); if(tb&&!full) tb.setAttribute('open','');   // pilotage : Temps ouvert d'emblée (seul contenu)
 }
 // Onglet Piste d'audit : admins uniquement (aligné sur la règle Firestore read:isAdmin)
 function canViewAudit(){
@@ -3636,7 +3651,7 @@ function switchTab(tab){
   if(tab!=='planning'){ try{ if(typeof plnDisarm==='function') plnDisarm(); }catch(e){} }   // [L118 · audit #6] désarmer le Planning + retirer le fantôme/#plnHint en quittant l'onglet
   if(typeof updateTabBadges==='function') updateTabBadges();
   if(tab==='temps') tab='analyse';   // [L120] onglet Temps fusionné dans Analyse (rétro-compat des anciens appels/liens)
-  if(tab==='analyse'&&!canViewAnalyse()) tab='saves';
+  if(tab==='analyse'&&!canViewAnalyse()&&!canManageData()) tab='saves';   // [L131 · #24] pilotage : accès conservé (Temps)
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
   if(tab==='stock'&&!canViewStock()) tab='saves';
   if(tab==='audit'&&!canViewAudit()) tab='saves';
@@ -3649,7 +3664,7 @@ function switchTab(tab){
   const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance')?'none':'';
   if(tab==='saves') renderSaves();
   else if(tab==='brouillons') renderDrafts();
-  else if(tab==='analyse'){ renderAnalyse(); renderTemps(); autoLoadHistoryThenRerender('analyse'); }   // [L120] Temps rendu dans le bloc repliable d'Analyse
+  else if(tab==='analyse'){ if(canViewAnalyse()) renderAnalyse(); renderTemps(); _applyAnalyseScope(); autoLoadHistoryThenRerender('analyse'); }   // [L120] Temps rendu dans le bloc repliable d'Analyse · [L131 · #24] pilotage : Temps seul (analytics masquées)
   else if(tab==='corbeille'){ loadCorbeille(); }
   else if(tab==='nc'){ renderNc(); autoLoadHistoryThenRerender('nc'); }
   else if(tab==='stock') renderStock();
@@ -3667,7 +3682,7 @@ function autoLoadHistoryThenRerender(tab){
     const active=document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1));
     if(!active||!active.classList.contains('active')) return;  // l'utilisateur a changé d'onglet entre-temps
     if(tab==='nc') renderNc();
-    else if(tab==='analyse'){ renderAnalyse(); try{ renderTemps(); }catch(e){} }   // [L120] refresh aussi les Relevés de temps (bloc dans Analyse) après historique complet
+    else if(tab==='analyse'){ if(canViewAnalyse()) renderAnalyse(); try{ renderTemps(); }catch(e){} _applyAnalyseScope(); }   // [L120] refresh aussi les Relevés de temps (bloc dans Analyse) après historique complet · [L131 · #24] pilotage : Temps seul
   });
 }
 
@@ -8274,7 +8289,7 @@ function renderDataPage(){
   if(t==='saves') renderSaves();
   else if(t==='brouillons') renderDrafts();
   else if(t==='nc') renderNc();
-  else if(t==='analyse'){ renderAnalyse(); renderTemps(); }   // [L120] Temps dans Analyse
+  else if(t==='analyse'){ if(canViewAnalyse()) renderAnalyse(); renderTemps(); _applyAnalyseScope(); }   // [L120] Temps dans Analyse · [L131 · #24] pilotage : Temps seul
   else if(t==='stock') renderStock();
   else if(t==='audit') renderAudit();
   else if(t==='maintenance') renderMaintenance();
@@ -8501,8 +8516,9 @@ async function clearTemps(){
 // L34 — après suppression/correction d'un relevé, re-rend le tableau de bord
 // Analyse (débit m/h + KPI + graphiques) pour ne plus afficher un temps supprimé.
 function refreshAnalyseIfPresent(){
-  if(document.getElementById('analyseContent')){ try{ renderAnalyse(); }catch(e){ console.warn('refresh Analyse:',e); } }
+  if(canViewAnalyse()&&document.getElementById('analyseContent')){ try{ renderAnalyse(); }catch(e){ console.warn('refresh Analyse:',e); } }   // [L131 · #24] analytics : admin uniquement
   if(document.getElementById('tempsList')){ try{ renderTemps(); }catch(e){} }   // [L120] Relevés de temps fusionnés dans Analyse
+  try{ _applyAnalyseScope(); }catch(e){}
 }
 async function exportTemps(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
