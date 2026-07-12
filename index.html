@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L131';
+const APP_VERSION='2026.07.12-L132';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2763,11 +2763,14 @@ function canViewAnalyse(){
 // [L131 · audit #24/A5] L'onglet « Analyse » héberge aussi les Relevés de temps (fusion L120). Un
 // pilotage y accède MAIS ne doit voir QUE le bloc Temps : on masque les analytics (#analyseContent,
 // #lameStatsBlock) et on déplie le bloc Temps. Admin : tout visible. Idempotent (appelé à chaque bascule).
+let _tempsBoxAutoOpened=false;   // [L132 · revue] n'auto-déplier le bloc Temps qu'UNE fois (respecter un repli manuel du pilotage)
 function _applyAnalyseScope(){
   const full=canViewAnalyse();
   const ac=document.getElementById('analyseContent'); if(ac) ac.style.display=full?'':'none';
   const lb=document.getElementById('lameStatsBlock'); if(lb) lb.style.display=full?'':'none';
-  const tb=document.getElementById('tempsBox'); if(tb&&!full) tb.setAttribute('open','');   // pilotage : Temps ouvert d'emblée (seul contenu)
+  // pilotage : Temps est le seul contenu → on l'ouvre à la 1re arrivée sur l'onglet, mais on NE le
+  // ré-ouvre PAS de force ensuite (sinon un repli manuel se rouvre à chaque re-render / chargement d'historique).
+  const tb=document.getElementById('tempsBox'); if(tb&&!full&&!_tempsBoxAutoOpened){ tb.setAttribute('open',''); _tempsBoxAutoOpened=true; }
 }
 // Onglet Piste d'audit : admins uniquement (aligné sur la règle Firestore read:isAdmin)
 function canViewAudit(){
@@ -5677,7 +5680,11 @@ function planManualCoherence(pm, refGroups){
     if(consumed.has(g)) return;
     const ordered={};
     (g.rows||[]).forEach(x=>{ if(x.width>0&&x.qty>0) ordered[x.width]=(ordered[x.width]||0)+x.qty; });
-    Object.keys(ordered).map(Number).forEach(w=>{ out.push({ref:g.ref||('Réf +'+(gi+1)), width:w, ordered:ordered[w], covered:0, diff:ordered[w]}); });
+    // [L132 · revue] créditer les CHUTES en stock ici AUSSI (comme la 1re boucle) : une réf ajoutée mais
+    // couverte par des bobineaux déjà à la bonne largeur ne doit pas afficher un faux « manque » (chiffre
+    // sur-évalué, incohérent écran/fiche/PDF). On n'émet l'écart que sur la part NON couverte.
+    const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{};
+    Object.keys(ordered).map(Number).forEach(w=>{ const c=cu[w]||0, o=ordered[w]; if(o-c>0) out.push({ref:g.ref||('Réf +'+(gi+1)), width:w, ordered:o, covered:c, diff:o-c}); });
   });
   return out;
 }
@@ -7035,18 +7042,20 @@ async function stopManqueMatiere(){
   if(document.getElementById('fOp2Active')?.checked&&!(document.getElementById('fOp2Bobine')?.value)){
     showToast('⚠ Opérateur 2 activé : choisis sa bobine de reprise avant l\'arrêt manque-matière (sinon son temps devient invisible dans les stats).','err'); return; }
   { const _fd=getFicheLinesData();
+    // [L132 · revue] ces bobines sont COUPÉES donc masquées par défaut (« 🙈 Masquer les coupées ») :
+    // on démasque + défile + surligne la bobine fautive, sinon l'opérateur lit « Bobine 3 » sans la voir.
+    const _reveal=(el)=>{ try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){} try{ el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('fl-spot'); setTimeout(()=>{try{el.classList.remove('fl-spot');}catch(e){}},2200); }catch(e){} };
     for(let i=0;i<ficheLines.length;i++){
       const l=ficheLines[i], _el=document.getElementById(l.id);
       if(!_el||!_el.classList.contains('coupee')||_el.classList.contains('coupee-other')) continue;   // seules les bobines coupées par MOI partent dans la fiche partielle
       if(!test2Resolved(l.id)){
-        try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){}
-        try{ _el.scrollIntoView({behavior:'smooth',block:'center'}); _el.classList.add('fl-spot'); setTimeout(()=>{try{_el.classList.remove('fl-spot');}catch(e){}},2200); }catch(e){}
+        _reveal(_el);
         showToast('⚠ Test 2ᵉ bobineaux dé-validé sur « '+((document.getElementById('flLabel_'+l.id)?.value||'').trim()||l.label||'?')+' ».\n\nRe-coche Dévidage'+(_flMachineOf(l.id)==='feba'?'':' / Droit')+' (ou ⚠ Non conforme + motif) avant l\'arrêt manque-matière.','err');
         return;
       }
       const fd=_fd[i], hasNC=fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng);
-      if(hasNC&&!String(fd.ncDetail||'').trim()){ showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité cochée sans explication.\n\nRenseigne le détail avant l\'arrêt manque-matière.','err'); return; }
-      if(hasNC&&!(fd.actDechet||fd.actChutes||fd.actAccept)){ showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité sans destination.\n\nChoisis l\'action — Chutes ou Déchet — avant l\'arrêt.','err'); return; }
+      if(hasNC&&!String(fd.ncDetail||'').trim()){ _reveal(_el); showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité cochée sans explication.\n\nRenseigne le détail avant l\'arrêt manque-matière.','err'); return; }
+      if(hasNC&&!(fd.actDechet||fd.actChutes||fd.actAccept)){ _reveal(_el); showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité sans destination.\n\nChoisis l\'action — Chutes ou Déchet — avant l\'arrêt.','err'); return; }
     }
   }
   const reste=total-done;
@@ -8647,14 +8656,19 @@ function _plnPlanMeters(s){
 // [L125 · T5] cache de calibration corrigé-laize par machine (vidé à chaque rendu planning — évite
 // une régression par cellule). Repli m/h si non calibré (< 10 relevés).
 let _plnAddCalCache={};
+let _plnDebitCache={};   // [L132 · perf] débit m/h par machine, mémoïsé par rendu (dujDebit re-scanne tempsCache)
 function _plnAddCal(mk){
   if(_dujAddOverride&&_dujAddOverride[mk]) return {coef:_dujAddOverride[mk],override:true};
   if(!(mk in _plnAddCalCache)) _plnAddCalCache[mk]=(typeof dujCalibrateAdditive==='function')?dujCalibrateAdditive(mk):null;
   return _plnAddCalCache[mk];
 }
+function _plnDebit(mk){   // [L132 · perf revue] mémoïse dujDebit(mk,null) : appelé O(machines×5j×plans) dans renderPlanning
+  if(!(mk in _plnDebitCache)) _plnDebitCache[mk]=dujDebit(mk,null);
+  return _plnDebitCache[mk];
+}
 function _plnHoursPart(mk,part){   // heures pour une part {metres,nbMother,nbDaughters} sur machine mk
   if(!part||!(part.metres>0)) return null;
-  const deb=dujDebit(mk,null);
+  const deb=_plnDebit(mk);
   const mhH=(deb&&deb.d&&deb.src!=='global')?part.metres/deb.d:null;   // repli m/h (refuse le global)
   const cal=_plnAddCal(mk);
   // [L126 · audit #7/#13/#15] additif SEULEMENT si (surcharge manuelle) OU (calibré SUR CETTE machine
@@ -8930,7 +8944,7 @@ document.addEventListener('touchmove',function(e){ if(_plnDrag&&_plnDrag.lifted&
 function renderPlanning(){
   const el=document.getElementById('planningContent'); if(!el) return;
   plnDisarm();
-  _plnEstCache={}; _plnAddCalCache={};   // [L125 · T5] vider aussi le cache de calibration corrigé-laize
+  _plnEstCache={}; _plnAddCalCache={}; _plnDebitCache={};   // [L125 · T5] cache calibration corrigé-laize · [L132 · perf] cache débit m/h
   const ctx=_plnSentKeys();
   const todayIso=_plnIso(new Date());
   const all=(savesCache||[]).filter(s=>s&&!s.deleted&&!_plnDejaCoupe(s,ctx));
@@ -9001,7 +9015,7 @@ function renderPlanning(){
     weekH+=machWeek;
     const mwCls=(machWeek>PLN_OVER_H*5)?' over':((machWeek>PLN_WARN_H*5)?' warn':'');   // capacité hebdo indicative = 5 jours
     // [L119 · audit #19] pas de donnée de temps pour cette machine → indice explicite (au lieu d'un « — » muet)
-    const _dbM=dujDebit(m,null); const _noDeb=(!_dbM||!_dbM.d||_dbM.src==='global');
+    const _dbM=_plnDebit(m); const _noDeb=(!_dbM||!_dbM.d||_dbM.src==='global');   // [L132 · perf] mémoïsé (partagé avec _plnHoursPart)
     grid+=`<div class="pln-mach ${m}"><span>${esc(getMachineLabel(m))}</span>${machWeek>0?`<small class="pln-machwk${mwCls}">${_plnH(machWeek).replace('≈ ','')}/sem</small>`:(_noDeb?`<small class="pln-machwk" title="Aucune commande chronométrée pour cette machine — durées non estimées">⏱ pas de débit</small>`:'')}</div>`;
     dayCells.forEach(dc=>{
       const loadTxt=dc.cellPlans.length?(dc.any?_plnH(dc.hSum)+(dc.every?'':' +?'):'—'):'';
@@ -10301,14 +10315,16 @@ async function bkRunImport(btn){
     const _bkHash=t=>{ let h=5381; for(let i=0;i<t.length;i++){ h=((h*33)^t.charCodeAt(i))>>>0; } return h.toString(36)+'_'+(t.length%97).toString(36); };
     const batch=db.batch();
     const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc('bkart_'+_bkHash(String(a.ref))); batch.set(dr,a); return dr; });
-    // [L128 · audit #18] un id déterministe déjà pris (mouvement ANNULÉ après « Remplacer par l'Excel » —
-    // corrigePar posé, contre-écriture −Q flottante) NE DOIT PAS être réécrasé : batch.set l'écraserait,
-    // effacerait son corrigePar et laisserait la −Q → la ligne (identique dans les deux listes) retombe à 0 m².
-    // On génère alors un id neuf DÉTERMINISTE (suffixe _rN) : la nouvelle entrée coexiste avec l'ancienne
-    // annulée (traçabilité intacte), le solde revient à +Q, et un réessai après timeout retombe sur le même
-    // id (cache inchangé si le commit a échoué) → idempotence L97 préservée. Couvre aussi un doublon intra-lot.
-    const _bkUsedIds=new Set((stockMouvementsCache||[]).map(m=>m&&m.id).filter(Boolean));
-    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const base='bk_'+_bkHash(tok+'|'+m.type+'|'+m.location); let docId=base,g=1; while(_bkUsedIds.has(docId)){ docId=base+'_r'+g; g++; } _bkUsedIds.add(docId); const dr=db.collection('stockMouvements').doc(docId); batch.set(dr,m); return dr; });
+    // [L128 · audit #18 · L132 revue] un id déterministe déjà pris par un mouvement ANNULÉ (« Remplacer par
+    // l'Excel » : corrigePar posé, contre-écriture −Q flottante) NE DOIT PAS être réécrasé : batch.set
+    // effacerait son corrigePar et laisserait la −Q → la ligne (identique aux deux listes) retombe à 0 m².
+    // On lui donne alors un id neuf déterministe (_rN) : la nouvelle entrée coexiste avec l'ancienne annulée.
+    // [L132] on ne génère un id neuf QUE sur collision ANNULÉE. Un id de base non annulé → on le garde tel
+    // quel : réessai après timeout idempotent (même id) ET doublon intra-lot fusionné par batch.set (comme
+    // AVANT L128 — les vrais doublons actifs sont déjà écartés en amont par noteHas dans bkAnalyseImport).
+    const _bkAnnulled=new Set((stockMouvementsCache||[]).filter(m=>m&&m.corrigePar&&m.id).map(m=>m.id));
+    const _bkAllIds=new Set((stockMouvementsCache||[]).map(m=>m&&m.id).filter(Boolean));
+    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const base='bk_'+_bkHash(tok+'|'+m.type+'|'+m.location); let docId=base; if(_bkAnnulled.has(base)){ let g=1; while(_bkAllIds.has(docId)){ docId=base+'_r'+g; g++; } _bkAllIds.add(docId); } const dr=db.collection('stockMouvements').doc(docId); batch.set(dr,m); return dr; });
     await raceTimeout(batch.commit(),25000);   // borné : jamais de bouton gelé
     arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
     mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
@@ -12836,7 +12852,7 @@ function buildFichePrintHTML(d){
       ${pkgLine}
       ${notesLine}
       <span>Temps</span><span style="color:${f.tempsStr==='non enregistré'?'#888':'#4ade80'}">${f.tempsStr}</span>
-      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:var(--orange);font-weight:700">📎 BL non joint <span style="color:#888;font-weight:600">(recommandé — traçabilité ISO)</span></span>';return bls.map(b=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span><!-- [L126 · audit A2] BL non bloquant (L122) propagé au détail : message informatif orange, plus de ⛔ rouge -->
+      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:#f59e0b;font-weight:700">📎 BL non joint <span style="color:#888;font-weight:600">(recommandé — traçabilité ISO)</span></span>';return bls.map(b=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span><!-- [L126 · audit A2] BL non bloquant propagé au détail · [L132 · revue] couleur EN DUR #f59e0b : ce document d'impression (iframe srcdoc) ne définit pas les variables CSS, var(--orange) y retombait en gris -->
       <span>Validation</span><span>${f.valide===true?'✓ Validée'+(f.valideBy?' par '+esc(f.valideBy):'')+(f.valideAt?' le '+new Date(f.valideAt).toLocaleDateString('fr-FR'):''):f.valide===false?'✗ Refusée'+(f.valideBy?' par '+esc(f.valideBy):''):'⏳ En attente'}</span>
     </div>
   </div>
@@ -14133,10 +14149,11 @@ function addFicheLine(data){
           <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
           <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Qté</label>
         </div>
-        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" oninput="if(this.value.trim())this.style.borderColor=''" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise levée dès la saisie -->
+        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" oninput="this.style.borderColor=(this.value.trim()||document.getElementById('nc_ras_${id}')?.querySelector('input')?.checked)?'':'var(--orange)'" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise · [L132 · revue] rétablie si on revide le champ alors qu'une NC reste cochée -->
       </div>
       <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes · [L110] la photo est remontée dans l'en-tête de carte -->
-        <label>Action</label>
+        <label id="ncActLbl_${id}">Action</label><!-- [L132 · revue] libellé qui passe « ⚠ requise » quand une NC est cochée sans destination -->
+
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" id="act_chutes_${id}" onclick="toggleAction('${id}','chutes')" style="flex:1">✂ Chutes</button>
           <button class="btn btn-ghost btn-sm" id="act_dechet_${id}" onclick="toggleAction('${id}','dechet')" style="flex:1">🗑 Déchet</button>
@@ -14556,7 +14573,17 @@ function updateNC(id){
   // libellé sur la règle (fini le « facultatif » trompeur) et on met le champ en évidence tant qu'il est vide.
   const det=document.getElementById('nc_detail_'+id);
   if(det){ det.placeholder=hasNC?'⚠ Détail OBLIGATOIRE — motif de la non-conformité…':'Détail (facultatif)…'; det.style.borderColor=(hasNC&&!det.value.trim())?'var(--orange)':''; }
+  _ncActionCue(id);   // [L132 · revue] rappeler que Chutes/Déchet est requis dès qu'une NC est cochée
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] NC cochée → le volet s'ouvre + statut ⚠
+}
+// [L132 · revue] Une NC sans destination (Chutes/Déchet) bloque l'arrêt et l'envoi (comme le détail, cf. A1),
+// mais rien ne le signalait à la saisie. On passe le libellé « Action » en « ⚠ requise » tant que c'est le cas.
+function _ncActionCue(id){
+  const lbl=document.getElementById('ncActLbl_'+id); if(!lbl) return;
+  const ras=document.getElementById('nc_ras_'+id)?.querySelector('input')?.checked;
+  const hasAct=document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')||document.getElementById('act_dechet_'+id)?.classList.contains('btn-red')||document.getElementById('act_accept_'+id)?.classList.contains('btn-green');
+  const need=!ras&&!hasAct;   // NC cochée (RAS décoché) sans action choisie
+  lbl.style.color=need?'var(--orange)':''; lbl.textContent=need?'Action ⚠ requise':'Action';
 }
 function toggleAction(id,which){
   const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
@@ -14568,6 +14595,7 @@ function toggleAction(id,which){
   // sans recompute, le cumul affichait « X/X ✓ couvert » avec une bobine au rebut — l'écart
   // n'apparaissait qu'au prochain ✂ ou recalcul. (_bulkRestore : recomptes faits par l'appelant.)
   if(!_bulkRestore){ try{ updateAllCumuls(); updateCoupeeStatus(); }catch(e){} }
+  _ncActionCue(id);   // [L132 · revue] l'indice « Action ⚠ requise » disparaît dès qu'une destination est choisie
 }
 function parseConf(val){
   const pieces=[];
