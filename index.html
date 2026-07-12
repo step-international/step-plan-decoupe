@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L139';
+const APP_VERSION='2026.07.12-L140';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3421,7 +3421,8 @@ function showPage(i){
   document.querySelectorAll('#nav [role="tab"]').forEach((b,idx)=>b.setAttribute('aria-selected',idx===i?'true':'false'));
   // Au passage sur la Fiche : import auto depuis le Plan (silencieux, ne touche pas si déjà travaillé).
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
-  if(i===1){ importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }
+  if(i===1){ try{ clearTimeout(_recalcPlanTimer); recalcPlan(); }catch(e){}   /* [L140 · audit #20] purger le recalcul débouncé (comme printPlan L6320) : sinon adaptPlanManualToInputs n'a pas tourné → la fiche calcule solde/chute/cumul sur d'ANCIENNES dimensions (useful/blade périmés) */
+    importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
   try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement
@@ -5645,7 +5646,9 @@ function _pmFindGroup(r,i,cur){
   }
   const byName=cur.filter(c=>nrm(c.ref)===nrm(r&&r.ref));
   if(byName.length===1) return byName[0];
-  return cur[i]||null;
+  // [L140 · audit #4] entrée ORPHELINE (réf supprimée/renommée : ni clé ni nom ne matche) → null, PLUS de
+  // repli positionnel cur[i] qui TRANSPLANTAIT ses bobines saisies main sur une AUTRE réf survivante.
+  return null;
 }
 function _pmFindEntry(c,ci){
   if(!planManual) return null;
@@ -5664,6 +5667,10 @@ function _pmFindEntry(c,ci){
 function adaptPlanManualToInputs(){
   if(!planManual) return;
   const cur=getRefGroups().filter(c=>(c.rows||[]).length);   // [L70 · Audit B29] même base FILTRÉE qu'à la création
+  // [L140 · audit #4] PURGE des entrées ORPHELINES (réf supprimée/vidée) AVANT l'adaptation : une entrée dont
+  // la réf n'existe plus (aucun groupe courant de même clé NI de même nom) n'a plus de commande → on la retire.
+  // Sinon _pmFindGroup retombait sur la position et transplantait ses bobines saisies main sur une autre réf.
+  planManual=planManual.filter(r=>(r&&r.refIdKey&&cur.some(c=>_refIdKey(c)===r.refIdKey))||cur.some(c=>nrm(c.ref)===nrm(r&&r.ref)));
   planManual.forEach((r,i)=>{
     const c=_pmFindGroup(r,i,cur); if(!c) return;
     r.ref=c.ref; r.useful=c.useful; r.blade=c.blade; r.mother=c.mother;
@@ -5688,7 +5695,16 @@ function planManualCoherence(pm, refGroups){
     { const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{}; Object.entries(cu).forEach(([w,q])=>{ covered[w]=(covered[w]||0)+q; }); }   // [L97 · relecture #7] chutes PLAFONNÉES par la demande (comme le moteur) — un stock déclaré > commandé n'affiche plus un faux « surplus »
     (r.bobines||[]).forEach(b=>{
       const cnt=Math.max(1,parseInt(b.count)||1);
-      parseConf(b.conf).forEach(p=>{ if(p.width>0&&p.qty>0) covered[p.width]=(covered[p.width]||0)+cnt*p.qty; });
+      const pat=parseConf(b.conf);
+      pat.forEach(p=>{ if(p.width>0&&p.qty>0) covered[p.width]=(covered[p.width]||0)+cnt*p.qty; });
+      // [L140 · audit #5] motif saisi main qui DÉPASSE la laize utile (Σ largeurs + lames > useful) = bobine
+      // physiquement impossible. Sans ça, la cohérence ne comparait que les COMPTES par largeur → « ✓ plan =
+      // commande » faux vert, envoi non bloqué, solde négatif imprimé. On émet un écart bloquant (diff:1).
+      const uf=Number(r.useful)||0;
+      if(uf>0 && pat.length && typeof calcStats==='function'){
+        const tot=calcStats(pat,Number(r.blade)||0).total;
+        if(tot>uf+0.001) out.push({ref:r.ref||('Réf '+(i+1)), over:true, total:tot, useful:uf, width:0, ordered:0, covered:0, diff:1});
+      }
     });
     new Set([...Object.keys(ordered),...Object.keys(covered)].map(Number)).forEach(w=>{
       const o=ordered[w]||0, c=covered[w]||0;
@@ -5714,9 +5730,12 @@ function planManualCoherence(pm, refGroups){
 // Formate les écarts de cohérence en texte court (manque / surplus).
 function planCoherenceText(coh, multi){
   const tag=x=>x.diff+'×'+fmt(x.width)+(multi?' ('+x.ref+')':'');
-  const manque=coh.filter(x=>x.diff>0).map(tag);
+  // [L140 · audit #5] motifs qui dépassent la laize utile : message dédié (les entrées « over » ne sont pas des écarts de compte)
+  const over=coh.filter(x=>x&&x.over).map(x=>'⛔ motif '+fmt(x.total)+' mm > laize utile '+fmt(x.useful)+' mm'+(multi?' ('+x.ref+')':''));
+  const manque=coh.filter(x=>x.diff>0&&!x.over).map(tag);
   const surplus=coh.filter(x=>x.diff<0).map(x=>(-x.diff)+'×'+fmt(x.width)+(multi?' ('+x.ref+')':''));
   const parts=[];
+  if(over.length) parts.push(over.join(' · '));
   if(manque.length) parts.push('manque '+manque.join(', '));
   if(surplus.length) parts.push('surplus '+surplus.join(', '));
   return parts.join(' · ');
