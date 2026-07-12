@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L136';
+const APP_VERSION='2026.07.12-L137';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7056,7 +7056,15 @@ async function stopManqueMatiere(){
   // [L129 · audit #4/#6] l'arrêt manque-matière court-circuitait TOUTES les re-validations d'envoi de
   // confirmCommandeRecap. On les rejoue ici, portées sur les bobines RÉELLEMENT coupées (seules envoyées) :
   //  · #6 copie locale d'un partage terminé → confirm anti-doublon (miroir 7140, absent de cette voie) ;
-  //  · #4 op.2 activé sans bobine (temps op.2 invisible), test 2ᵉ dé-validé, NC sans motif/sans action.
+  //  · #4 op.2 activé sans bobine (temps op.2 invisible), test 2ᵉ dé-validé, NC sans motif/sans action ;
+  //  · [L137 · audit #2/#3] photo NC encore en upload, bascule lame/machine incomplète (miroir des gardes 7127-7137).
+  // [L137 · audit #2] photo NC en cours d'envoi : sinon la fiche partielle part sans sa référence photo (preuve ISO perdue).
+  if(_photoUploadsPending>0){ showToast('⏳ '+_photoUploadsPending+' photo(s) en cours d\'envoi — attends quelques secondes avant l\'arrêt manque-matière.','err'); return; }
+  // [L137 · audit #3] bascule LAME changée incomplète → analyse NC-par-lame faussée (bobine rattachée à la mauvaise lame).
+  if(document.getElementById('fLameChg')?.checked&&!(document.getElementById('fLameChgBob')?.value)){ showToast('⚠ « Lame changée » est coché : choisis « À partir de la bobine n° » avant l\'arrêt manque-matière.','err'); return; }
+  if(document.getElementById('fLameChg')?.checked&&!((document.getElementById('fLameNew')?.value||'').trim())){ showToast('⚠ « Lame changée » est coché : saisis le n° de la NOUVELLE lame avant l\'arrêt manque-matière.','err'); return; }
+  // [L137 · audit #3] bascule MACHINE changée incomplète (machine cible + bobine de bascule requises).
+  if(document.getElementById('fMachChg')?.checked&&!(document.getElementById('fMachChgTo')?.value&&document.getElementById('fMachChgBob')?.value)){ showToast('⚠ « Machine changée » est coché : choisis la nouvelle machine ET la bobine de bascule avant l\'arrêt manque-matière.','err'); return; }
   if(_localCopyFromShare&&!confirm('⚠ Cette commande vient d\'un PARTAGE terminé ('+(_localCopyFromShare.from||'?')+').\n\nElle a peut-être DÉJÀ été enregistrée par l\'émetteur (vérifie dans Données > Fiches).\n\nEnregistrer cet arrêt manque-matière quand même ?')) return;
   if(document.getElementById('fOp2Active')?.checked&&!(document.getElementById('fOp2Bobine')?.value)){
     showToast('⚠ Opérateur 2 activé : choisis sa bobine de reprise avant l\'arrêt manque-matière (sinon son temps devient invisible dans les stats).','err'); return; }
@@ -14840,6 +14848,7 @@ let _shareAutosaveLastSig='';            // [Lot 3] signature du dernier contenu
 let _sharePushHold=false;                // [L67 · Audit] après restauration au reload : gel du push tant que l'écran ne correspond pas au contenu déjà partagé (anti-écrasement de la commande des collègues)
 let _shareRevLast=0;                     // [L72 · Audit B04] sharedRev MONOTONE même si l'horloge de la tablette recule
 let _localCopyFromShare=null;            // [L72 · Audit B59] {from,at} : la commande à l'écran est la copie locale d'un partage terminé — bandeau persistant + confirmation à l'envoi
+let _localCopyBannerDismissed=false;     // [L138 · audit #21] UI seul : masque le bandeau (« OK, vu ») SANS lever la garde anti-doublon _localCopyFromShare
 let _viewingSharedId=null;               // [Lot 3] destinataire : id du doc partagé actuellement consulté en miroir (null sinon)
 let _viewingSharedRev=0;                 // [Lot 3] dernière révision (sharedRev) déjà hydratée — détecte une nouvelle version
 let _viewingSharedFrom=null;             // [Lot 3] uid de l'émetteur dont on consulte la commande (affichage)
@@ -15174,7 +15183,7 @@ function openSharedCommand(id){
 function leaveSharedView(){
   // Quitter la vue miroir : on coupe seulement la re-synchro. La commande reste à
   // l'écran comme copie locale (le destinataire peut la vider avec ↺ Réinitialiser).
-  _localCopyFromShare={from:_viewingSharedFrom?_nomOf(_viewingSharedFrom):'?',at:isoNow()};   // [L72 · Audit B59]
+  _localCopyFromShare={from:_viewingSharedFrom?_nomOf(_viewingSharedFrom):'?',at:isoNow()}; _localCopyBannerDismissed=false;   // [L72 · Audit B59] · [L138] nouvelle copie → bandeau ré-affiché
   _viewingSharedId=null; _viewingSharedRev=0; _viewingSharedFrom=null;
   // [L62 · Lot 4] copie locale = plus de verrou : déverrouiller les 🔒 (les marquages restent).
   _shareCutsLocal={};
@@ -15218,7 +15227,7 @@ let _syncSharedGetBusy=false,_syncSharedGetLast=0;
 // [L73 · Lot 5 · B10] fin de partage AVÉRÉE (doc supprimé ou consumed) — extrait de syncSharedView.
 function _sharedViewEnded(){
   const who=_viewingSharedFrom?_nomOf(_viewingSharedFrom):'L\'émetteur';
-  _localCopyFromShare={from:who,at:isoNow()};   // [L72 · Audit B59] drapeau persistant (bandeau + garde à l'envoi)
+  _localCopyFromShare={from:who,at:isoNow()}; _localCopyBannerDismissed=false;   // [L72 · Audit B59] drapeau persistant (bandeau + garde à l'envoi) · [L138] nouvelle copie → bandeau ré-affiché
   _viewingSharedId=null; _viewingSharedRev=0; _viewingSharedFrom=null;
   // [L62 · Lot 4] partage terminé → plus de verrou sur la copie locale.
   _shareCutsLocal={};
@@ -15416,12 +15425,14 @@ function renderSharedViewBar(){
     const _off=(typeof navigator!=='undefined'&&navigator.onLine===false)?' <b style="color:var(--red)">· 📡 HORS-LIGNE — verrou inactif</b>':'';   // [L72 · Audit B58]
     vb.innerHTML='<div class="share-view-bar"><span class="share-dot"></span> Tu consultes la commande de <b>'+esc(_nomOf(_viewingSharedFrom))+'</b> · miroir live'+_off
       +'<button class="btn btn-ghost btn-sm" style="margin-left:auto;flex-shrink:0" onclick="leaveSharedView()">Quitter la vue</button></div>';
-  }else if(_localCopyFromShare){
+  }else if(_localCopyFromShare&&!_localCopyBannerDismissed){
     // [L72 · Audit B59] bandeau PERSISTANT (le toast de 4 s était écrasé) : la commande à
     // l'écran est la copie locale d'un partage terminé — peut-être déjà enregistrée.
     vb.style.display='block';
+    // [L138 · audit #21] « OK, vu » ne masque QUE le bandeau (_localCopyBannerDismissed) : il ne doit PAS
+    // désarmer _localCopyFromShare, qui reste la SEULE garde anti-doublon au moment de l'envoi (confirm 7140).
     vb.innerHTML='<div class="share-view-bar" style="border-color:var(--orange);color:var(--orange);background:#3d2a00">⚠ Copie LOCALE d\'un partage terminé ('+esc(_localCopyFromShare.from||'?')+') — vérifie dans Données qu\'elle n\'a pas DÉJÀ été enregistrée avant tout envoi.'
-      +'<button class="btn btn-ghost btn-sm" style="margin-left:auto;flex-shrink:0" onclick="_localCopyFromShare=null;renderSharedViewBar()">OK, vu</button></div>';
+      +'<button class="btn btn-ghost btn-sm" style="margin-left:auto;flex-shrink:0" onclick="_localCopyBannerDismissed=true;renderSharedViewBar()">OK, vu</button></div>';
   }else{ vb.style.display='none'; vb.innerHTML=''; }
 }
 function refreshShareReception(){
@@ -15653,6 +15664,10 @@ let _savingDraftManual=false;   // [L73 · Lot 5 · B41] verrou anti double-tap 
 async function saveDraftManual(){
   if(ficheLines.length===0){showToast('Aucune bobine à enregistrer en brouillon.','err');return;}
   if(_viewingSharedId){ showToast('🔒 Vue miroir (commande d\'un collègue) : le doc partagé EST déjà la sauvegarde — pas de brouillon perso ici.','err'); return; }   // [L113 · audit #17] sinon un 💾 côté récepteur CONSOMMAIT le brouillon de l'émetteur (L109 sans garde propriétaire)
+  // [L138 · audit #7] copie locale d'un partage terminé : parquer en brouillon « propre » (owner=récepteur, sans
+  // marqueur de partage) effacerait le bandeau + le confirm anti-doublon à l'envoi → envoi ultérieur = doublon de
+  // la fiche de l'émetteur. On refuse : la commande RESTE à l'écran avec ses protections (bandeau + garde d'envoi).
+  if(_localCopyFromShare){ showToast('🔒 Copie locale d\'un partage terminé ('+(_localCopyFromShare.from||'?')+') : ne la parque pas en brouillon. Vérifie dans Données > Fiches qu\'elle n\'a pas déjà été enregistrée par l\'émetteur avant de la couper/envoyer.','err'); return; }
   if(_savingDraftManual) return;   // [L73 · Lot 5 · B41] double-tap : les 2 invocations passaient tout le tronçon synchrone avant le 1er await → deux ids 'd_'+Date.now() → deux brouillons de la même commande
   _savingDraftManual=true;
   const _btnDM=document.getElementById('btnDraftManual'); if(_btnDM) _btnDM.disabled=true;   // [L73 · Lot 5 · B41] retour visuel + blocage du tap pendant l'écriture
@@ -16002,7 +16017,10 @@ function planHasContent(){
 }
 function planAutosaveTick(){
   if(!planHasContent()) return;
-  if(_viewingSharedId) return;   // [L67 · Audit] vue miroir : pas de brouillon plan perso non plus
+  // [L67 · Audit] vue miroir : pas de brouillon plan perso · [L138 · audit #6] AUSSI la COPIE LOCALE qui
+  // survit à la fin du partage (_localCopyFromShare) — trou jumeau de celui bouché pour l'autosave fiche :
+  // sinon le tick matérialise le PLAN de l'émetteur en brouillon perso, restauré en silence après reload → double découpe.
+  if(_viewingSharedId||_localCopyFromShare) return;
   const st=serializeFicheState();
   const sig=JSON.stringify(st.plan);
   if(sig===_planAutosaveLast) return;   // rien n'a changé depuis le dernier tick
