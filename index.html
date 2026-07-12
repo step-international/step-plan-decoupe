@@ -1049,8 +1049,8 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
           <button class="ini-btn" onclick="selectIni2('ER')">ER</button>
         </div>
         <input type="hidden" id="fInitiales2" value="">
-        <label>Repris à partir de la bobine n°</label>
-        <select id="fOp2Bobine">
+        <label id="fOp2BobLbl">Repris à partir de la bobine n°</label><!-- [L133 · revue B] passe « ⚠ à choisir » si op.2 actif sans bobine (temps op.2 sinon invisible dans les stats) -->
+        <select id="fOp2Bobine" onchange="_op2BobCue()">
           <option value="">— Choisir une bobine —</option>
         </select>
         <div class="text-muted" style="font-size:12px;margin-top:6px">La liste se remplit automatiquement depuis le plan.</div>
@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L132';
+const APP_VERSION='2026.07.12-L133';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1720,6 +1720,19 @@ async function loadColAll(name,pageSize,maxPages){
 // Retourne true si les caches contiennent l'historique complet après l'appel.
 let _ensureFullHistoryPromise=null;
 let _fullHistoryTruncatedCount=0;   // [L73 · Lot 5 · B34] >0 = plafond de pagination atteint : historique chargé mais INCOMPLET (N enregistrements en mémoire)
+// [L133 · revue E] Filet MÉMOIRE (tablette laissée ouverte des jours). #20 a désactivé la troncature des
+// caches quand l'historique complet est chargé (sinon export « COMPLET » amputé). On garde un plafond de
+// SÛRETÉ très haut, bien au-delà de tout historique réel (~qq milliers ici) : au-delà on tronque ET on
+// repasse fullHistoryLoaded=false → le prochain ensureFullHistory recharge un historique intègre. Jamais
+// atteint en usage normal ; juste un garde-fou contre une croissance non bornée.
+const FULLHIST_BACKSTOP=20000;
+function _capSessionCache(arr,base){   // renvoie [tableau, flipFlag] : plafonne à base si !complet, sinon garde-fou
+  if(arr.length<=base) return [arr,false];
+  if(!fullHistoryLoaded) return [arr.slice(0,base),false];
+  const bs=(base>=2000)?FULLHIST_BACKSTOP*2:FULLHIST_BACKSTOP;   // temps (2000) → plafond doublé
+  if(arr.length>bs){ console.warn('[cache] plafond de sûreté '+bs+' atteint ('+arr.length+') → historique rechargé au prochain export/Analyse'); return [arr.slice(0,bs),true]; }
+  return [arr,false];
+}
 function ensureFullHistory(){
   if(fullHistoryLoaded) return Promise.resolve(true);
   if(!db) return Promise.resolve(false);
@@ -6399,7 +6412,7 @@ async function doSave(){
     }else{
       const docRef=await raceTimeout(db.collection('saves').add(entry),10000);   // [L79] borné : anti bouton-mort
       savesCache.unshift({_id:docRef.id,...entry});
-      if(!fullHistoryLoaded && savesCache.length>1000) savesCache=savesCache.slice(0,1000);   // [L128 · audit #20] ne PAS tronquer si l'historique complet est chargé (sinon export « COMPLET » et Analyse sur données amputées)
+      { const _cc=_capSessionCache(savesCache,1000); savesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E] pas de troncature si historique complet, sauf garde-fou mémoire (recharge honnête ensuite)
       logAudit('create','saves',docRef.id,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
       if(typeof showToast==='function') showToast('💾 Plan sauvegardé','ok');
     }
@@ -7976,8 +7989,8 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : envoi confirmé → ids libérés pour le prochain plan
       _ficheIdOut=ficheRef.id;   // [L67 · Audit A]
       fichesCache.unshift({_id:ficheRef.id,...ficheSafe});
-      if(!fullHistoryLoaded && fichesCache.length>1000) fichesCache=fichesCache.slice(0,1000);   // [L128 · audit #20] pas de troncature quand l'historique complet est chargé (export/Analyse resteraient « COMPLET » sur données amputées)
-      if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});if(!fullHistoryLoaded && tempsCache.length>2000) tempsCache=tempsCache.slice(0,2000);}
+      { const _cc=_capSessionCache(fichesCache,1000); fichesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E]
+      if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});const _ct=_capSessionCache(tempsCache,2000); tempsCache=_ct[0]; if(_ct[1]) fullHistoryLoaded=false;}
       // [L72 · Audit B47] journal NON BLOQUANT : une coupure réseau juste après le commit
       // figeait le flux post-envoi (chrono jamais arrêté, brouillon jamais purgé, plan
       // source jamais consommé). L'audit part en file et s'écrira au retour du réseau.
@@ -10916,10 +10929,14 @@ function buildDebitToolbox(){
   const laizeRows=DUJ_MACHINES.map(k=>{
     const cal=(typeof dujCalibrateAdditive==='function')?dujCalibrateAdditive(k):null;
     if(!cal) return `<span style="display:inline-block;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11.5px"><b style="color:var(--${k})">${getMachineLabel(k)}</b> <span style="color:var(--muted)">pas encore calibré</span></span>`;
-    const better=(cal.mapeA!=null&&cal.mapeM!=null&&cal.mapeA<cal.mapeM);
-    return `<span style="display:inline-block;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11.5px" title="Calibré sur ${cal.n} relevé(s)${cal.scope==='global'?' toutes machines':''}"><b style="color:var(--${k})">${getMachineLabel(k)}</b> écart ${Math.round(cal.mapeA)}%${cal.mapeM!=null?` <span style="color:var(--muted)">(m/h ${Math.round(cal.mapeM)}%)</span>`:''}${better?' <span style="color:var(--green)">✅</span>':''}</span>`;
+    // [L133 · revue D] MÊME garde que le Planning (_plnHoursPart) : le modèle n'est RÉELLEMENT utilisé pour
+    // la charge que s'il est calibré SUR la machine ET au moins aussi fiable que le m/h ; sinon repli m/h.
+    // Le badge le dit honnêtement (avant : « ✅ » dès qu'il battait le m/h, sans refléter le repli scope global).
+    const usedPln=(cal.scope==='machine')&&(cal.mapeM==null||cal.mapeA==null||cal.mapeA<=cal.mapeM);
+    const tag=usedPln?' <span style="color:var(--green)" title="Utilisé pour la charge du Planning">✅ utilisé</span>':' <span style="color:var(--muted)" title="Moins fiable que le m/h (ou données toutes machines) → le Planning reste sur le m/h">(repli m/h)</span>';
+    return `<span style="display:inline-block;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11.5px" title="Calibré sur ${cal.n} relevé(s)${cal.scope==='global'?' — données toutes machines (repli m/h au Planning)':''}"><b style="color:var(--${k})">${getMachineLabel(k)}</b> écart ${Math.round(cal.mapeA)}%${cal.mapeM!=null?` <span style="color:var(--muted)">(m/h ${Math.round(cal.mapeM)}%)</span>`:''}${tag}</span>`;
   }).join(' ');
-  const laizeBlock=`<div style="margin:2px 0 14px"><div style="font-size:12px;color:var(--muted);margin-bottom:5px">🎯 Modèle <b style="color:var(--orange)">corrigé par la laize</b> (nb de coupes / bobines filles) — écart moyen vs réel sur ton historique. Aussi appliqué à l'estimateur ci-dessous ET à la charge du Planning :</div><div style="display:flex;gap:6px;flex-wrap:wrap">${laizeRows}</div></div>`;
+  const laizeBlock=`<div style="margin:2px 0 14px"><div style="font-size:12px;color:var(--muted);margin-bottom:5px">🎯 Modèle <b style="color:var(--orange)">corrigé par la laize</b> (nb de coupes / bobines filles) — écart moyen vs réel sur ton historique. Montré dans l'estimateur, et appliqué à la charge du Planning <b>quand il égale ou bat le m/h</b> (sinon repli m/h) :</div><div style="display:flex;gap:6px;flex-wrap:wrap">${laizeRows}</div></div>`;
   const machOpts=DUJ_MACHINES.map(k=>`<option value="${k}">${getMachineLabel(k)}</option>`).join('');
   const opOpts='<option value="">Standard atelier</option>'+Object.values(USER_PROFILES).map(p=>`<option value="${esc(p.ini)}">${esc(p.ini)} — ${esc(p.nom||'')}</option>`).join('');
   // [L106 · Phase 1 · P] sélecteur de RÉFÉRENCE : préremplit laize mère (standard catalogue)
@@ -11941,7 +11958,7 @@ async function createRemainingPlan(f){
   try{
     const docRef=await db.collection('saves').add(entry);
     savesCache.unshift({_id:docRef.id,...entry});
-    if(!fullHistoryLoaded && savesCache.length>1000) savesCache=savesCache.slice(0,1000);   // [L128 · audit #20] cf. supra : jamais tronquer avec l'historique complet chargé
+    { const _cc=_capSessionCache(savesCache,1000); savesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E] cf. supra + garde-fou mémoire
     try{ await logAudit('create','saves',docRef.id,`Plan du reste — ${entry.client} / ${entry.ref}`); }catch(e){}
     return docRef.id;
   }catch(e){ showToast('Erreur création du plan du reste : '+e.message,'err'); return null; }
@@ -13269,7 +13286,14 @@ async function restoreItem(collection,id){
     // conforme au sens « nouveau plan de recoupe à date neuve ». Ne touche QUE les plans réellement concernés.
     let reDated=false;
     if(collection==='saves' && restored && typeof _plnDejaCoupe==='function' && typeof _plnSentKeys==='function'){
-      try{ if(_plnDejaCoupe(Object.assign({},restored,{deleted:false}),_plnSentKeys())){ upd.date=isoNow(); reDated=true; } }catch(_){}
+      let dejaCoupe=false; try{ dejaCoupe=_plnDejaCoupe(Object.assign({},restored,{deleted:false}),_plnSentKeys()); }catch(_){}
+      if(dejaCoupe){
+        // [L133 · revue A] restaurer un plan « déjà coupé » le re-date (→ plan de recoupe vivant). C'est un
+        // geste significatif : on le confirme explicitement. Refus = on n'exhume pas le plan (il serait de
+        // toute façon re-rangé automatiquement au prochain balayage). Consultation seule → autant garder la Corbeille.
+        if(!(await confirmDlg('⚠ Ce plan a DÉJÀ une fiche découpe (déjà coupé).\n\nLe restaurer le transforme en NOUVEAU plan de recoupe (date rafraîchie) — sinon il serait re-rangé automatiquement.\n\nCréer un plan de recoupe ?',{ok:'Restaurer pour recoupe'}))){ renderCorbeille(); return; }
+        upd.date=isoNow(); reDated=true;
+      }
     }
     await db.collection(collection).doc(id).update(upd);
     // Repasse l'item dans le cache actif
@@ -13841,6 +13865,17 @@ function toggleOp2(){
   const on=document.getElementById('fOp2Active').checked;
   document.getElementById('op2Zone').classList.toggle('hidden',!on);
   if(on) refreshOp2BobineList();
+  _op2BobCue();
+}
+// [L133 · revue B] Op.2 activé sans bobine de reprise → le temps/les mètres op.2 deviennent invisibles
+// dans les stats (garde à l'envoi ET à l'arrêt manque-matière). On le signale DÈS la saisie, en miroir
+// des indices « Détail »/« Action » de la partie NC : label « ⚠ à choisir » + bordure orange sur le select.
+function _op2BobCue(){
+  const sel=document.getElementById('fOp2Bobine'), lbl=document.getElementById('fOp2BobLbl');
+  const active=!!document.getElementById('fOp2Active')?.checked;
+  const need=active&&!(sel&&sel.value);
+  if(sel) sel.style.borderColor=need?'var(--orange)':'';
+  if(lbl){ lbl.style.color=need?'var(--orange)':''; lbl.textContent=need?'⚠ Repris à partir de la bobine n° — à choisir':'Repris à partir de la bobine n°'; }
 }
 function buildFicheBobineOptions(){
   const n=ficheLines.length;
@@ -13974,7 +14009,7 @@ async function hygieneApply(){
 }
 // [L70 · Audit B20] libellé humain d'un select bobine (toasts).
 function _bobSelLabel(id){ return id==='fLameChgBob'?'du changement de lame':(id==='fMachChgBob'?'du changement de machine':'de reprise de l\'opérateur 2'); }
-function refreshOp2BobineList(){ fillBobineSelect('fOp2Bobine'); fillBobineSelect('fLameChgBob'); fillBobineSelect('fMachChgBob'); }   // [L65] + select changement machine
+function refreshOp2BobineList(){ fillBobineSelect('fOp2Bobine'); fillBobineSelect('fLameChgBob'); fillBobineSelect('fMachChgBob'); _op2BobCue(); }   // [L65] + select changement machine · [L133] réévalue l'indice op.2 (fillBobineSelect peut remettre value='')
 // D-3 : capture l'id de ligne STABLE derrière la position sélectionnée d'un select
 // bobine (op.2 / changement de lame), pour survivre à un réordonnancement au recalcul.
 function _bobineSelLid(id){
