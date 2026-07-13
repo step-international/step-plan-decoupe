@@ -1494,7 +1494,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.12-L140';
+const APP_VERSION='2026.07.13-L141';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7888,7 +7888,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     catch(e){ console.warn('Archive multi-clients :',e); _cliParts=null; }
   }
   const ficheDetailTagged=ficheData.map((fd,i)=>{
-    const t={...fd,horsPlan:(!!fd.rattrapage)||/(^|·\s*)(RESTE|OP2)-\d/i.test(String(fd.label||''))};   // [L97 · relecture #10] par NATURE de la ligne (rattrapage / RESTE- / OP2-), plus par POSITION — le slice(nbPlan) marquait les mauvaises bobines en multi-réf après ♻
+    const t={...fd,horsPlan:(!!fd.rattrapage)||/(^|·\s*)(RESTE|OP2)-\d/i.test(String(fd.autoLabel||fd.label||''))};   // [L97 · relecture #10] par NATURE de la ligne (rattrapage / RESTE- / OP2-) · [L141 · audit #19] tester l'étiquette AUTO stable (autoLabel) d'abord : sinon renommer une bobine RESTE- avec le vrai n° de mère la sortait de la section « HORS PLAN » du PDF
     if(_shareActive){ const c=_shareCutInfoFor(i,fd.label); if(c) Object.assign(t,c); }
     if(_cliParts&&Array.isArray(_cliParts[i])&&_cliParts[i].length) t.cliParts=_cliParts[i];
     return t;
@@ -9747,11 +9747,14 @@ async function renderStock(){
   onStockMvtRefChange();
   stockForecastRender();
 }
-function stockArticleCardHTML(a,soldePre){
+function stockArticleCardHTML(a,soldePre,usablePre){
   const solde=(soldePre!==undefined)?soldePre:stockSoldeM2(a.ref);
   const su=Number(a.surfaceUnit)||stockSurfaceUnit(a.largeur,a.longueur);
   const rolls=su?solde/su:0;
-  const low=(Number(a.seuilM2)>0&&solde<Number(a.seuilM2));
+  // [L141 · audit #23] le seuil se juge sur le stock UTILISABLE (STEP+prod, hors B+K en attente), comme la prévision.
+  const usable=(usablePre!==undefined)?usablePre:solde;
+  const bkPend=solde-usable;   // B+K commandé mais pas encore reçu
+  const low=(Number(a.seuilM2)>0&&usable<Number(a.seuilM2));
   const col=low?'#f59e0b':'#4ade80';
   return `<div style="background:var(--card);border:1px solid var(--border2);border-left:4px solid ${col};border-radius:0 11px 11px 0;padding:12px 14px;margin-bottom:7px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
@@ -9761,7 +9764,8 @@ function stockArticleCardHTML(a,soldePre){
           <span>Largeur × longueur</span><span style="color:var(--text)">${a.largeur||'?'} mm × ${a.longueur||'?'} m = <b>${su?su.toLocaleString('fr-FR'):'?'} m²</b>/rouleau</span>
           ${a.fournisseur?`<span>Fournisseur</span><span style="color:var(--text)">${esc(a.fournisseur)}</span>`:''}
           ${a.delaiSem?`<span>Délai appro.</span><span style="color:var(--text)"><b style="color:var(--orange)">${a.delaiSem} sem.</b></span>`:''}
-          ${a.seuilM2?`<span>Seuil mini</span><span style="color:var(--text)">${Number(a.seuilM2).toLocaleString('fr-FR')} m²</span>`:''}
+          ${a.seuilM2?`<span>Seuil mini</span><span style="color:var(--text)">${Number(a.seuilM2).toLocaleString('fr-FR')} m² <span style="color:var(--muted)">(sur stock utilisable)</span></span>`:''}
+          ${bkPend>0.5?`<span>Dont B+K en attente</span><span style="color:var(--orange)">${Math.round(bkPend).toLocaleString('fr-FR')} m² <span style="color:var(--muted)">(commandé, non reçu — hors seuil)</span></span>`:''}
           ${a.prixM2?`<span>Prix d'achat</span><span style="color:var(--text)">${Number(a.prixM2).toLocaleString('fr-FR')} €/m²</span>`:''}
         </div>
       </div>
@@ -9811,6 +9815,8 @@ function stockViewHTML(){
   };
   // Solde TOTAL par réf (tous emplacements) pour les cartes de définition d'article.
   const _soldeTot={}; ['step','bk','prod'].forEach(l=>Object.entries(bal[l]).forEach(([rf,e])=>{_soldeTot[rf]=(_soldeTot[rf]||0)+e.m2;}));
+  // [L141 · audit #23] stock UTILISABLE = STEP + prod (B+K commandé mais PAS reçu exclu) — même base que la prévision → le badge « SOUS LE SEUIL » de la carte cesse de contredire « 🔴 Commander ».
+  const _soldeUtil={}; ['step','prod'].forEach(l=>Object.entries(bal[l]).forEach(([rf,e])=>{_soldeUtil[rf]=(_soldeUtil[rf]||0)+e.m2;}));
   const refOpts=arts.map(a=>`<option value="${esc(a.ref)}">${esc(a.ref)}</option>`).join('');
   const datalist=allKnownRefs().map(r=>`<option value="${esc(r)}"></option>`).join('');
   const mvts=stockMouvementsCache.slice().filter(m=>!_sf||nrm(m.ref).includes(_sf)).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,40);   // [L94] filtre par référence
@@ -9917,7 +9923,7 @@ function stockViewHTML(){
         </div>
         <button class="btn btn-green btn-sm" style="margin-top:10px" onclick="saveStockArticle(this)">✓ Créer l'article</button>
       </div>
-      <div>${arts.length?arts.map(a=>stockArticleCardHTML(a,_soldeTot[a.ref]||0)).join(''):'<div class="text-muted" style="padding:8px 0">Aucun article. Crée-en un avec ➕ Nouvel article.</div>'}</div></details>
+      <div>${arts.length?arts.map(a=>stockArticleCardHTML(a,_soldeTot[a.ref]||0,_soldeUtil[a.ref]||0)).join(''):'<div class="text-muted" style="padding:8px 0">Aucun article. Crée-en un avec ➕ Nouvel article.</div>'}</div></details>
     </div>
 
     <div id="stock-sec-prev" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;padding:13px 14px">
@@ -11179,7 +11185,10 @@ function dujCalibrateAdditive(machKey){
   if(!coefN||coefN.some(c=>!isFinite(c))) return null;
   const coef=coefN.map((c,j)=>c/scale[j]);   // dé-normalisation
   // Qualité : MAPE du modèle ADDITIF vs modèle m/h (mètres ÷ débit), globale + par densité de coupes.
-  const deb=dujDebit(machKey,null), dmh=(deb&&deb.d)||0;
+  // [L141 · audit #26] en scope GLOBAL, S contient des relevés de TOUTES les machines mais dujDebit(machKey) est
+  // le débit d'UNE seule → la comparaison m/h serait calculée sur la mauvaise population. On la masque (dmh=0 →
+  // mapeM/fineMapeM/largeMapeM = null) : pas de « (m/h X%) » trompeur ni de faux « ✅ plus fiable » en global.
+  const deb=dujDebit(machKey,null), dmh=(scope==='global')?0:((deb&&deb.d)||0);
   let mapeA=0,mapeM=0,nMh=0, fine={a:0,m:0,n:0}, large={a:0,m:0,n:0};
   S.forEach(s=>{
     const estA=coef[0]+coef[1]*s.nm+coef[2]*s.lg*s.nm+coef[3]*s.nf;
@@ -11191,7 +11200,7 @@ function dujCalibrateAdditive(machKey){
   const n=S.length;
   return {coef,n,scope,
     mapeA:mapeA/n*100, mapeM:nMh?mapeM/nMh*100:null,
-    fineMapeA:fine.n?fine.a/fine.n*100:null, fineMapeM:fine.n?fine.m/fine.n*100:null, fineN:fine.n,
+    fineMapeA:fine.n?fine.a/fine.n*100:null, fineMapeM:(nMh&&fine.n)?fine.m/fine.n*100:null, fineN:fine.n,   // [L141 · audit #26] pas de m/h par densité en scope global (nMh=0)
     largeMapeA:large.n?large.a/large.n*100:null, largeN:large.n};
 }
 // Estimation additive d'une commande (secondes) — coefficients calibrés OU surcharge manuelle.
@@ -11247,10 +11256,18 @@ function dujEstimate(){
   const add=dujEstimateAdditive(mach,nbMother,longv,totalBob);
   let addBlock;
   if(add){
-    const cal=add.cal, better=(cal.mapeA!=null&&cal.mapeM!=null&&cal.mapeA<cal.mapeM);
+    const cal=add.cal;
+    // [L141 · audit #12] MÊME encadrement que le Planning (_plnHoursPart) : une extrapolation additive hors
+    // [0,3×–3×] du modèle m/h (secMid) est ramenée au m/h. Le modèle à 4 paramètres calé sur peu de relevés
+    // donne sinon des durées absurdes hors distribution (ex. petite commande sur un historique de grosses).
+    let addSec=add.sec, clamped=false;
+    if(secMid>0 && (addSec<0.3*secMid || addSec>3*secMid)){ addSec=secMid; clamped=true; }
+    // [L141 · audit #12] « plus fiable » selon le MÊME critère que le Planning (scope machine ET mapeA≤mapeM),
+    // pas le seul MAPE in-sample (11 relevés / 4 coefficients → l'additif bat presque toujours le m/h sur ses propres données).
+    const better=(cal.scope==='machine')&&(cal.mapeM!=null&&cal.mapeA!=null&&cal.mapeA<=cal.mapeM);
     addBlock=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2)">
       <div style="font-size:12.5px;color:var(--muted)">⏱ Temps estimé <b style="color:var(--text)">corrigé par la laize</b> (tient compte des coupes &amp; des ${totalBob.toLocaleString('fr-FR')} bobines filles à manipuler) :</div>
-      <div style="font-size:26px;font-weight:800;color:var(--orange);margin:3px 0">${dujSecToTxt(add.sec)}</div>
+      <div style="font-size:26px;font-weight:800;color:var(--orange);margin:3px 0">${dujSecToTxt(addSec)}${clamped?' <span style="font-size:12px;color:var(--muted);font-weight:600">(ramené au m/h — hors plage de calibration)</span>':''}</div>
       <div style="font-size:11.5px;color:var(--muted)">Calibré sur ${cal.n} relevé(s) ${cal.scope==='global'?'(toutes machines)':'de cette machine'}${cal.mapeA!=null?` · écart moyen ${Math.round(cal.mapeA)}%${cal.mapeM!=null?` (modèle m/h : ${Math.round(cal.mapeM)}%)`:''}`:''}${better?' <b style="color:var(--green)">✅ plus fiable</b>':''}${(cal.fineMapeA!=null&&cal.fineMapeM!=null&&cal.fineN>=3)?`<br>Sur les petites laizes (${cal.fineN} cmd) : ${Math.round(cal.fineMapeA)}% vs <b>${Math.round(cal.fineMapeM)}%</b> pour le m/h`:''}</div>
     </div>`;
   } else {
@@ -11588,15 +11605,17 @@ function renderAnalyse(){
     .sort((a,b)=>a.label-b.label);
   const maxW=Math.max(...widthItems.map(x=>x.value),1);
 
+  // [L141 · audit #13] ventiler le relais op.2 via tempsShareParts (comme buildMonthlyKpi/renderTemps) : sinon
+  // op.1 était crédité de TOUTE la productivité et op.2 (JF) n'apparaissait JAMAIS — l'écran contredisait le KPI figé.
+  const _opsOf=t=>{ const o=[...new Set(tempsShareParts(t).map(g=>g.op).filter(Boolean))]; return o.length?o:[t.operateur||'?']; };
   const weekOpMap={};
   valid.forEach(t=>{
     const secL=t.duree/t.totalLaizes;
     const wk=getWeekKey(t.date);
-    const op=t.operateur||'?';
-    push(weekOpMap,op+'__'+wk,secL);
+    _opsOf(t).forEach(op=>push(weekOpMap,op+'__'+wk,secL));   // chaque opérateur du relais apparaît (même sec/laize : une durée sur ses laizes)
   });
   const allWeeks=[...new Set(valid.map(t=>getWeekKey(t.date)))].sort();
-  const allOps=[...new Set(valid.map(t=>t.operateur||'?'))].sort();
+  const allOps=[...new Set(valid.flatMap(_opsOf))].sort();
   const opColors=OP_COLORS;   // COS-4 : palette unique (cf. OP_COLORS)
   const series=allOps.map(op=>({
     label:op,color:opColors[op]||'#60a5fa',
@@ -11617,11 +11636,18 @@ function renderAnalyse(){
   const machMap={};
   valid.forEach(t=>{
     const secL=t.duree/t.totalLaizes;
-    const m=t.machine||'?';
-    if(!machMap[m]) machMap[m]={vals:[],totalSec:0,cmds:0};
-    machMap[m].vals.push(secL);
-    machMap[m].totalSec+=t.duree;
-    machMap[m].cmds++;
+    // [L141 · audit #13] heures & sec/laize ventilées par SEGMENT machine (relais inter-machines) : la machine
+    // op.2 (MAVEG) reçoit sa part au lieu de 0. On agrège les fractions par machine → une commande mono-machine
+    // (ou relais même machine) compte UNE fois ; un relais 2 machines compte une fois par machine (sa part d'heures).
+    const byM={};
+    tempsShareParts(t).forEach(g=>{ const m=g.mach||'?'; byM[m]=(byM[m]||0)+g.f; });
+    if(!Object.keys(byM).length) byM[t.machine||'?']=1;
+    Object.entries(byM).forEach(([m,f])=>{
+      if(!machMap[m]) machMap[m]={vals:[],totalSec:0,cmds:0};
+      machMap[m].vals.push(secL);
+      machMap[m].totalSec+=t.duree*f;
+      machMap[m].cmds++;
+    });
   });
   const machItems=Object.entries(machMap).map(([m,d])=>({
     label:m,avg:avgArr(d.vals),cmds:d.cmds,
@@ -12669,9 +12695,13 @@ function exportAudit(){
   };
   const rows=auditFilter(auditCache,f);
   if(!rows.length){showToast('Aucune entrée à exporter.','err');return;}
-  const csv=buildAuditCsv(rows);
+  // [L141 · audit #30] la piste d'audit n'est PAS chargée en entier (plafond AUDIT_LOAD_LIMIT) → on l'inscrit
+  // EXPLICITEMENT dans le fichier ET le nom, pour qu'un export ISO ne soit jamais pris à tort pour complet.
+  const partiel=(auditCache.length>=AUDIT_LOAD_LIMIT);
+  const entete='# Piste d\'audit STEP · '+rows.length+' entrée(s) exportée(s) sur '+auditCache.length+' chargée(s)'+(partiel?(' · ⚠ PARTIEL : seules les '+AUDIT_LOAD_LIMIT+' dernières sont chargées — les actions plus anciennes ne sont PAS incluses'):' · complet (sous ce plafond)')+' · généré le '+isoNow()+'\n';
+  const csv=entete+buildAuditCsv(rows);
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  downloadBlob(b,'piste_audit_'+todayISO()+'.csv');   // [L98 · simpl.8]
+  downloadBlob(b,'piste_audit_'+(partiel?('DERNIERES'+AUDIT_LOAD_LIMIT+'_'):'')+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 async function auditRefresh(btn){
   if(!db) return;
