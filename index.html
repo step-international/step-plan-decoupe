@@ -1500,7 +1500,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.13-L142';
+const APP_VERSION='2026.07.14-L143';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2161,6 +2161,9 @@ async function doLogin(){
 let _loggingOut=false;   // [L76] verrou « ↩ Quitter » : waitForPendingWrites peut durer 4 s → un double-tap lançait DEUX instances parallèles (confirms empilés)
 async function doLogout(){
   if(_loggingOut) return;   // [L76] déconnexion déjà en cours : tap ignoré
+  // [L143 · audit ergo #5 · choix Esteban] garde CHRONO : « ↩ Quitter » est collé à « 🔍 Atelier » en haut ;
+  // un mis-tap en pleine découpe déconnectait au milieu de la commande (session nettoyée, chrono perdu).
+  if(typeof chronoRunning!=='undefined'&&chronoRunning&&!confirm('⏱ Le chronomètre TOURNE (découpe en cours).\n\nTe déconnecter va nettoyer la session en cours.\n\nQuitter quand même ?')) return;
   _loggingOut=true;   // [L76]
   try{
     // [L73 · Lot 5 · B45] Garde avant déconnexion : les écritures Firestore en file (fiche envoyée hors-ligne,
@@ -3449,6 +3452,10 @@ function initAtelier(){
   // G2 — gants par défaut : atelier ON tant que l'opérateur ne l'a pas explicitement désactivé.
   let on=true;
   try{ if(localStorage.getItem('step_atelier')==='0') on=false; }catch(e){}
+  // [L143 · audit ergo #6 · choix Esteban] tablette PARTAGÉE : un pilotage qui désactive l'atelier le laissait
+  // OFF (par appareil) pour TOUS les opérateurs suivants (polices/cibles réduites, hostile aux gants). Pour le
+  // rôle OPÉRATEUR on force l'atelier ON à chaque connexion (le pilotage/admin garde son choix persistant).
+  if(currentRole==='op') on=true;
   document.body.classList.toggle('atelier',on);
   const btn=document.getElementById('atelierBtn'); if(btn) btn.classList.toggle('on',on);
 }
@@ -6881,7 +6888,11 @@ function chronoStart(){
     }
   }
   // [L79] Rappel STOCK avant de démarrer : chutes / bobineaux déjà en stock à déduire de la commande.
-  if(typeof confirm==='function' && !confirm('Avez-vous des chutes ou des bobineaux SUR LA PALETTE (en stock) pour cette commande ?\n\nSi oui, ajoute-les au plan (✂ Bobineaux en stock / ♻ Chute) AVANT de démarrer.\n\nOK = démarrer · Annuler = les ajouter d\'abord')) return;   // [L80] libellé « sur la palette » (demande Esteban) — s'affiche à CHAQUE démarrage de chrono
+  // [L143 · audit ergo #18 · choix Esteban] uniquement au 1er DÉPART de la commande (aucune bobine coupée ET
+  // chrono jamais lancé) — plus à chaque reprise après pause (le plan est déjà lancé, on ne rajoute plus de
+  // stock) : évite la confirmation-fatigue (« OK sans lire ») et redonne du poids au rappel du vrai démarrage.
+  const _premierDepart=(countCoupees()===0)&&(typeof chronoSec!=='number'||chronoSec===0);
+  if(_premierDepart && typeof confirm==='function' && !confirm('Avez-vous des chutes ou des bobineaux SUR LA PALETTE (en stock) pour cette commande ?\n\nSi oui, ajoute-les au plan (✂ Bobineaux en stock / ♻ Chute) AVANT de démarrer.\n\nOK = démarrer · Annuler = les ajouter d\'abord')) return;   // [L80] libellé « sur la palette » (demande Esteban)
   chronoRunning=true;
   updateNumJourForToday();   // commande travaillée un nouveau jour → 152 → 152+153
   chronoStartTs=chronoStartTs||new Date().toISOString();
