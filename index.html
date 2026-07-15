@@ -1503,7 +1503,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.14-L144';
+const APP_VERSION='2026.07.15-L145';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9110,10 +9110,17 @@ function renderPlanning(){
     // [L118 · audit #13] pré-calcul de la semaine pour cette machine → total hebdo affiché sous le nom
     // [L119] une commande étalée occupe TOUS ses jours (span) ; la charge du jour = part quotidienne (total ÷ nb jours)
     const dayCells=dayIsos.map(iso=>{
-      const cellPlans=all.filter(s=>dujMachKey(s.plannedMachine||'')===m&&_plnSpanIsos(s).indexOf(iso)>=0);
+      const inSpan=all.filter(s=>s.plannedDate&&_plnSpanIsos(s).indexOf(iso)>=0);
+      const cellPlans=inSpan.filter(s=>dujMachKey(s.plannedMachine||'')===m);
+      // [L145 · audit #9 · choix Esteban] commande MULTI-MACHINES (réfs réparties FEBA+MAVEG) : une seule
+      // plannedMachine possible → la part de l'AUTRE machine disparaissait (charge sous-estimée, estimation
+      // qui chutait à la pose). On rend un SEGMENT FANTÔME (non déplaçable) sur chaque autre machine impliquée
+      // et on l'y CHARGE aussi. La carte principale (déplaçable) reste sur la machine posée.
+      const ghosts=inSpan.filter(s=>dujMachKey(s.plannedMachine||'')!==m&&(function(){const e=_plnPlanMeters(s);return !!(e&&e.byMachDetail&&e.byMachDetail[m]);})());
       let hSum=0,every=cellPlans.length>0,any=false;
       cellPlans.forEach(s=>{ const h=_plnHoursOn(s,m); if(h==null) every=false; else {hSum+=h/_plnDays(s);any=true;} });
-      return {iso,cellPlans,hSum,every,any};
+      ghosts.forEach(s=>{ const h=_plnHoursOn(s,m); if(h!=null){ hSum+=h/_plnDays(s); any=true; } });
+      return {iso,cellPlans,ghosts,hSum,every,any};
     });
     const machWeek=dayCells.reduce((a,c)=>a+(c.any?c.hSum:0),0);
     weekH+=machWeek;
@@ -9124,7 +9131,10 @@ function renderPlanning(){
     dayCells.forEach(dc=>{
       const loadTxt=dc.cellPlans.length?(dc.any?_plnH(dc.hSum)+(dc.every?'':' +?'):'—'):'';
       const loadCls=(dc.any&&dc.hSum>PLN_OVER_H)?' over':((dc.any&&dc.hSum>PLN_WARN_H)?' warn':'');
-      grid+=`<div class="pln-cell${dc.iso===todayIso?' today':''}" data-day="${dc.iso}" data-mach="${m}" onclick="plnCellTap('${dc.iso}','${m}')"><div class="pln-load${loadCls}" title="charge estimée du jour sur cette machine">${loadTxt}</div>${dc.cellPlans.map(s=>cardHtml(s,'placed',dc.iso)).join('')}</div>`;
+      const ghostHtml=(dc.ghosts||[]).map(s=>{ const h=_plnHoursOn(s,m); const hd=(h!=null)?_plnH(h/_plnDays(s)):''; const posted=getMachineLabel(dujMachKey(s.plannedMachine||''))||'—';
+        return `<div class="pln-card" style="border-style:dashed;opacity:.75" onclick="event.stopPropagation()" title="Part de cette commande coupée sur ${esc(getMachineLabel(m))} — carte principale posée sur ${esc(posted)} (déplace-la depuis ${esc(posted)})"><div class="pc-top"><b>${esc(s.client||'—')}</b><span class="pln-chip">◅ posé ${esc(posted)}</span></div><div class="pc-meta">${esc(s.ref||'—')}</div><div class="pc-meta">part ${esc(getMachineLabel(m))}${hd?` · <span class="pc-h">${hd}</span>`:''}</div></div>`;
+      }).join('');
+      grid+=`<div class="pln-cell${dc.iso===todayIso?' today':''}" data-day="${dc.iso}" data-mach="${m}" onclick="plnCellTap('${dc.iso}','${m}')"><div class="pln-load${loadCls}" title="charge estimée du jour sur cette machine">${loadTxt}</div>${dc.cellPlans.map(s=>cardHtml(s,'placed',dc.iso)).join('')}${ghostHtml}</div>`;
     });
   });
   const placedCount=all.filter(s=>s.plannedDate&&dayIsos.indexOf(s.plannedDate)>=0).length;
