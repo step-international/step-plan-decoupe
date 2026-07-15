@@ -64,8 +64,10 @@ self.addEventListener('activate',function(e){
     caches.open(CACHE).then(async function(c){
       var cur=await c.match('index.html');
       if(!cur){ try{ await c.add(new Request('index.html',{cache:'no-store'})); }catch(err){} }
-      await _purgeOldFirebase(c);   // [L149 · revue #14] retirer les SDK d'une version précédente
       await _precacheFirebase(c);   // [L144] réessai du précache Firebase (réparation)
+      // [L149 · revue L148 #5] NE PAS purger les anciens SDK à l'activate : l'index.html GELÉ (encore en version
+      // précédente) peut ENCORE les référencer → purger casserait son cold start. La purge se fait à REFRESH_INDEX
+      // (l'app passe alors à la version fraîche, dont les SDK courants sont précachés → les anciens sont sûrs).
     })
   ]));
 });
@@ -75,7 +77,11 @@ self.addEventListener('message',function(e){
     e.waitUntil(
       caches.open(CACHE).then(function(c){
         return fetch(new Request('index.html',{cache:'no-store'})).then(function(r){
-          if(r&&r.ok) return c.put('index.html',r);
+          if(r&&r.ok) return c.put('index.html',r).then(function(){
+            // [L149 · revue L148 #5] l'index passe à la version fraîche → précacher ses SDK courants PUIS purger
+            // les anciens (plus aucun index gelé n'en dépend). Ordre important : précache avant purge.
+            return _precacheFirebase(c).then(function(){ return _purgeOldFirebase(c); });
+          });
         });
       }).then(function(){
         if(e.source) e.source.postMessage({type:'INDEX_REFRESHED'});
@@ -84,25 +90,33 @@ self.addEventListener('message',function(e){
       })
     );
   }
+  // [L149 · revue L148 #3] AUTO-GUÉRISON : l'app détecte `firebase` indéfini EN LIGNE (cache Firebase empoisonné
+  // — portail captif au 1er précache) → elle demande la purge des SDK pour re-télécharger propre au reload.
+  else if(e.data&&e.data.type==='PURGE_FIREBASE'){
+    e.waitUntil(caches.open(CACHE).then(function(c){ return c.keys().then(function(keys){
+      return Promise.all(keys.map(function(k){ return (k&&k.url&&k.url.indexOf('/firebasejs/')>=0)?c.delete(k):null; }));
+    }); }).then(function(){ if(e.source) e.source.postMessage({type:'FIREBASE_PURGED'}); }).catch(function(){}));
+  }
 });
 
 self.addEventListener('fetch',function(e){
   const req=e.request;
   const url=new URL(req.url);
   if(req.cache==='no-store'||url.searchParams.has('vchk')) return;   // vérification de version : NE PAS intercepter (double marqueur — request.cache absent sur vieux iOS)
-  // [L144 · audit #18] scripts Firebase (versionnés, immuables) : servis depuis le cache pour un cold start
-  // hors-ligne (login/données offline). [L149 · revue #5] NETWORK-FIRST plutôt que cache-first pur : la réponse
-  // opaque (no-cors, statut masqué) ne peut PAS être validée → un cache empoisonné (portail captif, réponse
-  // tronquée) resterait servi indéfiniment. En réseau on va donc au réseau (et on RAFRAÎCHIT le cache → auto-
-  // guérison), et on ne retombe sur le cache qu'en cas d'échec réseau (hors-ligne = le vrai cas d'usage).
+  // [L144 · audit #18] scripts Firebase (versionnés = IMMUABLES) : CACHE-FIRST → un cold start hors-ligne aboutit
+  // au login/aux données offline. [L149 · revue L148 #3] cache-first (pas network-first) : ces URLs ne changent
+  // JAMAIS pour une version donnée → aucune staleness possible, et network-first casserait chaque cold start EN
+  // LIGNE sur une coupure transitoire (corps tronqué / 5xx opaque) alors qu'une copie SAINE dort en cache.
+  // Le risque « cache empoisonné » (portail captif au 1er précache) est traité par l'AUTO-GUÉRISON côté app
+  // (si `firebase` indéfini EN LIGNE → message PURGE_FIREBASE + reload). [#4] on clone AVANT la frontière async.
   if(_isFirebaseSdk(url)){
     e.respondWith(
-      fetch(req).then(function(nr){
-        if(nr){ caches.open(CACHE).then(function(c){ try{ c.put(url.href,nr.clone()); }catch(err){} }); }
-        return nr;
-      }).catch(function(){
-        return caches.open(CACHE).then(function(c){ return c.match(url.href); });   // réseau KO → cache (cold start hors-ligne)
-      })
+      caches.open(CACHE).then(function(c){
+        return c.match(url.href).then(function(r){
+          if(r) return r;
+          return fetch(req).then(function(nr){ if(nr){ var copy=nr.clone(); try{ c.put(url.href,copy); }catch(err){} } return nr; });
+        });
+      }).catch(function(){ return fetch(req); })
     );
     return;
   }

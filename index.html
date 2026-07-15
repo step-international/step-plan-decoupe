@@ -1503,7 +1503,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.15-L148';
+const APP_VERSION='2026.07.15-L149';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2296,7 +2296,21 @@ document.addEventListener('keydown',function(e){
 
 (function initAuth(){
   // Écouter les changements d'état Firebase Auth
-  if(typeof firebase==='undefined'||!firebase.auth){ try{ const le=document.getElementById('loginErr'); if(le){ le.textContent='Hors-ligne — reconnecte le réseau puis recharge.'; le.style.display='block'; } }catch(e){} return; }   // [L97 · relecture #1] hors-ligne : firebase absent tuait TOUT le script (ReferenceError)
+  if(typeof firebase==='undefined'||!firebase.auth){
+    // [L149 · revue L148 #3] AUTO-GUÉRISON d'un cache Firebase EMPOISONNÉ : si on est EN LIGNE mais que firebase
+    // est absent, c'est probablement un script SDK corrompu servi depuis le cache (portail captif au 1er précache).
+    // On demande au SW de purger les SDK puis on recharge UNE fois (garde sessionStorage anti-boucle).
+    try{
+      if(navigator.onLine!==false && !sessionStorage.getItem('_fbHeal') && navigator.serviceWorker && navigator.serviceWorker.controller){
+        sessionStorage.setItem('_fbHeal','1');
+        navigator.serviceWorker.addEventListener('message',function _h(ev){ if(ev.data&&ev.data.type==='FIREBASE_PURGED'){ try{navigator.serviceWorker.removeEventListener('message',_h);}catch(_){} location.reload(); } });
+        navigator.serviceWorker.controller.postMessage({type:'PURGE_FIREBASE'});
+        setTimeout(function(){ location.reload(); },4000);   // repli si pas d'ACK
+      }
+    }catch(_){}
+    try{ const le=document.getElementById('loginErr'); if(le){ le.textContent='Hors-ligne — reconnecte le réseau puis recharge.'; le.style.display='block'; } }catch(e){} return;
+  }   // [L97 · relecture #1] hors-ligne : firebase absent tuait TOUT le script (ReferenceError)
+  try{ sessionStorage.removeItem('_fbHeal'); }catch(_){}   // firebase OK → réarmer l'auto-guérison pour une future session
   
   firebase.auth().onAuthStateChanged(async function(user){
     if(user){
@@ -5664,6 +5678,15 @@ function enterPlanManual(){
 // archive, PDF, adaptation — l'opérateur d'une machine découpait le plan de l'autre, en silence). On rend
 // le rattachement INJECTIF : match par clé s'il est UNIQUE ; sinon on désambiguïse par la machine ;
 // sinon on retombe sur l'appariement POSITIONNEL (cur[i]/planManual[ci]), lui 1-à-1.
+// [L149 · revue L148 #1/#7/#9] même « job » hors NOM : film/veka/longueur/useful/blade. Un RENOMMAGE d'une réf
+// garde ces composantes (seul le nom change) ; un REMPLACEMENT (autre commande saisie à la place) les change.
+// Sert à n'appliquer le repli positionnel mono-réf (et à ne sauter la purge) QUE pour un vrai renommage.
+function _pmSameJob(g,r){
+  if(!g||!r) return false;
+  return nrm(g.film)===nrm(r.film)&&nrm(g.veka)===nrm(r.veka)
+    &&String(g.longueur==null?'':g.longueur)===String(r.longueur==null?'':r.longueur)
+    &&(Number(g.useful)||0)===(Number(r.useful)||0)&&(Number(g.blade)||0)===(Number(r.blade)||0);
+}
 function _pmFindGroup(r,i,cur){
   if(r&&r.refIdKey){
     const hits=cur.filter(c=>_refIdKey(c)===r.refIdKey);
@@ -5676,11 +5699,11 @@ function _pmFindGroup(r,i,cur){
   }
   const byName=cur.filter(c=>nrm(c.ref)===nrm(r&&r.ref));
   if(byName.length===1) return byName[0];
-  // [L148 · revue #11] cas MONO-réf non ambigu (1 seule entrée manuelle ↔ 1 seul groupe) : appariement
-  // positionnel CONSERVÉ — un RENOMMAGE de la réf unique reste le même bloc (aucun risque de transplant).
-  if(cur.length===1 && Array.isArray(planManual) && planManual.length===1) return cur[0];
-  // [L140 · audit #4] sinon entrée ORPHELINE (multi-réf : ni clé ni nom ne matche) → null, PLUS de repli
-  // positionnel cur[i] qui TRANSPLANTAIT ses bobines saisies main sur une AUTRE réf survivante.
+  // [L148 · revue #11 · L149] cas MONO-réf : appariement positionnel UNIQUEMENT si c'est le MÊME job (renommage),
+  // pas un remplacement total → sinon on transplanterait les bobines main de l'ancienne réf sur une autre commande.
+  if(cur.length===1 && Array.isArray(planManual) && planManual.length===1 && _pmSameJob(cur[0],r)) return cur[0];
+  // [L140 · audit #4] sinon entrée ORPHELINE (réf supprimée/remplacée : ni clé ni nom ni job) → null, PLUS de
+  // repli positionnel qui TRANSPLANTAIT ses bobines saisies main sur une AUTRE réf survivante.
   return null;
 }
 function _pmFindEntry(c,ci){
@@ -5703,10 +5726,10 @@ function adaptPlanManualToInputs(){
   const cur=curAll.filter(c=>(c.rows||[]).length);   // [L70 · Audit B29] base filtrée pour l'appariement (comme à la création)
   // [L140 · audit #4] PURGE des entrées ORPHELINES (réf supprimée) AVANT l'adaptation : sinon _pmFindGroup
   // retombait sur la position et transplantait les bobines saisies main sur une autre réf.
-  // [L148 · revue #3/#11] on juge l'orphelinage sur les blocs RÉELS (curAll) → une réf en cours d'édition
-  // (0 ligne valide) ou renommée n'est PAS effacée ; et le cas MONO-réf (1 entrée ↔ 1 bloc) n'est jamais purgé
-  // (renommage géré par le repli positionnel de _pmFindGroup).
-  if(!(planManual.length===1 && curAll.length===1)){
+  // [L148 · revue #3/#11 · L149] on juge l'orphelinage sur les blocs RÉELS (curAll) → une réf en cours d'édition
+  // (0 ligne valide) n'est pas effacée. On ne saute la purge que pour un vrai RENOMMAGE mono-réf (même job) :
+  // un REMPLACEMENT total de l'unique réf DOIT être purgé (sinon _pmFindGroup transplanterait ses bobines).
+  if(!(planManual.length===1 && curAll.length===1 && _pmSameJob(curAll[0],planManual[0]))){
     planManual=planManual.filter(r=>(r&&r.refIdKey&&curAll.some(c=>_refIdKey(c)===r.refIdKey))||curAll.some(c=>nrm(c.ref)===nrm(r&&r.ref)));
   }
   planManual.forEach((r,i)=>{
@@ -7134,14 +7157,16 @@ async function stopManqueMatiere(){
   // [L137 · audit #2] photo NC en cours d'envoi : sinon la fiche partielle part sans sa référence photo (preuve ISO perdue).
   if(_photoUploadsPending>0){ showToast('⏳ '+_photoUploadsPending+' photo(s) en cours d\'envoi — attends quelques secondes avant l\'arrêt manque-matière.','err'); return; }
   // [L137 · audit #3] bascule LAME changée incomplète → analyse NC-par-lame faussée (bobine rattachée à la mauvaise lame).
-  // [L148 · revue #8] MANQUE-MATIÈRE = envoi PARTIEL : on n'exige le n° de nouvelle lame/machine QUE si la bascule
-  // tombe sur une bobine RÉELLEMENT coupée (position ≤ done). Une bascule prévue plus loin (dans le RESTE, jamais
-  // atteinte car la matière a manqué) est portée par le brouillon du solde (remap ci-dessous) → ne pas la bloquer ici.
+  // [L148 · revue #8 · L149 revue #6] MANQUE-MATIÈRE = envoi PARTIEL : on n'exige le n° de nouvelle lame/machine QUE
+  // si la bascule « dès la bobine N » affecte au moins une bobine RÉELLEMENT COUPÉE (position ≥ N ET coupée) — pas
+  // une comparaison position ≤ done (fausse en découpe NON contiguë). Une bascule prévue dans le RESTE (jamais
+  // atteinte, matière manquante) est portée par le brouillon du solde (remap ci-dessous) → ne pas la bloquer ici.
+  const _chgAffectsCut=(bobVal)=>{ const p=parseInt(bobVal,10); if(!(p>0)) return false; return ficheLines.some((l,idx)=>idx+1>=p&&document.getElementById(l.id)?.classList.contains('coupee')); };
   if(document.getElementById('fLameChg')?.checked&&!(document.getElementById('fLameChgBob')?.value)){ showToast('⚠ « Lame changée » est coché : choisis « À partir de la bobine n° » avant l\'arrêt manque-matière.','err'); return; }
-  if(document.getElementById('fLameChg')?.checked&&(parseInt(document.getElementById('fLameChgBob')?.value,10)||0)<=done&&!((document.getElementById('fLameNew')?.value||'').trim())){ showToast('⚠ « Lame changée » sur une bobine déjà coupée : saisis le n° de la NOUVELLE lame avant l\'arrêt manque-matière.','err'); return; }
-  // [L137 · audit #3] bascule MACHINE changée incomplète (machine cible requise si la bascule est sur une bobine coupée).
+  if(document.getElementById('fLameChg')?.checked&&_chgAffectsCut(document.getElementById('fLameChgBob')?.value)&&!((document.getElementById('fLameNew')?.value||'').trim())){ showToast('⚠ « Lame changée » sur une bobine déjà coupée : saisis le n° de la NOUVELLE lame avant l\'arrêt manque-matière.','err'); return; }
+  // [L137 · audit #3] bascule MACHINE changée incomplète (machine cible requise si la bascule affecte une bobine coupée).
   if(document.getElementById('fMachChg')?.checked&&!(document.getElementById('fMachChgBob')?.value)){ showToast('⚠ « Machine changée » est coché : choisis la bobine de bascule avant l\'arrêt manque-matière.','err'); return; }
-  if(document.getElementById('fMachChg')?.checked&&(parseInt(document.getElementById('fMachChgBob')?.value,10)||0)<=done&&!(document.getElementById('fMachChgTo')?.value)){ showToast('⚠ « Machine changée » sur une bobine déjà coupée : choisis la nouvelle machine avant l\'arrêt manque-matière.','err'); return; }
+  if(document.getElementById('fMachChg')?.checked&&_chgAffectsCut(document.getElementById('fMachChgBob')?.value)&&!(document.getElementById('fMachChgTo')?.value)){ showToast('⚠ « Machine changée » sur une bobine déjà coupée : choisis la nouvelle machine avant l\'arrêt manque-matière.','err'); return; }
   if(_localCopyFromShare&&!confirm('⚠ Cette commande vient d\'un PARTAGE terminé ('+(_localCopyFromShare.from||'?')+').\n\nElle a peut-être DÉJÀ été enregistrée par l\'émetteur (vérifie dans Données > Fiches).\n\nEnregistrer cet arrêt manque-matière quand même ?')) return;
   if(document.getElementById('fOp2Active')?.checked&&!(document.getElementById('fOp2Bobine')?.value)){
     showToast('⚠ Opérateur 2 activé : choisis sa bobine de reprise avant l\'arrêt manque-matière (sinon son temps devient invisible dans les stats).','err'); return; }
@@ -8809,8 +8834,15 @@ function _plnHoursOn(s,machKey){
   let part;
   if(est.byMachDetail && est.byMachDetail[mk]) part=est.byMachDetail[mk];
   else if(est.byMach && est.byMach[mk]!=null) part={metres:est.byMach[mk],nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};
-  else if((est.byMachDetail&&Object.keys(est.byMachDetail).length)||(est.byMach&&Object.keys(est.byMach).length)) return 0;   // multi-machines, mk absent → aucune part
-  else part={metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};   // mono-machine → total
+  else {
+    // [L149 · revue L148 #2] ne renvoyer 0 (mk ne coupe rien) QUE si la commande est répartie sur des machines
+    // RÉELLES (non vides) — dont les fantômes portent la part. Si la SEULE clé de détail est '' (machine
+    // inrésolvable : config changée, s.machine vide), le plan mono-machine posé sur une machine réelle doit
+    // recevoir son TOTAL ici (sinon sa charge disparaîtrait — 0 partout, aucun fantôme).
+    const realKeys=[].concat(est.byMachDetail?Object.keys(est.byMachDetail):[]).concat(est.byMach?Object.keys(est.byMach):[]).filter(k=>k);
+    if(realKeys.length) return 0;
+    part={metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};   // mono-machine / clé inrésolvable → total
+  }
   return _plnHoursPart(mk,part);
 }
 function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
@@ -9146,9 +9178,12 @@ function renderPlanning(){
       // qui chutait à la pose). On rend un SEGMENT FANTÔME (non déplaçable) sur chaque autre machine impliquée
       // et on l'y CHARGE aussi. La carte principale (déplaçable) reste sur la machine posée.
       const ghosts=inSpan.filter(s=>dujMachKey(s.plannedMachine||'')!==m&&(function(){const e=_plnPlanMeters(s);return !!(e&&e.byMachDetail&&e.byMachDetail[m]);})());
-      let hSum=0,every=cellPlans.length>0,any=false;
-      cellPlans.forEach(s=>{ const h=_plnHoursOn(s,m); if(h==null) every=false; else {hSum+=h/_plnDays(s);any=true;} });
-      ghosts.forEach(s=>{ const h=_plnHoursOn(s,m); if(h!=null){ hSum+=h/_plnDays(s); any=true; } });
+      // [L149 · revue L148 #8/#10] « every » (→ absence de « +? ») calculé sur les cartes ET les fantômes : sinon
+      // une cellule à fantômes seuls (cellPlans.length=0) affichait « +? » alors que la part fantôme est estimée.
+      let hSum=0,any=false,allEst=true;
+      const _acc=s=>{ const h=_plnHoursOn(s,m); if(h==null) allEst=false; else { hSum+=h/_plnDays(s); any=true; } };
+      cellPlans.forEach(_acc); ghosts.forEach(_acc);
+      const every=allEst && (cellPlans.length+ghosts.length)>0;
       return {iso,cellPlans,ghosts,hSum,every,any};
     });
     const machWeek=dayCells.reduce((a,c)=>a+(c.any?c.hSum:0),0);
