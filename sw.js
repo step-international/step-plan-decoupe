@@ -14,6 +14,25 @@
 // ============================================================
 const CACHE='step-pin-v1';
 
+// [L144 · audit #18 · choix Esteban] SDK Firebase ÉPINGLÉ (URLs versionnées 10.12.2 = immuables). Sans eux,
+// un démarrage à FROID hors-ligne échoue (`firebase` undefined → écran « Hors-ligne, recharge ») malgré la
+// persistance Firestore offline. On les précache dans le MÊME cache que index.html (best-effort : un échec
+// réseau ne bloque pas l'install ; réessayé à l'activate ; complété à la demande par le fetch cache-first).
+const FIREBASE_URLS=[
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js',
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js',
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js'
+];
+function _isFirebaseSdk(url){ return url.origin==='https://www.gstatic.com' && url.pathname.indexOf('/firebasejs/')===0; }
+// cross-origin → réponse OPAQUE : cache.add() la rejetterait (ok=false), donc fetch no-cors + put.
+async function _precacheFirebase(c){
+  for(var i=0;i<FIREBASE_URLS.length;i++){ var u=FIREBASE_URLS[i];
+    try{ if(!(await c.match(u))){ var r=await fetch(u,{mode:'no-cors'}); if(r) await c.put(u,r); } }catch(err){}
+  }
+}
+
 self.addEventListener('install',function(e){
   e.waitUntil(
     caches.open(CACHE).then(async function(c){
@@ -21,6 +40,7 @@ self.addEventListener('install',function(e){
       // jamais d'écrasement silencieux d'une version en cours d'utilisation.
       const cur=await c.match('index.html');
       if(!cur){ try{ await c.add(new Request('index.html',{cache:'no-store'})); }catch(err){} }
+      await _precacheFirebase(c);   // [L144] scripts Firebase pour le cold start hors-ligne
     }).then(function(){ return self.skipWaiting(); })
   );
 });
@@ -34,6 +54,7 @@ self.addEventListener('activate',function(e){
     caches.open(CACHE).then(async function(c){
       var cur=await c.match('index.html');
       if(!cur){ try{ await c.add(new Request('index.html',{cache:'no-store'})); }catch(err){} }
+      await _precacheFirebase(c);   // [L144] réessai du précache Firebase (réparation)
     })
   ]));
 });
@@ -58,8 +79,21 @@ self.addEventListener('fetch',function(e){
   const req=e.request;
   const url=new URL(req.url);
   if(req.cache==='no-store'||url.searchParams.has('vchk')) return;   // vérification de version : NE PAS intercepter (double marqueur — request.cache absent sur vieux iOS)
+  // [L144 · audit #18] scripts Firebase (versionnés, immuables) : CACHE-FIRST + remplissage réseau → un cold
+  // start hors-ligne aboutit au login/aux données offline (avant : « réseau normal » → firebase undefined offline).
+  if(_isFirebaseSdk(url)){
+    e.respondWith(
+      caches.open(CACHE).then(function(c){
+        return c.match(url.href).then(function(r){
+          if(r) return r;
+          return fetch(req).then(function(nr){ if(nr){ try{ c.put(url.href,nr.clone()).catch(function(){}); }catch(err){} } return nr; });
+        });
+      }).catch(function(){ return fetch(req); })
+    );
+    return;
+  }
   const isIndex=req.mode==='navigate'||(url.origin===self.location.origin&&/\/(index\.html)?$/.test(url.pathname));
-  if(!isIndex) return;                                      // Firebase/gstatic/photos : réseau normal
+  if(!isIndex) return;                                      // autres gstatic/photos : réseau normal
   e.respondWith(
     caches.open(CACHE).then(function(c){
       return c.match('index.html').then(function(r){
