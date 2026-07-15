@@ -389,7 +389,7 @@ body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
 @media(max-width:1099px){ body.has-actionbar.ab-progress #coupeeBanner{display:none!important} }/* [L121·T4-A3] progression déjà portée par la barre d'action fixe en bas → pas de doublon · [L126·audit #23] seulement quand la barre porte la jauge · [L144] même point de rupture que la barre (≤1099px, iPad inclus) */
 /* [L142 · ergo #21] iOS zoome au focus de tout champ < 16px : sur TÉLÉPHONE on force 16px sur les contrôles de saisie (l'iPad ne zoome pas → inchangé ; desktop inchangé). Évite le pincer-dézoomer à chaque saisie (filtres, modales d'édition, notes). */
-@media(max-width:700px){ select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=range]){font-size:16px!important} }
+@media(max-width:700px){ select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=range]){font-size:16px!important} body.atelier textarea{font-size:18px!important} }/* [L148 · revue #12] le 16px anti-zoom ne doit pas RABAISSER les champs volontairement plus grands du mode atelier (textarea 18px) — 18px prévient aussi le zoom iOS */
 /* [L83 · Audit #29] contrôles qualité ISO tapables/lisibles en mode atelier */
 body.atelier .nc-check,body.atelier .test2-sub,body.atelier .test2-nc{font-size:15px;min-height:48px;padding:10px 14px}
 body.atelier .test2-main{font-size:14px}
@@ -1503,7 +1503,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.15-L147';
+const APP_VERSION='2026.07.15-L148';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3529,7 +3529,16 @@ function importPlanToFiche(opts){
     // NON bloquant (l'opérateur peut continuer) : en auto un toast, au clic une
     // confirmation. On alerte sur le MANQUE ; le surplus part en HORS PLAN.
     if(planManual){
-      const _manque=planManualCoherence(planManual,getRefGroups()).filter(x=>x.diff>0);
+      const _coh=planManualCoherence(planManual,getRefGroups());
+      // [L148 · revue #6/#9] les entrées « over » (motif > laize, L140 #5) ne sont PAS des manques de compte
+      // (width:0/diff:1) → les exclure d'ici (sinon message absurde « il manque : 1×0 mm ») et les traiter à part.
+      const _over=_coh.filter(x=>x&&x.over);
+      if(_over.length){
+        const _ot=_over.map(x=>'motif '+fmt(x.total)+' mm > laize utile '+fmt(x.useful)+' mm'+(computed.length>1?' (réf '+x.ref+')':'')).join(', ');
+        if(auto){ try{ showToast('⛔ '+_ot+' — bobine impossible à couper. Corrige le plan.','err'); }catch(e){} }
+        else if(!confirm('⛔ '+_ot+'.\n\nCette bobine est physiquement impossible à couper (dépasse la mère). Générer la fiche quand même ?')) return;
+      }
+      const _manque=_coh.filter(x=>x.diff>0&&!x.over);
       if(_manque.length){
         const _txt=_manque.map(x=>x.diff+'×'+fmt(x.width)+' mm'+(computed.length>1?' (réf '+x.ref+')':'')).join(', ');
         if(auto){ try{ showToast('⚠ Plan ≠ commande — il manque : '+_txt+'.\nLa fiche est générée quand même, vérifie les quantités.','err'); }catch(e){} }
@@ -5667,8 +5676,11 @@ function _pmFindGroup(r,i,cur){
   }
   const byName=cur.filter(c=>nrm(c.ref)===nrm(r&&r.ref));
   if(byName.length===1) return byName[0];
-  // [L140 · audit #4] entrée ORPHELINE (réf supprimée/renommée : ni clé ni nom ne matche) → null, PLUS de
-  // repli positionnel cur[i] qui TRANSPLANTAIT ses bobines saisies main sur une AUTRE réf survivante.
+  // [L148 · revue #11] cas MONO-réf non ambigu (1 seule entrée manuelle ↔ 1 seul groupe) : appariement
+  // positionnel CONSERVÉ — un RENOMMAGE de la réf unique reste le même bloc (aucun risque de transplant).
+  if(cur.length===1 && Array.isArray(planManual) && planManual.length===1) return cur[0];
+  // [L140 · audit #4] sinon entrée ORPHELINE (multi-réf : ni clé ni nom ne matche) → null, PLUS de repli
+  // positionnel cur[i] qui TRANSPLANTAIT ses bobines saisies main sur une AUTRE réf survivante.
   return null;
 }
 function _pmFindEntry(c,ci){
@@ -5687,11 +5699,16 @@ function _pmFindEntry(c,ci){
 }
 function adaptPlanManualToInputs(){
   if(!planManual) return;
-  const cur=getRefGroups().filter(c=>(c.rows||[]).length);   // [L70 · Audit B29] même base FILTRÉE qu'à la création
-  // [L140 · audit #4] PURGE des entrées ORPHELINES (réf supprimée/vidée) AVANT l'adaptation : une entrée dont
-  // la réf n'existe plus (aucun groupe courant de même clé NI de même nom) n'a plus de commande → on la retire.
-  // Sinon _pmFindGroup retombait sur la position et transplantait ses bobines saisies main sur une autre réf.
-  planManual=planManual.filter(r=>(r&&r.refIdKey&&cur.some(c=>_refIdKey(c)===r.refIdKey))||cur.some(c=>nrm(c.ref)===nrm(r&&r.ref)));
+  const curAll=getRefGroups();   // [L148 · revue #3] blocs réf RÉELS (non filtrés) : une réf momentanément à 0 ligne (édition) EXISTE encore
+  const cur=curAll.filter(c=>(c.rows||[]).length);   // [L70 · Audit B29] base filtrée pour l'appariement (comme à la création)
+  // [L140 · audit #4] PURGE des entrées ORPHELINES (réf supprimée) AVANT l'adaptation : sinon _pmFindGroup
+  // retombait sur la position et transplantait les bobines saisies main sur une autre réf.
+  // [L148 · revue #3/#11] on juge l'orphelinage sur les blocs RÉELS (curAll) → une réf en cours d'édition
+  // (0 ligne valide) ou renommée n'est PAS effacée ; et le cas MONO-réf (1 entrée ↔ 1 bloc) n'est jamais purgé
+  // (renommage géré par le repli positionnel de _pmFindGroup).
+  if(!(planManual.length===1 && curAll.length===1)){
+    planManual=planManual.filter(r=>(r&&r.refIdKey&&curAll.some(c=>_refIdKey(c)===r.refIdKey))||curAll.some(c=>nrm(c.ref)===nrm(r&&r.ref)));
+  }
   planManual.forEach((r,i)=>{
     const c=_pmFindGroup(r,i,cur); if(!c) return;
     r.ref=c.ref; r.useful=c.useful; r.blade=c.blade; r.mother=c.mother;
@@ -7117,10 +7134,14 @@ async function stopManqueMatiere(){
   // [L137 · audit #2] photo NC en cours d'envoi : sinon la fiche partielle part sans sa référence photo (preuve ISO perdue).
   if(_photoUploadsPending>0){ showToast('⏳ '+_photoUploadsPending+' photo(s) en cours d\'envoi — attends quelques secondes avant l\'arrêt manque-matière.','err'); return; }
   // [L137 · audit #3] bascule LAME changée incomplète → analyse NC-par-lame faussée (bobine rattachée à la mauvaise lame).
+  // [L148 · revue #8] MANQUE-MATIÈRE = envoi PARTIEL : on n'exige le n° de nouvelle lame/machine QUE si la bascule
+  // tombe sur une bobine RÉELLEMENT coupée (position ≤ done). Une bascule prévue plus loin (dans le RESTE, jamais
+  // atteinte car la matière a manqué) est portée par le brouillon du solde (remap ci-dessous) → ne pas la bloquer ici.
   if(document.getElementById('fLameChg')?.checked&&!(document.getElementById('fLameChgBob')?.value)){ showToast('⚠ « Lame changée » est coché : choisis « À partir de la bobine n° » avant l\'arrêt manque-matière.','err'); return; }
-  if(document.getElementById('fLameChg')?.checked&&!((document.getElementById('fLameNew')?.value||'').trim())){ showToast('⚠ « Lame changée » est coché : saisis le n° de la NOUVELLE lame avant l\'arrêt manque-matière.','err'); return; }
-  // [L137 · audit #3] bascule MACHINE changée incomplète (machine cible + bobine de bascule requises).
-  if(document.getElementById('fMachChg')?.checked&&!(document.getElementById('fMachChgTo')?.value&&document.getElementById('fMachChgBob')?.value)){ showToast('⚠ « Machine changée » est coché : choisis la nouvelle machine ET la bobine de bascule avant l\'arrêt manque-matière.','err'); return; }
+  if(document.getElementById('fLameChg')?.checked&&(parseInt(document.getElementById('fLameChgBob')?.value,10)||0)<=done&&!((document.getElementById('fLameNew')?.value||'').trim())){ showToast('⚠ « Lame changée » sur une bobine déjà coupée : saisis le n° de la NOUVELLE lame avant l\'arrêt manque-matière.','err'); return; }
+  // [L137 · audit #3] bascule MACHINE changée incomplète (machine cible requise si la bascule est sur une bobine coupée).
+  if(document.getElementById('fMachChg')?.checked&&!(document.getElementById('fMachChgBob')?.value)){ showToast('⚠ « Machine changée » est coché : choisis la bobine de bascule avant l\'arrêt manque-matière.','err'); return; }
+  if(document.getElementById('fMachChg')?.checked&&(parseInt(document.getElementById('fMachChgBob')?.value,10)||0)<=done&&!(document.getElementById('fMachChgTo')?.value)){ showToast('⚠ « Machine changée » sur une bobine déjà coupée : choisis la nouvelle machine avant l\'arrêt manque-matière.','err'); return; }
   if(_localCopyFromShare&&!confirm('⚠ Cette commande vient d\'un PARTAGE terminé ('+(_localCopyFromShare.from||'?')+').\n\nElle a peut-être DÉJÀ été enregistrée par l\'émetteur (vérifie dans Données > Fiches).\n\nEnregistrer cet arrêt manque-matière quand même ?')) return;
   if(document.getElementById('fOp2Active')?.checked&&!(document.getElementById('fOp2Bobine')?.value)){
     showToast('⚠ Opérateur 2 activé : choisis sa bobine de reprise avant l\'arrêt manque-matière (sinon son temps devient invisible dans les stats).','err'); return; }
@@ -8781,7 +8802,15 @@ function _plnHoursOn(s,machKey){
   const est=_plnPlanMeters(s); if(!est) return null;
   const mk=dujMachKey(machKey);
   // [L118 · audit #17] plan MULTI-machines posé sur une case : ne charger que la part de CETTE machine.
-  const part=(est.byMachDetail&&est.byMachDetail[mk])||{metres:(est.byMach&&est.byMach[mk]!=null)?est.byMach[mk]:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};
+  // [L148 · revue #10] si la commande a un détail PAR machine (byMachDetail/byMach) et que mk n'y figure PAS,
+  // cette machine ne coupe RIEN de la commande → 0 (avant : repli sur est.metres = TOTAL → double-comptage
+  // avec les segments fantômes L145 qui chargent chaque machine réelle). Le repli TOTAL ne vaut que pour un
+  // plan mono-machine (aucun détail par machine).
+  let part;
+  if(est.byMachDetail && est.byMachDetail[mk]) part=est.byMachDetail[mk];
+  else if(est.byMach && est.byMach[mk]!=null) part={metres:est.byMach[mk],nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};
+  else if((est.byMachDetail&&Object.keys(est.byMachDetail).length)||(est.byMach&&Object.keys(est.byMach).length)) return 0;   // multi-machines, mk absent → aucune part
+  else part={metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};   // mono-machine → total
   return _plnHoursPart(mk,part);
 }
 function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
@@ -8847,7 +8876,7 @@ async function plnSetPlan(sid,dateIso,machKey,days){
     // partira au retour réseau et la carte est déjà à la bonne place. Un rollback ferait « re-sauter » la
     // carte à l'écran alors que la base la déplacera → écran qui ment. On ne rollback que sur un VRAI rejet.
     if(_isQueuedWrite(e)){
-      try{ await logAudit('planning','saves',sid,'Planning (mise en file offline) — '+((s.client||'—')+' / N° '+(s.numCmd||'—')),{client:s.client||'',numCmd:s.numCmd||'',plannedDate:after.d||'',plannedMachine:after.m||'',plannedDays:after.days||1}); }catch(_){}
+      logAudit('planning','saves',sid,'Planning (mise en file offline) — '+((s.client||'—')+' / N° '+(s.numCmd||'—')),{client:s.client||'',numCmd:s.numCmd||'',plannedDate:after.d||'',plannedMachine:after.m||'',plannedDays:after.days||1}).catch(function(){});   // [L148 · revue] fire-and-forget : logAudit n'est PAS borné → hors-ligne un await pendrait → toast/return/finally jamais exécutés → carte gelée (_plnWriteBusy jamais purgé)
       showToast('📡 Réseau lent/coupé — pose ENREGISTRÉE en file (elle partira au retour réseau). Ne re-glisse pas.','ok');
       return true;
     }
@@ -9129,7 +9158,7 @@ function renderPlanning(){
     const _dbM=_plnDebit(m); const _noDeb=(!_dbM||!_dbM.d||_dbM.src==='global');   // [L132 · perf] mémoïsé (partagé avec _plnHoursPart)
     grid+=`<div class="pln-mach ${m}"><span>${esc(getMachineLabel(m))}</span>${machWeek>0?`<small class="pln-machwk${mwCls}">${_plnH(machWeek).replace('≈ ','')}/sem</small>`:(_noDeb?`<small class="pln-machwk" title="Aucune commande chronométrée pour cette machine — durées non estimées">⏱ pas de débit</small>`:'')}</div>`;
     dayCells.forEach(dc=>{
-      const loadTxt=dc.cellPlans.length?(dc.any?_plnH(dc.hSum)+(dc.every?'':' +?'):'—'):'';
+      const loadTxt=(dc.cellPlans.length||(dc.ghosts&&dc.ghosts.length))?(dc.any?_plnH(dc.hSum)+(dc.every?'':' +?'):'—'):'';   // [L148 · revue #4] compter aussi les cellules à FANTÔMES seuls (leur charge est déjà dans hSum/machWeek) → charge du jour cohérente avec le total /sem + alerte over du jour préservée
       const loadCls=(dc.any&&dc.hSum>PLN_OVER_H)?' over':((dc.any&&dc.hSum>PLN_WARN_H)?' warn':'');
       const ghostHtml=(dc.ghosts||[]).map(s=>{ const h=_plnHoursOn(s,m); const hd=(h!=null)?_plnH(h/_plnDays(s)):''; const posted=getMachineLabel(dujMachKey(s.plannedMachine||''))||'—';
         return `<div class="pln-card" style="border-style:dashed;opacity:.75" onclick="event.stopPropagation()" title="Part de cette commande coupée sur ${esc(getMachineLabel(m))} — carte principale posée sur ${esc(posted)} (déplace-la depuis ${esc(posted)})"><div class="pc-top"><b>${esc(s.client||'—')}</b><span class="pln-chip">◅ posé ${esc(posted)}</span></div><div class="pc-meta">${esc(s.ref||'—')}</div><div class="pc-meta">part ${esc(getMachineLabel(m))}${hd?` · <span class="pc-h">${hd}</span>`:''}</div></div>`;
@@ -10017,16 +10046,16 @@ async function saveStockArticle(btn){
   if(btn) btn.disabled=true;
   // [L139 · audit #27] id RÉSERVÉ + set() : hors-ligne le garde anti-doublon .some(ref) était défait (push
   // optimiste sauté sur timeout → re-création = 2 articles même ref). On pousse l'optimiste avec l'id définitif.
-  const docRef=db.collection('stockArticles').doc(); art.id=docRef.id;
+  const docRef=db.collection('stockArticles').doc(); const _aid=docRef.id;   // [L148 · revue] id en const locale, affecté APRÈS set() → pas de champ `id` redondant persisté
   try{
     await boundedWrite(docRef.set(art),10000);
-    stockArticlesCache.push(art);
-    await logAudit('create','stockArticles',art.id,`Article stock ${ref}`);
+    art.id=_aid; stockArticlesCache.push(art);
+    logAudit('create','stockArticles',_aid,`Article stock ${ref}`).catch(function(){});
     renderStock();
   }catch(e){
     if(_isQueuedWrite(e)){
-      stockArticlesCache.push(art);   // optimiste : article visible + garde .some(ref) ré-armé → pas de doublon à la re-saisie
-      logAudit('create','stockArticles',art.id,`Article stock ${ref} (mis en file offline)`).catch(function(){});
+      art.id=_aid; stockArticlesCache.push(art);   // optimiste : article visible + garde .some(ref) ré-armé → pas de doublon à la re-saisie
+      logAudit('create','stockArticles',_aid,`Article stock ${ref} (mis en file offline)`).catch(function(){});
       renderStock();
       showToast('📡 Réseau lent/coupé — article ENREGISTRÉ en file ('+ref+'). Ne le re-crée pas.','ok');
       return;
@@ -10184,11 +10213,13 @@ async function saveStockMouvement(btn){
   if(btn) btn.disabled=true;
   // [L139 · audit #14] id RÉSERVÉ avant l'écriture + set() : l'id définitif est connu même hors-ligne, donc
   // la mise à jour optimiste du cache porte le bon id (pas de doublon quand l'écriture en file se committe).
-  const docRef=db.collection('stockMouvements').doc(); mvt.id=docRef.id;
+  // [L148 · revue] l'id est gardé en const LOCALE et affecté à l'objet APRÈS set() → aucun champ `id` redondant
+  // persisté dans Firestore (miroir de doSave/createRemainingPlan ; l'ancien add() n'en écrivait pas).
+  const docRef=db.collection('stockMouvements').doc(); const _mid=docRef.id;
   try{
     await boundedWrite(docRef.set(mvt),10000);
-    stockMouvementsCache.unshift(mvt);
-    await logAudit('create','stockMouvements',mvt.id,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`);
+    mvt.id=_mid; stockMouvementsCache.unshift(mvt);
+    logAudit('create','stockMouvements',_mid,`${stockMvtType} ${signed} m² · ${ref}${mvt.bl?' · BL '+mvt.bl:''}`).catch(function(){});
     renderStock();
     showToast(`✓ Mouvement enregistré (${signed>0?'+':''}${signed.toLocaleString('fr-FR')} m² · ${ref})`,'ok');   // [L130 · audit A4] retour explicite (comme annulStockMouvement/import B+K) → pas de ressaisie par doute
   }catch(e){
@@ -10196,8 +10227,8 @@ async function saveStockMouvement(btn){
     // de suite (cache optimiste) au lieu de dire « erreur » et de sauter le cache → l'opérateur le VOIT et ne
     // le re-saisit pas (le stock est event-sourced, aucun jeton anti-doublon sur la voie manuelle).
     if(_isQueuedWrite(e)){
-      stockMouvementsCache.unshift(mvt);
-      logAudit('create','stockMouvements',mvt.id,`${stockMvtType} ${signed} m² · ${ref} (mis en file offline)`).catch(function(){});
+      mvt.id=_mid; stockMouvementsCache.unshift(mvt);
+      logAudit('create','stockMouvements',_mid,`${stockMvtType} ${signed} m² · ${ref} (mis en file offline)`).catch(function(){});
       renderStock();
       showToast(`📡 Réseau lent/coupé — mouvement ENREGISTRÉ en file (${signed>0?'+':''}${signed.toLocaleString('fr-FR')} m² · ${ref}). Il s'affiche ci-dessous, NE RE-SAISIS PAS.`,'ok');
       return;
@@ -13491,7 +13522,7 @@ async function restoreItem(collection,id){
       if(ex){ ex.deleted=false; ex.deletedAt=''; if(reDated) ex.date=upd.date; }
       else if(caches[collection]){ const copy=Object.assign({},restored);delete copy._col;copy.deleted=false;copy.deletedAt='';if(reDated) copy.date=upd.date;caches[collection].unshift(copy); }
     }
-    await logAudit('restore',collection,id,reDated?'Restauré avec date rafraîchie (recoupe — évite le ré-archivage automatique)':'');
+    logAudit('restore',collection,id,reDated?'Restauré avec date rafraîchie (recoupe — évite le ré-archivage automatique)':'').catch(function(){});   // [L148 · revue] fire-and-forget : logAudit non borné pendrait hors-ligne → cache/render/toast jamais exécutés (le bouton mort qu'on venait de contourner reviendrait)
     // [L128 · audit #17] rafraîchir l'onglet cible + les badges (sinon l'utilisateur croit la restauration ratée).
     try{
       if(collection==='saves'){ if(document.getElementById('savesList')&&typeof renderSaves==='function') renderSaves(); if(document.getElementById('planningContent')&&typeof renderPlanning==='function') renderPlanning(); }
@@ -13533,7 +13564,7 @@ async function permanentDelete(collection,id){
     try{ await boundedWrite(db.collection(collection).doc(id).delete(),10000); }
     catch(e){ if(!_isQueuedWrite(e)) throw e; }   // [L139 · audit #29] borné : suppression MISE EN FILE hors-ligne → on continue (retrait cache/render), le delete part au retour réseau
     corbeilleCache=corbeilleCache.filter(x=>x._id!==id);
-    await logAudit('permanent_delete',collection,id,'');
+    logAudit('permanent_delete',collection,id,'').catch(function(){});   // [L148 · revue] fire-and-forget : logAudit non borné pendrait hors-ligne après le delete borné
   }catch(e){showToast('Erreur : '+e.message,'err');}
   renderCorbeille();
 }

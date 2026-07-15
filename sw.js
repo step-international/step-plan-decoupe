@@ -32,6 +32,16 @@ async function _precacheFirebase(c){
     try{ if(!(await c.match(u))){ var r=await fetch(u,{mode:'no-cors'}); if(r) await c.put(u,r); } }catch(err){}
   }
 }
+// [L149 · revue #14] purge les SDK Firebase d'une ANCIENNE version (URLs versionnées) : sans ça, chaque bump
+// accumulerait ~2 Mo de scripts orphelins → cache gonflé → risque accru d'éviction iOS de l'index.html ÉPINGLÉ
+// (fragilise le gel de version). On garde index.html + les FIREBASE_URLS courants ; on supprime le reste /firebasejs/.
+async function _purgeOldFirebase(c){
+  try{ var keys=await c.keys();
+    for(var i=0;i<keys.length;i++){ var u=(keys[i]&&keys[i].url)||'';
+      if(u.indexOf('/firebasejs/')>=0 && FIREBASE_URLS.indexOf(u)<0){ try{ await c.delete(keys[i]); }catch(err){} }
+    }
+  }catch(err){}
+}
 
 self.addEventListener('install',function(e){
   e.waitUntil(
@@ -54,6 +64,7 @@ self.addEventListener('activate',function(e){
     caches.open(CACHE).then(async function(c){
       var cur=await c.match('index.html');
       if(!cur){ try{ await c.add(new Request('index.html',{cache:'no-store'})); }catch(err){} }
+      await _purgeOldFirebase(c);   // [L149 · revue #14] retirer les SDK d'une version précédente
       await _precacheFirebase(c);   // [L144] réessai du précache Firebase (réparation)
     })
   ]));
@@ -79,16 +90,19 @@ self.addEventListener('fetch',function(e){
   const req=e.request;
   const url=new URL(req.url);
   if(req.cache==='no-store'||url.searchParams.has('vchk')) return;   // vérification de version : NE PAS intercepter (double marqueur — request.cache absent sur vieux iOS)
-  // [L144 · audit #18] scripts Firebase (versionnés, immuables) : CACHE-FIRST + remplissage réseau → un cold
-  // start hors-ligne aboutit au login/aux données offline (avant : « réseau normal » → firebase undefined offline).
+  // [L144 · audit #18] scripts Firebase (versionnés, immuables) : servis depuis le cache pour un cold start
+  // hors-ligne (login/données offline). [L149 · revue #5] NETWORK-FIRST plutôt que cache-first pur : la réponse
+  // opaque (no-cors, statut masqué) ne peut PAS être validée → un cache empoisonné (portail captif, réponse
+  // tronquée) resterait servi indéfiniment. En réseau on va donc au réseau (et on RAFRAÎCHIT le cache → auto-
+  // guérison), et on ne retombe sur le cache qu'en cas d'échec réseau (hors-ligne = le vrai cas d'usage).
   if(_isFirebaseSdk(url)){
     e.respondWith(
-      caches.open(CACHE).then(function(c){
-        return c.match(url.href).then(function(r){
-          if(r) return r;
-          return fetch(req).then(function(nr){ if(nr){ try{ c.put(url.href,nr.clone()).catch(function(){}); }catch(err){} } return nr; });
-        });
-      }).catch(function(){ return fetch(req); })
+      fetch(req).then(function(nr){
+        if(nr){ caches.open(CACHE).then(function(c){ try{ c.put(url.href,nr.clone()); }catch(err){} }); }
+        return nr;
+      }).catch(function(){
+        return caches.open(CACHE).then(function(c){ return c.match(url.href); });   // réseau KO → cache (cold start hors-ligne)
+      })
     );
     return;
   }
