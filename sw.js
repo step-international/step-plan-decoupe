@@ -77,14 +77,15 @@ self.addEventListener('message',function(e){
     e.waitUntil(
       caches.open(CACHE).then(function(c){
         return fetch(new Request('index.html',{cache:'no-store'})).then(function(r){
-          if(r&&r.ok) return c.put('index.html',r).then(function(){
-            // [L149 · revue L148 #5] l'index passe à la version fraîche → précacher ses SDK courants PUIS purger
-            // les anciens (plus aucun index gelé n'en dépend). Ordre important : précache avant purge.
-            return _precacheFirebase(c).then(function(){ return _purgeOldFirebase(c); });
+          if(!(r&&r.ok)) throw new Error('index refresh not ok');   // 404/5xx → branche FAILED (pas de faux « à jour »)
+          return c.put('index.html',r).then(function(){
+            // [L150 · revue L149 #5] signaler le rechargement IMMÉDIATEMENT (l'index frais est en cache) — le
+            // précache/purge des SDK courants tourne EN ARRIÈRE-PLAN dans le même waitUntil (gstatic lent ne
+            // retarde plus le reload). Ordre : précache AVANT purge (ne jamais rester sans SDK).
+            if(e.source) e.source.postMessage({type:'INDEX_REFRESHED'});
+            return _precacheFirebase(c).then(function(){ return _purgeOldFirebase(c); }).catch(function(){});
           });
         });
-      }).then(function(){
-        if(e.source) e.source.postMessage({type:'INDEX_REFRESHED'});
       }).catch(function(){
         if(e.source) e.source.postMessage({type:'INDEX_REFRESH_FAILED'});   // [L96 · vérif #9] échec réseau EXPLICITE : la page prévient au lieu de recharger l'ancienne version en silence
       })

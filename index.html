@@ -1503,7 +1503,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.15-L149';
+const APP_VERSION='2026.07.15-L150';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2295,20 +2295,28 @@ document.addEventListener('keydown',function(e){
 });
 
 (function initAuth(){
+  // [L150 · revue L149 #1/#2] un cache SDK empoisonné peut toucher SÉLECTIVEMENT firestore/storage (auth sain) :
+  // firebase.auth passe, mais db=firebase.firestore() jette → couche données MORTE en silence. On détecte donc
+  // TOUTE la couche réellement utilisée (auth + firestore + storage), pas seulement auth.
+  // [L150 · revue L149 #2] et on RÉ-ARME l'auto-guérison au retour du réseau (online) : le one-shot sessionStorage
+  // ne réparait sinon qu'une fois par session (cache-first ne re-télécharge plus, contrairement au network-first).
+  try{ window.addEventListener('online',function(){ try{ sessionStorage.removeItem('_fbHeal'); }catch(_){} }); }catch(_){}
+  const _fbBroken=(typeof firebase==='undefined')||!firebase.auth||!firebase.firestore||!firebase.storage;
   // Écouter les changements d'état Firebase Auth
-  if(typeof firebase==='undefined'||!firebase.auth){
-    // [L149 · revue L148 #3] AUTO-GUÉRISON d'un cache Firebase EMPOISONNÉ : si on est EN LIGNE mais que firebase
-    // est absent, c'est probablement un script SDK corrompu servi depuis le cache (portail captif au 1er précache).
-    // On demande au SW de purger les SDK puis on recharge UNE fois (garde sessionStorage anti-boucle).
+  if(_fbBroken){
+    // AUTO-GUÉRISON d'un cache Firebase EMPOISONNÉ : si on est EN LIGNE mais qu'un SDK manque, c'est probablement
+    // un script SDK corrompu servi depuis le cache (portail captif au 1er précache). On demande au SW de purger
+    // les SDK puis on recharge UNE fois (garde sessionStorage anti-boucle, ré-armée au retour réseau).
     try{
       if(navigator.onLine!==false && !sessionStorage.getItem('_fbHeal') && navigator.serviceWorker && navigator.serviceWorker.controller){
         sessionStorage.setItem('_fbHeal','1');
-        navigator.serviceWorker.addEventListener('message',function _h(ev){ if(ev.data&&ev.data.type==='FIREBASE_PURGED'){ try{navigator.serviceWorker.removeEventListener('message',_h);}catch(_){} location.reload(); } });
+        var _healed=false;
+        navigator.serviceWorker.addEventListener('message',function _h(ev){ if(ev.data&&ev.data.type==='FIREBASE_PURGED'&&!_healed){ _healed=true; try{navigator.serviceWorker.removeEventListener('message',_h);}catch(_){} location.reload(); } });
         navigator.serviceWorker.controller.postMessage({type:'PURGE_FIREBASE'});
-        setTimeout(function(){ location.reload(); },4000);   // repli si pas d'ACK
+        setTimeout(function(){ if(!_healed){ _healed=true; location.reload(); } },4000);   // [revue #5] repli si pas d'ACK, sans DOUBLE reload
       }
     }catch(_){}
-    try{ const le=document.getElementById('loginErr'); if(le){ le.textContent='Hors-ligne — reconnecte le réseau puis recharge.'; le.style.display='block'; } }catch(e){} return;
+    try{ const le=document.getElementById('loginErr'); if(le){ le.textContent=(navigator.onLine!==false)?'Chargement… (réparation en cours si nécessaire)':'Hors-ligne — reconnecte le réseau puis recharge.'; le.style.display='block'; } }catch(e){} return;
   }   // [L97 · relecture #1] hors-ligne : firebase absent tuait TOUT le script (ReferenceError)
   try{ sessionStorage.removeItem('_fbHeal'); }catch(_){}   // firebase OK → réarmer l'auto-guérison pour une future session
   
