@@ -1503,7 +1503,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.15-L146';
+const APP_VERSION='2026.07.15-L147';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9139,6 +9139,10 @@ function renderPlanning(){
   });
   const placedCount=all.filter(s=>s.plannedDate&&dayIsos.indexOf(s.plannedDate)>=0).length;
   const beyond=all.filter(s=>s.plannedDate&&s.plannedDate>dayIsos[4]).length;   // [L118 · audit #28] plans planifiés APRÈS la semaine affichée
+  // [L147 · audit #22] plan posé sur une machine NON résolvable (dujMachKey='' : machine renommée/retirée de la
+  // config, ou donnée héritée) : rendu dans aucune case → FANTÔME compté en « X posé(s) » mais invisible/introuvable.
+  // On les surface dans une bande dédiée « ⚠ Machine inconnue » (cartes re-plaçables) au lieu de les perdre.
+  const lostMach=all.filter(s=>s.plannedDate&&dujMachKey(s.plannedMachine||'')===''&&_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0));
   el.innerHTML=`
     <div id="plnBar">
       <div class="pln-navgrp">
@@ -9153,6 +9157,7 @@ function renderPlanning(){
       <div class="pln-main">
         <div class="pln-wrap"><div class="pln-grid">${grid}</div></div>
         ${canEdit?'<div style="font-size:12px;color:var(--muted);margin:8px 0 14px">✋ <b>Le plus simple</b> : touche une carte « À planifier » puis touche la case (jour × machine) — ou l\'inverse pour la retirer. 🖱 Tu peux aussi la <b>glisser</b>. Une commande longue : touche-la posée → « 🗓 étaler sur N jours ».</div>':''}
+        ${lostMach.length?`<div class="pln-report" style="border-color:#7a2222;background:rgba(239,68,68,.10)">⚠ <b>Machine inconnue (${lostMach.length})</b> — posé sur une machine qui n'existe plus dans la config, à replacer :${lostMach.map(s=>cardHtml(s,'report')).join('')}</div>`:''}
         ${reports.length?`<div class="pln-report">↪ <b>Reportés (${reports.length})</b> — semaine passée, à re-glisser :${reports.map(s=>cardHtml(s,'report')).join('')}</div>`:''}
       </div>
       <div class="pln-side">
@@ -10095,7 +10100,12 @@ async function saveStockArticleEdit(id,btn){
 async function archiveStockArticle(id){
   if(!canManageData()){ showToast('Archivage réservé au pilotage et aux admins.','err'); return; }
   const a=stockArticlesCache.find(x=>x.id===id); if(!a){ showToast('Article introuvable.','err'); return; }
-  if(!(await confirmDlg('Archiver l\'article '+a.ref+' ? (récupérable '+RETENTION_DRAFT_DAYS+' jours via la corbeille)\n\nSes mouvements sont conservés.',{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
+  // [L147 · audit #24] avertir si l'article a ENCORE un solde de mouvements : ses m² restent dans le TOTAL
+  // d'emplacement (bandeau) mais disparaissent des lignes du tableau et de la prévision (qui itèrent les
+  // articles non supprimés) → total ≠ somme des lignes visibles, stock résiduel invisible mais compté.
+  const _soldeRestant=Math.round(stockSoldeM2(a.ref));
+  const _avert=(Math.abs(_soldeRestant)>0.5)?('\n\n⚠ Cet article a ENCORE '+_soldeRestant.toLocaleString('fr-FR')+' m² en mouvements : après archivage, ce solde disparaîtra des lignes du tableau mais restera dans le total d\'emplacement (écart total ↔ lignes). Solde d\'abord ces m² (sortie) si tu veux un stock net.'):'';
+  if(!(await confirmDlg('Archiver l\'article '+a.ref+' ? (récupérable '+RETENTION_DRAFT_DAYS+' jours via la corbeille)\n\nSes mouvements sont conservés.'+_avert,{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
     await db.collection('stockArticles').doc(id).update({deleted:true,deletedAt:isoNow()});
     stockArticlesCache=stockArticlesCache.filter(x=>x.id!==id);
