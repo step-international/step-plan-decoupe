@@ -408,6 +408,29 @@ html.theme-light img,html.theme-light video{filter:invert(1) hue-rotate(180deg)}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
 }
+/* ============================================================
+   [L159 · ergonomie — skill web-design-guidelines (Vercel)] fixes d'accessibilité/tactile
+   vérifiés par audit : CSS + attributs uniquement, zéro logique.
+   ============================================================ */
+/* #2 (top-5) anti double-tap zoom iOS : taps rapides sous gants ne zooment plus la page */
+button,label,summary,select,.bobine-card,.pln-card,.ini-btn,.nc-check,.test2-sub{touch-action:manipulation}
+/* #3 (top-5) dernières cibles tactiles <44px HORS mode atelier (btn-sm/nc-check/test2-sub déjà faits) */
+.btn,.machine-btn-fiche,.tab-btn,.fc-btn,.pln-navgrp button{min-height:44px}
+/* #4 (top-5) contrôles natifs assortis au thème : scrollbars, date-pickers (#planDateLiv), claviers iOS */
+:root{color-scheme:dark}
+html.theme-light{color-scheme:light}
+/* #1 (top-5) checkboxes qualité ISO (R.A.S./défauts/test 2ᵉ) : accessibles au CLAVIER et aux lecteurs
+   d'écran — visually-hidden au lieu de display:none (aucun changement visuel, le JS lit toujours .checked) */
+.nc-check input,.test2-sub input{display:inline-block;position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.nc-check:focus-within,.test2-sub:focus-within{outline:2px solid var(--blue);outline-offset:2px}
+/* #9 le défilement interne ne « chaîne » plus vers la page derrière (modales/planning sur iPad) */
+.modal,.pln-wrap,#plnPool,#tempsList{overscroll-behavior:contain}
+/* #14 focus visible du login (l'outline:none local battait le focus-visible global) */
+.login-box input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* #15 lisibilité des <option> (Windows rend le popup en clair) */
+select option{color:var(--text)}
+/* #21 visionneuse photo : unité dvh (barre d'outils iOS dynamique) */
+.photo-overlay img{max-height:90dvh}
 #atelierBtn.on{color:var(--orange);border-color:var(--orange);background:#3d2a00}
 
 /* === MODE ATELIER : gros boutons, police agrandie, contraste renforcé === */
@@ -690,7 +713,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 <div id="dbLoadingBanner" style="display:none;position:fixed;bottom:calc(14px + env(safe-area-inset-bottom,0px));right:14px;background:#1e3a5f;color:#60a5fa;border:1px solid #2d5a9e;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;align-items:center;gap:8px">
   <span style="display:inline-block;animation:dbspin 1s linear infinite">&#x21BB;</span> Chargement des données…
 </div>
-<div id="dbErrorMsg" style="display:none;position:fixed;bottom:14px;right:14px;background:#3d1414;color:#f87171;border:1px solid #7a2222;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;cursor:pointer" onclick="this.style.display='none'">&#9888; Erreur base de données (clique pour fermer)</div>
+<div id="dbErrorMsg" role="alert" style="display:none;position:fixed;bottom:14px;right:14px;background:#3d1414;color:#f87171;border:1px solid #7a2222;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;cursor:pointer" onclick="this.style.display='none'">&#9888; Erreur base de données (clique pour fermer)</div><!-- [L159 · a11y #2] annoncé aux lecteurs d'écran -->
 <!-- [L96 · vérif #1] bannière verte de veille (L87) SUPPRIMÉE : son « Recharger » (location.reload nu) resservait la version ÉPINGLÉE par le gel L89 → clic sans effet + 2 bannières concurrentes. La bannière bleue updBanner (gel de version) est la seule voie de mise à jour. -->
 <div id="lameAlertBanner" style="display:none;position:fixed;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-size:14px;font-weight:700;z-index:5999;align-items:center;justify-content:center;gap:12px;text-align:center;flex-wrap:wrap"></div>
 
@@ -701,7 +724,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     <div class="login-sub">Plan de découpe — STEP International</div>
     <input type="email" id="loginInput" placeholder="Adresse e-mail" aria-label="Adresse e-mail" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
     <input type="password" id="loginPassword" placeholder="Mot de passe" aria-label="Mot de passe" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    <div class="login-err" id="loginErr"></div>
+    <div class="login-err" id="loginErr" role="alert"></div><!-- [L159 · a11y #2] -->
     <button class="btn btn-blue" id="loginBtn" style="width:100%;justify-content:center;font-size:15px" onclick="doLogin()">Connexion</button><!-- [L74 · Design Lot C] id pour désactivation pendant la tentative -->
     <div class="login-role" style="margin-top:20px;font-size:12px;color:var(--muted)">
       <a href="#" onclick="event.preventDefault();showForgotPassword()" style="color:var(--blue);text-decoration:none">Mot de passe oublié ?</a>
@@ -711,14 +734,14 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 
 <!-- VISIONNEUSE PHOTO PLEIN ÉCRAN -->
 <div class="photo-overlay" id="photoOverlay" onclick="closePhotoViewer()">
-  <span class="close-x">&times;</span>
+  <span class="close-x" aria-hidden="true">&times;</span><!-- [L159 · a11y #19] décoratif (fermeture réelle : tap overlay / Échap) -->
   <img id="photoOverlayImg" src="" alt="Photo bobine">
 </div>
 
 <nav id="nav" role="tablist" aria-label="Navigation principale">
-  <button class="active" role="tab" aria-selected="true" aria-controls="page0" onclick="showPage(0)">✂️ Plan</button>
-  <button role="tab" aria-selected="false" aria-controls="page1" onclick="showPage(1)">📋 Fiche</button>
-  <button role="tab" aria-selected="false" aria-controls="page2" onclick="showPage(2)">📊 Données</button>
+  <button id="tabBtn0" class="active" role="tab" aria-selected="true" aria-controls="page0" onclick="showPage(0)">✂️ Plan</button>
+  <button id="tabBtn1" role="tab" aria-selected="false" aria-controls="page1" onclick="showPage(1)">📋 Fiche</button>
+  <button id="tabBtn2" role="tab" aria-selected="false" aria-controls="page2" onclick="showPage(2)">📊 Données</button>
   <div style="display:flex;align-items:center;padding:0 8px;gap:4px;flex-shrink:0">
     <span id="verTag" style="font-size:10px;color:#8f8f8a;white-space:nowrap" title="Version de l'application"></span>
     <span id="roleTag"></span>
@@ -735,7 +758,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 <div id="sharedViewingBar" style="display:none"></div>
 
 <!-- ===== PAGE 1 : PLAN ===== -->
-<div class="page active" id="page0">
+<div class="page active" id="page0" role="tabpanel" aria-labelledby="tabBtn0">
   <div class="plan-topbar" style="display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px">
     <button id="resumeLastBtn" class="btn btn-green btn-sm hidden" style="margin-right:auto" onclick="resumeLastCommand()" title="Reprendre la commande en cours enregistrée automatiquement sur ce poste">▶ Reprendre ma dernière commande</button>
     <button class="btn btn-red btn-sm" onclick="resetSiteConfirm()" title="Vider entièrement le plan et la fiche en cours — repartir d'un site vierge">↺ Réinitialiser</button>
@@ -828,16 +851,16 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
       </div>
       <div class="row3">
         <div class="field">
-          <label>Bobine mère (mm)</label>
+          <label for="motherWidth">Bobine mère (mm)</label>
           <input type="text" id="motherWidth" data-rb="mother" value="2100" oninput="onParamChange()" inputmode="decimal">
           <div class="useful-display" id="usefulDisplay"></div>
         </div>
         <div class="field">
-          <label>Perte bords (mm)</label>
+          <label for="edgeLoss">Perte bords (mm)</label>
           <input type="text" id="edgeLoss" data-rb="edge" value="10" oninput="onParamChange()" inputmode="decimal">
         </div>
         <div class="field">
-          <label>Perte lame (mm)</label>
+          <label for="bladeWidth">Perte lame (mm)</label>
           <input type="text" id="bladeWidth" data-rb="blade" value="5" oninput="onParamChange()" inputmode="decimal">
         </div>
       </div>
@@ -925,7 +948,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 </div>
 
 <!-- ===== PAGE 2 : FICHE ===== -->
-<div class="page" id="page1">
+<div class="page" id="page1" role="tabpanel" aria-labelledby="tabBtn1">
 
   <!-- CHRONO -->
   <div class="section" style="padding:16px">
@@ -950,15 +973,15 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     </div>
     <div class="row3" style="margin-top:12px">
       <div class="field">
-        <label>Bobine mère (mm)</label>
+        <label for="fMother">Bobine mère (mm)</label>
         <input type="text" id="fMother" inputmode="decimal" oninput="syncFicheParams('mother')">
       </div>
       <div class="field">
-        <label>Perte bords (mm)</label>
+        <label for="fEdge">Perte bords (mm)</label>
         <input type="text" id="fEdge" inputmode="decimal" oninput="syncFicheParams('edge')">
       </div>
       <div class="field">
-        <label>Perte lame (mm)</label>
+        <label for="fBlade">Perte lame (mm)</label>
         <input type="text" id="fBlade" inputmode="decimal" oninput="syncFicheParams('blade')">
       </div>
     </div>
@@ -982,11 +1005,11 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     <div class="section-title">En-tête fiche</div>
     <div class="row2 hdr-mini"><!-- [L79] Client/Réf auto depuis plan : affichage compact -->
       <div class="field">
-        <label>Client</label>
+        <label for="fClient">Client</label>
         <input type="text" id="fClient" placeholder="Client" inputmode="text">
       </div>
       <div class="field">
-        <label>Réf. produit</label>
+        <label for="fRef">Réf. produit</label>
         <input type="text" id="fRef" placeholder="Référence" inputmode="text">
       </div>
     </div>
@@ -1002,11 +1025,11 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     </div>
     <div class="row2">
       <div class="field">
-        <label>Lame N°</label>
+        <label for="fNumLame">Lame N°</label>
         <input type="text" id="fNumLame" placeholder="ex : L-12" inputmode="text">
       </div>
       <div class="field">
-        <label>N° Jour</label>
+        <label for="fNumJour">N° Jour</label>
         <input type="text" id="fNumJour" inputmode="numeric">
       </div>
     </div>
@@ -1264,7 +1287,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 </div>
 
 <!-- ===== PAGE 3 : DONNÉES ===== -->
-<div class="page" id="page2">
+<div class="page" id="page2" role="tabpanel" aria-labelledby="tabBtn2">
   <div class="tab-bar">
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
     <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] maquette admin/pilotage (applyRole) — ouverture à tous en ÉTAPE 2 -->
@@ -1301,13 +1324,13 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-      <select id="saveFilterClient" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <select id="saveFilterClient" aria-label="Filtrer les plans par client" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
         <option value="">Tous clients</option>
       </select>
-      <select id="saveFilterRef" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <select id="saveFilterRef" aria-label="Filtrer les plans par référence" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
         <option value="">Toutes matières / réf.</option>
       </select>
-      <input type="text" id="saveFilterCmd" oninput="renderSaves()" placeholder="N° commande…" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <input type="text" id="saveFilterCmd" aria-label="Filtrer les plans par n° de commande" oninput="renderSaves()" placeholder="N° commande…" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
       <button class="btn btn-ghost btn-sm" onclick="resetSaveFilters()">✕ Reset</button>
     </div>
     <!-- [L65] compteur de commandes préparées (plans sauvegardés en attente de découpe) -->
@@ -1324,7 +1347,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
       <!-- [L79] « Tout archiver » retiré (action de masse dangereuse) — clearFiches conservée sans accès UI -->
     </div>
-    <input type="text" id="ficheSearch" oninput="debouncedFicheSearch()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+    <input type="text" id="ficheSearch" aria-label="Rechercher une fiche" oninput="debouncedFicheSearch()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
     <div id="fichesList"></div>
     <div id="fichesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune fiche enregistrée.</div>
   </div>
@@ -1341,16 +1364,16 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
       <div style="padding:4px 13px 12px">
         <div id="statsSummary"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
-          <select id="filterMachine" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+          <select id="filterMachine" aria-label="Filtrer les relevés par machine" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
             <option value="">Toutes machines</option>
             <option value="FEBA">FEBA</option>
             <option value="MAVEG">MAVEG</option>
             <option value="CEVENINI">CEVENINI</option>
           </select>
-          <select id="filterClient" onchange="renderTemps()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+          <select id="filterClient" aria-label="Filtrer les relevés par client" onchange="renderTemps()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
             <option value="">Tous clients</option>
           </select>
-          <select id="filterOp" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+          <select id="filterOp" aria-label="Filtrer les relevés par découpeur" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
             <option value="">Tous découpeurs</option><!-- [L157 · simplify #41] options peuplées DYNAMIQUEMENT par renderTemps (profils + relevés réels) — la liste figée était du HTML mort -->
           </select>
           <button class="btn btn-ghost btn-sm" onclick="resetTempsFilters()">✕ Reset</button>
@@ -1379,17 +1402,17 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   <div id="tabContentNc" class="hidden">
     <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Registre consolidé des non-conformités — toutes les fiches confondues. Exploitable pour les actions correctives ISO 9001.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-      <select id="ncFilterType" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <select id="ncFilterType" aria-label="Filtrer les NC par type" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
         <option value="">Tous types NC</option>
         <option value="larg">Largeur</option>
         <option value="qty">Quantité</option>
         <option value="casse">Casse</option>
         <option value="ang">Angle</option>
       </select>
-      <select id="ncFilterClient" onchange="renderNc()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <select id="ncFilterClient" aria-label="Filtrer les NC par client" onchange="renderNc()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
         <option value="">Tous clients</option>
       </select>
-      <select id="ncFilterStatut" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <select id="ncFilterStatut" aria-label="Filtrer les NC par statut" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
         <option value="">Tous statuts</option>
         <option value="ouvert">Ouvertes</option>
         <option value="cloture">Clôturées</option>
@@ -1542,7 +1565,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.16-L158';
+const APP_VERSION='2026.07.16-L159';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1637,6 +1660,7 @@ function showToast(msg,kind){
   let t=document.getElementById('globalToast');
   if(!t){
     t=document.createElement('div');t.id='globalToast';
+    t.setAttribute('role','status'); t.setAttribute('aria-live','polite');   // [L159 · a11y #2] annoncé aux lecteurs d'écran
     t.style.cssText='position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9999;max-width:90%;padding:11px 16px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.5);display:none';   // [L74 · Design Lot B] toast au-dessus de la barre home iPhone
     document.body.appendChild(t);
   }
@@ -3546,6 +3570,7 @@ function initTheme(){
 function _syncThemeBtn(light){
   const b=document.getElementById('themeBtn');
   if(b){ b.textContent=light?'🌙 Sombre':'☀️ Clair'; b.title=light?'Repasser en mode sombre':'Passer en mode clair'; }
+  try{ const m=document.querySelector('meta[name="theme-color"]'); if(m) m.content=light?'#f2f1ee':'#1c1c1b'; }catch(_){}   // [L159 · ergo #8] barre d'état/chrome navigateur assortie au thème
 }
 function initAtelier(){
   // G2 — gants par défaut : atelier ON tant que l'opérateur ne l'a pas explicitement désactivé.
