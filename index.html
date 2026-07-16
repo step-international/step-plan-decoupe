@@ -155,6 +155,7 @@ body.atelier .card-sub{font-size:15px}
 .badge-green{background:#14371f;color:var(--green)}.badge-orange{background:#3d2a00;color:var(--orange)}.badge-red{background:#3d1414;color:var(--red)}
 .badge-solde{background:#3a2e00;color:#f59e0b;border-radius:5px;padding:2px 8px;font-size:12px;font-weight:700;white-space:nowrap}
 .ref-block{background:var(--section);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px;position:relative}
+.ref-block.rb-dup{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}/* [L152 · incident BEKA] blocs identiques non résolus : surlignés pendant que la bannière demande le choix (fusionner / distinguer les films) */
 .ref-block.extra{border-left:3px solid var(--ref-accent)}
 .ref-block-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .ref-block-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ref-accent)}
@@ -1473,6 +1474,15 @@ const USER_PROFILES={
   'qlVoly7PsyMndWMnimTY9mKUu532': {role:'operateur', ini:'TB', nom:'Taïeb'},
   'z1e9TGOTUDZ9KYtGl12i6HnISrv2': {role:'operateur', ini:'MT', nom:'Marouane'}
 };
+// [L152 · demande Esteban] comptes MACHINE partagés (créés par Esteban dans Firebase Auth) : reconnus par le
+// LOCAL-PART de l'email (feba@ / maveg@ / cevenini@) — AUCUNE adresse complète stockée (règle anti-PII/phishing
+// ci-dessus respectée ; seuls les comptes créés dans Firebase Auth du projet peuvent se connecter). Mêmes accès
+// que les opérateurs (role operateur). ini:'' = AUCUN opérateur pré-sélectionné : l'opérateur touche SES
+// initiales dans la fiche (le chrono refuse de démarrer sans, cf. ficheParamMissing).
+function _machineProfileOf(email){
+  const m=String(email||'').toLowerCase().match(/^(feba|maveg|cevenini)@/);
+  return m?{role:'operateur', ini:'', nom:'Poste '+m[1].toUpperCase()}:null;
+}
 // Destinataire du mail plan de découpe — changer ici uniquement (un seul endroit)
 // Rétention archives (réglable ici)
 const RETENTION_DRAFT_DAYS=45;    // brouillons / fiches NON validées : purge auto après 45 jours
@@ -1503,7 +1513,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.16-L151';
+const APP_VERSION='2026.07.16-L152';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2323,7 +2333,7 @@ document.addEventListener('keydown',function(e){
   firebase.auth().onAuthStateChanged(async function(user){
     if(user){
       // Utilisateur authentifié
-      const profile=USER_PROFILES[user.uid];
+      const profile=USER_PROFILES[user.uid]||_machineProfileOf(user.email);   // [L152] comptes machine partagés reconnus par email (feba@/maveg@/cevenini@)
       if(profile){
         currentRole=profile.role;
         currentUser=Object.assign({}, profile);
@@ -3480,7 +3490,7 @@ function initAtelier(){
   // [L143 · audit ergo #6 · choix Esteban] tablette PARTAGÉE : un pilotage qui désactive l'atelier le laissait
   // OFF (par appareil) pour TOUS les opérateurs suivants (polices/cibles réduites, hostile aux gants). Pour le
   // rôle OPÉRATEUR on force l'atelier ON à chaque connexion (le pilotage/admin garde son choix persistant).
-  if(currentRole==='op') on=true;
+  if(currentRole==='operateur') on=true;   // [L152 · BUGFIX L143] le rôle s'appelle 'operateur' (pas 'op') — le forçage atelier pour les opérateurs ne s'appliquait jamais
   document.body.classList.toggle('atelier',on);
   const btn=document.getElementById('atelierBtn'); if(btn) btn.classList.toggle('on',on);
 }
@@ -5287,25 +5297,46 @@ function _halfFilledRows(){
   });
   return out;
 }
-function mergeDuplicateRefBlocks(){
-  if(_restoringRefGroups) return false;   // [L103 · audit-max] jamais pendant la reconstruction d'un plan sauvegardé (indexation par position en cours)
+// [L152 · incident BEKA imprimé/non-imprimé] la FUSION AUTOMATIQUE des blocs identiques est SUPPRIMÉE :
+// deux blocs à champs identiques peuvent être DEUX FILMS PHYSIQUES différents (imprimé vs non imprimé)
+// que l'opérateur n'a pas distingués dans « Type de film » — la fusion silencieuse (simple toast 4 s)
+// les coupait ENSEMBLE sur les mêmes bobines mères. Désormais : DÉTECTION → bannière bloquante dans le
+// plan + blocs surlignés + envoi BLOQUÉ, et l'opérateur choisit : ♻ Fusionner (même commande) OU
+// distinguer les films (2 commandes physiques). Plus jamais de fusion sans geste explicite.
+let _dupRefPending=[];   // groupes de blocs identiques NON résolus [{key,label,count}]
+function _dupRefKeyOf(bl){
+  const ref=nrm(bl.querySelector('[data-rb="ref"]')?.value);
+  if(!ref) return null;                               // bloc sans réf : jamais considéré
+  const ml=parseNum(bl.querySelector('[data-rb="longueur"]')?.value)||0;
+  const film=nrm(bl.querySelector('[data-rb="film"]')?.value);
+  const mach=nrm(bl.querySelector('[data-rb="machine"]')?.value);
+  return ref+'␟'+ml+'␟'+film+'␟'+mach+'␟'+nrm(bl.querySelector('[data-rb="veka"]')?.value)+'␟'+(parseNum(bl.querySelector('[data-rb="mother"]')?.value)||0);   // [L97 · relecture #5] VEKA + bobine mère dans la clé (alignée _refIdKey)
+}
+function mergeDuplicateRefBlocks(){   // nom conservé (appelants) — ne fait plus QUE détecter
+  _dupRefPending=[];
+  document.querySelectorAll('.ref-block.rb-dup').forEach(bl=>bl.classList.remove('rb-dup'));
+  if(_restoringRefGroups) return false;   // [L103 · audit-max] jamais pendant la reconstruction d'un plan sauvegardé
   const blocks=[...document.querySelectorAll('.ref-block')];
   if(blocks.length<2) return false;
-  const keyOf=bl=>{
-    const ref=nrm(bl.querySelector('[data-rb="ref"]')?.value);
-    if(!ref) return null;                               // bloc sans réf : jamais fusionné
-    const ml=parseNum(bl.querySelector('[data-rb="longueur"]')?.value)||0;
-    const film=nrm(bl.querySelector('[data-rb="film"]')?.value);
-    const mach=nrm(bl.querySelector('[data-rb="machine"]')?.value);
-    return ref+'␟'+ml+'␟'+film+'␟'+mach+'␟'+nrm(bl.querySelector('[data-rb="veka"]')?.value)+'␟'+(parseNum(bl.querySelector('[data-rb="mother"]')?.value)||0);   // [L97 · relecture #5] VEKA + bobine mère dans la clé (alignée _refIdKey) — deux blocs légitimement distincts ne fusionnent plus
-  };
   const byKey={};
-  blocks.forEach(bl=>{ const k=keyOf(bl); if(!k) return; (byKey[k]=byKey[k]||[]).push(bl); });
+  blocks.forEach(bl=>{ const k=_dupRefKeyOf(bl); if(!k) return; (byKey[k]=byKey[k]||[]).push(bl); });
+  Object.entries(byKey).forEach(([k,list])=>{
+    if(list.length<2) return;
+    list.forEach(bl=>bl.classList.add('rb-dup'));   // surlignage orange des blocs concernés
+    const t=list[0], ml=parseNum(t.querySelector('[data-rb="longueur"]')?.value)||0;
+    _dupRefPending.push({key:k,label:(t.querySelector('[data-rb="ref"]')?.value||'?')+(ml?' · '+fmt(ml)+' ml':''),count:list.length});
+  });
+  return false;   // plus JAMAIS de fusion automatique
+}
+// Fusion EXPLICITE (bouton « ♻ Fusionner » de la bannière) : l'opérateur confirme que c'est la MÊME commande.
+function mergeDupRefNow(){
+  if(_restoringRefGroups) return;
+  const blocks=[...document.querySelectorAll('.ref-block')];
+  const byKey={};
+  blocks.forEach(bl=>{ const k=_dupRefKeyOf(bl); if(!k) return; (byKey[k]=byKey[k]||[]).push(bl); });
   let merged=0, label='';
   Object.values(byKey).forEach(list=>{
     if(list.length<2) return;
-    // Jamais sous les doigts de l'opérateur : si le focus est dans un des blocs, on attend.
-    if(list.some(bl=>bl.contains(document.activeElement))) return;
     // Cible = le bloc n°1 historique s'il fait partie du groupe (ids legacy), sinon le premier.
     const target=list.find(bl=>!bl.classList.contains('extra'))||list[0];
     list.forEach(bl=>{
@@ -5330,11 +5361,14 @@ function mergeDuplicateRefBlocks(){
     });
   });
   if(merged){
+    _dupRefPending=[];
+    document.querySelectorAll('.ref-block.rb-dup').forEach(bl=>bl.classList.remove('rb-dup'));
     renumberRefBlocks();
     try{ updateCartonVisibility(); }catch(e){}
-    showToast('♻ Référence en double fusionnée : « '+label+' » — quantités regroupées sur un seul bloc.','ok');
+    logAudit('edit','saves','fusion-blocs','Fusion EXPLICITE de blocs réf identiques — '+label).catch(function(){});
+    showToast('♻ Blocs fusionnés : « '+label+' » — quantités regroupées sur un seul bloc.','ok');
+    try{ recalcPlan(); }catch(e){}
   }
-  return merged>0;
 }
 // [L86 · simpl.24] (docstring L79 périmée supprimée — l'ordre est fixé à la source par packRefGroupsPal, cf. [L82] dans _planGroupsByLaize)
 // [L80 · TEMPORAIRE — à retirer après le 16/07/2026] Deux commandes EN COURS d'exécution atelier
@@ -5444,6 +5478,15 @@ function recalcPlan(){
   const totalBobChk=[].concat(...computed.map(c=>c.bobines)).length;
   if(badQtyRow){
     heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ Une ligne dépasse 5 000 pièces — vérifie la saisie (zéro en trop ?). L\'envoi sera bloqué.</div>';
+  }
+  // [L152 · incident BEKA] blocs de réf IDENTIQUES non résolus : bannière BLOQUANTE avec le choix explicite.
+  if(_dupRefPending.length){
+    _dupRefPending.forEach(d=>{
+      heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d2a00;border:2px solid var(--orange);color:#fbbf24;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+d.count+' blocs de référence IDENTIQUES : «&nbsp;'+esc(d.label)+'&nbsp;»<br>'
+        +'<span style="font-weight:600">· MÊME commande (vraie double saisie) → <button class="btn btn-orange btn-sm" style="vertical-align:middle" onclick="mergeDupRefNow()">♻ Fusionner les blocs</button><br>'
+        +'· DEUX FILMS différents (ex. Imprimé / Non imprimé) → choisis le « Type de film » sur CHAQUE bloc (surlignés en orange) pour les séparer.<br>'
+        +'⛔ L\'envoi est bloqué tant que ce n\'est pas résolu — sinon les deux seraient coupés ENSEMBLE sur les mêmes bobines mères.</span></div>';
+    });
   }
   if(packTruncated){
     heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ PLAN TRONQUÉ : trop de bobines demandées, des pièces ne sont PAS dans le plan. Corrige les quantités avant toute découpe.</div>';
@@ -6915,7 +6958,7 @@ function chronoStart(){
   if(miss){
     // Surligner le champ manquant au lieu d'un alert bloquant.
     const el=document.getElementById(miss.id);
-    if(el){ try{el.focus();}catch(_){} el.style.borderColor='var(--red)'; setTimeout(()=>{el.style.borderColor='';},2500); }
+    if(el){ try{el.focus();}catch(_){} try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){} el.style.borderColor='var(--red)'; el.style.outline='2px solid var(--red)'; setTimeout(()=>{el.style.borderColor='';el.style.outline='';},2500); }   // [L152] outline en plus (les conteneurs sans bordure — ex. #initBtns — restaient invisibles) + défilement vers le champ
     showToast('⚠ Renseigne '+miss.label+' avant de démarrer.','err');
     return;
   }
@@ -7414,6 +7457,13 @@ async function confirmCommande(){
   }
   if(packTruncated){
     showToast('⛔ Envoi bloqué : le plan a été TRONQUÉ (trop de bobines demandées).\n\nDes pièces ne sont pas dans le plan. Corrige les quantités.','err');
+    return;
+  }
+  // [L152 · incident BEKA] blocs de réf IDENTIQUES non résolus : l'envoi est BLOQUÉ tant que l'opérateur n'a
+  // pas choisi (fusionner = même commande, ou distinguer les films = 2 commandes physiques). Sinon deux films
+  // différents (imprimé / non imprimé) partiraient coupés ENSEMBLE sur les mêmes bobines mères.
+  if(!planManual&&_dupRefPending.length){
+    showToast('⛔ Envoi bloqué : '+_dupRefPending.map(d=>d.count+' blocs identiques « '+d.label+' »').join(' · ')+'.\n\nRemonte au plan : soit ♻ Fusionner (même commande), soit choisis le « Type de film » sur chaque bloc (2 films différents).','err');
     return;
   }
   const totalBobChk=[].concat(...computed.map(c=>c.bobines)).length;
@@ -13701,6 +13751,10 @@ function updateFPlanHint(){
 }
 // Vérifie que les 4 champs machine sont remplis. Retourne le 1er manquant ou null.
 function ficheParamMissing(){
+  // [L152 · demande Esteban] OPÉRATEUR OBLIGATOIRE avant le chrono : sur les comptes MACHINE partagés
+  // (FEBA/MAVEG/CEVENINI, aucune initiale pré-sélectionnée) le chrono ne doit jamais démarrer sans savoir
+  // QUI coupe (traçabilité fiche/temps/stats). Inoffensif pour les comptes personnels (initiales pré-remplies).
+  if(!(document.getElementById('fInitiales')?.value||'').trim()) return {id:'initBtns',label:'l\'opérateur — touche ses initiales'};
   const checks=[['fNumLame','le n° de lame'],['fBlade','la perte lame (mm)'],
                 ['fMother','la bobine mère (mm)'],['fEdge','la perte bords (mm)']];
   for(const [id,label] of checks){
