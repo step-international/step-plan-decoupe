@@ -375,6 +375,14 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 #logoutBtn{display:none;padding:4px 10px;font-size:12px;font-weight:700;border-radius:6px;border:1px solid #444;background:#1a1a18;color:var(--muted);cursor:pointer;white-space:nowrap}
 #logoutBtn:hover{color:var(--red);border-color:var(--red)}
 #atelierBtn{display:none;padding:4px 10px;font-size:12px;font-weight:700;border-radius:6px;border:1px solid #444;background:#1a1a18;color:var(--muted);cursor:pointer;white-space:nowrap}
+#themeBtn{display:none;padding:4px 10px;font-size:14px;font-weight:700;border-radius:6px;border:1px solid #444;background:#1a1a18;color:var(--muted);cursor:pointer;white-space:nowrap}/* [L155] même gabarit qu'Atelier ; affiché avec la session (applyRole) */
+/* [L155 · demande Esteban] MODE CLAIR par inversion intelligente : l'app (thème sombre, centaines de couleurs
+   en dur dans les templates) est inversée à la RACINE (invert + hue-rotate conserve les teintes vert/rouge/bleu),
+   et les contenus PHOTOGRAPHIQUES (img/video) sont ré-inversés pour rester naturels. Le filtre est posé sur
+   <html> (PAS body : un filtre sur body casserait tous les position:fixed — nav, barre d'action, toasts).
+   L'impression/PDF n'est PAS affectée (documents iframe/fenêtre séparés, leurs styles propres s'appliquent). */
+html.theme-light{filter:invert(1) hue-rotate(180deg);background:#f2f1ee}
+html.theme-light img,html.theme-light video{filter:invert(1) hue-rotate(180deg)}
 #atelierBtn.on{color:var(--orange);border-color:var(--orange);background:#3d2a00}
 
 /* === MODE ATELIER : gros boutons, police agrandie, contraste renforcé === */
@@ -401,9 +409,9 @@ body.atelier .card-config{font-size:18px}
 body.atelier .bc-count{font-size:16px}
 body.atelier .fl-pos,body.atelier .fl-title{font-size:18px}
 #roleTag{font-size:12px;font-weight:700;padding:2px 5px;border-radius:4px;margin-right:2px;white-space:nowrap;letter-spacing:.02em}   /* [L74 · Design Lot A] plancher 12px (était 9px) */
-@media(max-width:600px){#roleTag{font-size:12px;padding:2px 4px}#logoutBtn,#atelierBtn{padding:4px 7px !important;font-size:12px !important}}   /* [L74 · Design Lot A] plancher 12px (était 8px/11px) */
+@media(max-width:600px){#roleTag{font-size:12px;padding:2px 4px}#logoutBtn,#atelierBtn,#themeBtn{padding:4px 7px !important;font-size:12px !important}}   /* [L74 · Design Lot A] plancher 12px (était 8px/11px) */
 /* [L142 · ergo #19] iPhone étroit : le cluster droit (verTag + roleTag + Atelier + Quitter) + les 3 onglets dépassaient 430px → scroll horizontal de toute la page. Sous 430px on masque le n° de version (info non tactile) et on resserre. */
-@media(max-width:430px){#verTag{display:none}#nav{overflow-x:auto}#atelierBtn,#logoutBtn{padding:4px 6px!important}}
+@media(max-width:430px){#verTag{display:none}#nav{overflow-x:auto}#atelierBtn,#logoutBtn,#themeBtn{padding:4px 6px!important}}
 /* F2 — bannières fixes (nouvelle version / alerte lame) : pousser nav + contenu pour ne pas recouvrir les onglets */
 body.has-topbanner{padding-top:48px}
 body.has-topbanner #nav{top:48px}
@@ -457,7 +465,7 @@ body.has-topbanner #nav{top:48px}
       (le tap sur ::after cible la pastille elle-même → onclick inchangé).
    Compatible mode atelier : body.atelier ne fait qu'agrandir par-dessus. */
 .btn:active,.machine-btn-fiche:active,.ini-btn:active,.tab-btn:active,.nc-check:active,.fc-btn:active{transform:scale(.98);filter:brightness(1.18)}
-#logoutBtn,#atelierBtn{min-height:44px;align-items:center}
+#logoutBtn,#atelierBtn,#themeBtn{min-height:44px;align-items:center}
 .ini-btn{min-height:44px}
 .cli-dot.cli-row{position:relative}
 .cli-dot.cli-row::after{content:'';position:absolute;inset:-7px;border-radius:50%}
@@ -689,6 +697,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   <div style="display:flex;align-items:center;padding:0 8px;gap:4px;flex-shrink:0">
     <span id="verTag" style="font-size:10px;color:#8f8f8a;white-space:nowrap" title="Version de l'application"></span>
     <span id="roleTag"></span>
+    <button id="themeBtn" onclick="toggleTheme()" title="Basculer mode clair / mode sombre" aria-label="Basculer mode clair / mode sombre">☀️</button><!-- [L155 · demande Esteban] thème clair/sombre -->
     <button id="atelierBtn" onclick="toggleAtelier()" title="Mode atelier : gros boutons et police agrandie">🔍 Atelier</button>
     <button id="logoutBtn" onclick="doLogout()">↩ Quitter</button>
   </div>
@@ -1513,7 +1522,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.16-L154';
+const APP_VERSION='2026.07.16-L155';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1857,7 +1866,11 @@ async function loadFirestoreData(){
     if(document.getElementById('page2')&&document.getElementById('page2').classList.contains('active')) renderDataPage();
   }catch(e){
     console.error('Firestore chargement:',e);
-    if(errEl){errEl.textContent='⚠ Erreur connexion base de données : '+e.message;errEl.style.display='block';}
+    // [L155] permission-denied sur un compte NON listé dans les règles Firestore (ex. nouveau compte machine) :
+    // afficher l'UID à copier → l'admin l'ajoute à operateurs() dans les règles sans fouiller la console Firebase.
+    const _perm=/permission|insufficient/i.test(String(e&&e.message||''));
+    const _uidHint=(_perm&&firebase.auth&&firebase.auth().currentUser)?('\n🔑 UID de ce compte (à ajouter aux règles Firestore par l\'admin) : '+firebase.auth().currentUser.uid):'';
+    if(errEl){errEl.textContent='⚠ Erreur connexion base de données : '+e.message+_uidHint;errEl.style.display='block';}
   }finally{
     if(spin) spin.style.display='none';
   }
@@ -2207,7 +2220,9 @@ function applyRole(){
   document.getElementById('loginOverlay').classList.add('hidden');
   document.getElementById('logoutBtn').style.display='flex';
   document.getElementById('atelierBtn').style.display='flex';
+  { const _tb=document.getElementById('themeBtn'); if(_tb) _tb.style.display='flex'; }   // [L155] bouton thème visible avec la session
   initAtelier();
+  initTheme();   // [L155] réapplique le thème choisi (persisté par appareil)
   if(typeof initPlanAutosave==='function') initPlanAutosave(); // demande 4
   const tag=document.getElementById('roleTag');
   const nom=currentUser?currentUser.nom:'';
@@ -3482,6 +3497,23 @@ function toggleAtelier(){
   const on=document.body.classList.toggle('atelier');
   document.getElementById('atelierBtn').classList.toggle('on',on);
   try{localStorage.setItem('step_atelier',on?'1':'0');}catch(e){}
+}
+// [L155 · demande Esteban] Mode CLAIR / SOMBRE — inversion intelligente à la racine (cf. CSS html.theme-light),
+// persistée PAR APPAREIL (localStorage). Sombre par défaut (comportement historique de l'atelier).
+function toggleTheme(){
+  const light=document.documentElement.classList.toggle('theme-light');
+  try{localStorage.setItem('step_theme',light?'light':'dark');}catch(e){}
+  _syncThemeBtn(light);
+}
+function initTheme(){
+  let light=false;
+  try{ light=localStorage.getItem('step_theme')==='light'; }catch(e){}
+  document.documentElement.classList.toggle('theme-light',light);
+  _syncThemeBtn(light);
+}
+function _syncThemeBtn(light){
+  const b=document.getElementById('themeBtn');
+  if(b){ b.textContent=light?'🌙 Sombre':'☀️ Clair'; b.title=light?'Repasser en mode sombre':'Passer en mode clair'; }
 }
 function initAtelier(){
   // G2 — gants par défaut : atelier ON tant que l'opérateur ne l'a pas explicitement désactivé.
@@ -16741,6 +16773,7 @@ function toggleChangements(){
   if(!nowHidden&&typeof refreshOp2BobineList==='function'){ try{ refreshOp2BobineList(); }catch(e){} }
 }
 (function init(){
+  try{ initTheme(); }catch(e){}   // [L155] thème clair/sombre appliqué dès le boot (écran de login inclus)
   initClientDropdown();
   // Présélection de la dernière machine choisie par l'opérateur (sinon champs vides).
   let _lastM=''; try{_lastM=localStorage.getItem('step_last_machine')||'';}catch(e){}
