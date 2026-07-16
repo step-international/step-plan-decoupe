@@ -65,7 +65,7 @@ label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
 button{cursor:pointer;font-family:inherit}
 /* K1 — focus clavier visible partout (les border:none neutralisaient l'indice natif) */
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:focus-visible,.test2-sub:focus-visible,.ini-btn:focus-visible,.step-btn:focus-visible,label:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
+button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:focus-visible,.test2-sub:focus-visible,.ini-btn:focus-visible,label:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}/* [L157 · simplify #35] .step-btn orphelin retiré (steppers −/+ supprimés en L104) */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:9px;border:none;font-size:14px;font-weight:600;transition:all .15s}
 .btn-blue{background:#1e3a5f;color:var(--blue);border:1px solid #2d5a9e}.btn-blue:hover{background:#254878}
 .btn-green{background:#14371f;color:var(--green);border:1px solid #1e5c30}.btn-green:hover{background:#1a4a28}
@@ -577,7 +577,7 @@ body:has(.modal-overlay.open) #actionBar{display:none!important}
 .fl-more[open]>summary{color:var(--text);border-bottom:1px solid var(--border)}
 .fl-more-body{padding:10px 12px 12px}
 .fl-more-stat{margin-left:auto;font-weight:800;font-size:12.5px;white-space:nowrap}
-.fl-more-stat .st-ok{color:var(--green)} .fl-more-stat .st-todo{color:var(--orange)} .fl-more-stat .st-nc{color:var(--red)}
+.fl-more-stat .st-nc{color:var(--red)}/* [L157 · simplify #43] .st-ok/.st-todo orphelins retirés (seul ⚠ NC est encore rendu, L14935) */
 body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 /* G — grand écran : Fiche en 2 colonnes (chrono/machine/en-tête à gauche,
    liste des bobines + Confirmer à droite) — tout se voit sans défiler.
@@ -1326,12 +1326,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
             <option value="">Tous clients</option>
           </select>
           <select id="filterOp" onchange="renderTemps()" style="flex:1;min-width:110px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
-            <option value="">Tous découpeurs</option>
-            <option value="TB">TB</option>
-            <option value="JF">JF</option>
-            <option value="MT">MT</option>
-            <option value="DC">DC</option>
-            <option value="ER">ER</option>
+            <option value="">Tous découpeurs</option><!-- [L157 · simplify #41] options peuplées DYNAMIQUEMENT par renderTemps (profils + relevés réels) — la liste figée était du HTML mort -->
           </select>
           <button class="btn btn-ghost btn-sm" onclick="resetTempsFilters()">✕ Reset</button>
         </div>
@@ -1489,7 +1484,7 @@ const USER_PROFILES={
 // que les opérateurs (role operateur). ini:'' = AUCUN opérateur pré-sélectionné : l'opérateur touche SES
 // initiales dans la fiche (le chrono refuse de démarrer sans, cf. ficheParamMissing).
 function _machineProfileOf(email){
-  const m=String(email||'').toLowerCase().match(/^(feba|maveg|cevenini)@/);
+  const m=String(email==null?'':email).trim().toLowerCase().match(/^(feba|maveg|cevenini)@/);   // [L157 · simplify #24] normalisation alignée sur nrm (défini plus bas dans le script principal — non disponible ici)
   return m?{role:'operateur', ini:'', nom:'Poste '+m[1].toUpperCase()}:null;
 }
 // Destinataire du mail plan de découpe — changer ici uniquement (un seul endroit)
@@ -1522,7 +1517,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.16-L156';
+const APP_VERSION='2026.07.16-L157';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1761,12 +1756,14 @@ let _fullHistoryTruncatedCount=0;   // [L73 · Lot 5 · B34] >0 = plafond de pag
 // repasse fullHistoryLoaded=false → le prochain ensureFullHistory recharge un historique intègre. Jamais
 // atteint en usage normal ; juste un garde-fou contre une croissance non bornée.
 const FULLHIST_BACKSTOP=20000;
-function _capSessionCache(arr,base){   // renvoie [tableau, flipFlag] : plafonne à base si !complet, sinon garde-fou
-  if(arr.length<=base) return [arr,false];
-  if(!fullHistoryLoaded) return [arr.slice(0,base),false];
+// [L157 · simplify #4/#10] le helper possède TOUTE la politique (plafond + flip fullHistoryLoaded) et renvoie
+// le tableau : les 4 appelants font simplement `cache=_capSessionCache(cache,N)` (fini le rituel tuple en 3 temps).
+function _capSessionCache(arr,base){
+  if(arr.length<=base) return arr;
+  if(!fullHistoryLoaded) return arr.slice(0,base);
   const bs=(base>=2000)?FULLHIST_BACKSTOP*2:FULLHIST_BACKSTOP;   // temps (2000) → plafond doublé
-  if(arr.length>bs){ console.warn('[cache] plafond de sûreté '+bs+' atteint ('+arr.length+') → historique rechargé au prochain export/Analyse'); return [arr.slice(0,bs),true]; }
-  return [arr,false];
+  if(arr.length>bs){ console.warn('[cache] plafond de sûreté '+bs+' atteint ('+arr.length+') → historique rechargé au prochain export/Analyse'); fullHistoryLoaded=false; return arr.slice(0,bs); }
+  return arr;
 }
 function ensureFullHistory(){
   if(fullHistoryLoaded) return Promise.resolve(true);
@@ -2896,6 +2893,12 @@ function boundedWrite(p,ms){
 function _isQueuedWrite(e){ return !!(e&&(e.queued||String(e.message)==='__TIMEOUT__')); }
 // [L85 · Audit #27] Comptage des bobines cochées ✂ Coupée — était copié-collé 7 fois.
 function countCoupees(){ return ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length; }
+// [L157 · simplify #2] RÉVÉLER une carte bobine fautive : démasque les coupées + défile + repère fl-spot.
+// Partagé par confirmCommandeRecap et stopManqueMatiere (était copié-collé).
+function _flReveal(el){
+  try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){}
+  try{ el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('fl-spot'); setTimeout(()=>{try{el.classList.remove('fl-spot');}catch(e){}},2200); }catch(e){}
+}
 
 // ============================================================
 // STATE
@@ -3533,7 +3536,7 @@ function initAtelier(){
 // F2 — état de décalage des bannières fixes (nouvelle version / alerte lame) pour ne pas masquer la nav.
 function _syncTopBanner(){
   const disp=id=>{const el=document.getElementById(id);return el&&el.style.display&&el.style.display!=='none';};
-  document.body.classList.toggle('has-topbanner', disp('newVersionBanner')||disp('lameAlertBanner'));
+  document.body.classList.toggle('has-topbanner', disp('lameAlertBanner'));   // [L157 · simplify #42] #newVersionBanner n'existe plus depuis L96 (bannière MAJ = #updBanner, gérée à part)
 }
 
 // Synchronise la fiche depuis le plan (client, réf, longueur + lignes bobines)
@@ -3786,10 +3789,10 @@ function switchTab(tab){
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
-  const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance')?'none':'';
+  const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance'||(fullHistoryLoaded&&!_fullHistoryTruncatedCount))?'none':'';   // [L157 · simplify #20] historique déjà complet → bouton sans fonction, ne plus le ré-afficher au changement d'onglet
   if(tab==='saves') renderSaves();
   else if(tab==='brouillons') renderDrafts();
-  else if(tab==='analyse'){ if(canViewAnalyse()) renderAnalyse(); renderTemps(); _applyAnalyseScope(); autoLoadHistoryThenRerender('analyse'); }   // [L120] Temps rendu dans le bloc repliable d'Analyse · [L131 · #24] pilotage : Temps seul (analytics masquées)
+  else if(tab==='analyse'){ refreshAnalyseIfPresent(); autoLoadHistoryThenRerender('analyse'); }   // [L120·L131·L157 simplify #1] trio analyse factorisé (renderAnalyse gaté admin + renderTemps + scope pilotage)
   else if(tab==='corbeille'){ loadCorbeille(); }
   else if(tab==='nc'){ renderNc(); autoLoadHistoryThenRerender('nc'); }
   else if(tab==='stock') renderStock();
@@ -3807,7 +3810,7 @@ function autoLoadHistoryThenRerender(tab){
     const active=document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1));
     if(!active||!active.classList.contains('active')) return;  // l'utilisateur a changé d'onglet entre-temps
     if(tab==='nc') renderNc();
-    else if(tab==='analyse'){ if(canViewAnalyse()) renderAnalyse(); try{ renderTemps(); }catch(e){} _applyAnalyseScope(); }   // [L120] refresh aussi les Relevés de temps (bloc dans Analyse) après historique complet · [L131 · #24] pilotage : Temps seul
+    else if(tab==='analyse'){ refreshAnalyseIfPresent(); }   // [L120·L131·L157 simplify #1] trio factorisé
   });
 }
 
@@ -6611,7 +6614,7 @@ async function doSave(){
       try{ await boundedWrite(docRef.set(entry),10000); }
       catch(e){ if(_isQueuedWrite(e)) _queued=true; else throw e; }
       savesCache.unshift({_id:_sid,...entry});
-      { const _cc=_capSessionCache(savesCache,1000); savesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E] pas de troncature si historique complet, sauf garde-fou mémoire (recharge honnête ensuite)
+      savesCache=_capSessionCache(savesCache,1000);   // [L128 · audit #20 · L133 revue E · L157 simplify] plafond + flip gérés par le helper
       logAudit('create','saves',_sid,`Plan sauvegardé — ${entry.client||''} / ${entry.ref||''}`+(_queued?' (mis en file offline)':'')).catch(function(){});   // [L79] non bloquant
       if(typeof showToast==='function') showToast(_queued?'📡 Réseau lent/coupé — plan ENREGISTRÉ en file (visible dans Données > Plans). Ne re-sauvegarde pas.':'💾 Plan sauvegardé','ok');
     }
@@ -6928,11 +6931,10 @@ async function doLoad(){
   const hasGroups=Array.isArray(s.refGroups)&&s.refGroups.length>0;
 
   // 1) CLIENT EN PRIORITÉ — isolé pour qu'aucune autre étape ne puisse l'empêcher.
-  let effClient='';
   if(s.client&&s.client!=='—'){
     try{
       const selClient=G('planClient');
-      if(selClient){ effClient=applySavedClient(selClient,s.client); onClientChange(); }
+      if(selClient){ applySavedClient(selClient,s.client); onClientChange(); }   // [L157 · simplify #33] effClient (jamais lue) supprimée
     }catch(e){ console.warn('doLoad client:',e); }
   }
 
@@ -7279,7 +7281,7 @@ async function stopManqueMatiere(){
   { const _fd=getFicheLinesData();
     // [L132 · revue] ces bobines sont COUPÉES donc masquées par défaut (« 🙈 Masquer les coupées ») :
     // on démasque + défile + surligne la bobine fautive, sinon l'opérateur lit « Bobine 3 » sans la voir.
-    const _reveal=(el)=>{ try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){} try{ el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('fl-spot'); setTimeout(()=>{try{el.classList.remove('fl-spot');}catch(e){}},2200); }catch(e){} };
+    const _reveal=_flReveal;   // [L157 · simplify #2] séquence factorisée (partagée avec confirmCommandeRecap)
     for(let i=0;i<ficheLines.length;i++){
       const l=ficheLines[i], _el=document.getElementById(l.id);
       if(!_el||!_el.classList.contains('coupee')||_el.classList.contains('coupee-other')) continue;   // seules les bobines coupées par MOI partent dans la fiche partielle
@@ -7471,8 +7473,7 @@ function confirmCommandeRecap(){
       // [L113 · audit #3/U13] depuis L107 les cases Dévidage/Droit ne sont PLUS dans le volet ⚠ Défaut :
       // au lieu d'ouvrir un volet vide (et si la carte est masquée « coupées cachées » on ne voyait rien),
       // on démasque + défile jusqu'à la carte fautive + repère visuel (comme la barre d'action).
-      try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){}
-      if(_el){ try{ _el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} _el.classList.add('fl-spot'); setTimeout(()=>{try{_el.classList.remove('fl-spot');}catch(e){}},2200); }
+      if(_el) _flReveal(_el);   // [L157 · simplify #2] séquence factorisée : démasque + défile + repère fl-spot
       showToast('⚠ Test 2ᵉ bobineaux dé-validé sur la bobine « '+((document.getElementById('flLabel_'+l.id)?.value||'').trim()||l.label||'?')+' ».\n\nRe-coche Dévidage'+(_flMachineOf(l.id)==='feba'?'':' / Droit')+' (ou ⚠ Non conforme + motif) avant d\'envoyer.','err');
       return;
     }
@@ -8218,8 +8219,8 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : envoi confirmé → ids libérés pour le prochain plan
       _ficheIdOut=ficheRef.id;   // [L67 · Audit A]
       fichesCache.unshift({_id:ficheRef.id,...ficheSafe});
-      { const _cc=_capSessionCache(fichesCache,1000); fichesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E]
-      if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});const _ct=_capSessionCache(tempsCache,2000); tempsCache=_ct[0]; if(_ct[1]) fullHistoryLoaded=false;}
+      fichesCache=_capSessionCache(fichesCache,1000);   // [L128 · audit #20 · L133 revue E · L157 simplify]
+      if(tempsRef){tempsCache.unshift({_id:tempsRef.id,...tempsEntry});tempsCache=_capSessionCache(tempsCache,2000);}
       // [L72 · Audit B47] journal NON BLOQUANT : une coupure réseau juste après le commit
       // figeait le flux post-envoi (chrono jamais arrêté, brouillon jamais purgé, plan
       // source jamais consommé). L'audit part en file et s'écrira au retour du réseau.
@@ -8547,7 +8548,7 @@ function renderDataPage(){
   if(t==='saves') renderSaves();
   else if(t==='brouillons') renderDrafts();
   else if(t==='nc') renderNc();
-  else if(t==='analyse'){ if(canViewAnalyse()) renderAnalyse(); renderTemps(); _applyAnalyseScope(); }   // [L120] Temps dans Analyse · [L131 · #24] pilotage : Temps seul
+  else if(t==='analyse'){ refreshAnalyseIfPresent(); }   // [L120·L131·L157 simplify #1] trio factorisé
   else if(t==='stock') renderStock();
   else if(t==='audit') renderAudit();
   else if(t==='maintenance') renderMaintenance();
@@ -8629,8 +8630,8 @@ function renderTemps(){
   const _sumSec=temps.reduce((s,t)=>s+_shareSec(t),0);
   const avgSec=Math.round(_sumSec/temps.length);
   const totalH=Math.round(_sumSec/3600*10)/10;
-  summary.innerHTML=partialDataBanner()+`<div class="stats-summary">
-    <div><div class="sv">${temps.length}</div><div class="sl">Commandes${fMachine||fClient||fOp?' (filtrées)':''}</div></div>
+  summary.innerHTML=(canViewAnalyse()?'':partialDataBanner())+`<div class="stats-summary">
+    <div><div class="sv">${temps.length}</div><div class="sl">Commandes${fMachine||fClient||fOp?' (filtrées)':''}</div></div><!-- [L157 · simplify #19] admin : la bannière « Données partielles » est déjà affichée par renderAnalyse sur le même écran (bloc Temps déplié = doublon) ; pilotage (analytics masquées) la garde ici -->
     <div><div class="sv">${fmtTime(avgSec)}</div><div class="sl">Temps moyen</div></div>
     <div><div class="sv">${totalH}h</div><div class="sl">Total prod.</div></div>
   </div>`;
@@ -8663,7 +8664,7 @@ async function deleteTempo(id){
     if(item){item.deleted=true;item.deletedAt=isoNow();}
     await logAudit('delete','temps',id,item?`Relevé archivé — ${item.client||''} / ${item.ref||''}${item.duree?` (durée ${fmtTimeFr(item.duree)})`:''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
   }catch(e){showToast('Erreur : '+e.message,'err');}
-  renderTemps(); refreshAnalyseIfPresent();
+  refreshAnalyseIfPresent();   // [L157 simplify] renderTemps inclus dans le helper (était rendu 2×)
 }
 // ── Correction d'un relevé de temps (ER/CH/DC) ─────────────────────────────
 // La règle Firestore autorise déjà temps.update pour isManage. On expose ici
@@ -8766,7 +8767,7 @@ async function saveTempsEdit(id){
     Object.assign(t, changes);
     await logAudit('edit','temps',id,`Relevé corrigé — ${changes.client} / ${changes.ref} (durée ${fmtTimeFr(duree)})`,{client:changes.client,ref:changes.ref});
     document.getElementById('tempsEditOverlay')?.remove();
-    renderTemps(); refreshAnalyseIfPresent();
+    refreshAnalyseIfPresent();   // [L157 simplify] renderTemps inclus dans le helper (était rendu 2×)
     showToast('✓ Relevé corrigé','ok');
   }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); }
 }
@@ -8779,7 +8780,7 @@ async function clearTemps(){
     active.forEach(t=>{t.deleted=true;t.deletedAt=isoNow();});
     await logAudit('delete','temps','*',`Archivage global (${active.length} temps)`);
   }catch(e){showToast('Erreur : '+e.message,'err');}
-  renderTemps(); refreshAnalyseIfPresent();
+  refreshAnalyseIfPresent();   // [L157 simplify] renderTemps inclus dans le helper (était rendu 2×)
 }
 // L34 — après suppression/correction d'un relevé, re-rend le tableau de bord
 // Analyse (débit m/h + KPI + graphiques) pour ne plus afficher un temps supprimé.
@@ -8925,15 +8926,17 @@ function _plnDebit(mk){   // [L132 · perf revue] mémoïse dujDebit(mk,null) : 
   if(!(mk in _plnDebitCache)) _plnDebitCache[mk]=dujDebit(mk,null);
   return _plnDebitCache[mk];
 }
+// [L157 · simplify #12] PRÉDICAT UNIQUE « le modèle corrigé-laize est utilisable pour la charge Planning » :
+// calibré SUR la machine ET au moins aussi fiable que le m/h (nulls tolérés). Partagé par _plnHoursPart et le
+// badge de buildDebitToolbox — deux copies divergeaient sous des commentaires jurant qu'elles étaient identiques.
+function _plnAddOkForPlanning(cal){ return !!(cal&&cal.scope==='machine'&&(cal.mapeM==null||cal.mapeA==null||cal.mapeA<=cal.mapeM)); }
 function _plnHoursPart(mk,part){   // heures pour une part {metres,nbMother,nbDaughters} sur machine mk
   if(!part||!(part.metres>0)) return null;
   const deb=_plnDebit(mk);
   const mhH=(deb&&deb.d&&deb.src!=='global')?part.metres/deb.d:null;   // repli m/h (refuse le global)
   const cal=_plnAddCal(mk);
-  // [L126 · audit #7/#13/#15] additif SEULEMENT si (surcharge manuelle) OU (calibré SUR CETTE machine
-  // ET au moins aussi fiable que le m/h). Jamais de charge fabriquée depuis les données d'une AUTRE
-  // machine (scope global) ni un modèle moins bon que le m/h → sinon écran/planning divergent.
-  const useAdd=cal&&cal.coef&&(cal.override||(cal.scope==='machine'&&(cal.mapeM==null||cal.mapeA==null||cal.mapeA<=cal.mapeM)));
+  // [L126 · audit #7/#13/#15] additif SEULEMENT si (surcharge manuelle) OU utilisable (cf. _plnAddOkForPlanning).
+  const useAdd=cal&&cal.coef&&(cal.override||_plnAddOkForPlanning(cal));
   if(useAdd){
     const c=cal.coef;
     let h=(c[0]+c[1]*part.nbMother+c[2]*part.metres+c[3]*part.nbDaughters)/3600;
@@ -9286,12 +9289,13 @@ function renderPlanning(){
   };
   const pool=all.filter(s=>!s.plannedDate).sort(_poolSorters[plnPoolSort]||_poolSorters.recent);
   let weekH=0;   // [L117] charge totale estimée posée sur la semaine affichée
+  const _inSpanByIso={}; dayIsos.forEach(iso=>{ _inSpanByIso[iso]=all.filter(s=>s.plannedDate&&_plnSpanIsos(s).indexOf(iso)>=0); });   // [L157 · simplify #8] ne dépend que du jour → calculé 1× par jour (était recalculé PAR machine × jour)
   let grid=`<div class="pln-corner"></div>`+days.map((d,i)=>`<div class="pln-hcell${dayIsos[i]===todayIso?' today':''}">${PLN_JOURS[i]}<span class="pd">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</span></div>`).join('');
   DUJ_MACHINES.forEach(m=>{
     // [L118 · audit #13] pré-calcul de la semaine pour cette machine → total hebdo affiché sous le nom
     // [L119] une commande étalée occupe TOUS ses jours (span) ; la charge du jour = part quotidienne (total ÷ nb jours)
     const dayCells=dayIsos.map(iso=>{
-      const inSpan=all.filter(s=>s.plannedDate&&_plnSpanIsos(s).indexOf(iso)>=0);
+      const inSpan=_inSpanByIso[iso];
       const cellPlans=inSpan.filter(s=>dujMachKey(s.plannedMachine||'')===m);
       // [L145 · audit #9 · choix Esteban] commande MULTI-MACHINES (réfs réparties FEBA+MAVEG) : une seule
       // plannedMachine possible → la part de l'AUTRE machine disparaissait (charge sous-estimée, estimation
@@ -9334,7 +9338,7 @@ function renderPlanning(){
         <button onclick="plnNav(0)" class="pln-today"${plnWeekOffset===0?' aria-current="true"':''}>${plnWeekOffset===0?'● ':''}Cette semaine</button>
         <button onclick="plnNav(1)" title="Semaine suivante" aria-label="Semaine suivante"><span class="pln-navtxt">suiv.</span> ▶</button>
       </div>
-      <span id="plnTitle">${titre}</span>${plnWeekOffset!==0?`<button class="btn btn-ghost btn-sm" onclick="plnNav(0)" style="font-size:12px" title="Revenir à la semaine en cours">↩ revenir</button>`:''}
+      <span id="plnTitle">${titre}</span><!-- [L157 · simplify #18] bouton « ↩ revenir » retiré : doublon exact de « Cette semaine » (même plnNav(0)) dans la même barre -->
       <span class="pln-weekload">${canEdit?'':'🔒 lecture seule · '}${placedCount} posé(s)${weekH>0?' · charge <b>'+_plnH(weekH).replace('≈ ','≈')+'</b>':''}${beyond>0?' · <span style="color:var(--orange)">'+beyond+' au-delà ▶</span>':''}</span>
     </div>
     <div class="pln-cols">
@@ -10886,10 +10890,7 @@ function renderLameAlertBanner(){
       : `🔪 Lame <b>${esc(a.lameNum)}</b> sur <b>${esc(lbl)}</b> (${a.days} j) — bientôt à changer`;
   });
   el.innerHTML='<span>'+parts.join(' &nbsp;·&nbsp; ')+'</span>';
-  // Empilement : si le bandeau « nouvelle version » est affiché, on se cale dessous.
-  const vb=document.getElementById('newVersionBanner');
-  const vbVisible=vb&&vb.style.display!=='none'&&getComputedStyle(vb).display!=='none';
-  el.style.top=vbVisible?(vb.offsetHeight+'px'):'0';
+  el.style.top='0';   // [L157 · simplify #42] empilement sous #newVersionBanner retiré : l'élément n'existe plus depuis L96 (le calcul retombait toujours sur 0)
   el.style.display='flex';
   if(typeof _syncTopBanner==='function')_syncTopBanner();
   // Éphémère : masquage automatique après 5 s.
@@ -11265,7 +11266,7 @@ function buildDebitToolbox(){
     // [L133 · revue D] MÊME garde que le Planning (_plnHoursPart) : le modèle n'est RÉELLEMENT utilisé pour
     // la charge que s'il est calibré SUR la machine ET au moins aussi fiable que le m/h ; sinon repli m/h.
     // Le badge le dit honnêtement (avant : « ✅ » dès qu'il battait le m/h, sans refléter le repli scope global).
-    const usedPln=(cal.scope==='machine')&&(cal.mapeM==null||cal.mapeA==null||cal.mapeA<=cal.mapeM);
+    const usedPln=_plnAddOkForPlanning(cal);   // [L157 · simplify #12] MÊME prédicat que _plnHoursPart (plus de copie divergente)
     const tag=usedPln?' <span style="color:var(--green)" title="Utilisé pour la charge du Planning">✅ utilisé</span>':' <span style="color:var(--muted)" title="Moins fiable que le m/h (ou données toutes machines) → le Planning reste sur le m/h">(repli m/h)</span>';
     return `<span style="display:inline-block;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11.5px" title="Calibré sur ${cal.n} relevé(s)${cal.scope==='global'?' — données toutes machines (repli m/h au Planning)':''}"><b style="color:var(--${k})">${getMachineLabel(k)}</b> écart ${Math.round(cal.mapeA)}%${cal.mapeM!=null?` <span style="color:var(--muted)">(m/h ${Math.round(cal.mapeM)}%)</span>`:''}${tag}</span>`;
   }).join(' ');
@@ -12315,7 +12316,7 @@ async function createRemainingPlan(f){
     try{ await boundedWrite(docRef.set(entry),10000); }
     catch(e){ if(!_isQueuedWrite(e)) throw e; }
     savesCache.unshift({_id:_rid,...entry});
-    { const _cc=_capSessionCache(savesCache,1000); savesCache=_cc[0]; if(_cc[1]) fullHistoryLoaded=false; }   // [L128 · audit #20 · L133 revue E] cf. supra + garde-fou mémoire
+    savesCache=_capSessionCache(savesCache,1000);   // [L128 · audit #20 · L133 revue E · L157 simplify] cf. supra
     try{ await logAudit('create','saves',_rid,`Plan du reste — ${entry.client} / ${entry.ref}`); }catch(e){}
     return _rid;
   }catch(e){ showToast('Erreur création du plan du reste : '+e.message,'err'); return null; }

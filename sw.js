@@ -28,9 +28,13 @@ const FIREBASE_URLS=[
 function _isFirebaseSdk(url){ return url.origin==='https://www.gstatic.com' && url.pathname.indexOf('/firebasejs/')===0; }
 // cross-origin → réponse OPAQUE : cache.add() la rejetterait (ok=false), donc fetch no-cors + put.
 async function _precacheFirebase(c){
-  for(var i=0;i<FIREBASE_URLS.length;i++){ var u=FIREBASE_URLS[i];
-    try{ if(!(await c.match(u))){ var r=await fetch(u,{mode:'no-cors'}); if(r) await c.put(u,r); } }catch(err){}
-  }
+  // [L157 · simplify #9] 5 URLs indépendantes → téléchargements PARALLÈLES (temps mur = le plus lent, pas la somme)
+  await Promise.all(FIREBASE_URLS.map(function(u){
+    return c.match(u).then(function(hit){
+      if(hit) return;
+      return fetch(u,{mode:'no-cors'}).then(function(r){ if(r) return c.put(u,r); });
+    }).catch(function(){});
+  }));
 }
 // [L149 · revue #14] purge les SDK Firebase d'une ANCIENNE version (URLs versionnées) : sans ça, chaque bump
 // accumulerait ~2 Mo de scripts orphelins → cache gonflé → risque accru d'éviction iOS de l'index.html ÉPINGLÉ
