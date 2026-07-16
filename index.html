@@ -1522,7 +1522,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.16-L155';
+const APP_VERSION='2026.07.16-L156';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2412,6 +2412,10 @@ document.addEventListener('keydown',function(e){
       try{ if(typeof updateShareUi==='function') updateShareUi(); }catch(e){}
       currentRole=null;
       currentUser=null;
+      // [L156 · audit #3] poste PARTAGÉ : vider l'opérateur sélectionné (le DOM monofichier survit à la
+      // déconnexion) — sinon la session suivante sur un compte MACHINE héritait des initiales du précédent.
+      try{ const h=document.getElementById('fInitiales'); if(h)h.value='';
+        document.querySelectorAll('#initBtns .ini-btn').forEach(function(b){b.classList.remove('sel');}); }catch(_){}
       auditCache=[]; auditLoaded=false; auditLoading=false;   // pas de fuite d'audit entre sessions
       document.getElementById('loginInput').value='';
       document.getElementById('loginPassword').value='';
@@ -5351,7 +5355,19 @@ function mergeDuplicateRefBlocks(){   // nom conservé (appelants) — ne fait p
   const blocks=[...document.querySelectorAll('.ref-block')];
   if(blocks.length<2) return false;
   const byKey={};
-  blocks.forEach(bl=>{ const k=_dupRefKeyOf(bl); if(!k) return; (byKey[k]=byKey[k]||[]).push(bl); });
+  blocks.forEach(bl=>{
+    const k=_dupRefKeyOf(bl); if(!k) return;
+    // [L156 · audit #6] ignorer les blocs-STUBS sans ligne de commande complète (réf choisie mais aucune
+    // qty×largeur saisie) : ils ne contribuent aucune bobine au plan (toutes les surfaces d'envoi filtrent
+    // rows.length) → ils ne doivent pas bloquer l'envoi comme « doublons ». Un stub rempli plus tard
+    // redevient détectable au recalc suivant. La FUSION explicite (mergeDupRefNow), elle, les absorbe.
+    const hasRow=[...bl.querySelectorAll('.rb-rows .order-row')].some(r=>{
+      const q=parseNum(r.querySelector('[data-type="qty"]')?.value)||0, w=parseNum(r.querySelector('[data-type="width"]')?.value)||0;
+      return q>0&&w>0;
+    });
+    if(!hasRow) return;
+    (byKey[k]=byKey[k]||[]).push(bl);
+  });
   Object.entries(byKey).forEach(([k,list])=>{
     if(list.length<2) return;
     list.forEach(bl=>bl.classList.add('rb-dup'));   // surlignage orange des blocs concernés
@@ -5361,14 +5377,18 @@ function mergeDuplicateRefBlocks(){   // nom conservé (appelants) — ne fait p
   return false;   // plus JAMAIS de fusion automatique
 }
 // Fusion EXPLICITE (bouton « ♻ Fusionner » de la bannière) : l'opérateur confirme que c'est la MÊME commande.
-function mergeDupRefNow(){
+// [L156 · audit #5] fusion CIBLÉE : ne fusionne QUE le groupe de la bannière cliquée (index di) — avant, un
+// clic fusionnait TOUS les groupes de doublons d'un coup, y compris un groupe non arbitré (re-fusion silencieuse).
+function mergeDupRefNow(di){
   if(_restoringRefGroups) return;
+  const want=(_dupRefPending[di]||{}).key||null;   // clé du groupe visé (null = legacy : tous)
   const blocks=[...document.querySelectorAll('.ref-block')];
   const byKey={};
   blocks.forEach(bl=>{ const k=_dupRefKeyOf(bl); if(!k) return; (byKey[k]=byKey[k]||[]).push(bl); });
   let merged=0, label='';
-  Object.values(byKey).forEach(list=>{
+  Object.entries(byKey).forEach(([k,list])=>{
     if(list.length<2) return;
+    if(want!==null&&k!==want) return;   // [L156 · audit #5] on ne touche pas aux autres groupes
     // Cible = le bloc n°1 historique s'il fait partie du groupe (ids legacy), sinon le premier.
     const target=list.find(bl=>!bl.classList.contains('extra'))||list[0];
     list.forEach(bl=>{
@@ -5513,9 +5533,9 @@ function recalcPlan(){
   }
   // [L152 · incident BEKA] blocs de réf IDENTIQUES non résolus : bannière BLOQUANTE avec le choix explicite.
   if(_dupRefPending.length){
-    _dupRefPending.forEach(d=>{
+    _dupRefPending.forEach((d,di)=>{
       heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d2a00;border:2px solid var(--orange);color:#fbbf24;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+d.count+' blocs de référence IDENTIQUES : «&nbsp;'+esc(d.label)+'&nbsp;»<br>'
-        +'<span style="font-weight:600">· MÊME commande (vraie double saisie) → <button class="btn btn-orange btn-sm" style="vertical-align:middle" onclick="mergeDupRefNow()">♻ Fusionner les blocs</button><br>'
+        +'<span style="font-weight:600">· MÊME commande (vraie double saisie) → <button class="btn btn-orange btn-sm" style="vertical-align:middle" onclick="mergeDupRefNow('+di+')">♻ Fusionner les blocs</button><br>'
         +'· DEUX FILMS différents (ex. Imprimé / Non imprimé) → choisis le « Type de film » sur CHAQUE bloc (surlignés en orange) pour les séparer.<br>'
         +'⛔ L\'envoi est bloqué tant que ce n\'est pas résolu — sinon les deux seraient coupés ENSEMBLE sur les mêmes bobines mères.</span></div>';
     });
@@ -7232,6 +7252,9 @@ async function stopManqueMatiere(){
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
   if(done===0){showToast('⚠ Aucune bobine coupée.\n\nMarque au moins une bobine comme "Coupée" avant de déclarer un manque de matière.','err');return;}
+  // [L156 · audit #2] MÊME garde L152 que l'envoi normal (confirmCommande) : sans elle, l'arrêt manque-matière
+  // contournait le blocage des blocs de réf identiques (l'incident BEKA restait possible par cette voie).
+  if(!planManual&&_dupRefPending.length){ showToast('⛔ Arrêt manque-matière bloqué : '+_dupRefPending.map(d=>d.count+' blocs identiques « '+d.label+' »').join(' · ')+'.\n\nRemonte au plan : soit ♻ Fusionner (même commande), soit choisis le « Type de film » sur chaque bloc (2 films différents).','err'); return; }
   // [L129 · audit #4/#6] l'arrêt manque-matière court-circuitait TOUTES les re-validations d'envoi de
   // confirmCommandeRecap. On les rejoue ici, portées sur les bobines RÉELLEMENT coupées (seules envoyées) :
   //  · #6 copie locale d'un partage terminé → confirm anti-doublon (miroir 7140, absent de cette voie) ;
@@ -8276,6 +8299,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
             if(d.id===_resumedDraftId) return true;
             if(d.fromFicheId) return false;
             if(!nrm(_ncSend)) return false;
+            if(d.owner==='?'||_mineIni==='?') return false;   // [L156 · audit #9] identité inconnue (compte machine) : jamais de consommation croisée ('?'==='?' passait la garde)
             if(d.owner&&d.owner!==_mineIni) return false;
             const _p=(d.state&&d.state.plan)||{};
             return (nrm(_p.client)+'\u00a6'+nrm(_p.ref)+'\u00a6'+nrm((_p.numCmd&&_p.numCmd!=='\u2014')?_p.numCmd:''))===_kSend;
@@ -8446,6 +8470,12 @@ function resetAll(){
   if(currentUser&&currentUser.ini){
     document.getElementById('fInitiales').value=currentUser.ini;
     document.querySelectorAll('#initBtns .ini-btn').forEach(function(b){b.classList.toggle('sel',b.textContent===currentUser.ini);});
+  } else {
+    // [L156 · audit CRITIQUE] compte MACHINE partagé (ini vide) : VIDER les initiales à chaque reset (envoi
+    // réussi / nouveau plan) — sinon l'opérateur PRÉCÉDENT restait pré-sélectionné toute la journée, ce qui
+    // neutralisait exactement le « aucun opérateur pré-sélectionné » (fiches/temps/audit au mauvais nom).
+    const h=document.getElementById('fInitiales'); if(h)h.value='';
+    document.querySelectorAll('#initBtns .ini-btn').forEach(function(b){b.classList.remove('sel');});
   }
 
   // Reset chrono
@@ -15206,6 +15236,9 @@ function doShareLocal(){
   // celle du collègue sous un 2e doc (verrous cuts alternant entre les deux). Garde symétrique
   // d'openSharedCommand (qui bloque déjà l'inverse).
   if(_viewingSharedId){ showToast('🔒 Tu consultes la commande d\'un collègue (miroir) — quitte la vue avant de partager à ton tour.','err'); return; }
+  // [L156 · audit #8] compte MACHINE : exiger l'opérateur AVANT de partager — sinon le doc partagé (et l'archive
+  // partage.by de la fiche envoyée ensuite) portait « ? » (traçabilité fiche/exports).
+  if(_ini()==='?'){ showToast('⚠ Touche TES initiales (Opérateur 1) avant de partager la commande.','err'); const el=document.getElementById('initBtns'); if(el){ try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){} el.style.outline='2px solid var(--red)'; setTimeout(()=>{el.style.outline='';},2500); } return; }
   if(!Array.isArray(ficheLines)||!ficheLines.length){ showToast('Ajoute des bobines avant de partager.','err'); return; }
   if(_shareSel.size<1){ showToast('Choisis au moins un opérateur.','err'); return; }
   _shareActive=true;
@@ -15722,9 +15755,13 @@ function renderSharedInbox(){
   bar.style.display='block';
   bar.innerHTML=items.map(function(d){
     const nb=(d.state&&d.state.lines)?d.state.lines.length:0;
+    // [L156 · audit #7] émetteur sur compte MACHINE (uid absent de USER_PROFILES) : préférer les initiales
+    // CHOISIES embarquées dans le doc (sharedByIni) — sinon l'inbox affichait « ? t'a partagé une commande ».
+    const _sIni=(d.sharedByIni&&d.sharedByIni!=='?')?d.sharedByIni:_iniOf(d.sharedBy);
+    const _sNom=(_nomOf(d.sharedBy)!=='?')?_nomOf(d.sharedBy):(_sIni!=='?'?_sIni:'?');
     return '<div class="share-recv-card">'
-      +'<span class="av" style="background:'+_opColor(d.sharedBy)+'">'+esc(_iniOf(d.sharedBy))+'</span>'
-      +'<div class="share-recv-info"><b style="color:var(--shared)">'+esc(_nomOf(d.sharedBy))+'</b> t\'a partagé une commande'
+      +'<span class="av" style="background:'+(OP_COLORS[_sIni]||OP_COLORS['?'])+'">'+esc(_sIni)+'</span>'
+      +'<div class="share-recv-info"><b style="color:var(--shared)">'+esc(_sNom)+'</b> t\'a partagé une commande'
       +'<div class="share-recv-meta">'+esc(d.label||'—')+' · '+nb+' bobine(s)</div></div>'
       +'<button class="btn btn-shared btn-sm" style="flex-shrink:0" onclick="openSharedCommand(\''+d.id+'\')">Ouvrir</button>'
       +'</div>';
@@ -15767,7 +15804,7 @@ function renderSharedDraftsBlock(){
         const cur=(d.id===_viewingSharedId);
         return '<div class="save-card">'
           +'<div class="save-info"><div class="save-title">'+esc(d.label||'—')
-          +' <span style="display:inline-block;background:var(--shared-bg);color:var(--shared);font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">de '+esc(_nomOf(d.sharedBy))+'</span></div>'
+          +' <span style="display:inline-block;background:var(--shared-bg);color:var(--shared);font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">de '+esc(_nomOf(d.sharedBy)!=='?'?_nomOf(d.sharedBy):(d.sharedByIni||'?'))+'</span></div>'
           +'<div class="save-meta">Partagée · maj '+ds+' · '+nb+' bobine(s)'+(cur?' · <b style="color:var(--shared)">en cours de consultation</b>':'')+'</div></div>'
           +'<div class="save-actions"><button class="btn btn-shared btn-sm" onclick="openSharedCommand(\''+d.id+'\')">'+(cur?'Rouvrir':'Ouvrir')+'</button></div>'
           +'</div>';
@@ -16035,6 +16072,7 @@ function _supersededManualDrafts(newId,newLabel){
     if(_isSharedDoc(d)||d.fromFicheId) return false;
     if(d.id===_resumedDraftId) return true;   // repris explicitement (choix conscient) — doLoad/resetAll/newCmd annulent _resumedDraftId au changement de commande
     if(d.fromSend) return false;
+    if(d.owner==='?'||me==='?') return false;   // [L156 · audit #9] identité INCONNUE (compte machine sans initiales) : jamais de supersession croisée — '?'==='?' aurait fait consommer le brouillon d'un AUTRE poste
     if(d.owner&&me&&d.owner!==me) return false;   // [L113 · audit #7] JAMAIS le brouillon manuel d'un AUTRE poste (les legacy sans owner restent supersédables par leur créateur)
     return hasNum && d.label===newLabel;
   });
