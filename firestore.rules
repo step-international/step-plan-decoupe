@@ -1,0 +1,141 @@
+// ============================================================
+// STEP Plan de Découpe — Règles Firestore (source de vérité versionnée)
+// [L153] À COLLER dans : Firebase console → Firestore Database → Règles → Publier.
+// SEUL changement vs la version en production du 16/07/2026 :
+//   · operateurs() : AJOUT des 3 comptes MACHINE partagés (feba@ / maveg@ / cevenini@).
+//     ⚠ REMPLACE les 3 placeholders UID_FEBA / UID_MAVEG / UID_CEVENINI par les
+//     ID utilisateur COMPLETS (28 caractères) : console Firebase → Authentication →
+//     clique la ligne du compte → copie « ID utilisateur ».
+//   · commentaire audit corrigé : le champ acteur écrit par logAudit s'appelle `uid`
+//     (PAS `by`) — la ligne recommandée d'origine aurait cassé TOUTES les écritures d'audit.
+// ============================================================
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== Identité & rôles =====
+    function uid()       { return request.auth != null ? request.auth.uid : ''; }
+    function isAuth()    { return request.auth != null; }
+    function admins()    { return ['ydobUI1wpNesqnlmNFroyoQLGHm1',
+                                    'GBGiA5k1hFZgwhHOg1y03wBr7M33']; }
+    function pilote()    { return ['4vlmpeBW9pUFQP59eCkU51bdVZs2']; }
+    function operateurs(){ return ['smiBhboxTZZKpmJWiRapTxs1P323',
+                                    'qlVoly7PsyMndWMnimTY9mKUu532',
+                                    'z1e9TGOTUDZ9KYtGl12i6HnISrv2',
+                                    'UID_FEBA',        // [L153] Poste FEBA     (feba@…)     ← remplacer par l'ID utilisateur complet
+                                    'UID_MAVEG',       // [L153] Poste MAVEG    (maveg@…)    ← remplacer par l'ID utilisateur complet
+                                    'UID_CEVENINI'];   // [L153] Poste CEVENINI (cevenini@…) ← remplacer par l'ID utilisateur complet
+                         }
+    function isAdmin()  { return isAuth() && uid() in admins(); }
+    function isManage() { return isAuth() && (uid() in admins() || uid() in pilote()); }
+    function isKnown()  { return isAuth() && (uid() in admins() || uid() in pilote() || uid() in operateurs()); }
+
+    function notTouching(protectedKeys) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedKeys);
+    }
+    function isRestore() {
+      return resource.data.deleted == true && request.resource.data.deleted == false;
+    }
+
+    // Garde de taille générique (DoS / payloads). No-op si le champ est absent
+    // ou n'est pas une chaîne. Bornes larges : ne bloque que l'aberrant.
+    function capOk(v, n) { return !(v is string) || v.size() <= n; }
+    function textOk() {
+      return capOk(request.resource.data.get('client',  ''), 500)
+          && capOk(request.resource.data.get('client2', ''), 500)
+          && capOk(request.resource.data.get('ref',     ''), 500)
+          && capOk(request.resource.data.get('numCmd',  ''), 500);
+    }
+
+    // ===== SAVES =====
+    match /saves/{id} {
+      allow read:   if isKnown();
+      allow create: if isKnown() && textOk();
+      allow update: if (isManage() || (isKnown() && !isRestore())) && textOk();
+      allow delete: if isManage();
+    }
+
+    // ===== TEMPS =====
+    match /temps/{id} {
+      allow read:   if isKnown();
+      allow create: if isKnown() && textOk();
+      allow update: if (isManage() || (isKnown() && !isRestore())) && textOk();
+      allow delete: if isManage();
+    }
+
+    // ===== FICHES (validation/impression/corbeille protégées) =====
+    match /fiches/{id} {
+      allow read:   if isKnown();
+      allow create: if isKnown() && request.resource.data.valide == null && textOk();
+      allow update: if (
+                         isManage()
+                         || (
+                              isKnown()
+                              && resource.data.valide != true
+                              && notTouching(['valide','valideBy','valideAt','imprime','imprimeAt','imprimeBy'])
+                              && !isRestore()
+                            )
+                       ) && textOk();
+      allow delete: if isManage();
+    }
+
+    // ===== AGREGATS (KPI mensuels figés) — pilotage/admin =====
+    match /agregats/{id} {
+      allow read:  if isManage();
+      allow write: if isManage();
+      // NB : ensureMonthlyAggregates() est gaté isManage CÔTÉ CLIENT (index.html) —
+      // un boot opérateur n'écrit pas ici.
+    }
+
+    // ===== STOCK (pilotage/admin) =====
+    match /stockArticles/{id}   { allow read, write: if isManage(); }
+    match /stockMouvements/{id} {
+      allow read:   if isManage();
+      allow create: if isManage();
+      allow update: if isManage();       // maj corrigePar (annulation par contre-mouvement)
+      allow delete: if false;            // grand-livre append-only (corrections = contre-mouvements)
+    }
+
+    // ===== MAINTENANCE / LAMES =====
+    match /maintenance/{id} {
+      allow read:   if isKnown();
+      allow create: if isKnown();
+      allow update: if isManage() || (isKnown() && notTouching(['deleted','deletedAt']));
+      allow delete: if isManage();
+    }
+
+    // ===== AUDIT (append-only strict) =====
+    match /audit/{id} {
+      allow read:   if isAdmin();
+      allow create: if isKnown()
+                    && request.resource.data.keys().hasAll(['action','collection','at','ts'])
+                    && request.resource.data.action is string
+                    && request.resource.data.action.size() <= 120;   // cap anti-spam
+      // [L153] OPTION journal infalsifiable : le champ acteur de logAudit() s'appelle `uid`
+      // (index.html, entrée logAudit — PAS `by`). Ligne correcte si tu veux l'activer :
+      //   && request.resource.data.get('uid','') == request.auth.uid
+      // ⚠ MISE EN GARDE avant d'activer : sur un poste PARTAGÉ hors-ligne, des entrées
+      // d'audit mises en file par l'utilisateur A peuvent être rejouées après reconnexion
+      // sous le token de l'utilisateur B → elles seraient alors REJETÉES (entrées perdues).
+      // Tant que l'atelier travaille hors-ligne sur postes partagés, laisser commenté.
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ===== BROUILLONS (scratch collaboratif) =====
+    match /brouillons/{id} {
+      allow read, create: if isKnown();
+      allow update, delete: if isKnown();
+      // [L153] NE PAS restreindre update/delete au déposant (reco d'origine) : la reprise
+      // d'un brouillon d'un AUTRE poste et sa consommation à l'envoi (consumed:true posé sur
+      // le brouillon repris) sont des flux LÉGITIMES de l'app — la restriction les casserait.
+      // Les protections fines (owner, solde, autosave) sont gérées côté client.
+    }
+
+    // ===== Refus par défaut =====
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
