@@ -1,11 +1,14 @@
 // ============================================================
 // STEP Plan de Découpe — Règles Firestore (source de vérité versionnée)
-// [L153] À COLLER dans : Firebase console → Firestore Database → Règles → Publier.
-// SEUL changement vs la version en production du 16/07/2026 :
-//   · operateurs() : AJOUT des 3 comptes MACHINE partagés (feba@ / maveg@ / cevenini@).
-//     ⚠ REMPLACE les 3 placeholders UID_FEBA / UID_MAVEG / UID_CEVENINI par les
-//     ID utilisateur COMPLETS (28 caractères) : console Firebase → Authentication →
-//     clique la ligne du compte → copie « ID utilisateur ».
+// [L160] À COLLER TEL QUEL dans : Firebase console → Firestore Database → Règles → Publier.
+// AUCUN UID à copier. Changements vs la prod du 16/07/2026 :
+//   · isMachineAccount() : les 3 comptes MACHINE partagés (feba@ / maveg@ / cevenini@
+//     du domaine step-international.com) sont reconnus par l'EMAIL du jeton
+//     d'authentification — même logique que le client (_machineProfileOf). Seuls des
+//     comptes créés par l'admin dans Firebase Auth du projet peuvent s'authentifier.
+//   · collection machines/{uid} : chaque poste machine ENREGISTRE son propre uid au
+//     login (annuaire auto) → le PARTAGE de commandes vers les postes machine marche
+//     sans coder un seul UID nulle part.
 //   · commentaire audit corrigé : le champ acteur écrit par logAudit s'appelle `uid`
 //     (PAS `by`) — la ligne recommandée d'origine aurait cassé TOUTES les écritures d'audit.
 // ============================================================
@@ -22,14 +25,19 @@ service cloud.firestore {
     function pilote()    { return ['4vlmpeBW9pUFQP59eCkU51bdVZs2']; }
     function operateurs(){ return ['smiBhboxTZZKpmJWiRapTxs1P323',
                                     'qlVoly7PsyMndWMnimTY9mKUu532',
-                                    'z1e9TGOTUDZ9KYtGl12i6HnISrv2',
-                                    'UID_FEBA',        // [L153] Poste FEBA     (feba@…)     ← remplacer par l'ID utilisateur complet
-                                    'UID_MAVEG',       // [L153] Poste MAVEG    (maveg@…)    ← remplacer par l'ID utilisateur complet
-                                    'UID_CEVENINI'];   // [L153] Poste CEVENINI (cevenini@…) ← remplacer par l'ID utilisateur complet
-                         }
+                                    'z1e9TGOTUDZ9KYtGl12i6HnISrv2']; }
+    // [L160] comptes MACHINE partagés (postes FEBA / MAVEG / CEVENINI) reconnus par l'email
+    // du jeton — domaine COMPLET exigé (personne d'extérieur ne peut fabriquer cette adresse
+    // dans CE projet : seuls les comptes créés par l'admin existent dans Firebase Auth).
+    function isMachineAccount(){
+      return isAuth()
+        && ('email' in request.auth.token)
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('^(feba|maveg|cevenini)@step-international[.]com$');
+    }
     function isAdmin()  { return isAuth() && uid() in admins(); }
     function isManage() { return isAuth() && (uid() in admins() || uid() in pilote()); }
-    function isKnown()  { return isAuth() && (uid() in admins() || uid() in pilote() || uid() in operateurs()); }
+    function isKnown()  { return isAuth() && (uid() in admins() || uid() in pilote() || uid() in operateurs() || isMachineAccount()); }
 
     function notTouching(protectedKeys) {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedKeys);
@@ -131,6 +139,19 @@ service cloud.firestore {
       // d'un brouillon d'un AUTRE poste et sa consommation à l'envoi (consumed:true posé sur
       // le brouillon repris) sont des flux LÉGITIMES de l'app — la restriction les casserait.
       // Les protections fines (owner, solde, autosave) sont gérées côté client.
+    }
+
+    // ===== MACHINES (annuaire auto des postes machine — [L160]) =====
+    // Chaque poste machine écrit SON doc {machine:'FEBA'} sous machines/{son-uid} au login.
+    // Lu par tous les postes connus → le partage de commandes peut cibler un poste machine
+    // sans qu'aucun UID ne soit codé nulle part. Écriture strictement bornée : un compte
+    // machine ne peut écrire QUE son propre doc, avec le seul champ machine (string courte).
+    match /machines/{id} {
+      allow read:   if isKnown();
+      allow write:  if isMachineAccount() && id == uid()
+                    && request.resource.data.keys().hasOnly(['machine'])
+                    && request.resource.data.machine is string
+                    && request.resource.data.machine.size() <= 20;
     }
 
     // ===== Refus par défaut =====

@@ -1565,7 +1565,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.16-L159';
+const APP_VERSION='2026.07.17-L160';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2403,6 +2403,7 @@ document.addEventListener('keydown',function(e){
         // un token reCAPTCHA périmé qui ferait échouer les écritures Firestore/Storage.
         await refreshAppCheckToken();
         loadFirestoreData();
+        try{ _registerMachineUid(); _loadMachineUids(); }catch(e){}   // [L160 · audit #4] annuaire des postes machine (partage sans uid codé)
         startBrouillons();          // sync temps réel des brouillons partagés
         try{ flushDraftFallbacks(); }catch(e){}   // DRAFT-1 : repousse les brouillons d'envoi restés en repli local
         ensureMonthlyAggregates();   // KPI-1/C6 : gère lui-même le « 1×/jour APRÈS succès » + gate isManage (voir la fonction)
@@ -15247,10 +15248,29 @@ let _viewingSharedId=null;               // [Lot 3] destinataire : id du doc par
 let _viewingSharedRev=0;                 // [Lot 3] dernière révision (sharedRev) déjà hydratée — détecte une nouvelle version
 let _viewingSharedFrom=null;             // [Lot 3] uid de l'émetteur dont on consulte la commande (affichage)
 let _shareCutsLocal={};                  // [L62 · Lot 4] dernier état connu du champ cuts du doc partagé {index:{u,i,at,l}} — miroir local, mis à jour par snapshot + optimiste sur mes propres marquages
-function _iniOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].ini)||'?'; }
-function _nomOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].nom)||_iniOf(uid); }
-function _opColor(uid){ return OP_COLORS[_iniOf(uid)]||OP_COLORS['?']; }
-function _shareOtherUids(){ const me=_uid(); return Object.keys(USER_PROFILES).filter(function(u){return u!==me;}); }
+// [L160 · audit #4] ANNUAIRE AUTO des postes machine (collection Firestore `machines`, cf. firestore.rules) :
+// chaque compte machine écrit {machine:'FEBA'} sous machines/<son-uid> au login ; tous les postes le lisent →
+// le PARTAGE de commandes peut cibler un poste machine sans qu'AUCUN uid ne soit codé nulle part.
+let _machineUids={};   // uid → 'FEBA' | 'MAVEG' | 'CEVENINI'
+function _registerMachineUid(){
+  try{
+    if(!db||!currentUser||currentUser.ini!==''||!/^Poste /.test(currentUser.nom||'')) return;   // seuls les comptes machine
+    const u=firebase.auth().currentUser; if(!u) return;
+    const mk=String(currentUser.nom||'').replace(/^Poste /,'').slice(0,20);
+    boundedWrite(db.collection('machines').doc(u.uid).set({machine:mk}),8000).catch(function(){});   // fire-and-forget (règles : uniquement son propre doc)
+  }catch(e){}
+}
+function _loadMachineUids(){
+  if(!db) return Promise.resolve();
+  return raceTimeout(db.collection('machines').get(),8000).then(function(snap){
+    const m={}; snap.forEach(function(d){ const v=d.data(); if(v&&v.machine) m[d.id]=String(v.machine); });
+    _machineUids=m;
+  }).catch(function(){});
+}
+function _iniOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].ini)||_machineUids[uid]||'?'; }
+function _nomOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].nom)||(_machineUids[uid]?('Poste '+_machineUids[uid]):_iniOf(uid)); }
+function _opColor(uid){ if(_machineUids[uid]&&!USER_PROFILES[uid]){ const mk=String(_machineUids[uid]).toLowerCase(); if(mk==='feba')return'#60a5fa'; if(mk==='maveg')return'#4ade80'; if(mk==='cevenini')return'#a78bfa'; } return OP_COLORS[_iniOf(uid)]||OP_COLORS['?']; }
+function _shareOtherUids(){ const me=_uid(); return Object.keys(USER_PROFILES).concat(Object.keys(_machineUids).filter(function(u){return !USER_PROFILES[u];})).filter(function(u){return u!==me;}); }
 function toggleSharePanel(show){
   const p=document.getElementById('sharePanel'); if(!p) return;
   if(show && _viewingSharedId){ showToast('🔒 Tu consultes la commande d\'un collègue (miroir) — quitte la vue avant de partager à ton tour.','err'); return; }   // [L103 · audit-max]
