@@ -7,6 +7,7 @@
 <!-- PWA : installable sur écran d'accueil + démarrage hors-ligne (shell en cache) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1c1c1b">
+<link rel="preconnect" href="https://www.gstatic.com"><!-- [L163 · sweep perf #14] ouvre la connexion gstatic tôt : les 5 SDK Firebase (scripts bloquants) chargent plus vite au boot -->
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1342,7 +1343,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
       <select id="saveFilterRef" aria-label="Filtrer les plans par référence" onchange="renderSaves()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
         <option value="">Toutes matières / réf.</option>
       </select>
-      <input type="text" id="saveFilterCmd" aria-label="Filtrer les plans par n° de commande" oninput="renderSaves()" placeholder="N° commande…" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+      <input type="text" id="saveFilterCmd" aria-label="Filtrer les plans par n° de commande" oninput="debouncedRenderSaves()" placeholder="N° commande…" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px"><!-- [L163 · sweep perf #6] débounce (seul filtre texte non débouncé) -->
       <button class="btn btn-ghost btn-sm" onclick="resetSaveFilters()">✕ Reset</button>
     </div>
     <!-- [L65] compteur de commandes préparées (plans sauvegardés en attente de découpe) -->
@@ -1446,7 +1447,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 
 <!-- MODALS -->
 <div class="modal-overlay" id="saveModal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saveModalTitle">
     <h3 id="saveModalTitle">💾 Sauvegarder le plan</h3>
     <div class="field"><label>Client</label><input type="text" id="saveClient" inputmode="text"></div>
     <div class="field"><label>Référence produit</label><input type="text" id="saveRef" inputmode="text"></div>
@@ -1458,8 +1459,8 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 </div>
 
 <div class="modal-overlay" id="loadModal">
-  <div class="modal">
-    <h3>📂 Charger ce plan ?</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="loadModalTitle">
+    <h3 id="loadModalTitle">📂 Charger ce plan ?</h3>
     <div id="loadModalInfo" class="text-muted" style="margin-bottom:12px;font-size:14px"></div>
     <div class="modal-btns">
       <button class="btn btn-ghost btn-sm" onclick="closeLoadModal()">Annuler</button>
@@ -1471,8 +1472,8 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 <!-- [L123 · T3] modale #chronoSaveModal RETIRÉE (jamais ouverte — le temps est enregistré par le batch de confirmation de commande) -->
 
 <div class="modal-overlay" id="newCmdConflictModal">
-  <div class="modal">
-    <h3>⏸ Une commande est déjà en cours</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="newCmdConflictTitle">
+    <h3 id="newCmdConflictTitle">⏸ Une commande est déjà en cours</h3>
     <div id="newCmdConflictInfo" style="background:#242421;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:var(--muted);line-height:1.7"></div>
     <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px">Charger une nouvelle commande. Que faire de la commande en cours ?</div>
     <div style="display:flex;flex-direction:column;gap:8px">
@@ -1484,7 +1485,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 </div>
 
 <div class="modal-overlay" id="lameInstallModal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lameInstallTitle">
     <h3 id="lameInstallTitle">Pose d'une lame</h3>
     <div id="lameInstallHint" class="text-muted" style="margin-bottom:12px;font-size:13px"></div>
     <div class="field">
@@ -1499,8 +1500,8 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 </div>
 
 <div class="modal-overlay" id="op2RefModal">
-  <div class="modal">
-    <h3>Opérateur 2 — quelle référence ?</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="op2RefTitle">
+    <h3 id="op2RefTitle">Opérateur 2 — quelle référence ?</h3>
     <div class="text-muted" style="margin-bottom:12px;font-size:13px">La 2ᵉ machine reprend la référence choisie.</div>
     <div id="op2RefList" style="display:flex;flex-direction:column;gap:8px"></div>
     <div class="modal-btns">
@@ -1577,7 +1578,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.17-L162';
+const APP_VERSION='2026.07.17-L163';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3242,7 +3243,7 @@ function refreshPhotoZone(lineId){
   if(!zone) return;
   const data=ficholinePhotos[lineId];
   if(data){
-    zone.innerHTML=`<img src="${esc(safeUrl(data))}" class="photo-thumb" onclick="openPhotoViewer('${lineId}')" alt="photo">
+    zone.innerHTML=`<img src="${esc(safeUrl(data))}" class="photo-thumb" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.onclick();}" onclick="openPhotoViewer('${lineId}')" alt="Photo de la bobine — ouvrir en grand"><!-- [L163 · a11y CRITIQUE #2] image cliquable au clavier -->
       <button class="photo-btn" onclick="triggerPhoto('${lineId}')" title="Changer la photo">🔄</button>
       <button class="photo-btn" onclick="deletePhoto('${lineId}')" title="Supprimer la photo" style="border-color:#7a2222;color:var(--red)">🗑</button>`;
   } else {
@@ -3503,7 +3504,7 @@ function refreshCommandePhotoZone(){
   commandeFiles.forEach((f,i)=>{
     if(f.type==='image'){
       html+=`<div style="position:relative;display:inline-block">
-        <img src="${esc(safeUrl(f.url))}" class="photo-thumb" onclick="openCommandeFileViewer(${i})" alt="${esc(f.name||'image')}" title="${esc(f.name||'')}">
+        <img src="${esc(safeUrl(f.url))}" class="photo-thumb" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.onclick();}" onclick="openCommandeFileViewer(${i})" alt="${esc(f.name||'Fichier commande')} — ouvrir" title="${esc(f.name||'')}"><!-- [L163 · a11y CRITIQUE #2] -->
         <button onclick="deleteCommandeFile(${i})" aria-label="Supprimer ce fichier" style="position:absolute;top:-10px;right:-10px;background:#7a2222;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;line-height:1;box-shadow:0 0 0 2px var(--card)">✕</button><!-- [L83 · Audit #31] cible tactile ≥32px -->
       </div>`;
     }else{
@@ -6176,7 +6177,7 @@ function chutePrintConfig(pattern,chute){
   const parts=pattern.map(p=>{
     if(chute[p.width]){
       const before=p.qty+chute[p.width];
-      return '<s style="color:#999">'+before+'×'+p.width+'</s> <b style="color:#b45309">&rarr; '+p.qty+'×'+p.width+'</b>';
+      return '<s style="color:#767676">'+before+'×'+p.width+'</s> <b style="color:#b45309">&rarr; '+p.qty+'×'+p.width+'</b>';/* [L163 · sweep a11y] #999→#767676 : lisible sur le PDF (fond blanc) — 4,54:1 en gardant l'effet grisé barré */
     }
     return esc(p.qty>1?p.qty+'×'+p.width:p.width+'mm');
   });
@@ -6717,6 +6718,8 @@ async function doSave(){
 }
 let _saveClientOptsHtml=null, _saveClientKeys=null;   // [L80·PERF-3] cache des <option> client (catalogue statique)
 const _saveRefOptsByClient={};                         // [L80·PERF-3] cache des <option> réf par client sélectionné
+let _savesSearchTimer=null;
+function debouncedRenderSaves(){ clearTimeout(_savesSearchTimer); _savesSearchTimer=setTimeout(renderSaves,200); }   // [L163 · sweep perf #6]
 function renderSaves(){
   let saves=savesCache.filter(s=>!s.deleted);
   // [L65] compteur : combien de commandes sont déjà préparées (plans en attente de découpe).
@@ -9525,9 +9528,9 @@ function svgHBars(items,unit,W,padL){
   items.forEach((it,i)=>{
     const y=padT+i*gap;
     const bw=Math.max(3,(it.value/maxV)*(W-padL-70));
-    out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#aaa" font-size="11" font-weight="600">${it.label}</text>`;
+    out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#aaa" font-size="11" font-weight="600">${esc(String(it.label))}</text>`;/* [L163 · sweep sécurité] esc : label = ini opérateur / nom machine (données inter-postes) */
     out+=`<rect x="${padL}" y="${y}" width="${bw}" height="${barH}" rx="3" fill="${it.color}" opacity="0.85"/>`;
-    out+=`<text x="${padL+bw+6}" y="${y+barH/2+4}" fill="#e5e5e3" font-size="11" font-weight="700">${it.disp!==undefined?it.disp:(Math.round(it.value*10)/10)}${unit}${it.sub?` <tspan fill="#777" font-weight="400">${it.sub}</tspan>`:''}</text>`;
+    out+=`<text x="${padL+bw+6}" y="${y+barH/2+4}" fill="#e5e5e3" font-size="11" font-weight="700">${it.disp!==undefined?it.disp:(Math.round(it.value*10)/10)}${unit}${it.sub?` <tspan fill="#777" font-weight="400">${esc(String(it.sub))}</tspan>`:''}</text>`;/* [L163 · sweep sécurité] esc défensif sur it.sub */
   });
   return `<svg viewBox="0 0 ${W} ${padT+n*gap}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
 }
@@ -9621,8 +9624,8 @@ function _atipEl(){
 }
 function _atipShow(ev,html){ const e=_atipEl(); e.innerHTML=html; e.style.opacity='1'; _atipMove(ev); }
 function _atipMove(ev){ const e=_atipEl(); const p=(ev&&ev.touches&&ev.touches[0])||ev; if(!p) return; e.style.left=Math.min(p.clientX+14,window.innerWidth-270)+'px'; e.style.top=(p.clientY+14)+'px'; }
-function _atipHide(){ const e=document.getElementById('analyseTip'); if(e) e.style.opacity='0'; }
-document.addEventListener('scroll',_atipHide,true);
+function _atipHide(){ const e=document.getElementById('analyseTip'); if(e&&e.style.opacity!=='0') e.style.opacity='0'; }   // [L163 · sweep perf #16] idempotent : ne touche le DOM que si nécessaire (écoute TOUS les scrolls en capture, ~60 Hz)
+document.addEventListener('scroll',_atipHide,{capture:true,passive:true});   // [L163] passive : ne bloque jamais le scroll
 
 function svgBarChart(items,color,maxVal,W,H,padL,padB){
   if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
@@ -9648,7 +9651,7 @@ function svgBarChart(items,color,maxVal,W,H,padL,padB){
     const tip=`${it.label} mm · ${Math.round(it.value)} s/laize`;
     out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="2" fill="${color}" opacity="0.9" style="cursor:pointer" onmouseenter="_atipShow(event,'${tip}')" onmousemove="_atipMove(event)" onmouseleave="_atipHide()" onclick="_atipShow(event,'${tip}')"/>`;
     if(i%step===0){
-      out+=`<text x="${cx}" y="${H-padB+15}" text-anchor="end" fill="#999" font-size="10.5" transform="rotate(-40 ${cx} ${H-padB+15})">${it.label}</text>`;
+      out+=`<text x="${cx}" y="${H-padB+15}" text-anchor="end" fill="#999" font-size="10.5" transform="rotate(-40 ${cx} ${H-padB+15})">${esc(String(it.label))}</text>`;/* [L163 · sweep sécurité] esc défensif (label d'axe) */
     }
   });
   out+=`<text x="${W-4}" y="${H-2}" text-anchor="end" fill="#666" font-size="10">largeur (mm) →</text>`;
@@ -9878,7 +9881,7 @@ function kpiMoisInnerHTML(ym){
   const _delta=(cur,prev,unit,goodDown)=>{
     if(prev==null||!isFinite(Number(prev))) return '';
     const d=Math.round((Number(cur)-Number(prev))*10)/10;
-    if(d===0) return `<div style="font-size:11px;color:#777;margin-top:3px">= mois préc.</div>`;
+    if(d===0) return `<div style="font-size:11px;color:#999;margin-top:3px">= mois préc.</div>`;
     const up=d>0, good=goodDown?!up:up, col=good?'#4ade80':'#f87171';
     return `<div style="font-size:11px;font-weight:700;color:${col};margin-top:3px">${up?'▲':'▼'} ${up?'+':''}${d.toLocaleString('fr-FR')}${unit} vs mois préc.</div>`;
   };
@@ -9901,11 +9904,11 @@ function kpiMoisInnerHTML(ym){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px">
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Fiches</div><div style="font-size:24px;font-weight:800">${kpi.nbFiches||0}</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobines</div><div style="font-size:24px;font-weight:800">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</div>${_delta(kpi.totalBobines,prevKpi&&prevKpi.totalBobines,'',false)}</div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Rendement matière</div><div style="font-size:24px;font-weight:800;color:var(--green)">${rendement.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#777;margin-top:3px">utile ÷ mère</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#666">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Rendement matière</div><div style="font-size:24px;font-weight:800;color:var(--green)">${rendement.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#999;margin-top:3px">utile ÷ mère</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#999">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chute réutilisable</div><div style="font-size:24px;font-weight:800;color:#5eead4">${((kpi.soldeMm||0)/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} m</div><div style="font-size:11px;color:#777;margin-top:3px">soldes conservés (≠ perte)</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#777;margin-top:3px">chutes réutilisées</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chute réutilisable</div><div style="font-size:24px;font-weight:800;color:#5eead4">${((kpi.soldeMm||0)/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} m</div><div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>
     </div>
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#60a5fa')}${machCard('MAVEG','#4ade80')}${machCard('CEVENINI','#a78bfa')}</div>
@@ -11408,9 +11411,9 @@ function buildDebitToolbox(){
         <select id="est_ref" onchange="dujEstRefChange()" class="u-inp">${estRefOpts}</select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">
-        <div><label class="stk-lbl">Laize mère (mm)</label><input id="est_mother" inputmode="decimal" placeholder="2100" oninput="dujEstimate()" class="u-inp"></div>
-        <div><label class="stk-lbl">Perte bords (mm)</label><input id="est_edge" inputmode="decimal" value="10" oninput="dujEstimate()" class="u-inp"></div>
-        <div><label class="stk-lbl">Perte lame (mm)</label><input id="est_blade" inputmode="decimal" value="5" oninput="dujEstimate()" class="u-inp"></div>
+        <div><label class="stk-lbl">Laize mère (mm)</label><input id="est_mother" inputmode="decimal" placeholder="2100" oninput="dujEstimateD()" class="u-inp"></div>
+        <div><label class="stk-lbl">Perte bords (mm)</label><input id="est_edge" inputmode="decimal" value="10" oninput="dujEstimateD()" class="u-inp"></div>
+        <div><label class="stk-lbl">Perte lame (mm)</label><input id="est_blade" inputmode="decimal" value="5" oninput="dujEstimateD()" class="u-inp"></div>
       </div>
       <div style="margin-top:12px">
         <label class="stk-lbl">Bobineaux à couper — nb × largeur (ajoute-en plusieurs, comme dans le plan)</label>
@@ -11419,7 +11422,7 @@ function buildDebitToolbox(){
       </div>
       <div id="est_long_wrap" style="margin-top:12px"><!-- [L106 · Phase 1 · O] repli : métrage manuel si aucune réf choisie (l'estimateur ne peut rien calculer sans métrage) -->
         <label class="stk-lbl">Métrage bobine mère (m) <span style="color:var(--muted);font-size:11px">— rempli automatiquement si une référence est choisie</span></label>
-        <input id="est_long" inputmode="decimal" oninput="dujEstimate()" class="u-inp" style="max-width:220px">
+        <input id="est_long" inputmode="decimal" oninput="dujEstimateD()" class="u-inp" style="max-width:220px">
       </div><!-- [L106 · Phase 1 · N] champ « Marge réglage (min) » supprimé -->
       <div id="est_result" style="margin-top:14px;font-size:14px;color:var(--muted)">Choisis une référence (ou saisis laize mère + métrage), puis ajoute les largeurs.</div>
     </div>
@@ -11454,9 +11457,9 @@ function dujEstRefChange(){
 // Une ligne "nb × largeur" de l'estimateur (façon plan).
 function dujEstRowHTML(q,w){
   return '<div class="est-row" style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'
-    +'<input type="text" data-eq="1" inputmode="numeric" placeholder="2" value="'+esc(q||'')+'" oninput="dujEstimate()" class="u-inp" style="max-width:80px;text-align:center">'
+    +'<input type="text" data-eq="1" inputmode="numeric" placeholder="2" value="'+esc(q||'')+'" oninput="dujEstimateD()" class="u-inp" style="max-width:80px;text-align:center">'
     +'<span style="color:var(--muted);font-size:14px">×</span>'
-    +'<input type="text" data-ew="1" inputmode="decimal" placeholder="80" value="'+esc(w||'')+'" oninput="dujEstimate()" class="u-inp" style="max-width:100px;text-align:center">'
+    +'<input type="text" data-ew="1" inputmode="decimal" placeholder="80" value="'+esc(w||'')+'" oninput="dujEstimateD()" class="u-inp" style="max-width:100px;text-align:center">'
     +'<span style="color:var(--muted);font-size:13px">mm</span>'
     +'<button class="btn btn-red btn-sm" style="padding:6px 10px;margin-left:auto" aria-label="Retirer cette largeur" onclick="this.closest(\'.est-row\').remove();dujEstimate()">✕</button>'
     +'</div>';
@@ -11546,6 +11549,8 @@ function dujEstimateAdditive(machKey,nbMother,longueur,nbDaughters){
 }
 // Estimateur : saisie commande (largeurs × qté) → nb de bobines mères via le moteur
 // de placement (pack), puis métrage (longueur × nb mères) et durée via le débit m/h.
+let _dujTimer=null;
+function dujEstimateD(){ clearTimeout(_dujTimer); _dujTimer=setTimeout(dujEstimate,200); }   // [L163 · sweep perf #15] débounce : dujEstimate expanse la demande à chaque frappe des 7 champs
 function dujEstimate(){
   const out=document.getElementById('est_result'); if(!out) return;
   const mother=parseNum(document.getElementById('est_mother')?.value);
@@ -11696,7 +11701,7 @@ function buildAnalyseDashboard(d){
           const col=pct>80?'#f87171':pct>50?'#f59e0b':'#4ade80';
           return `<tr style="border-bottom:1px solid #222">
             <td style="padding:8px 10px;color:#888">${i+1}</td>
-            <td style="padding:8px 10px;font-weight:600">${c.client}</td>
+            <td style="padding:8px 10px;font-weight:600">${esc(c.client)}</td><!-- [L163 · sweep sécurité CRITIQUE] esc() : nom client = saisie LIBRE (#fClient) → XSS stocké exécuté en contexte admin à l'ouverture d'Analyse. Seule surface qui ne l'échappait pas. -->
             <td style="padding:8px 10px;text-align:right;font-weight:700;color:${col}">${Math.round(c.avg)}s</td>
             <td style="padding:8px 10px;text-align:right;color:#888">${c.cmds}</td>
             <td style="padding:8px 10px;min-width:100px">
@@ -11716,7 +11721,7 @@ function buildAnalyseDashboard(d){
         ${machItems.map(m=>`
         <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px;text-align:center">
           <div style="font-size:18px;font-weight:800;color:${m.color}">${Math.round(m.avg)}s</div>
-          <div style="font-size:12px;font-weight:700;margin:4px 0">${m.label}</div>
+          <div style="font-size:12px;font-weight:700;margin:4px 0">${esc(String(m.label))}</div><!-- [L163 · sweep sécurité MAJEUR] esc : m.label = nom machine issu d'un doc temps (inter-postes) -->
           <div style="font-size:12px;color:#888">${m.cmds} cmd · ${m.totalH}h prod.</div>
         </div>`).join('')}
       </div>
@@ -11737,7 +11742,7 @@ function buildAnalyseDashboard(d){
               const y=padT+i*gap;
               const bw=Math.max(4,(it.value/maxV)*(W-padL-10));
               out+=`<rect x="${padL}" y="${y}" width="${bw}" height="${barH}" rx="3" fill="${it.color}" opacity="0.85"/>`;
-              out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#888" font-size="11" font-weight="600">${it.label}</text>`;
+              out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#888" font-size="11" font-weight="600">${esc(String(it.label))}</text>`;/* [L163 · sweep sécurité MAJEUR] esc : nom machine dans le SVG */
               out+=`<text x="${padL+bw+6}" y="${y+barH/2+4}" fill="#e5e5e3" font-size="11" font-weight="700">${Math.round(it.value)}s/laize</text>`;
             });
             return out;
@@ -11989,7 +11994,7 @@ function renderAnalyse(){
   })).sort((a,b)=>b.avg-a.avg);
 
   const legendOps=allOps.map(op=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px">
-    <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${opColors[op]||'#888'}"></span>${op}
+    <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${opColors[op]||'#888'}"></span>${esc(String(op))}<!-- [L163 · sweep sécurité] esc : initiale opérateur (données inter-postes) -->
   </span>`).join('');
 
   const W=780,H=250,padL=42,padB=46;   // L35 — plus large + marge basse pour labels X tournés
@@ -12005,7 +12010,7 @@ function renderAnalyse(){
     const n=volItems.length,gap=(W-padL-10)/n,barW=Math.max(14,gap*0.6),scaleY=(H-padB-16)/maxVol;
     let out='';
     for(let i=0;i<=4;i++){const y=H-padB-i*(H-padB-16)/4;out+=`<line x1="${padL}" x2="${W-4}" y1="${y}" y2="${y}" stroke="#2a2a28" stroke-width="1"/><text x="${padL-4}" y="${y+4}" text-anchor="end" fill="#666" font-size="10">${Math.round(maxVol*i/4)}</text>`;}
-    volItems.forEach((it,i)=>{const x=padL+i*gap+gap/2-barW/2,bh=Math.max(2,it.value*scaleY),y=H-padB-bh;out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#34d399" opacity="0.85"/><text x="${x+barW/2}" y="${y-4}" text-anchor="middle" fill="#e5e5e3" font-size="10" font-weight="600">${it.value}</text><text x="${x+barW/2}" y="${H-padB+13}" text-anchor="middle" fill="#888" font-size="9">${it.label}</text>`;});
+    volItems.forEach((it,i)=>{const x=padL+i*gap+gap/2-barW/2,bh=Math.max(2,it.value*scaleY),y=H-padB-bh;out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#34d399" opacity="0.85"/><text x="${x+barW/2}" y="${y-4}" text-anchor="middle" fill="#e5e5e3" font-size="10" font-weight="600">${it.value}</text><text x="${x+barW/2}" y="${H-padB+13}" text-anchor="middle" fill="#888" font-size="9">${esc(String(it.label))}</text>`;});/* [L163 · sweep sécurité] esc défensif */
     return out;
   })();
 
@@ -12703,7 +12708,7 @@ function efRenderPhoto(orig){
   if(!z) return;
   const url=efPhotos[orig];
   if(url){
-    z.innerHTML=`<img src="${esc(safeUrl(url))}" onclick="efOpenPhoto('${orig}')" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer">
+    z.innerHTML=`<img src="${esc(safeUrl(url))}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.onclick();}" onclick="efOpenPhoto('${orig}')" alt="Photo — ouvrir en grand" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"><!-- [L163 · a11y CRITIQUE #2] -->
       <button onclick="efTriggerPhoto('${orig}')" title="Changer la photo" style="background:#1c3a5c;border:1px solid #2b5b8c;color:#9ecbf0;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px">🔄</button>
       <button onclick="efDeletePhoto('${orig}')" title="Supprimer la photo" style="background:#3a1414;border:1px solid #5a2020;color:#f87171;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px">🗑</button>`;
   } else {
@@ -12963,7 +12968,7 @@ async function renderAudit(){
     <div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Depuis le</label>
       <input type="date" id="auditFFrom" onchange="auditApplyFilters()" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px"></div>
     <div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Recherche</label>
-      <input type="text" id="auditFQ" oninput="auditApplyFilters()" placeholder="client, réf, n° doc…" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px"></div>
+      <input type="text" id="auditFQ" oninput="debouncedAuditApplyFilters()" placeholder="client, réf, n° doc…" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px"></div><!-- [L163 · sweep perf #13] débounce (table d'audit reconstruite à chaque frappe) -->
     <div style="display:flex;gap:6px">
       <button class="btn btn-ghost btn-sm" style="flex:1" onclick="auditRefresh(this)">↻ Rafraîchir</button>
       <button class="btn btn-blue btn-sm" style="flex:1" onclick="exportAudit()">⬇ CSV</button>
@@ -12987,6 +12992,8 @@ async function renderAudit(){
   <div id="auditCount" style="font-size:12px;color:var(--muted);margin-top:10px"></div>`;
   auditApplyFilters();
 }
+let _auditFilterTimer=null;
+function debouncedAuditApplyFilters(){ clearTimeout(_auditFilterTimer); _auditFilterTimer=setTimeout(auditApplyFilters,250); }   // [L163 · sweep perf #13]
 function auditApplyFilters(){
   const body=document.getElementById('auditBody');
   if(!body) return;
@@ -15127,7 +15134,8 @@ function parseConf(val){
   });
   return pieces;
 }
-function onFicheConfChange(){updateAllCumuls();}
+let _confCumulTimer=null;
+function onFicheConfChange(){ clearTimeout(_confCumulTimer); _confCumulTimer=setTimeout(updateAllCumuls,200); }   // [L163 · sweep perf #5] débounce : recalcul complet des cumuls était synchrone à CHAQUE frappe de « conf »
 function updateAllCumuls(){
   // Cumul PAR RÉFÉRENCE : chaque bobine compte dans le total de SA réf
   // (deux réfs partageant une largeur ont chacune leur compteur / ✓ / carton /
