@@ -381,8 +381,8 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
    et les contenus PHOTOGRAPHIQUES (img/video) sont ré-inversés pour rester naturels. Le filtre est posé sur
    <html> (PAS body : un filtre sur body casserait tous les position:fixed — nav, barre d'action, toasts).
    L'impression/PDF n'est PAS affectée (documents iframe/fenêtre séparés, leurs styles propres s'appliquent). */
-html.theme-light{filter:invert(1) hue-rotate(180deg);background:#f2f1ee}
-html.theme-light img,html.theme-light video{filter:invert(1) hue-rotate(180deg)}
+html.theme-light{filter:invert(1) hue-rotate(180deg);background:#0d0e11}/* [L161 · revue #3] valeur PRÉ-inversion : le fond du root est LUI-MÊME filtré → #0d0e11 rend ≈ #f1f2ee CLAIR (l'ancien #f2f1ee rendait le canvas overscroll SOMBRE — l'inverse de l'intention) */
+html.theme-light img,html.theme-light video,html.theme-light iframe{filter:invert(1) hue-rotate(180deg)}/* [L161 · revue #1 MAJEUR] iframe AUSSI : l'aperçu d'impression (#printOverlayFrame) et la visionneuse de pièces jointes (#fileOverlayFrame) s'affichaient en NÉGATIF en mode clair (le filtre racine composite les iframes) — l'impression papier, elle, n'a jamais été affectée */
 
 /* ============================================================
    [L158 · polish visuel — skill frontend-design] PRECISION PASS, pas de refonte :
@@ -713,7 +713,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 <div id="dbLoadingBanner" style="display:none;position:fixed;bottom:calc(14px + env(safe-area-inset-bottom,0px));right:14px;background:#1e3a5f;color:#60a5fa;border:1px solid #2d5a9e;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;align-items:center;gap:8px">
   <span style="display:inline-block;animation:dbspin 1s linear infinite">&#x21BB;</span> Chargement des données…
 </div>
-<div id="dbErrorMsg" role="alert" style="display:none;position:fixed;bottom:14px;right:14px;background:#3d1414;color:#f87171;border:1px solid #7a2222;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;cursor:pointer" onclick="this.style.display='none'">&#9888; Erreur base de données (clique pour fermer)</div><!-- [L159 · a11y #2] annoncé aux lecteurs d'écran -->
+<div id="dbErrorMsg" role="alert" style="display:none;position:fixed;bottom:14px;right:14px;max-width:min(480px,90vw);white-space:pre-line;background:#3d1414;color:#f87171;border:1px solid #7a2222;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;cursor:pointer" onclick="_dbErrTap(this)">&#9888; Erreur base de données (clique pour fermer)</div><!-- [L159 · a11y #2] annoncé aux lecteurs d'écran · [L161 · revue #4] pre-line (le \n de l'indice UID rendait en espace) + tap intelligent : copie l'UID s'il est affiché, sinon ferme -->
 <!-- [L96 · vérif #1] bannière verte de veille (L87) SUPPRIMÉE : son « Recharger » (location.reload nu) resservait la version ÉPINGLÉE par le gel L89 → clic sans effet + 2 bannières concurrentes. La bannière bleue updBanner (gel de version) est la seule voie de mise à jour. -->
 <div id="lameAlertBanner" style="display:none;position:fixed;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-size:14px;font-weight:700;z-index:5999;align-items:center;justify-content:center;gap:12px;text-align:center;flex-wrap:wrap"></div>
 
@@ -1565,7 +1565,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.17-L160';
+const APP_VERSION='2026.07.17-L161';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1915,8 +1915,9 @@ async function loadFirestoreData(){
     // [L155] permission-denied sur un compte NON listé dans les règles Firestore (ex. nouveau compte machine) :
     // afficher l'UID à copier → l'admin l'ajoute à operateurs() dans les règles sans fouiller la console Firebase.
     const _perm=/permission|insufficient/i.test(String(e&&e.message||''));
-    const _uidHint=(_perm&&firebase.auth&&firebase.auth().currentUser)?('\n🔑 UID de ce compte (à ajouter aux règles Firestore par l\'admin) : '+firebase.auth().currentUser.uid):'';
-    if(errEl){errEl.textContent='⚠ Erreur connexion base de données : '+e.message+_uidHint;errEl.style.display='block';}
+    const _theUid=(_perm&&firebase.auth&&firebase.auth().currentUser)?firebase.auth().currentUser.uid:'';
+    const _uidHint=_theUid?('\n🔑 UID de ce compte : '+_theUid+'\n(touche cette bannière pour COPIER l\'UID — à donner à l\'admin)'):'';
+    if(errEl){errEl.textContent='⚠ Erreur connexion base de données : '+e.message+_uidHint;errEl.dataset.uid=_theUid;errEl.style.display='block';}   // [L161 · revue #4] dataset.uid → le tap copie au lieu de fermer
   }finally{
     if(spin) spin.style.display='none';
   }
@@ -2461,8 +2462,11 @@ document.addEventListener('keydown',function(e){
       currentUser=null;
       // [L156 · audit #3] poste PARTAGÉ : vider l'opérateur sélectionné (le DOM monofichier survit à la
       // déconnexion) — sinon la session suivante sur un compte MACHINE héritait des initiales du précédent.
+      // [L161 · revue #12] symétrie : l'OP.2 aussi (il restait pré-sélectionné alors qu'op.1 était vidé).
       try{ const h=document.getElementById('fInitiales'); if(h)h.value='';
-        document.querySelectorAll('#initBtns .ini-btn').forEach(function(b){b.classList.remove('sel');}); }catch(_){}
+        document.querySelectorAll('#initBtns .ini-btn').forEach(function(b){b.classList.remove('sel');});
+        const h2=document.getElementById('fInitiales2'); if(h2)h2.value='';
+        document.querySelectorAll('#initBtns2 .ini-btn').forEach(function(b){b.classList.remove('sel2');}); }catch(_){}
       auditCache=[]; auditLoaded=false; auditLoading=false;   // pas de fuite d'audit entre sessions
       document.getElementById('loginInput').value='';
       document.getElementById('loginPassword').value='';
@@ -2948,6 +2952,22 @@ function countCoupees(){ return ficheLines.filter(({id})=>document.getElementByI
 function _flReveal(el){
   try{ document.getElementById('ficheLines')?.classList.remove('hide-coupees'); }catch(e){}
   try{ el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.add('fl-spot'); setTimeout(()=>{try{el.classList.remove('fl-spot');}catch(e){}},2200); }catch(e){}
+}
+// [L161 · revue #4] tap sur la bannière d'erreur DB : si un UID y est affiché (compte non listé dans les
+// règles), le tap le COPIE (presse-papier + repli execCommand) au lieu de fermer — il était impossible à
+// copier (tout clic fermait la bannière). Sans UID affiché : comportement historique (fermer).
+function _dbErrTap(el){
+  const u=(el&&el.dataset&&el.dataset.uid)||'';
+  if(!u){ el.style.display='none'; return; }
+  const done=()=>{ try{ showToast('✓ UID copié — colle-le à l\'admin (ou dans les règles Firestore).','ok'); }catch(_){} };
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(done).catch(function(){ _dbErrCopyFallback(u); done(); }); }
+    else { _dbErrCopyFallback(u); done(); }
+  }catch(_){ try{ _dbErrCopyFallback(u); done(); }catch(__){} }
+}
+function _dbErrCopyFallback(txt){
+  const ta=document.createElement('textarea'); ta.value=txt; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta);
+  ta.select(); try{ document.execCommand('copy'); }catch(_){} ta.remove();
 }
 
 // ============================================================
@@ -5435,7 +5455,11 @@ function mergeDuplicateRefBlocks(){   // nom conservé (appelants) — ne fait p
 // clic fusionnait TOUS les groupes de doublons d'un coup, y compris un groupe non arbitré (re-fusion silencieuse).
 function mergeDupRefNow(di){
   if(_restoringRefGroups) return;
-  const want=(_dupRefPending[di]||{}).key||null;   // clé du groupe visé (null = legacy : tous)
+  const want=(_dupRefPending[di]||{}).key||null;   // clé du groupe visé
+  // [L161 · revue #7] index périmé (la liste a changé entre le rendu de la bannière et le clic — recalc
+  // débouncé) : NE RIEN fusionner (l'ancien repli « null = tous » réintroduisait la fusion non arbitrée
+  // que L156 #5 supprimait). On rafraîchit la bannière et l'opérateur re-clique.
+  if(want===null){ try{ recalcPlan(); }catch(e){} showToast('⚠ La liste des doublons a changé — re-clique sur la bannière « ♻ Fusionner ».','err'); return; }
   const blocks=[...document.querySelectorAll('.ref-block')];
   const byKey={};
   blocks.forEach(bl=>{ const k=_dupRefKeyOf(bl); if(!k) return; (byKey[k]=byKey[k]||[]).push(bl); });
@@ -7313,6 +7337,12 @@ async function stopManqueMatiere(){
   //  · #6 copie locale d'un partage terminé → confirm anti-doublon (miroir 7140, absent de cette voie) ;
   //  · #4 op.2 activé sans bobine (temps op.2 invisible), test 2ᵉ dé-validé, NC sans motif/sans action ;
   //  · [L137 · audit #2/#3] photo NC encore en upload, bascule lame/machine incomplète (miroir des gardes 7127-7137).
+  // [L161 · revue #9] même garde opérateur qu'à l'envoi normal (fiche au nom de « — » sinon).
+  if(!(document.getElementById('fInitiales')?.value||'').trim()){
+    showToast('⚠ Touche TES initiales (Opérateur 1) avant l\'arrêt manque-matière.','err');
+    const el=document.getElementById('initBtns'); if(el){ try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){} el.style.outline='2px solid var(--red)'; setTimeout(()=>{el.style.outline='';},2500); }
+    return;
+  }
   // [L137 · audit #2] photo NC en cours d'envoi : sinon la fiche partielle part sans sa référence photo (preuve ISO perdue).
   if(_photoUploadsPending>0){ showToast('⏳ '+_photoUploadsPending+' photo(s) en cours d\'envoi — attends quelques secondes avant l\'arrêt manque-matière.','err'); return; }
   // [L137 · audit #3] bascule LAME changée incomplète → analyse NC-par-lame faussée (bobine rattachée à la mauvaise lame).
@@ -7490,6 +7520,14 @@ function _commitRace(batch,ms){
 function confirmCommandeRecap(){
   if(_sendingFiche) return;
   if(_shareBlockSend()) return;   // [L63 · Lot 5] destinataire d'un partage : envoi réservé à l'émetteur
+  // [L161 · revue #9] l'ENVOI exige l'opérateur (comme le chrono) : sur un compte MACHINE, une fiche sans
+  // initiales partirait au nom de « — » (traçabilité ISO) — cas atteignable après logout/login (la fiche
+  // vivante survit à la déconnexion). Inoffensif pour un compte personnel (initiales pré-remplies).
+  if(!(document.getElementById('fInitiales')?.value||'').trim()){
+    showToast('⚠ Touche TES initiales (Opérateur 1) avant d\'envoyer la commande.','err');
+    const el=document.getElementById('initBtns'); if(el){ try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){} el.style.outline='2px solid var(--red)'; setTimeout(()=>{el.style.outline='';},2500); }
+    return;
+  }
   // [L70 · Audit B20] options cochées SANS bobine choisie : blocage explicite — sinon la
   // fiche partait avec « dès la bobine ? » et l'analyse NC-par-lame devenait fausse.
   if(document.getElementById('fLameChg')?.checked&&!(document.getElementById('fLameChgBob')?.value)){
