@@ -381,8 +381,20 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
    et les contenus PHOTOGRAPHIQUES (img/video) sont ré-inversés pour rester naturels. Le filtre est posé sur
    <html> (PAS body : un filtre sur body casserait tous les position:fixed — nav, barre d'action, toasts).
    L'impression/PDF n'est PAS affectée (documents iframe/fenêtre séparés, leurs styles propres s'appliquent). */
-html.theme-light{filter:invert(1) hue-rotate(180deg);background:#0d0e11}/* [L161 · revue #3] valeur PRÉ-inversion : le fond du root est LUI-MÊME filtré → #0d0e11 rend ≈ #f1f2ee CLAIR (l'ancien #f2f1ee rendait le canvas overscroll SOMBRE — l'inverse de l'intention) */
-html.theme-light img,html.theme-light video,html.theme-light iframe{filter:invert(1) hue-rotate(180deg)}/* [L161 · revue #1 MAJEUR] iframe AUSSI : l'aperçu d'impression (#printOverlayFrame) et la visionneuse de pièces jointes (#fileOverlayFrame) s'affichaient en NÉGATIF en mode clair (le filtre racine composite les iframes) — l'impression papier, elle, n'a jamais été affectée */
+/* [L162 · retour Esteban « trop clair, on voit pas bien »] mode clair AFFINÉ :
+   · brightness(.95) contrast(1.06) après l'inversion → fond moins éblouissant (≈#e0e1dd au lieu de blanc
+     éclatant) et textes plus fermes ;
+   · bordures RENFORCÉES via les variables (pré-inversion #6f6f6c/#7d7d7a → rendu gris moyen bien visible —
+     l'inversion brute rendait #444 en #bbb délavé) ;
+   · ombres PRÉ-INVERSÉES claires (rgba blanc) → rendues comme de VRAIES ombres sombres après le filtre
+     (les ombres noires inversées devenaient des lueurs invisibles → cartes plates en mode clair). */
+html.theme-light{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(1.06);background:#0d0e11;
+  --border:#6f6f6c;--border2:#7d7d7a;
+  --shadow-1:0 1px 3px rgba(255,255,255,.5),0 1px 2px rgba(255,255,255,.35);
+  --shadow-2:0 8px 28px rgba(255,255,255,.65)}
+/* [L161 · revue #1 MAJEUR] iframe AUSSI ré-inversée (aperçu impression + pièces jointes rendaient en NÉGATIF).
+   [L162] compensation exacte inversée (ordre inverse du filtre racine) pour des photos/PDF naturels. */
+html.theme-light img,html.theme-light video,html.theme-light iframe{filter:contrast(.943) brightness(1.053) hue-rotate(180deg) invert(1)}
 
 /* ============================================================
    [L158 · polish visuel — skill frontend-design] PRECISION PASS, pas de refonte :
@@ -1565,7 +1577,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.17-L161';
+const APP_VERSION='2026.07.17-L162';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
