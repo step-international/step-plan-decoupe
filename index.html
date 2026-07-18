@@ -1578,7 +1578,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.18-L165';
+const APP_VERSION='2026.07.18-L166';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7499,9 +7499,16 @@ async function stopManqueMatiere(){
     // parquage échoue (stockage plein, Firestore KO), le solde disparaissait avec un simple
     // console.warn. Désormais : 1 retry après 2 s, puis ALERTE bloquante à l'opérateur avec
     // la consigne de secours (re-saisir le solde depuis le plan du reste de la fiche).
-    const _parkSolde=()=>{ const drafts=loadDrafts();
-      drafts.unshift({id:'d_'+Date.now(),savedAt:isoNow(),label:soldeLabel,state:soldeState,owner:_ini(),fromFicheId:_ficheId||''});
-      persistDrafts(drafts); };
+    // [L166 · audit #8/#22/#7] fromFicheId TOUJOURS non vide (repli _pendingFicheId réservé par saveCommandeFiche
+    // même si l'envoi a échoué) → la garde « solde jamais consommé par clé » (if(d.fromFicheId)) tient toujours ;
+    // id DÉTERMINISTE ('d_solde_'+fiche) → un 2ᵉ arrêt / retry ÉCRASE au lieu de dupliquer ; repli localStorage
+    // durable (_draftFallbackPush) si Firestore est indisponible (persistDrafts→false) → le solde ne s'évapore plus.
+    const _soldeFiche=_ficheId||_pendingFicheId||'';
+    const _soldeId='d_solde_'+(_soldeFiche||('t'+Date.now()));
+    const _parkSolde=()=>{ const drafts=loadDrafts().filter(function(x){return x&&x.id!==_soldeId;});
+      const _rec={id:_soldeId,savedAt:isoNow(),label:soldeLabel,state:soldeState,owner:_ini(),fromFicheId:_soldeFiche};
+      drafts.unshift(_rec);
+      if(!persistDrafts(drafts)){ if(!_draftFallbackPush(_rec)) throw new Error('stockage indisponible'); } };
     try{
       _parkSolde();
       showToast('⛔ Solde ('+soldeState.lines.length+' bobine(s)) placé en brouillon — Données > Brouillons','ok');
@@ -12610,7 +12617,13 @@ async function validateFiche(id){
   // Fiche manque-matière validée : proposer de créer le PLAN DU RESTE (recalcul
   // ordonné − coupé) dans Données > Plans, et remplacer le brouillon du solde.
   if(f.valide===true && f.manqueMatiere && !f.restePlanId){
-    if(confirm('⛔ Fiche manque matière validée.\n\nCréer le PLAN DU RESTE à couper (la commande non encore coupée) ?\n\nIl ira dans Données > Plans : quand la matière arrive, tu le charges et tu coupes — pas besoin de retaper. Le brouillon du solde sera remplacé par ce plan.')){
+    // [L166 · audit #18] le solde a-t-il DÉJÀ été repris et produit (2ᵉ fiche non-manque de même commande,
+    // postérieure) ? Si oui, créer un « plan du reste » = double découpe → on prévient explicitement le pilote.
+    const _soldeDejaFait=(Array.isArray(fichesCache)?fichesCache:[]).some(function(x){return x&&!x.deleted&&x._id!==id&&!x.manqueMatiere&&nrm(x.client)===nrm(f.client)&&nrm(x.ref)===nrm(f.ref)&&nrm(x.numCmd||'')===nrm(f.numCmd||'')&&String(x.date||'')>String(f.date||'');});
+    const _q=_soldeDejaFait
+      ? '⚠ ATTENTION : une AUTRE fiche de cette commande ('+esc(f.client||'')+' / '+esc(f.ref||'')+') existe déjà APRÈS celle-ci — le solde a probablement DÉJÀ été coupé.\n\nCréer quand même le plan du reste risque une DOUBLE DÉCOUPE. Créer malgré tout ?'
+      : '⛔ Fiche manque matière validée.\n\nCréer le PLAN DU RESTE à couper (la commande non encore coupée) ?\n\nIl ira dans Données > Plans : quand la matière arrive, tu le charges et tu coupes — pas besoin de retaper. Le brouillon du solde sera remplacé par ce plan.';
+    if(confirm(_q)){
       const pid=await createRemainingPlan(f);
       if(pid){
         try{ await db.collection('fiches').doc(id).update({restePlanId:pid}); f.restePlanId=pid; }
@@ -16155,6 +16168,7 @@ function serializeFicheState(){
     chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning, runStart:chronoRunStart},
     lines:getFicheLinesData(),
     pendingFicheId:_pendingFicheId||null, pendingTempsId:_pendingTempsId||null,   // ENVOI-1 : renvoi idempotent
+    resumedDraftId:_resumedDraftId||null,   // [L166 · audit #6] lien de reprise DURABLE : sans lui, un solde repris puis re-coupé APRÈS un rechargement n'était jamais marqué consommé → reprennable une 2ᵉ fois = double découpe
     loadedSaveId:loadedSaveId||null   // [L67 · Audit] lien vers le plan source : sans lui, un envoi via brouillon laissait le plan dans Données→Plans → rechargeable → double découpe
   };
 }
@@ -16353,6 +16367,16 @@ function stopAutosave(){
 // Au démarrage : si le brouillon auto contient un chrono qui TOURNAIT et que
 // l'écran fiche est vide, propose de reprendre la commande là où elle en était.
 // Le temps actif réel (fermeture comprise) est recalculé par restoreChrono.
+// [L166 · audit #6] après une reprise par RECHARGEMENT (autosave restauré), ré-armer le lien de reprise du
+// solde que restoreFicheState a remis à null — mais SEULEMENT si le brouillon existe encore et n'est pas déjà
+// consommé (sinon aucune consommation croisée). Rend durable le « reprise = consommer l'ancien » à travers un reload.
+function _rearmResume(st){
+  try{
+    const rid=st&&st.resumedDraftId; if(!rid) return;
+    const d=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(function(x){return x&&x.id===rid;});
+    if(d && !d.consumed && !d.deleted) _resumedDraftId=rid;
+  }catch(e){}
+}
 async function maybeResumeRunningChrono(){
   try{
     if(ficheLines&&ficheLines.length) return;           // une fiche est déjà à l'écran
@@ -16408,13 +16432,13 @@ async function maybeResumeRunningChrono(){
       if(sameDay){
         // Commande du jour : reprise directe, chrono tel qu'il était (marche ou pause).
         if(live&&live.override) _chronoAutoStopOverride=live.override;
-        restoreFicheState(d.state); showPage(1);
+        restoreFicheState(d.state); _rearmResume(d.state); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono à '+fmtTimeFr(showSec),'ok'); }catch(e){}
       } else if(confirm('⏱ Reprendre ta commande non terminée ?\n\n'+lbl+'\nChrono : '+fmtTimeFr(showSec)+' (figé)\n\nOK = reprendre · Annuler = repartir de zéro')){
         // Jour précédent : reprise FIGÉE (jamais recalée sur l'horloge d'aujourd'hui).
         const stFrozen=Object.assign({},d.state);
         stFrozen.chrono=Object.assign({},cRef,{wasRunning:false,runStart:null,sec:showSec});
-        restoreFicheState(stFrozen); showPage(1);
+        restoreFicheState(stFrozen); _rearmResume(stFrozen); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono figé à '+fmtTimeFr(showSec),'ok'); }catch(e){}
       }
       return;
@@ -16452,7 +16476,7 @@ async function maybeResumePlan(){
     // Un brouillon plan plus ancien reste dans Données > Brouillons (repris à la main),
     // pour ne pas ressusciter une saisie abandonnée.
     if(_dateKey(new Date(d.savedAt).getTime())!==_dateKey(Date.now())) return;
-    restoreFicheState(d.state);
+    restoreFicheState(d.state); _rearmResume(d.state);   // [L166 · audit #6] ré-armer le lien de reprise du solde
     // restoreFicheState valide le plan par défaut ; un brouillon PLAN n'est pas validé.
     fichePlanValidated=false; if(typeof updateFPlanHint==='function') updateFPlanHint();
     showPage(0);
@@ -16492,7 +16516,7 @@ async function resumeLastCommand(){
     const cli=_f.client||_p.client||'—', ref=_f.ref||_p.ref||'', cmd=_f.numCmd||_p.numCmd||'', liv=_f.dateLiv||_p.dateLiv||'';
     const lbl=cli+(ref?(' · '+ref):'')+(cmd?(' · Cmd '+cmd):'')+(liv?('\nÀ livrer le : '+liv):'');
     if(!confirm('▶ Reprendre ta dernière commande ?\n\n'+lbl)) return;
-    restoreFicheState(d.state);
+    restoreFicheState(d.state); _rearmResume(d.state);   // [L166 · audit #6] ré-armer le lien de reprise du solde
     showPage(1);
     updateResumeLastBtn();
     try{ showToast('Commande reprise','ok'); }catch(e){}
