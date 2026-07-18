@@ -1578,7 +1578,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.18-L164';
+const APP_VERSION='2026.07.18-L165';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6838,7 +6838,8 @@ function renderSaves(){
       const pd=new Date(s.plannedDate+'T12:00:00');
       const J=['dim','lun','mar','mer','jeu','ven','sam'];
       const liv=(typeof _plnDateLivMin==='function')?_plnDateLivMin(s):(s.dateLiv||'');
-      const late=liv&&s.plannedDate>liv;
+      const _lastIso=(function(){try{return _plnSpanIsos(s).slice(-1)[0]||s.plannedDate;}catch(e){return s.plannedDate;}})();   // [L165 · audit #9] FIN de l'étalement (badge fiche)
+      const late=liv&&_lastIso>liv;
       return `<div style="margin-top:5px"><span style="display:inline-block;background:${late?'#7a2222':'#14532d'};color:#fff;font-weight:800;font-size:12.5px;padding:3px 10px;border-radius:6px">📅 S${_plnIsoWeekNum(pd)} · ${J[pd.getDay()]} ${String(pd.getDate()).padStart(2,'0')}/${String(pd.getMonth()+1).padStart(2,'0')} · ${esc(getMachineLabel(s.plannedMachine||'')||'—')}${late?' ⚠':''}</span></div>`;
     })():'';
     return `<div class="save-card">
@@ -7600,8 +7601,11 @@ function confirmCommandeRecap(){
   let msg='📤 Confirmer l\'envoi de la commande ?\n\n';
   msg+='• '+total+' bobine(s) coupée(s)\n';
   msg+='• Machine(s) : '+machStr+'\n';
-  msg+='• Non-conformités : '+(ncCount?ncCount+' NC déclarée(s)':'aucune')+'\n\n';
-  msg+='⚠ L\'envoi enregistre la fiche définitivement et vide le plan. Action irréversible.';
+  msg+='• Non-conformités : '+(ncCount?ncCount+' NC déclarée(s)':'aucune')+'\n';
+  // [L165 · audit #1] chrono à zéro alors que des bobines sont coupées (reset manuel après découpe) :
+  // AUCUN temps ne sera enregistré (perdu pour l'Analyse/KPI/traçabilité ISO). On l'annonce dans le récap.
+  if(total>0 && !(chronoSec>0)) msg+='• ⚠ CHRONO À ZÉRO → aucun temps ne sera enregistré pour cette commande.\n';
+  msg+='\n⚠ L\'envoi enregistre la fiche définitivement et vide le plan. Action irréversible.';
   if(!confirm(msg)) return;
   confirmCommande();
 }
@@ -8168,7 +8172,10 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   const pct=computePlanAggregate(computed).pertePct;
   const tempsStr=chronoSec>0
     ?`${fmtTimeFr(chronoSec)} (${ini} — ${today()})`
-    :(()=>{const m=tempsCache.find(t=>t.client===client && t.ref===ref);return m?`${fmtTimeFr(m.duree)} (${m.operateur} — ${new Date(m.date).toLocaleDateString('fr-FR')})`:'non enregistré';})();
+    // [L165 · audit #1] NE PAS emprunter le temps d'une AUTRE commande : le repli ne matche que la MÊME
+    // commande (client+ref+numCmd, non supprimée) — avant, un client+réf récurrent affichait la durée/
+    // l'opérateur/la date d'une commande antérieure (voire supprimée) comme si c'était celle-ci.
+    :(()=>{const _nc=nrm(g('planNumCmd')?.value||g('fNumCmd')?.value||'');const m=tempsCache.find(t=>!t.deleted && t.client===client && t.ref===ref && (!_nc || nrm(t.numCmd||'')===_nc));return m?`${fmtTimeFr(m.duree)} (${m.operateur} — ${new Date(m.date).toLocaleDateString('fr-FR')})`:'non enregistré';})();
 
   const ficheData=getFicheLinesData();
   const planName=buildPlanName();
@@ -9080,16 +9087,17 @@ function _plnHoursOn(s,machKey){
   }
   return _plnHoursPart(mk,part);
 }
-function _plnHoursAuto(s){   // carte non posée : chaque réf sur SA machine
+function _plnHoursAuto(s){   // carte non posée (POOL) : chaque réf sur SA machine — estimation indicative
   const est=_plnPlanMeters(s); if(!est) return null;
-  let h=0;
+  let h=0, got=false;
   for(const mk of Object.keys(est.byMach)){
     const part=(est.byMachDetail&&est.byMachDetail[mk])||{metres:est.byMach[mk],nbMother:0,nbDaughters:0};
     const hp=_plnHoursPart(mk,part);
-    if(hp==null) return null;
-    h+=hp;
+    // [L165 · audit #20] une machine sans débit ne doit plus MASQUER les parts estimables des autres :
+    // on somme ce qu'on sait (repère indicatif du pool, pas la charge engagée) au lieu de renvoyer null.
+    if(hp!=null){ h+=hp; got=true; }
   }
-  return h||null;
+  return got?(h||null):null;
 }
 function _plnH(h){ if(h==null||!isFinite(h)||h<=0) return '—'; const H=Math.floor(h),M=Math.round((h-H)*60); return '≈ '+(H>0?(H+' h'+(M?' '+String(M).padStart(2,'0'):'')):(M+' min')); }
 // [L119 · demande Esteban] commande longue : ÉTALÉE sur plusieurs jours. plannedDays (1..14) = nb de
@@ -9214,7 +9222,8 @@ function plnOpenCard(sid){
   if(!ov){ ov=document.createElement('div'); ov.id='plnCardModal'; ov.className='modal-overlay'; ov.addEventListener('click',function(e){ if(e.target===ov) ov.classList.remove('open'); }); document.body.appendChild(ov); }
   const liv=_plnDateLivMin(s);
   const h=s.plannedMachine?_plnHoursOn(s,s.plannedMachine):_plnHoursAuto(s);
-  const late=!!(s.plannedDate&&liv&&s.plannedDate>liv);
+  const _lastIso=(function(){try{return _plnSpanIsos(s).slice(-1)[0]||s.plannedDate;}catch(e){return s.plannedDate;}})();   // [L165 · audit #9] FIN de l'étalement
+  const late=!!(s.plannedDate&&liv&&_lastIso>liv);
   const canE=plnCanEdit();
   ov.innerHTML='<div class="modal">'
     +'<h3>📅 '+esc(s.client||'—')+(s.numCmd?' · N° '+esc(s.numCmd):'')+'</h3>'
@@ -9365,7 +9374,8 @@ function renderPlanning(){
     // (placed). « bientôt » (≤7 j) = pastille ambre discrète, pas une carte rouge → moins de bruit.
     const overdue=!!(liv&&liv<todayIso);
     const soon=!overdue&&!!(liv&&((new Date(liv+'T12:00:00')-new Date())/86400000)<7);
-    const placedLate=(kind==='placed'||kind==='report')&&!!(liv&&s.plannedDate>liv);
+    const _lastIso=(function(){try{return _plnSpanIsos(s).slice(-1)[0]||s.plannedDate;}catch(e){return s.plannedDate;}})();   // [L165 · audit #9] FIN de l'étalement, pas le début
+    const placedLate=(kind==='placed'||kind==='report')&&!!(liv&&_lastIso>liv);
     const red=(kind==='pool')?overdue:placedLate;
     const chip=(kind==='pool')
       ? (overdue?'<span class="pln-chip late">⚠ retard</span>':(soon?'<span class="pln-chip soon">◷ ≤7 j</span>':''))
