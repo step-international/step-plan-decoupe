@@ -1578,7 +1578,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.17-L163';
+const APP_VERSION='2026.07.18-L164';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4382,6 +4382,9 @@ function makePlanRecutRow(width='',qty='1'){
   return div;
 }
 function addPlanRecutTo(btn){
+  // [L164 · audit #5] en mode PLAN MANUEL, un rouleau ♻ à recouper serait silencieusement absent de la fiche
+  // ET de l'archive (le plan manuel ne régénère pas les recutGroups) — symétrique du blocage à l'entrée manuelle.
+  if(planManual){ showToast('✏️ Plan manuel actif : repasse en « ↩ Plan auto » pour ajouter un rouleau à recouper (♻), sinon il ne sera pas dans le plan.','err'); return; }
   const block=btn.closest('.ref-block');
   const cont=block&&block.querySelector('.rb-recuts');
   if(cont){cont.appendChild(makePlanRecutRow());}
@@ -5912,7 +5915,12 @@ function _pmFindEntry(c,ci){
   }
   const byName=planManual.filter(r=>nrm(r.ref)===nrm(c.ref));
   if(byName.length===1) return byName[0];
-  return planManual[ci]||null;
+  // [L164 · audit #2] SYMÉTRIE avec _pmFindGroup (durci L149) : plus de repli positionnel `planManual[ci]`
+  // qui TRANSPLANTAIT les bobines saisies main d'une réf sur une AUTRE réf (réf ajoutée/remplacée en manuel
+  // multi-réf → coupe faussée en silence). Repli positionnel conservé UNIQUEMENT pour le mono-réf « même job »
+  // (renommage) ; sinon null → le groupe génère son plan AUTO (branche else d'importPlanToFiche).
+  if(planManual.length===1 && _pmSameJob(c,planManual[0])) return planManual[0];
+  return null;
 }
 function adaptPlanManualToInputs(){
   if(!planManual) return;
@@ -16128,6 +16136,7 @@ function serializeFicheState(){
       numCmd:g('planNumCmd')?.value||'',dateLiv:g('planDateLiv')?.value||'',type:g('planType')?.value||'',palette:g('planPalette')?.value||'',
       etiquetage:g('planEtiquetage')?.value||'',cerclage:g('planCerclage')?.value||'',notes:g('planNotesEmballage')?.value||'',
       cmdClients:JSON.parse(JSON.stringify(cmdClients||[])),   // [L64 · Lot 6] clients B/C/D (brouillons + partage + reprises)
+      planManual:(planManual?JSON.parse(JSON.stringify(planManual)):null),   // [L164 · audit #3] le PLAN MANUEL doit voyager (brouillon/autosave/partage/reprise) — sinon perdu à chaque aller-retour et le solde est recalculé en AUTO (bobines fausses), comme doSave le sérialise déjà
       rows:getOrderRows(),refGroups:serializeRefGroups(),commandeFiles:(migrateCommandePhoto(),commandeFiles.slice())},
     fiche:{machine:ficheMachine,machine2:ficheMachine2,op2DiffMachine:g('fOp2DiffMachine')?.checked||false,mother2:g('fMother2')?.value||'',edge2:g('fEdge2')?.value||'',blade2:g('fBlade2')?.value||'',ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',lameChg:g('fLameChg')?.checked||false,lameNew:g('fLameNew')?.value||'',lameChgBob:g('fLameChgBob')?.value||'',machChg:g('fMachChg')?.checked||false,machChgTo:g('fMachChgTo')?.value||'',machChgBob:g('fMachChgBob')?.value||'',
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
@@ -16702,7 +16711,20 @@ function restoreFicheState(st){
   // (le rendu du plan, les pastilles des lignes et les cumuls par client en dépendent).
   cmdClients=Array.isArray(st.plan.cmdClients)?JSON.parse(JSON.stringify(st.plan.cmdClients)):[];
   try{ renderCliPanel(); cliSyncBody(); cliRefreshRows(); }catch(e){}
+  // [L164 · audit #4] purger le plan manuel de l'état PRÉCÉDENT AVANT le recalc (comme doLoad L7061) : sinon
+  // un ✏️ resté actif « adaptait » le vieux plan au nouveau contenu restauré → bobines fausses.
+  planManual=null;
+  { const peb=document.getElementById('planEditBtn'); if(peb) peb.textContent='✏️ Modifier à la main';
+    const pmh=document.getElementById('planManualHint'); if(pmh) pmh.style.display='none'; }
   recalcPlan();
+  // [L164 · audit #3] restaurer le plan manuel du brouillon APRÈS recalc (qui l'aurait écrasé) — miroir doLoad L7071.
+  if(Array.isArray(st.plan.planManual)&&st.plan.planManual.length){
+    planManual=JSON.parse(JSON.stringify(st.plan.planManual));
+    try{ _pmSortBobinesOnce(planManual); }catch(e){}
+    const peb=document.getElementById('planEditBtn'); if(peb) peb.textContent='↩ Plan auto';
+    const pmh=document.getElementById('planManualHint'); if(pmh) pmh.style.display='block';
+    try{ renderPlanManual(); }catch(e){}
+  }
   commandTotals={};cartonByWidth={};cmdMetaByRef={};
   const grpsR=hasGroups?st.plan.refGroups:[{ref:'',rows:(st.plan.rows||[])}];
   grpsR.forEach(x=>{
