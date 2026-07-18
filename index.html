@@ -1578,7 +1578,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.18-L166';
+const APP_VERSION='2026.07.18-L167';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10024,8 +10024,14 @@ async function loadStock(){
     const r=await Promise.all([ fetchCol('stockArticles',false), fetchCol('stockMouvements',true) ]);
     stockArticlesCache=r[0]; stockMouvementsCache=r[1];
     stockLoaded=true;
+    // [L167 · audit #11] le grand-livre est un journal COMPTABLE : plafonné à 5000, au-delà les PLUS ANCIENS
+    // mouvements (grosses entrées initiales) sont exclus → solde FAUX affiché comme exact. On ALERTE le pilote
+    // (solde partiel) au lieu de mentir. (À terme : pagination complète ou solde agrégé — hors périmètre ici.)
+    _stockLedgerPartial=(Array.isArray(stockMouvementsCache)&&stockMouvementsCache.length>=5000);
+    if(_stockLedgerPartial){ try{ showToast('⚠ Stock : plus de 5000 mouvements — le solde affiché est PARTIEL (les plus anciens ne sont pas chargés). Ne te fie pas au total tant que ce n\'est pas corrigé.','err'); }catch(e){} }
   }catch(e){ console.warn('Chargement stock:',e); }
 }
+let _stockLedgerPartial=false;
 // Prévision d'appro : consommation déduite des sorties, couverture vs délai appro.
 // [L83 · Audit #23] stockConsoPerDay supprimée (morte — la conso 90 j est calculée en un passage dans stockForecastRender, cf. PERF-1)
 function stockForecastRender(){
@@ -10402,9 +10408,12 @@ async function saveStockArticleEdit(id,btn){
     updatedAt:isoNow(), updatedBy:currentUser?currentUser.ini:'?' };
   if(btn) btn.disabled=true;
   try{
-    await db.collection('stockArticles').doc(id).update(upd);
+    // [L167 · audit #21] borné (comme le reste du module stock) : sans ça, hors-ligne l'update Firestore ne se
+    // résout jamais → await gelé, bouton mort. Sur mise en file, on garde l'optimiste et on ferme.
+    try{ await boundedWrite(db.collection('stockArticles').doc(id).update(upd),10000); }
+    catch(e){ if(!_isQueuedWrite(e)) throw e; }
     Object.assign(a,upd);
-    await logAudit('edit','stockArticles',id,`Article stock modifié ${a.ref}`);
+    logAudit('edit','stockArticles',id,`Article stock modifié ${a.ref}`).catch(function(){});
     document.getElementById('saEditOverlay')?.remove();
     renderStock();
     showToast('✓ Article mis à jour','ok');
@@ -10424,9 +10433,11 @@ async function archiveStockArticle(id){
   const _avert=(Math.abs(_soldeRestant)>0.5)?('\n\n⚠ Cet article a ENCORE '+_soldeRestant.toLocaleString('fr-FR')+' m² en mouvements : après archivage, ce solde disparaîtra des lignes du tableau mais restera dans le total d\'emplacement (écart total ↔ lignes). Solde d\'abord ces m² (sortie) si tu veux un stock net.'):'';
   if(!(await confirmDlg('Archiver l\'article '+a.ref+' ? (récupérable '+RETENTION_DRAFT_DAYS+' jours via la corbeille)\n\nSes mouvements sont conservés.'+_avert,{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
-    await db.collection('stockArticles').doc(id).update({deleted:true,deletedAt:isoNow()});
+    // [L167 · audit #21] borné : hors-ligne l'update ne se résout pas → await gelé sinon.
+    try{ await boundedWrite(db.collection('stockArticles').doc(id).update({deleted:true,deletedAt:isoNow()}),10000); }
+    catch(e){ if(!_isQueuedWrite(e)) throw e; }
     stockArticlesCache=stockArticlesCache.filter(x=>x.id!==id);
-    await logAudit('delete','stockArticles',id,`Article stock archivé — ${a.ref}`);
+    logAudit('delete','stockArticles',id,`Article stock archivé — ${a.ref}`).catch(function(){});
     document.getElementById('saEditOverlay')?.remove();
     renderStock();
     showToast('🗑 Article '+a.ref+' archivé','ok');
@@ -10694,7 +10705,15 @@ async function bkRemplacerParXls(){
       corrs.forEach(x=>{ x.corr.id=x.corrRef.id; stockMouvementsCache.unshift(x.corr); x.m.corrigePar=x.corrRef.id; });
       logAudit('correction','stockMouvements','remplacement-bk',`Remplacement import B+K : ${doomed.length} mouvement(s) annulé(s) par contre-écriture`).catch(function(){});
       showToast(`✓ ${doomed.length} ancien(s) mouvement(s) annulé(s) — analyse du nouvel état…`,'ok');
-    }catch(e){ showToast('Erreur annulation : '+e.message,'err'); return; }
+    }catch(e){
+      // [L167 · audit #12] mis en file (offline) : garder l'optimiste (les contre-écritures committeront) au lieu
+      // d'un « Erreur » + return qui laisserait un état à moitié annulé et inviterait à re-cliquer (2e inversion).
+      if(_isQueuedWrite(e)){
+        corrs.forEach(x=>{ x.corr.id=x.corrRef.id; stockMouvementsCache.unshift(x.corr); x.m.corrigePar=x.corrRef.id; });
+        logAudit('correction','stockMouvements','remplacement-bk',`Remplacement import B+K (mis en file offline) : ${doomed.length}`).catch(function(){});
+        showToast(`📡 Réseau lent/coupé — ${doomed.length} annulation(s) EN FILE. NE RECOMMENCE PAS.`,'ok');
+      } else { showToast('Erreur annulation : '+e.message,'err'); return; }
+    }
   }
   const el=stkEl('bkImportText'); if(el){ el.value=BK_XLS_20260526; bkAnalyseImport(); }
   renderStock();
@@ -12539,7 +12558,18 @@ async function confirmStockSortie(fid,n,btn){
     logAudit('create','stockMouvements','conso-fiche',`Sortie stock (conso fiche validée) ${f?(f.client||'')+' / '+(f.ref||''):fid} : ${outs.map(o=>o.m2.toLocaleString('fr-FR')+' m² '+o.ref).join(' · ')}`).catch(function(){});
     document.getElementById('ssoOverlay')?.remove();
     showToast('✓ '+outs.length+' sortie(s) de stock enregistrée(s)','ok');
-  }catch(e){ showToast('Erreur sortie stock : '+e.message,'err'); if(btn) btn.disabled=false; }
+  }catch(e){
+    // [L167 · audit #10] écriture MISE EN FILE (réseau lent/coupé) : le batch committera au retour → on garde
+    // l'optimiste (cache + fermeture + toast « en file ») au lieu d'un « Erreur » qui invite à re-saisir (double sortie).
+    if(_isQueuedWrite(e)){
+      created.forEach(x=>{ x.mvt.id=x.dr.id; stockMouvementsCache.unshift(x.mvt); });
+      logAudit('create','stockMouvements','conso-fiche',`Sortie stock (mise en file offline) ${f?(f.client||'')+' / '+(f.ref||''):fid}`).catch(function(){});
+      document.getElementById('ssoOverlay')?.remove(); renderStock();
+      showToast('📡 Réseau lent/coupé — '+outs.length+' sortie(s) ENREGISTRÉE(S) en file. NE RE-SAISIS PAS.','ok');
+      return;
+    }
+    showToast('Erreur sortie stock : '+e.message,'err'); if(btn) btn.disabled=false;
+  }
 }
 // [L129 · audit #16] Réhabiliter une fiche REFUSÉE (valide===false) : action DISTINCTE et confirmée qui la
 // repasse « en attente » (valide=null) — elle repart alors dans le flux normal de validation (contrôles
