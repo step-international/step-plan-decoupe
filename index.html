@@ -1545,7 +1545,10 @@ const USER_PROFILES={
 // que les opérateurs (role operateur). ini:'' = AUCUN opérateur pré-sélectionné : l'opérateur touche SES
 // initiales dans la fiche (le chrono refuse de démarrer sans, cf. ficheParamMissing).
 function _machineProfileOf(email){
-  const m=String(email==null?'':email).trim().toLowerCase().match(/^(feba|maveg|cevenini)@/);   // [L157 · simplify #24] normalisation alignée sur nrm (défini plus bas dans le script principal — non disponible ici)
+  // [L169 · audit #23] STRICTEMENT aligné sur la règle Firestore isMachineAccount (domaine complet exigé) :
+  // sinon le client accordait un profil « Poste » que le serveur refusait ensuite → « Missing permissions »
+  // déroutant. Casse ignorée côté client (Firebase stocke l'email en minuscules à la création).
+  const m=String(email==null?'':email).trim().toLowerCase().match(/^(feba|maveg|cevenini)@step-international\.com$/);
   return m?{role:'operateur', ini:'', nom:'Poste '+m[1].toUpperCase()}:null;
 }
 // Destinataire du mail plan de découpe — changer ici uniquement (un seul endroit)
@@ -1578,7 +1581,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.18-L168';
+const APP_VERSION='2026.07.19-L169';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2035,8 +2038,10 @@ async function purgeExpiredItems(){
   const expired=corbeilleCache.filter(isExpired);
   if(!expired.length) return;
   try{
-    // Archivage froid : on conserve une copie JSON locale avant suppression définitive
-    addToColdArchive(expired);
+    // Archivage froid : on conserve une copie JSON locale AVANT suppression définitive.
+    // [L169 · audit #27] si l'archivage froid ÉCHOUE (localStorage plein), on N'EFFACE PAS (sinon perte
+    // sèche non traçable) — la purge réessaiera au prochain cycle une fois de la place libérée.
+    if(!addToColdArchive(expired)){ try{ console.warn('Purge auto reportée : archive froide non écrite (espace local plein).'); }catch(_){} return; }
     // Supprime aussi les photos Storage des fiches expirées
     for(const it of expired){ if(it._col==='fiches') await deleteFichePhotos(it); }
     await Promise.all(expired.map(it=>db.collection(it._col).doc(it._id).delete()));
@@ -2110,8 +2115,12 @@ function addToColdArchive(items){
       copy._archivedAt=stamp;
       arch.push(copy);
     });
+    // [L169 · audit #27] BORNER l'archive froide (2000 plus récents) : sinon elle grossit sans limite et
+    // finit par SATURER localStorage → l'écriture échoue et la purge définitive supprime quand même = perte.
+    if(arch.length>2000) arch=arch.slice(arch.length-2000);
     localStorage.setItem(COLD_ARCHIVE_KEY,JSON.stringify(arch));
-  }catch(e){console.warn('Archive froide non écrite (espace local plein ?) :',e.message);}
+    return true;   // [L169 · audit #27] la purge n'efface DÉFINITIVEMENT qu'après un archivage froid CONFIRMÉ
+  }catch(e){console.warn('Archive froide non écrite (espace local plein ?) :',e.message);return false;}
 }
 
 // Télécharge l'archive froide complète en JSON
@@ -3086,13 +3095,15 @@ function fmt(n){const x=Number(n); return Number.isFinite(x)?parseFloat(x.toFixe
 function clampQ(n,max){return Math.max(0,Math.min(max||9999,Math.floor(n||0)));}
 // Neutralise une URL stockée avant injection dans href/src : seuls http(s),
 // blob: et data:image sont autorisés (bloque javascript:, etc.). Cf. AUDIT F2/F5.
-function safeUrl(u){u=String(u==null?'':u);return /^(https?:|blob:|data:image\/)/i.test(u)?u:'#';}
+function safeUrl(u){u=String(u==null?'':u);return /^(https?:|blob:|data:image\/|data:application\/pdf[;,])/i.test(u)?u:'#';}/* [L169 · audit #24] data:application/pdf autorisé aussi : en mode Storage dégradé les BL/PDF sont stockés en base64 → sinon lien mort (javascript: etc. toujours bloqués) */
 function today(){return new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function isoNow(){return new Date().toISOString();}
 function todayISO(){return new Date().toISOString().slice(0,10);}   // [L86 · simpl.11] était recopié 10 fois
 function getDayOfYear(){
-  const now=new Date(),start=new Date(now.getFullYear(),0,1);
-  return Math.ceil((now-start)/86400000);
+  // [L169 · audit #25] quantième CALENDAIRE (UTC des dates locales) : l'ancien calcul en ms écoulées décalait
+  // le n° de −1 entre 00h00 et 00h59 durant toute l'heure d'été (le 1er janvier n'a pas le même offset DST).
+  const now=new Date(), y=now.getFullYear();
+  return Math.round((Date.UTC(y,now.getMonth(),now.getDate())-Date.UTC(y,0,1))/86400000)+1;
 }
 // N° Jour multi-jours : si on travaille la commande un nouveau jour (et qu'elle
 // n'est pas encore envoyée/validée — elle est dans la fiche en cours), on ajoute
@@ -3184,11 +3195,11 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
     let val;
     if(storage){
       const blob=await compressImageBlob(file,800,0.6);
-      // Supprimer l'ancienne photo si elle existe (borné : hors-ligne, ne pas pendre)
-      if(oldUrl){ try{ await Promise.race([deletePhotoFromStorage(oldUrl),new Promise(r=>setTimeout(r,4000))]); }catch(e){} }
       // [L72 · Audit B36] upload BORNÉ (10 s) : hors-ligne, Storage ré-essayait ~10 min en
       // silence (spinner infini, photo perdue, fiche envoyable sans). Au timeout → repli
       // base64 LOCAL (même chemin que « Storage indisponible ») + toast explicite.
+      // [L169 · audit #16] uploader la NOUVELLE photo D'ABORD, ne supprimer l'ancienne qu'APRÈS succès :
+      // sinon un upload en échec laissait la fiche avec une URL Storage MORTE (ancienne déjà supprimée).
       val=await Promise.race([
         uploadPhotoToStorage(blob,lid),
         new Promise((_,rej)=>setTimeout(()=>rej(new Error('__PHOTO_TIMEOUT__')),10000))
@@ -3199,6 +3210,9 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
         }
         throw e;
       });
+      // nouvelle photo OK → l'ancienne peut être supprimée (borné : hors-ligne, ne pas pendre).
+      // On ne supprime PAS si le repli base64 a servi (val n'est plus une URL Storage → l'ancienne pourrait rester la seule copie centrale).
+      if(oldUrl && typeof val==='string' && /^https?:/.test(val)){ try{ await Promise.race([deletePhotoFromStorage(oldUrl),new Promise(r=>setTimeout(r,4000))]); }catch(e){} }
     } else {
       // Fallback base64 si Storage pas dispo
       val=await compressImage(file,800,0.6);
@@ -3219,25 +3233,29 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
     const z=document.querySelector(`#ef_bobList .ef-photo[data-orig="${orig}"]`);
     if(z) z.innerHTML='<span style="color:#888;font-size:12px">⏳…</span>';
     const oldUrl=efPhotos[orig];
+    _efPhotoUploads++;   // [L169 · audit #17] compteur : saveFicheConfigs refuse d'enregistrer tant qu'un upload tourne
     try{
       let val;
       if(storage){
         const blob=await compressImageBlob(file,800,0.6);
-        if(oldUrl){ try{ await Promise.race([deletePhotoFromStorage(oldUrl),new Promise(r=>setTimeout(r,4000))]); }catch(e){} }   // [L79] delete borné (4 s)
+        // [L169 · audit #16/#17] uploader D'ABORD, supprimer l'ancienne qu'APRÈS succès (URL Storage) → plus d'URL morte.
         // [L79] upload BORNÉ (10 s) : sans ça un réseau lent gelait l'édition (spinner ⏳ à vie). Repli photo LOCALE.
         val=await raceTimeout(uploadPhotoToStorage(blob,'edit_'+Date.now()),10000).catch(async function(err){
           if(String(err&&err.message)!=='__TIMEOUT__') throw err;
           try{ showToast('📡 Réseau lent : photo gardée en LOCAL.','err'); }catch(_){}
           return await compressImage(file,800,0.6);
         });
+        if(oldUrl && typeof val==='string' && /^https?:/.test(val)){ try{ await Promise.race([deletePhotoFromStorage(oldUrl),new Promise(r=>setTimeout(r,4000))]); }catch(e){} }   // [L79] delete borné (4 s)
       } else {
         val=await compressImage(file,800,0.6);
       }
       efPhotos[orig]=val;
     }catch(e){showToast('Erreur photo : '+e.message,'err');}
+    finally{ _efPhotoUploads=Math.max(0,_efPhotoUploads-1); }
     efRenderPhoto(orig);
   });
 })();
+let _efPhotoUploads=0;   // [L169 · audit #17] uploads photo en cours en ÉDITION de fiche archivée
 function refreshPhotoZone(lineId){
   const zone=document.getElementById('photoZone_'+lineId);
   if(!zone) return;
@@ -9114,6 +9132,24 @@ function _plnH(h){ if(h==null||!isFinite(h)||h<=0) return '—'; const H=Math.fl
 // jours OUVRÉS occupés à partir de plannedDate, sur la même machine. Les ISO occupés :
 function _plnDays(s){ return Math.max(1,Math.min(14,parseInt(s&&s.plannedDays,10)||1)); }
 let _plnSpanCache={};   // [L133 · perf revue #9] span ISO mémoïsé par (date, nb jours) — sinon recalculé O(machines×5j×plans) avec un new Date par itération
+// [L169 · audit #19] jours FÉRIÉS français (fixes + mobiles via Pâques) — l'atelier ne coupe pas ces jours,
+// donc l'étalement d'une commande doit les sauter comme les week-ends (sinon capacité réservée un jour chômé).
+const _friesCache={};
+function _joursFeriesFR(y){
+  if(_friesCache[y]) return _friesCache[y];
+  // Pâques (algorithme de Meeus/Butcher, dimanche de Pâques)
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+    h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,mo=Math.floor((a+11*h+22*l)/451),
+    mois=Math.floor((h+l-7*mo+114)/31),jour=((h+l-7*mo+114)%31)+1;
+  const paques=new Date(y,mois-1,jour);
+  const iso=dt=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  const add=(base,n)=>new Date(base.getFullYear(),base.getMonth(),base.getDate()+n);
+  const set=new Set([y+'-01-01',y+'-05-01',y+'-05-08',y+'-07-14',y+'-08-15',y+'-11-01',y+'-11-11',y+'-12-25',
+    iso(add(paques,1)),   // lundi de Pâques
+    iso(add(paques,39)),  // Ascension
+    iso(add(paques,50))]);// lundi de Pentecôte
+  return (_friesCache[y]=set);
+}
 function _plnSpanIsos(s){
   if(!s||!s.plannedDate) return [];
   const key=String(s.plannedDate)+'¦'+_plnDays(s);   // le span ne dépend QUE de la date de pose et du nb de jours
@@ -9125,7 +9161,8 @@ function _plnSpanIsos(s){
   let guard=0;
   while(out.length<D && guard++<400){
     const wd=cur.getDay();   // 0=dim … 6=sam
-    if(wd!==0&&wd!==6) out.push(_plnIso(cur));
+    const iso=_plnIso(cur);
+    if(wd!==0&&wd!==6&&!_joursFeriesFR(cur.getFullYear()).has(iso)) out.push(iso);   // [L169 · audit #19] fériés exclus comme les week-ends
     cur=new Date(cur.getFullYear(),cur.getMonth(),cur.getDate()+1);
   }
   return (_plnSpanCache[key]=(out.length?out:[s.plannedDate]));
@@ -10643,9 +10680,14 @@ const BK_CSV_20260701=`matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage
 function _bkKwToIso(kwStr){
   const m=String(kwStr||'').match(/(\d{1,2})/); if(!m) return '';
   const w=parseInt(m[1],10); if(!(w>=1&&w<=53)) return '';
-  const jan4=Date.UTC(2026,0,4);                                   // le 4 janvier est TOUJOURS en semaine ISO 1
-  const day=new Date(jan4).getUTCDay()||7;                          // dim=7
-  return new Date(jan4-(day-1)*86400000+(w-1)*7*86400000+12*3600000).toISOString();
+  // [L169 · audit #26/#29] année DÉRIVÉE (plus 2026 en dur → antidatait tout import fait à partir de 2027) :
+  // on choisit, parmi (année−1, courante, +1), celle dont le lundi de la semaine KW est le PLUS PROCHE
+  // d'aujourd'hui (gère les bascules de fin/début d'année : KW2 importée en décembre = année suivante).
+  const mondayNoon=y=>{ const jan4=Date.UTC(y,0,4); const day=new Date(jan4).getUTCDay()||7; return jan4-(day-1)*86400000+(w-1)*7*86400000+12*3600000; };
+  const now=Date.now(), yc=new Date().getFullYear();
+  let best=mondayNoon(yc);
+  [yc-1,yc+1].forEach(y=>{ const cand=mondayNoon(y); if(Math.abs(cand-now)<Math.abs(best-now)) best=cand; });
+  return new Date(best).toISOString();
 }
 // Nombre tolérant : « 100.800 » (milliers allemands), « 617,17 » (décimale virgule), espaces.
 function _bkNum(v){
@@ -10811,8 +10853,7 @@ async function bkRunImport(btn){
     // timeout ÉCRASE les mêmes documents au lieu d'en créer de nouveaux (l'écriture partie en file
     // + le re-clic doublaient le stock — le message « l'anti-doublon empêche tout double » était faux).
     const _bkHash=t=>{ let h=5381; for(let i=0;i<t.length;i++){ h=((h*33)^t.charCodeAt(i))>>>0; } return h.toString(36)+'_'+(t.length%97).toString(36); };
-    const batch=db.batch();
-    const artRefs=arts.map(a=>{ const dr=db.collection('stockArticles').doc('bkart_'+_bkHash(String(a.ref))); batch.set(dr,a); return dr; });
+    const artRefs=arts.map(a=>db.collection('stockArticles').doc('bkart_'+_bkHash(String(a.ref))));
     // Un id déterministe déjà pris NE DOIT PAS être réécrasé par batch.set, dans DEUX cas :
     //  (a) [L128 · #18] mouvement ANNULÉ (corrigePar, après « Remplacer par l'Excel ») → l'écraser effacerait
     //      son corrigePar et laisserait la contre-écriture −Q flotter → la ligne retombe à 0 m² ;
@@ -10825,8 +10866,14 @@ async function bkRunImport(btn){
     const _bkAnnulled=new Set((stockMouvementsCache||[]).filter(m=>m&&m.corrigePar&&m.id).map(m=>m.id));
     const _bkAllIds=new Set((stockMouvementsCache||[]).map(m=>m&&m.id).filter(Boolean));
     const _bkSeen=new Set();   // ids attribués dans CET import (dédup intra-lot)
-    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const base='bk_'+_bkHash(tok+'|'+m.type+'|'+m.location); let docId=base; if(_bkAnnulled.has(base)||_bkSeen.has(base)){ let g=1; while(_bkAllIds.has(docId)||_bkSeen.has(docId)){ docId=base+'_r'+g; g++; } } _bkSeen.add(docId); const dr=db.collection('stockMouvements').doc(docId); batch.set(dr,m); return dr; });
-    await raceTimeout(batch.commit(),25000);   // borné : jamais de bouton gelé
+    const mvtRefs=mvts.map(m=>{ const tok=(String(m.note||'').match(/\[BK(?:CO)?:[^\]]+\]/)||[String(m.note||'')])[0]; const base='bk_'+_bkHash(tok+'|'+m.type+'|'+m.location); let docId=base; if(_bkAnnulled.has(base)||_bkSeen.has(base)){ let g=1; while(_bkAllIds.has(docId)||_bkSeen.has(docId)){ docId=base+'_r'+g; g++; } } _bkSeen.add(docId); return db.collection('stockMouvements').doc(docId); });
+    // [L169 · audit #28] commit en LOTS de 400 (limite Firestore = 500 écritures/batch) : au-delà, un seul batch
+    // était REJETÉ et l'import échouait en entier. Ids déterministes → un batch rejoué écrase (idempotent).
+    const _writes=arts.map((a,i)=>({ref:artRefs[i],data:a})).concat(mvts.map((m,i)=>({ref:mvtRefs[i],data:m})));
+    for(let i=0;i<_writes.length;i+=400){
+      const b=db.batch(); _writes.slice(i,i+400).forEach(w=>b.set(w.ref,w.data));
+      await raceTimeout(b.commit(),25000);   // borné : jamais de bouton gelé
+    }
     arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
     mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
     logAudit('create','stockMouvements','import-bk',`Import fournisseur B+K : ${mvts.length} mouvement(s), ${arts.length} article(s) — total ${mvts.reduce((s,m)=>s+m.m2,0).toLocaleString('fr-FR')} m² net`).catch(()=>{});
@@ -12849,6 +12896,9 @@ function groupsFromDetail(detail,useful,blade){
 async function saveFicheConfigs(id){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
+  // [L169 · audit #17] garde d'upload (comme l'envoi live) : enregistrer pendant l'upload d'une photo archivait
+  // une URL Storage incomplète/perdue (preuve ISO). On attend la fin des uploads en cours.
+  if(_efPhotoUploads>0){ showToast('⏳ '+_efPhotoUploads+' photo(s) en cours d\'envoi — attends quelques secondes avant d\'enregistrer.','err'); return; }
   const client=document.getElementById('ef_client').value;
   const ref=document.getElementById('ef_ref').value;
   const numCmd=document.getElementById('ef_numcmd').value;

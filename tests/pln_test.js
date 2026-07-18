@@ -23,8 +23,8 @@ for(const n of ['parseNum','clampUseful','clampBlade','dujMachKey','expandDemand
 global._plnEstCache={};
 global._dujAddOverride=null; global._plnAddCalCache={}; global.dujCalibrateAdditive=()=>null;   // [L125] pas de calibration en test → repli m/h (comportement historique)
 global._plnDebitCache={};   // [L132] cache débit m/h mémoïsé (vidé par rendu dans l'appli)
-global._plnSpanCache={};    // [L133] cache span jours ouvrés mémoïsé
-for(const n of ['_plnMonday','_plnIsoWeekNum','_plnIso','_plnSentKeys','_plnDejaCoupe','_plnDateLivMin','_plnPlanMeters','_plnHoursPart','_plnAddCal','_plnDebit','_plnHoursOn','_plnHoursAuto','_plnH','hygieneDryRun','_plnDays','_plnSpanIsos']){
+global._plnSpanCache={}; global._friesCache={};    // [L133] cache span jours ouvrés mémoïsé
+for(const n of ['_plnMonday','_plnIsoWeekNum','_plnIso','_plnSentKeys','_plnDejaCoupe','_plnDateLivMin','_plnPlanMeters','_plnHoursPart','_plnAddCal','_plnDebit','_plnHoursOn','_plnHoursAuto','_plnH','hygieneDryRun','_plnDays','_joursFeriesFR','_plnSpanIsos']){
   global[n]=eval('('+fnOf(n)+')');
 }
 
@@ -149,6 +149,12 @@ global.savesCache=[{_id:'p1',client:'ACME',numCmd:'C100'}];
   ok(p.plannedDays===1&&p.plannedDate==='2026-07-20'&&p.plannedMachine==='feba','plnSetDays(1) : resserré, date/machine conservées');
   await plnSetPlan('p1',null,null);
   ok(p.plannedDate===null&&(p.plannedDays===null||p.plannedDays===undefined),'retrait : plannedDays effacé aussi');
-  console.log(fail?('\n💥 '+fail+' échec(s)'):'\n🏆 L119 PLANNING VALIDÉ : ISO · garde date/refusée · multi-jours (span/étalement) · pose/retrait/retour-arrière');
+  // [L169 · audit #19] jours fériés FR exclus de l'étalement
+  const _f=_joursFeriesFR(2026);
+  ok(_f.has('2026-01-01')&&_f.has('2026-12-25')&&_f.has('2026-05-01')&&_f.has('2026-04-06'),'fériés FR 2026 : 1er janv, Noël, 1er mai, lundi de Pâques (6 avr)');
+  global._plnSpanCache={};
+  const _span=_plnSpanIsos({plannedDate:'2026-05-01',plannedDays:2});   // vendredi 1er mai (férié) + week-end
+  ok(_span.indexOf('2026-05-01')<0 && _span.indexOf('2026-05-02')<0 && _span.indexOf('2026-05-03')<0,'étalement saute le férié (1er mai) et le week-end');
+  console.log(fail?('\n💥 '+fail+' échec(s)'):'\n🏆 L119 PLANNING VALIDÉ : ISO · garde date/refusée · multi-jours (span/étalement) · fériés · pose/retrait/retour-arrière');
   process.exit(fail?1:0);
 })();
