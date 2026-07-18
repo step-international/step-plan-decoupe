@@ -1578,7 +1578,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.18-L167';
+const APP_VERSION='2026.07.18-L168';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4206,6 +4206,9 @@ async function cliRemove(id){   // [L74 · Design Lot E] async (appelée uniquem
   const _warn=_cutN>0?('\n\n⚠ '+_cutN+' bobineau(x) DÉJÀ COUPÉS pour '+id+(c.nom?' ('+c.nom+')':'')+' seront réattribués au client A — vérifie l\'emballage et les étiquettes !'):'';
   if(!(await confirmDlg('Retirer le client '+id+(c.nom?' ('+c.nom+')':'')+' ?'+_warn+'\n\nSes lignes de commande repasseront au client A.',{danger:true,ok:'Retirer'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   if(_cutN>0){ try{ logAudit('edit','saves','multi-clients','Client '+id+(c.nom?' ('+c.nom+')':'')+' retiré — '+_cutN+' bobineau(x) coupés réattribués à A'); }catch(e){} }
+  // [L168 · audit #15] réattribuer les attributions FIGÉES (bobines déjà coupées) au client A — sinon le client
+  // retiré restait fantôme sur la fiche/PDF/exports (l.cliParts n'était pas réécrit, contredisant l'avertissement).
+  try{ ficheLines.forEach(function(l){ if(Array.isArray(l.cliParts)) l.cliParts.forEach(function(p){ if(p.c===id) p.c='A'; }); }); }catch(e){}
   cmdClients=cmdClients.filter(x=>x.id!==id);
   document.querySelectorAll('.order-row [data-type="cli"]').forEach(inp=>{ if(inp.value===id) inp.value='A'; });
   renderCliPanel(); cliSyncBody(); cliRefreshRows(); recalcPlan();
@@ -15789,12 +15792,21 @@ function _syncSharedApply(doc){
   // Préserver le chrono du destinataire (restoreFicheState le remettrait à zéro).
   const _prevChrono={sec:chronoSec,startTs:chronoStartTs,wasRunning:chronoRunning,runStart:chronoRunStart};
   const _sy=window.scrollY||0;   // préserver le défilement (reconstruction complète du DOM)
+  // [L168 · audit #14] préserver la SAISIE QUALITÉ EN COURS du destinataire (test2/NC/détail/action) : la
+  // re-hydratation reconstruit tout le DOM depuis l'état de l'émetteur → sinon une NC/un dévidage tapés à
+  // l'instant par le destinataire (celui-là même exigé pour valider ✂) étaient effacés à chaque push (≤10 s).
+  // On mémorise par ÉTIQUETTE ce qui est non vide, puis on le ré-applique après coup sur les lignes NON
+  // verrouillées (une ligne coupée par un collègue = son état qualité fait foi, cf. #13).
+  const _prevQ={};
+  try{ (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l){ const lbl=_shareLineLabel(l.id); if(!lbl) return; const q=_shareQualityRead(l.id); if(q.larg||q.qty||q.casse||q.ang||q.devi||q.droit||q.t2nc||(q.det||'').trim()||q.act) _prevQ[lbl]=q; }); }catch(e){}
   try{ restoreFicheState(_shareCloneForReceiver(doc.state)); }
   catch(e){ console.warn('Miroir live :',e); return; }
   try{ restoreChrono(_prevChrono); }catch(e){}
   try{ window.scrollTo(0,_sy); }catch(e){}
   // [L62 · Lot 4] ré-appliquer le verrou après la reconstruction du DOM (les 🔒 sont portés par les lignes).
   try{ applySharedCuts(doc.cuts||{}); }catch(e){}
+  // [L168 · audit #14] restaurer la saisie locale préservée sur les lignes que le destinataire peut éditer.
+  try{ (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l){ const line=document.getElementById(l.id); if(!line||line.classList.contains('coupee-other')) return; const lbl=_shareLineLabel(l.id); if(lbl&&_prevQ[lbl]) _shareQualityApply(l.id,_prevQ[lbl]); }); }catch(e){}
   refreshShareReception();
 }
 
@@ -15810,11 +15822,37 @@ function _shareCurrentDocId(){ return _shareActive?_shareDocId:(_viewingSharedId
 function _shareLineIndex(id){ return Array.isArray(ficheLines)?ficheLines.findIndex(function(l){return l&&l.id===id;}):-1; }
 function _shareLineLabel(id){ const el=document.getElementById('flLabel_'+id); return el?String(el.value||'').trim():''; }
 // Écrit (ou efface) MON marquage d'une bobine dans le doc partagé.
+// [L168 · audit #13] état QUALITÉ d'une bobine (NC + test 2ᵉ + action) — embarqué dans le verrou de coupe pour
+// qu'une non-conformité constatée par un DESTINATAIRE remonte à l'émetteur (sinon la bobine s'archivait CONFORME
+// = perte de traçabilité ISO + déchet non décompté). Lecture côté celui qui coupe.
+function _shareQualityRead(id){
+  const ck=k=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');return cb?!!cb.checked:false;};
+  const cb2=k=>{const el=document.getElementById(k+'_'+id);return el?!!el.checked:false;};
+  const act=(()=>{const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
+    if(d&&d.classList.contains('btn-red'))return'dechet'; if(c&&c.classList.contains('btn-orange'))return'chutes'; if(a&&a.classList.contains('btn-green'))return'accept'; return'';})();
+  const det=document.getElementById('nc_detail_'+id);
+  return {larg:ck('larg'),qty:ck('qty'),casse:ck('casse'),ang:ck('ang'),det:(det?det.value||'':''),devi:cb2('flDevi'),droit:cb2('flDroit'),t2nc:cb2('flTest2nc'),act:act};
+}
+// Application IDEMPOTENTE côté émetteur (la bobine est coupee-other, verrouillée → aucun conflit avec sa saisie).
+function _shareQualityApply(id,q){
+  if(!q) return;
+  const setCk=(k,v)=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb&&cb.checked!==!!v)cb.checked=!!v;};
+  let dirty=false;
+  ['larg','qty','casse','ang'].forEach(k=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb&&cb.checked!==!!q[k]){cb.checked=!!q[k];dirty=true;}});
+  if(dirty) try{ updateNC(id); }catch(e){}
+  const det=document.getElementById('nc_detail_'+id); if(det&&det.value!==(q.det||'')) det.value=q.det||'';
+  const setCb2=(k,v)=>{const el=document.getElementById(k+'_'+id);if(el&&el.checked!==!!v){el.checked=!!v;return true;}return false;};
+  let t2=false; t2=setCb2('flDevi',q.devi)||t2; t2=setCb2('flDroit',q.droit)||t2; t2=setCb2('flTest2nc',q.t2nc)||t2;
+  if(t2) try{ updateTest2Subs(id); }catch(e){}
+  const cur=(()=>{const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
+    if(d&&d.classList.contains('btn-red'))return'dechet'; if(c&&c.classList.contains('btn-orange'))return'chutes'; if(a&&a.classList.contains('btn-green'))return'accept'; return'';})();
+  if((q.act||'')!==cur && q.act){ try{ toggleAction(id,q.act); }catch(e){} }
+}
 function shareCutWrite(idx,coupee,lineId){
   const docId=_shareCurrentDocId();
   if(!db||!docId||idx<0) return;
   const upd={};
-  if(coupee){ const c={u:_uid(),i:_ini(),at:isoNow(),l:_shareLineLabel(lineId)}; upd['cuts.'+idx]=c; _shareCutsLocal[idx]=c; }
+  if(coupee){ const c={u:_uid(),i:_ini(),at:isoNow(),l:_shareLineLabel(lineId),q:_shareQualityRead(lineId)}; upd['cuts.'+idx]=c; _shareCutsLocal[idx]=c; }
   else{ upd['cuts.'+idx]=firebase.firestore.FieldValue.delete(); delete _shareCutsLocal[idx]; }
   // [L73 · Lot 5 · B10] rafraîchir savedAt à chaque marquage : garde le doc partagé en tête
   // de la fenêtre limit(300) du listener (un long partage au contenu stable vieillissait —
@@ -15860,6 +15898,7 @@ function applySharedCuts(cuts){
       btn.disabled=true;
       btn.style.borderColor='var(--shared)';btn.style.color='var(--shared)';btn.style.background='#42152b';
       btn.textContent='🔒 Coupée · '+(c.i||'?');
+      if(c.q){ try{ _shareQualityApply(l.id,c.q); }catch(e){} }   // [L168 · audit #13] rapatrier l'état QUALITÉ (NC/test2/action) constaté par le collègue → visible + archivé correctement
     }else if(valid&&c.u===me&&!line.classList.contains('coupee')){
       // MA coupe, absente du DOM : arrive quand le miroir vient d'être re-hydraté depuis
       // un état de l'émetteur antérieur à mon marquage (fenêtre du push 10 s) — on la remet.
