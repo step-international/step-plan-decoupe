@@ -1581,7 +1581,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.19-L169';
+const APP_VERSION='2026.07.20-L170';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2115,9 +2115,12 @@ function addToColdArchive(items){
       copy._archivedAt=stamp;
       arch.push(copy);
     });
-    // [L169 · audit #27] BORNER l'archive froide (2000 plus récents) : sinon elle grossit sans limite et
-    // finit par SATURER localStorage → l'écriture échoue et la purge définitive supprime quand même = perte.
-    if(arch.length>2000) arch=arch.slice(arch.length-2000);
+    // [L169 · audit #27] BORNER l'archive froide : sinon elle grossit sans limite et finit par SATURER
+    // localStorage → l'écriture échoue et la purge définitive supprime quand même = perte.
+    // [L170 · revue #6] on garde au MINIMUM tout le lot qu'on vient d'ajouter (items) : sinon un gros lot de
+    // purge se ferait tronquer ici tout en renvoyant true → suppression définitive d'éléments jamais archivés.
+    const _keep=Math.max(2000,items.length);
+    if(arch.length>_keep) arch=arch.slice(arch.length-_keep);
     localStorage.setItem(COLD_ARCHIVE_KEY,JSON.stringify(arch));
     return true;   // [L169 · audit #27] la purge n'efface DÉFINITIVEMENT qu'après un archivage froid CONFIRMÉ
   }catch(e){console.warn('Archive froide non écrite (espace local plein ?) :',e.message);return false;}
@@ -3792,7 +3795,7 @@ function importPlanToFiche(opts){
     _genOrder.forEach(ci=>{
       const c=computed[ci];
       if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach); if(c.machine) prevMach=c.machine; }
-      const man=planManual?_pmFindEntry(c,ci):null;   // [L70 · Audit B29] appariement par clé, plus par index brut
+      const man=planManual?_pmFindEntry(c,ci,computed.length):null;   // [L70 · Audit B29] appariement par clé, plus par index brut ([L170] nb de groupes pour la garde mono-réf)
       if(man){
         // Plan modifié à la main : il fait foi, on génère les bobines telles
         // que saisies (les chutes éventuelles y sont déjà incluses par l'opérateur).
@@ -5550,7 +5553,7 @@ function _laizeSortExcluded(ref){ return /KX\s*-?\s*104[67]/i.test(String(ref||'
 // le plan AUTO écarté (PDF d'historique faux, écart terrain/plan mensonger).
 function _pmComputedForArchive(computed){
   return computed.map((c,ci)=>{
-    const man=(typeof _pmFindEntry==='function')?_pmFindEntry(c,ci):null;
+    const man=(typeof _pmFindEntry==='function')?_pmFindEntry(c,ci,computed.length):null;
     if(!man||!Array.isArray(man.bobines)||!man.bobines.length) return c;
     const useful=man.useful>0?man.useful:c.useful, blade=(man.blade!=null&&man.blade>=0)?man.blade:c.blade;
     const pg=man.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1),pattern:parseConf(normConf(b.conf||''))})).filter(gp=>gp.pattern.length);
@@ -5924,7 +5927,7 @@ function _pmFindGroup(r,i,cur){
   // repli positionnel qui TRANSPLANTAIT ses bobines saisies main sur une AUTRE réf survivante.
   return null;
 }
-function _pmFindEntry(c,ci){
+function _pmFindEntry(c,ci,grpCount){
   if(!planManual) return null;
   const k=_refIdKey(c);
   const hits=planManual.filter(r=>r.refIdKey===k);
@@ -5940,7 +5943,7 @@ function _pmFindEntry(c,ci){
   // qui TRANSPLANTAIT les bobines saisies main d'une réf sur une AUTRE réf (réf ajoutée/remplacée en manuel
   // multi-réf → coupe faussée en silence). Repli positionnel conservé UNIQUEMENT pour le mono-réf « même job »
   // (renommage) ; sinon null → le groupe génère son plan AUTO (branche else d'importPlanToFiche).
-  if(planManual.length===1 && _pmSameJob(c,planManual[0])) return planManual[0];
+  if(planManual.length===1 && (grpCount===undefined||grpCount===1) && _pmSameJob(c,planManual[0])) return planManual[0];   // [L170 · revue #12] garde « un seul groupe » (comme _pmFindGroup) : sinon 2 groupes de dims identiques recevaient la même entrée
   return null;
 }
 function adaptPlanManualToInputs(){
@@ -9144,10 +9147,11 @@ function _joursFeriesFR(y){
   const paques=new Date(y,mois-1,jour);
   const iso=dt=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
   const add=(base,n)=>new Date(base.getFullYear(),base.getMonth(),base.getDate()+n);
+  // [L170 · revue #5] lundi de Pentecôte (+50) RETIRÉ : c'est le « jour de solidarité », travaillé à l'atelier
+  // → le marquer chômé aurait sauté à tort un jour ouvré dans l'étalement.
   const set=new Set([y+'-01-01',y+'-05-01',y+'-05-08',y+'-07-14',y+'-08-15',y+'-11-01',y+'-11-11',y+'-12-25',
     iso(add(paques,1)),   // lundi de Pâques
-    iso(add(paques,39)),  // Ascension
-    iso(add(paques,50))]);// lundi de Pentecôte
+    iso(add(paques,39))]);// Ascension
   return (_friesCache[y]=set);
 }
 function _plnSpanIsos(s){
@@ -10736,8 +10740,9 @@ async function bkRemplacerParXls(){
   const doomed=stockMouvementsCache.filter(m=>!m.deleted&&!m.corrige&&!m.corrigePar&&String(m.note||'').includes('[BK'));
   if(doomed.length){
     if(!(await confirmDlg(`Remplacer l'import B+K existant ?\n\n${doomed.length} mouvement(s) seront annulés par contre-écritures tracées (rien n'est supprimé), puis l'état Excel du 26/05 sera proposé à l'import.`,{danger:true,ok:'Remplacer'}))) return;
+    const corrs=[];   // [L170 · revue régression] hissé HORS du try : le catch queued le référence (sinon ReferenceError)
     try{
-      const batch=db.batch(); const corrs=[];
+      const batch=db.batch();
       doomed.forEach(m=>{
         const corrRef=db.collection('stockMouvements').doc();
         const corr={ date:isoNow(), type:'correction', ref:m.ref, m2:-(Number(m.m2)||0),
@@ -12592,8 +12597,9 @@ async function confirmStockSortie(fid,n,btn){
   }
   if(!outs.length){ showToast('Aucune ligne à sortir (choisis une matière).','err'); return; }
   if(btn) btn.disabled=true;
+  const created=[];   // [L170 · revue régression] hissé HORS du try : le catch queued le référence (sinon ReferenceError → voie hors-ligne cassée)
   try{
-    const batch=db.batch(); const created=[];
+    const batch=db.batch();
     outs.forEach(o=>{
       const art=stockArticlesCache.find(a=>a.ref===o.ref);
       const su=art?(Number(art.surfaceUnit)||stockSurfaceUnit(art.largeur,art.longueur)):0;
@@ -15644,7 +15650,9 @@ function _restoreSharedApply(doc){
 // un write par tick) et surtout chaque opérateur mesure SON propre temps — le chrono
 // n'est pas synchronisé entre postes.
 function _shareSig(){
-  try{ const st=serializeFicheState(); return JSON.stringify({plan:st.plan,fiche:st.fiche,lines:st.lines}); }
+  // [L170 · revue régression #7] EXCLURE planManual de la signature : sérialisé brut mais re-trié
+  // (_pmSortBobinesOnce) à la restauration → la signature aurait pu varier sans changement réel → push en boucle.
+  try{ const st=serializeFicheState(); const plan=Object.assign({},st.plan); delete plan.planManual; return JSON.stringify({plan,fiche:st.fiche,lines:st.lines}); }
   catch(e){ return ''; }
 }
 function shareAutosaveTick(){
@@ -15747,6 +15755,8 @@ function _shareCloneForReceiver(state){
   st.chrono={sec:0,startTs:null,wasRunning:false,runStart:null};
   st.pendingFicheId=null; st.pendingTempsId=null;
   st.loadedSaveId=null;   // [L104 · Phase 2 · U] le destinataire ne doit pas hériter du plan sauvegardé chargé par l'ÉMETTEUR : sinon, après « Quitter la vue » (copie locale renvoyable), son envoi archiverait (soft-delete) le plan de l'émetteur — un plan qu'il n'a pas produit.
+  st.resumedDraftId=null;   // [L170 · revue] ni le lien de reprise de solde de l'émetteur
+  if(st.plan) st.plan.planManual=null;   // [L170 · revue régression] le PLAN MANUEL (L164 #3, ajouté pour brouillon/reprise) ne doit PAS être imposé au destinataire du miroir : il travaille les LIGNES, pas le plan-side de l'émetteur
   return st;
 }
 function openSharedCommand(id){
@@ -15847,8 +15857,16 @@ function _syncSharedApply(doc){
   // l'instant par le destinataire (celui-là même exigé pour valider ✂) étaient effacés à chaque push (≤10 s).
   // On mémorise par ÉTIQUETTE ce qui est non vide, puis on le ré-applique après coup sur les lignes NON
   // verrouillées (une ligne coupée par un collègue = son état qualité fait foi, cf. #13).
+  // [L170 · revue #3/#14] ne préserver QUE la ligne réellement en cours d'édition (celle qui contient le champ
+  // actif) — l'ancienne version capturait TOUT le DOM du destinataire, majoritairement un MIROIR de l'émetteur,
+  // et ré-appliquait ces valeurs stale par-dessus une révision fraîche de l'émetteur.
   const _prevQ={};
-  try{ (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l){ const lbl=_shareLineLabel(l.id); if(!lbl) return; const q=_shareQualityRead(l.id); if(q.larg||q.qty||q.casse||q.ang||q.devi||q.droit||q.t2nc||(q.det||'').trim()||q.act) _prevQ[lbl]=q; }); }catch(e){}
+  try{
+    const ae=document.activeElement;
+    const editedLine=ae?ae.closest('.fiche-line'):null;
+    if(editedLine){ const l=(Array.isArray(ficheLines)?ficheLines:[]).find(function(x){return x&&x.id===editedLine.id;});
+      if(l&&!editedLine.classList.contains('coupee-other')){ const lbl=_shareLineLabel(l.id); if(lbl){ const q=_shareQualityRead(l.id); if(q.larg||q.qty||q.casse||q.ang||q.devi||q.droit||q.t2nc||(q.det||'').trim()||q.act) _prevQ[lbl]=q; } } }
+  }catch(e){}
   try{ restoreFicheState(_shareCloneForReceiver(doc.state)); }
   catch(e){ console.warn('Miroir live :',e); return; }
   try{ restoreChrono(_prevChrono); }catch(e){}
@@ -15896,7 +15914,10 @@ function _shareQualityApply(id,q){
   if(t2) try{ updateTest2Subs(id); }catch(e){}
   const cur=(()=>{const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
     if(d&&d.classList.contains('btn-red'))return'dechet'; if(c&&c.classList.contains('btn-orange'))return'chutes'; if(a&&a.classList.contains('btn-green'))return'accept'; return'';})();
-  if((q.act||'')!==cur && q.act){ try{ toggleAction(id,q.act); }catch(e){} }
+  if((q.act||'')!==cur){
+    if(q.act){ try{ toggleAction(id,q.act); }catch(e){} }
+    else if(cur){ try{ toggleAction(id,cur); }catch(e){} }   // [L170 · revue #8] action RETIRÉE par le collègue → la retirer aussi (bascule off), sinon elle restait figée
+  }
 }
 function shareCutWrite(idx,coupee,lineId){
   const docId=_shareCurrentDocId();
