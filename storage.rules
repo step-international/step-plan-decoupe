@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Postes MACHINE partagés (feba@/maveg@/cevenini@) reconnus par EMAIL — pas d'UID à copier.
+    // Aligné à l'identique sur isMachineAccount() des règles Firestore (domaine complet exigé).
+    function isMachineAccount() {
+      return request.auth != null
+          && request.auth.token.email != null
+          && request.auth.token.email.matches('^(feba|maveg|cevenini)@step-international[.]com$');
+    }
+
+    function isKnown() {
+      return request.auth != null && (
+        request.auth.uid in [
+          'ydobUI1wpNesqnlmNFroyoQLGHm1','GBGiA5k1hFZgwhHOg1y03wBr7M33',
+          '4vlmpeBW9pUFQP59eCkU51bdVZs2','smiBhboxTZZKpmJWiRapTxs1P323',
+          'qlVoly7PsyMndWMnimTY9mKUu532','z1e9TGOTUDZ9KYtGl12i6HnISrv2'
+        ]
+        || isMachineAccount()          // [+] postes machine : lecture + photos/commande
+      );
+    }
+    function isManage() {
+      return request.auth != null && request.auth.uid in [
+        'ydobUI1wpNesqnlmNFroyoQLGHm1','GBGiA5k1hFZgwhHOg1y03wBr7M33',
+        '4vlmpeBW9pUFQP59eCkU51bdVZs2'
+      ];
+    }
+
+    // [+] Bloque les types qui S'EXÉCUTENT quand servis en inline depuis l'URL
+    //     de download Storage (XSS/phishing hébergé, script embarqué en SVG).
+    function safeType() {
+      return !request.resource.contentType.matches('text/html.*')
+          && !request.resource.contentType.matches('application/xhtml.*')
+          && !request.resource.contentType.matches('image/svg.*');
+    }
+
+    // Photos de bobines : images (hors SVG), < 5 Mo. {path=**} = supporte aussi les chemins imbriqués.
+    match /photos/{path=**} {
+      allow read:   if isKnown();
+      allow write:  if isKnown()
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*')
+                    && !request.resource.contentType.matches('image/svg.*');   // [+]
+      allow delete: if isKnown();
+    }
+
+    // Fichiers commande : images/PDF/Office, < 20 Mo. [+] HTML/SVG bloqués.
+    match /commande/{path=**} {
+      allow read:   if isKnown();
+      allow write:  if isKnown()
+                    && request.resource.size < 20 * 1024 * 1024
+                    && safeType();                                              // [+]
+      allow delete: if isKnown();
+    }
+
+    // Bons de livraison : écriture/suppression pilotage/admin, < 20 Mo. [+] HTML/SVG bloqués.
+    // Postes machine EXCLUS volontairement (isManage) — cohérent avec le gate app (canValidate).
+    match /bl/{path=**} {
+      allow read:   if isKnown();
+      allow write:  if isManage()
+                    && request.resource.size < 20 * 1024 * 1024
+                    && safeType();                                              // [+]
+      allow delete: if isManage();
+    }
+
+    // ⚠️ OPTIONNEL — immuabilité des preuves (empêche l'écrasement d'un fichier existant).
+    //   N'active QU'APRÈS avoir vérifié que l'app n'uploade jamais deux fois le même
+    //   chemin (sinon l'édition d'une photo casserait). Pour /photos et /commande,
+    //   remplace "allow write" par : allow write: if <gardes> && resource == null;
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
