@@ -1747,7 +1747,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L201';
+const APP_VERSION='2026.07.21-L202';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12694,7 +12694,7 @@ function renderFiches(){
 // Reprendre le SOLDE d'une commande arrêtée pour manque de matière : on rouvre
 // le brouillon de solde (créé au moment de l'arrêt) via la machinerie de reprise.
 // Lien direct par fromFicheId, repli par client + n° de commande.
-function reprendreCommandeManque(id){
+async function reprendreCommandeManque(id){   // [L202 · audit #15] async : reconstruction de repli possible
   const f=fichesCache.find(x=>x._id===id);
   if(!f){ showToast('Fiche introuvable.','err'); return; }
   // Plan du reste créé à la validation : on le charge directement (le brouillon
@@ -12719,7 +12719,18 @@ function reprendreCommandeManque(id){
     d=drafts.find(b=>b&&!b.deleted&&String(b.label||'').indexOf('⛔ Solde')===0&&sameCmd(b));
   }
   if(!d){
-    showToast('Le solde de cette commande n\'est plus en brouillon (déjà repris ou supprimé). Recrée la commande pour le reste.','err');
+    // [L202 · audit #15] chaîne de reste ORPHELINE (restePlanId → plan supprimé, brouillon consommé) :
+    // RECONSTRUCTION de repli depuis la fiche archivée (ordonné − coupé, _resteGroupsFromFiche) au lieu
+    // du cul-de-sac « recrée la commande » — le reste des 2 fiches réelles orphelines redevient reprenable.
+    if(await confirmDlg('Le solde n\'est plus ni en plan ni en brouillon (repris ou supprimé).\n\nRECONSTRUIRE le plan du reste depuis la fiche (commande − déjà coupé) ?',{ok:'Reconstruire'})){
+      const pid=await createRemainingPlan(f);
+      if(pid){
+        try{ await db.collection('fiches').doc(id).update({restePlanId:pid}); f.restePlanId=pid; }catch(e){}
+        showToast('♻ Plan du reste RECONSTRUIT — retape « ▶ Reprendre » pour le charger (ou Données > Plans).','ok');
+        renderFiches(); return;
+      }
+      showToast('Rien à reconstruire : tout semble déjà coupé sur cette fiche.','err');
+    }
     return;
   }
   if(!isFicheUntouched()){
@@ -13144,9 +13155,13 @@ async function validateFiche(id){
     // [L166 · audit #18] le solde a-t-il DÉJÀ été repris et produit (2ᵉ fiche non-manque de même commande,
     // postérieure) ? Si oui, créer un « plan du reste » = double découpe → on prévient explicitement le pilote.
     const _soldeDejaFait=(Array.isArray(fichesCache)?fichesCache:[]).some(function(x){return x&&!x.deleted&&x._id!==id&&!x.manqueMatiere&&nrm(x.client)===nrm(f.client)&&nrm(x.ref)===nrm(f.ref)&&nrm(x.numCmd||'')===nrm(f.numCmd||'')&&String(x.date||'')>String(f.date||'');});
-    const _q=_soldeDejaFait
+    // [L202 · audit #18] conf de bobine COUPÉE illisible/vidée (édition après coupe) : le coupé ne se
+    // déduit que des confs lisibles → ses largeurs seraient RE-PRODUITES en entier dans le plan du reste.
+    const _badConf=(Array.isArray(f.ficheDetail)?f.ficheDetail:[]).filter(fd=>fd&&fd.coupee===true&&!fd.recut&&_confIllisible(fd.conf||'',0,0)).length;
+    const _warnConf=_badConf?('⚠ '+_badConf+' bobine(s) COUPÉE(S) ont une config illisible/vide : leurs largeurs seront RE-PRODUITES dans le plan du reste (risque de double découpe). Corrige-les d\'abord (✏ Modifier) si ce n\'est pas voulu.\n\n'):'';
+    const _q=_warnConf+(_soldeDejaFait
       ? '⚠ ATTENTION : une AUTRE fiche de cette commande ('+esc(f.client||'')+' / '+esc(f.ref||'')+') existe déjà APRÈS celle-ci — le solde a probablement DÉJÀ été coupé.\n\nCréer quand même le plan du reste risque une DOUBLE DÉCOUPE. Créer malgré tout ?'
-      : '⛔ Fiche manque matière validée.\n\nCréer le PLAN DU RESTE à couper (la commande non encore coupée) ?\n\nIl ira dans Données > Plans : quand la matière arrive, tu le charges et tu coupes — pas besoin de retaper. Le brouillon du solde sera remplacé par ce plan.';
+      : '⛔ Fiche manque matière validée.\n\nCréer le PLAN DU RESTE à couper (la commande non encore coupée) ?\n\nIl ira dans Données > Plans : quand la matière arrive, tu le charges et tu coupes — pas besoin de retaper. Le brouillon du solde sera remplacé par ce plan.');
     if(confirm(_q)){
       const pid=await createRemainingPlan(f);
       if(pid){
