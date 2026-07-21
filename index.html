@@ -1718,7 +1718,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L190';
+const APP_VERSION='2026.07.21-L191';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5890,8 +5890,7 @@ function recalcPlan(){
     ? `<div style="flex-basis:100%;width:100%;background:#3d2a00;border:2px solid var(--orange);color:var(--orange);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ ${_halfN} ligne(s) de commande incomplète(s) (quantité sans largeur, ou largeur illisible) — NON comprises dans le plan. Complète ou vide ces lignes.</div>`
     : '';
   if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+halfBanner+`
-    <div class="stat-chip">📦 <span>${totalBobines}</span> bobine${totalBobines>1?'s':''}</div>
-    <div class="stat-chip">⚙ <span>${planGroups.length}</span> config${planGroups.length>1?'s':''}</div>
+    <div class="stat-chip">📦 <span>${totalBobines}</span> bobine${totalBobines>1?'s':''}</div><!-- [L191] chip « ⚙ N configs » retiré (demande Esteban) -->
     ${cliMulti()?`<div class="stat-chip">👥 <span>${cliIds().length}</span> clients</div>`:''}
     ${multi?`<div class="stat-chip">🎞 <span>${_nbRefs}</span> références</div>`:`<div class="stat-chip">utile <span>${fmt((computed.find(c=>(c.rows||[]).length)||computed[0]).useful)} mm</span></div>`}
     <div class="stat-chip ${perteCls}">🗑 Perte ${multi?'globale ':''}<span>${fmt(perteMereMm)} mm · ${pertePct.toFixed(1)}%</span></div>
@@ -6753,17 +6752,19 @@ function refreshEtiquetteSolde(){
   wrap.innerHTML=list.map(d=>`
     <div class="solde-card" data-key="${d.key}" style="border:1px solid #7a6010;background:#221c06;border-radius:10px;padding:12px 14px;margin-bottom:10px">
       ${multi?`<div style="font-size:12px;font-weight:800;color:var(--ref-accent);margin-bottom:6px">▸ ${esc(d.ref||'—')}</div>`:''}
+      <div class="field" style="margin-bottom:8px">
+        <label>Laize restante (mm) <span style="color:var(--muted);font-weight:400">— modifiable si la bobine a changé</span></label>
+        <input type="text" id="etiqSolde_${d.key}" value="${esc(String(d.solde))}" inputmode="decimal" placeholder="ex : 120">
+      </div>
       <div style="font-size:13px;line-height:1.7;color:var(--muted);margin-bottom:8px">
-        Laize restante : <strong style="color:var(--orange)">${d.solde} mm</strong>${multi?'':` · Réf : <strong>${esc(d.ref||'—')}</strong>`}<br>
-        Machine : ${d.mn} · Date : ${d.date}
+        ${multi?'':`Réf : <strong>${esc(d.ref||'—')}</strong> · `}Machine : ${d.mn} · Date : ${d.date}
       </div>
       <div class="field" style="margin-bottom:8px">
         <label>N° de la bobine mère</label>
         <input type="text" id="etiqNumMere_${d.key}" placeholder="ex : 11" inputmode="text" oninput="updateEtiquetteBtn('${d.key}')">
       </div>
       <button class="btn btn-orange" id="etiqPrintBtn_${d.key}" style="width:100%;justify-content:center;opacity:.4;cursor:not-allowed" onclick="printEtiquetteSolde('${d.key}')">🖨️ Imprimer l'étiquette solde</button>
-      <div style="text-align:center;margin-top:6px;font-size:12px;color:var(--muted)" id="etiqHint_${d.key}">Saisis le n° de la bobine mère pour activer l'impression</div>
-    </div>`).join('');
+    </div>`).join('');<!-- [L191] hint « Saisis le n° de la bobine mère… » retiré (demande Esteban) -->
 }
 function updateEtiquetteBtn(key){
   const btn=document.getElementById('etiqPrintBtn_'+key),hint=document.getElementById('etiqHint_'+key);
@@ -6777,7 +6778,9 @@ function printEtiquetteSolde(key){
   if(!num){showToast('⚠ Saisis le n° de la bobine mère avant d\'imprimer l\'étiquette.','err');return;}
   const d=getEtiquetteSoldeList().find(x=>x.key===key);
   if(!d){showToast('⚠ Impossible de calculer le solde pour cette référence.','err');return;}
-  printEtiquette({...d,numBob:num});
+  // [L191] laize solde ÉDITABLE : si l'opérateur a corrigé la laize restante (bobine changée), imprimer SA valeur.
+  const soldeEdit=(document.getElementById('etiqSolde_'+key)?.value||'').trim();
+  printEtiquette({...d,solde:soldeEdit||d.solde,numBob:num});
 }
 
 function printPlan(){
