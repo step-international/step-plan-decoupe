@@ -155,6 +155,9 @@ global.savesCache=[{_id:'p1',client:'ACME',numCmd:'C100'}];
   global._plnSpanCache={};
   const _span=_plnSpanIsos({plannedDate:'2026-05-01',plannedDays:2});   // vendredi 1er mai (férié) + week-end
   ok(_span.indexOf('2026-05-01')<0 && _span.indexOf('2026-05-02')<0 && _span.indexOf('2026-05-03')<0,'étalement saute le férié (1er mai) et le week-end');
+  // [L182] planning optimisé : capacité 7h30/j + étalement auto
+  ok(/Math\.ceil\(h\/PLN_OVER_H\)/.test(src),'plnAutoFill : étalement AUTO (D=ceil(h/7,5))');
+  ok(/pick\.startIso,mach,D/.test(src),'plnAutoFill : pose sur D jours (plannedDays)');
   console.log(fail?('\n💥 '+fail+' échec(s)'):'\n🏆 L119 PLANNING VALIDÉ : ISO · garde date/refusée · multi-jours (span/étalement) · fériés · pose/retrait/retour-arrière');
   process.exit(fail?1:0);
 })();
