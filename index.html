@@ -1714,7 +1714,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L185';
+const APP_VERSION='2026.07.21-L186';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12480,7 +12480,9 @@ function renderFiches(){
       ? f.refGroups.map(g=>`${esc(g.ref||'?')} → ${(g.rows||[]).map(r=>`${r.qty}×${r.width}`).join(' + ')||'—'}`).join('\n')
       : (f.rows||[]).map(r=>`${r.qty}×${r.width}`).join(' + ');
     const op2=f.ini2?` + ${esc(f.ini2)}${f.op2Bob?` (b.${esc(f.op2Bob)})`:''}`:'';
-    const pkg=[f.typeCond||f.carton,f.palette,f.etiquetage||f.etiquette,f.cerclage].filter(Boolean).join(' · ');
+    // [L186] Conditionnement (📦) et Chute retirés de la CARTE écran (demande Esteban : moins de répétition,
+    // bloc compact). Ils restent dans le PDF (showFicheDetail : Packaging L~13953 · Perte/Chute L~13682).
+    const filmSpec=[f.mother?('laize mère '+esc(String(f.mother))+' mm'):'',(f.longueur&&String(f.longueur).trim()&&String(f.longueur)!=='—'&&!(Array.isArray(f.refGroups)&&f.refGroups.length>1))?(esc(String(f.longueur))+' ml'):''].filter(Boolean).join(' · ');
     const numCmdHas=(f.numCmd&&f.numCmd!=='—');
     // Badge statut
     let statusBadge,statusColor;
@@ -12509,7 +12511,7 @@ function renderFiches(){
     const _stateBorder=(f.valide===true)?'#4ade80':(f.valide===false)?'#f87171':(f.manqueMatiere?'#f87171':'#f59e0b');
     return `<div class="fiche-card" style="border-left-color:${_stateBorder};border-left-width:6px">
       <div class="fc-header">
-        <div class="fc-title">${esc(f.name)}${f.client?` <span style="color:var(--muted);font-weight:600">· ${esc(f.client)}</span>`:''}</div>
+        <div class="fc-title">${esc(f.client||f.ref||f.name||'Fiche')}</div>
         <div class="fc-status" style="${statusColor}">${statusBadge}</div>
       </div>
       ${mmBadge}
@@ -12519,20 +12521,17 @@ function renderFiches(){
       ${blCardBlock(f)}
       ${numCmdHas?`<div class="fc-cmd"><span class="fc-cmd-badge">N° ${esc(f.numCmd)}</span>${f.dateLiv&&f.dateLiv!=='—'?`<span class="fc-cmd-liv">📅 Livr. ${esc(f.dateLiv)}</span>`:''}</div>`:''}
       <div class="fc-grid">
-        <div class="fc-cell"><span class="fc-lbl">Client</span><span class="fc-val">${esc(f.client||'—')}</span></div>
         <div class="fc-cell" style="grid-column:1/-1"><span class="fc-lbl">Référence${(Array.isArray(f.refGroups)&&f.refGroups.length>1)?'s ('+f.refGroups.length+')':''}</span>${
           (Array.isArray(f.refGroups)&&f.refGroups.length>1)
             ? `<div class="fc-refblock">${f.refGroups.map(g=>`<div class="fc-refrow"><span class="fc-refdot">▸</span><span class="fc-refname">${esc(g.ref||'?')}${g.longueur?` · ${esc(String(g.longueur))} ml`:''}</span></div>`).join('')}</div>`
             : `<span class="fc-val-wrap">${esc(f.ref||'—')}</span>`
-        }</div>
+        }${filmSpec?`<span style="display:block;font-size:12px;color:var(--muted);margin-top:3px">🎞 ${filmSpec}</span>`:''}</div>
         <div class="fc-cell"><span class="fc-lbl">Opérateur</span><span class="fc-val">${esc(f.ini)}${op2}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Machine</span><span class="fc-val">${esc(f.machine)}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Bobines</span><span class="fc-val">${f.totalBobines}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Perte</span><span class="fc-val" style="color:${parseFloat(f.pct)<3?'#4ade80':parseFloat(f.pct)<8?'#f59e0b':'#f87171'}">${f.pct}%</span></div>
-        <div class="fc-cell"><span class="fc-lbl">Chute</span><span class="fc-val">${(f.groups||[]).length?(f.groups[f.groups.length-1].waste||'0')+' mm':'—'}</span></div>
       </div>
       <div class="fc-cmdline">${cmd||'—'}</div>
-      ${pkg?`<div class="fc-pkg">📦 ${esc(pkg)}${cartonRatioStr(f)?` · ${esc(cartonRatioStr(f))}`:''}</div>`:''}
       <div class="fc-foot">${ds} · ⏱ ${esc(f.tempsStr||'—')}</div>
       <div class="fc-actions">
         <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',true)">📄 PDF</button>
