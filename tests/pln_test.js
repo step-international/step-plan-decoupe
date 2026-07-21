@@ -158,7 +158,9 @@ global.savesCache=[{_id:'p1',client:'ACME',numCmd:'C100'}];
   // [L182] planning optimisé : capacité 7h30/j + étalement auto
   ok(/Math\.ceil\(h\/PLN_OVER_H\)/.test(src),'plnAutoFill : étalement AUTO (D=ceil(h/7,5))');
   ok(/best\.startIso,best\.mk,best\.D/.test(src),'plnAutoFill : pose sur D jours + machine choisie (équilibrage 3 machines)');
-ok(/const pen=\(native&&mk!==native\)/.test(src),'plnAutoFill : équilibrage 3 machines (pénalité machine étrangère = préférence native)');
+ok(/nat=\(native&&mk!==native\)\?1\.5:0/.test(src),'plnAutoFill : équilibrage 3 machines (pénalité machine étrangère = préférence native)');
+ok(/pack:-preLoad/.test(src),'plnAutoFill : PACK best-fit (remplit les journées entamées — L208)');
+ok(/Math\.min\(14,Math\.ceil\(h\/PLN_OVER_H\)\)/.test(src),'plnAutoFill : D borné à 14 (L208 audit #2)');
   console.log(fail?('\n💥 '+fail+' échec(s)'):'\n🏆 L119 PLANNING VALIDÉ : ISO · garde date/refusée · multi-jours (span/étalement) · fériés · pose/retrait/retour-arrière');
   process.exit(fail?1:0);
 })();

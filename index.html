@@ -1750,7 +1750,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L207';
+const APP_VERSION='2026.07.21-L208';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9487,9 +9487,11 @@ async function plnAutoFill(){
   const sunday=(function(){const d=new Date(mon);d.setDate(mon.getDate()+6);return _plnIso(d);})();
   const todayIso=_plnIso(new Date());
   const cands=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.plannedDate&&!_plnDejaCoupe(s,ctx))
-    .map(s=>({s,liv:_plnDateLivMin(s)}))
+    .map(s=>{const e=_plnPlanMeters(s);return {s,liv:_plnDateLivMin(s),sz:(e&&e.metres)||0};})
     .filter(x=>x.liv&&x.liv<=sunday)
-    .sort((a,b)=>a.liv.localeCompare(b.liv)||String(a.s.date||'').localeCompare(String(b.s.date||'')));
+    // [L208 · best-fit DECREASING] livraison la plus proche d'abord (délai), puis la PLUS GROSSE d'abord
+    // (les grosses commandes se placent en premier, les petites bouchent les trous → journées mieux remplies).
+    .sort((a,b)=>a.liv.localeCompare(b.liv)||(b.sz-a.sz)||String(a.s.date||'').localeCompare(String(b.s.date||'')));
   // [L206 · bug Esteban] cartes DÉJÀ POSÉES de la semaine : candidates au RÉ-ÉTALEMENT (celles posées
   // avant l'étalement auto L197 restaient sur 1 jour → 19h55/56h26 dans une seule journée).
   const _placedWeek=(savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate&&!_plnDejaCoupe(s,ctx)&&_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0));
@@ -9506,25 +9508,27 @@ async function plnAutoFill(){
       if(D>_plnDays(s)){ const ok=await plnSetPlan(s._id,s.plannedDate,s.plannedMachine,D); if(ok!==false) respread++; }
     }catch(e){}
   }
-  // 2) charge existante (heures) par machine×jour — posés + fantômes, coupées exclues (charge faite)
+  // 2) charge existante (heures) par machine×jour — MÊME sémantique que la GRILLE : sur la machine POSÉE +
+  //    les machines à part fantôme (byMachDetail), PAS sur les 3. [L208 · audit planning #3] un plan mono /
+  //    à machine inconnue était compté ×3 (repli TOTAL × boucle 3 machines) → journées pleines FICTIVES,
+  //    l'optimiseur refusait d'y poser. Coupées exclues (charge faite).
   const load={}; DUJ_MACHINES.forEach(m=>{ load[m]={}; dayIsos.forEach(iso=>{ load[m][iso]=0; }); });
   (savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate&&!_plnDejaCoupe(s,ctx)).forEach(s=>{
     const span=_plnSpanIsos(s);
-    DUJ_MACHINES.forEach(m=>{
-      const h=_plnHoursOn(s,m); if(h==null||!(h>0)) return;
-      span.forEach(iso=>{ if(load[m][iso]!=null) load[m][iso]+=h/_plnDays(s); });
-    });
+    const machs=new Set(); const _pm=dujMachKey(s.plannedMachine||''); if(_pm) machs.add(_pm);
+    const _e=_plnPlanMeters(s); if(_e&&_e.byMachDetail) Object.keys(_e.byMachDetail).forEach(k=>{ if(k) machs.add(k); });
+    machs.forEach(m=>{ if(!load[m]) return; const h=_plnHoursOn(s,m); if(h==null||!(h>0)) return; span.forEach(iso=>{ if(load[m][iso]!=null) load[m][iso]+=h/_plnDays(s); }); });
   });
   let done=0,fail=0,spread=0,moved=0;
+  const EPS=0.01, wkLoad=mk=>dayIsos.reduce((a,iso)=>a+(load[mk][iso]||0),0);
   // jours de DÉPART candidats : ouvrés de la semaine, pas déjà passés (semaine courante)
   let starts=dayIsos.filter(iso=>plnWeekOffset!==0||iso>=todayIso);
   if(!starts.length) starts=dayIsos.slice();
   for(const x of cands){
     const s=x.s;
     const native=dujMachKey(s.machine||'');
-    // [L183 · demande Esteban] RÉPARTIR SUR LES 3 MACHINES : 3 opérateurs, une machine chacun — tout doit
-    // tourner. On évalue le MEILLEUR placement sur CHAQUE machine ; la machine PRÉVUE de la commande garde
-    // la préférence (pénalité virtuelle +1,5 h sur les autres) → on ne déplace que si ça améliore nettement.
+    // [L183 · demande Esteban] RÉPARTIR SUR LES 3 MACHINES (3 opérateurs, tout tourne) : machine PRÉVUE
+    // préférée (pénalité +1,5 h ailleurs), sinon la machine la moins chargée de la semaine.
     const est=_plnPlanMeters(s);
     const hOn=(mk)=>{
       if(mk===native){ const v=_plnHoursOn(Object.assign({},s,{plannedMachine:mk}),mk); if(v!=null&&v>0) return v; }
@@ -9534,17 +9538,26 @@ async function plnAutoFill(){
     let best=null;
     for(const mk of DUJ_MACHINES){
       const h=hOn(mk);
-      const D=Math.max(1,Math.ceil(h/PLN_OVER_H));   // [L182] capacité 7h30/j → étalement auto
+      const D=Math.max(1,Math.min(14,Math.ceil(h/PLN_OVER_H)));   // [L182] capacité 7h30/j → étalement auto · [L208 · audit #2] borné à 14 (comme _plnDays/plnSetPlan) : sinon >105 h le modèle sous-estimait la charge/jour
       const perDay=h/D;
-      const pen=(native&&mk!==native)?1.5:0;   // préférence machine prévue
+      const mkWk=wkLoad(mk), nat=(native&&mk!==native)?1.5:0;   // équilibrage 3 machines + préférence machine prévue
       for(const startIso of starts){
         const span=_plnSpanIsos({plannedDate:startIso,plannedDays:D});
-        let worst=0; span.forEach(iso=>{ const cur=(load[mk][iso]!=null)?load[mk][iso]:0; worst=Math.max(worst,cur+perDay); });
+        let maxAfter=0, preLoad=0;
+        span.forEach(iso=>{ const cur=(load[mk][iso]!=null)?load[mk][iso]:0; maxAfter=Math.max(maxAfter,cur+perDay); preLoad+=cur; });
         const endIso=span[span.length-1]||startIso;
-        const cand={mk,h,D,perDay,startIso,span,worst,score:worst+pen,endsBeforeLiv:endIso<=x.liv,under:worst<=PLN_OVER_H};
-        // préférence : (1) finit avant la livraison ET sous 7h30 ; (2) sous 7h30 ; (3) avant livraison ; (4) score min
-        const rank=c=>(c.endsBeforeLiv&&c.under)?0:(c.under?1:(c.endsBeforeLiv?2:3));
-        if(!best||rank(cand)<rank(best)||(rank(cand)===rank(best)&&cand.score<best.score)) best=cand;
+        const onTime=endIso<=x.liv, under=maxAfter<=PLN_OVER_H+EPS;
+        // [L208 · demande Esteban « utiliser presque toute la capacité »] priorité : (0) à temps ET sous 7h30,
+        // (1) sous 7h30, (2) à temps, (3) reste. Puis ÉQUILIBRE 3 machines (machineKey). Puis — le cœur du
+        // remplissage — PACK : on remplit d'abord les journées DÉJÀ entamées (preLoad max) plutôt qu'ouvrir un
+        // jour vide → fini les journées à 1h55/7h30 tant qu'il reste des commandes à y mettre. Puis départ tôt.
+        const rank=(onTime&&under)?0:(under?1:(onTime?2:3));
+        const cand={mk,h,D,perDay,startIso,span,rank,machineKey:mkWk+nat,pack:-preLoad,startIdx:dayIsos.indexOf(startIso)};
+        const better=!best||cand.rank<best.rank
+          ||(cand.rank===best.rank&&cand.machineKey<best.machineKey-EPS)
+          ||(cand.rank===best.rank&&Math.abs(cand.machineKey-best.machineKey)<=EPS&&cand.pack<best.pack-EPS)
+          ||(cand.rank===best.rank&&Math.abs(cand.machineKey-best.machineKey)<=EPS&&Math.abs(cand.pack-best.pack)<=EPS&&cand.startIdx<best.startIdx);
+        if(better) best=cand;
       }
     }
     if(!best){ fail++; continue; }
