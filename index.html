@@ -1752,7 +1752,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L210';
+const APP_VERSION='2026.07.21-L211';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9953,12 +9953,13 @@ function renderPlanning(){
       });
       // [L149 · revue L148 #8/#10] « every » (→ absence de « +? ») calculé sur les cartes ET les fantômes : sinon
       // une cellule à fantômes seuls (cellPlans.length=0) affichait « +? » alors que la part fantôme est estimée.
-      let hSum=0,any=false,allEst=true;
+      let hSum=0,any=false,allEst=true,nonCut=0;
       const _acc=s=>{ if(_plnCutSet.has(s._id)) return;   // [L177] déjà coupée → sa charge est FAITE, ne compte plus
+        nonCut++;
         const h=_plnHoursOn(s,m); if(h==null) allEst=false; else { hSum+=h/_plnDays(s); any=true; } };
       cellPlans.forEach(_acc); ghosts.forEach(_acc);
       const every=allEst && (cellPlans.length+ghosts.length)>0;
-      return {iso,cellPlans,ghosts,hSum,every,any};
+      return {iso,cellPlans,ghosts,hSum,every,any,nonCut};   // [L211 · audit planning #5] nonCut : distingue « journée 100% coupée » (charge FAITE = 0) d'une durée inconnue
     });
     const machWeek=dayCells.reduce((a,c)=>a+(c.any?c.hSum:0),0);
     weekH+=machWeek;
@@ -9969,7 +9970,12 @@ function renderPlanning(){
     dayCells.forEach(dc=>{
       // [L197 · demande Esteban] charge du jour vs max 7h30 · [L198 · Planning v2] + JAUGE visuelle : barre
       // verte→ambre→rouge remplie à charge/7h30. « +? » = au moins une part estimée sans débit chrono.
-      const loadTxt=(dc.cellPlans.length||(dc.ghosts&&dc.ghosts.length))?(dc.any?((dc.hSum>0?_plnH(dc.hSum).replace('≈ ',''):'0 min')+' <small>/ '+_dayMaxTxt+'</small>'+(dc.every?'':' +?')):'—'):'';   // [L199 · revue #9] hSum=0 (machine qui ne coupe rien) → « 0 min / 7h30 » au lieu de l'hybride « — / 7h30 »
+      // [L199 · revue #9] hSum=0 → « 0 min / 7h30 » plutôt que « — ». [L211 · audit planning #5] cellule qui ne
+      // contient QUE des commandes COUPÉES (nonCut=0) : charge FAITE → « ✓ fait » (vert), pas « — » (durée inconnue).
+      const loadTxt=(dc.cellPlans.length||(dc.ghosts&&dc.ghosts.length))
+        ? (dc.any?((dc.hSum>0?_plnH(dc.hSum).replace('≈ ',''):'0 min')+' <small>/ '+_dayMaxTxt+'</small>'+(dc.every?'':' +?'))
+                 : (dc.nonCut===0?'<span style="color:var(--ok)">✓ fait</span>':'—'))
+        : '';
       const loadBar=(dc.any&&loadTxt)?`<span class="pl-bar"><span class="pl-fill" style="width:${Math.min(100,Math.round(dc.hSum/PLN_OVER_H*100))}%"></span></span>`:'';
       const loadCls=(dc.any&&dc.hSum>PLN_OVER_H)?' over':((dc.any&&dc.hSum>PLN_WARN_H)?' warn':'');
       const ghostHtml=(dc.ghosts||[]).map(s=>{ const h=_plnHoursOn(s,m); const hd=(h!=null)?_plnH(h/_plnDays(s)):''; const posted=getMachineLabel(dujMachKey(s.plannedMachine||''))||'—';
@@ -9984,7 +9990,7 @@ function renderPlanning(){
       grid+=`<div class="pln-cell${dc.iso===todayIso?' today':''}${_fer?' ferie':''}"${_fer?'':` data-day="${dc.iso}" data-mach="${m}" onclick="plnCellTap('${dc.iso}','${m}')"`}>${_fer?'<div class="pln-ferlbl">FÉRIÉ</div>':`<div class="pln-load${loadCls}" title="charge estimée du jour sur cette machine (max ${_dayMaxTxt})"><span>${loadTxt}</span>${loadBar}</div>`}${dc.cellPlans.map(s=>cardHtml(s,'placed',dc.iso)).join('')}${ghostHtml}</div>`;
     });
   });
-  const placedCount=all.filter(s=>s.plannedDate&&!_plnCutSet.has(s._id)&&dayIsos.indexOf(s.plannedDate)>=0).length;   // [L177] coupées exclues du compteur
+  const placedCount=all.filter(s=>s.plannedDate&&!_plnCutSet.has(s._id)&&_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0)).length;   // [L177] coupées exclues · [L211 · audit planning #4] compter par SPAN (pas plannedDate brut) : une pose legacy sur un férié dont le span glisse à la semaine suivante n'est plus comptée « posée » ici alors qu'elle est invisible dans la grille
   const beyond=all.filter(s=>s.plannedDate&&s.plannedDate>dayIsos[4]).length;   // [L118 · audit #28] plans planifiés APRÈS la semaine affichée
   // [L147 · audit #22] plan posé sur une machine NON résolvable (dujMachKey='' : machine renommée/retirée de la
   // config, ou donnée héritée) : rendu dans aucune case → FANTÔME compté en « X posé(s) » mais invisible/introuvable.
