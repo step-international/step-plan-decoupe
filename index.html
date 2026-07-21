@@ -1747,7 +1747,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L200';
+const APP_VERSION='2026.07.21-L201';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4183,9 +4183,14 @@ function onRefMachineChange(sel){
 // CHAQUE frappe → figeage/OOM de l'onglet. On borne donc les LECTURES de champs à
 // une laize physiquement plausible. Aucune bobine réelle n'approche 20 m : un plan
 // valide n'est jamais altéré. L'algorithme du sac à dos n'est pas touché.
-const MAX_USEFUL_MM=20000;   // laize utile max plausible (mm) — 10× la plus large bobine réelle
+// [L201 · audit #5/#20] ANTI-GEL À LA FRONTIÈRE (le moteur gelé n'est PAS touché) : le sac à dos de
+// bestPattern est O(laize utile × items) — un utile de 20 000 mm (l'ancien plafond, « 10× le réel »)
+// admettait des calculs de 135 s qui figeaient l'écran. Plafond ramené à 4 000 mm (≈ 2× la plus large
+// mère réelle, 2 140 mm) : toute machine réelle passe, la faute de frappe aberrante est bornée.
+const MAX_USEFUL_MM=4000;    // laize utile max plausible (mm)
+const MAX_BLADE_MM=50;       // [L201 · audit #5] lame max plausible (réel : 0–5 mm)
 function clampUseful(u){ u=Number(u); if(!isFinite(u)||u<=0) return 0; return Math.min(u,MAX_USEFUL_MM); }
-function clampBlade(b){ b=Number(b); if(!isFinite(b)||b<=0) return 0; return Math.min(b,MAX_USEFUL_MM); }  // MOT-1 : lame jamais négative
+function clampBlade(b){ b=Number(b); if(!isFinite(b)||b<=0) return 0; return Math.min(b,MAX_BLADE_MM); }  // MOT-1 : lame jamais négative
 function getUseful(){return clampUseful(parseNum(document.getElementById('motherWidth').value)-parseNum(document.getElementById('edgeLoss').value));}
 function getBlade(){return clampBlade(parseNum(document.getElementById('bladeWidth').value));}
 function onParamChange(){
@@ -4545,7 +4550,7 @@ function getOrderRows(){
     const carton=cEl?clampQ(parseNum(cEl.value),999):0;
     const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
     const cli=(row.querySelector('[data-type="cli"]')?.value||'A').trim();   // [L64 · Lot 6]
-    if(qty>0&&w>0){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}
+    if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
   });
   return rows;
 }
@@ -5130,7 +5135,7 @@ function getRefGroups(){
         const carton=cEl?clampQ(parseNum(cEl.value),999):0;
         const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
         const cli=(row.querySelector('[data-type="cli"]')?.value||'A').trim();   // [L64 · Lot 6]
-        if(qty>0&&w>0){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}
+        if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
       });
       // Chutes en stock saisies pour cette réf : bobineaux déjà à la bonne largeur.
       const chutes=[];
@@ -5370,6 +5375,7 @@ function _confIllisible(raw,_capMax,_capBlade){
   const nc=normConf(raw);
   if(/\d\.\d*×/.test(nc)) return 'quantité décimale ?';
   if(parseConf(nc).length===0) return 'aucune largeur reconnue';
+  if(parseConf(nc).some(p=>p.width<1)) return 'largeur < 1 mm';   // [L201 · audit #23] sub-millimétrique = 0 slot dans bestPattern → pièce perdue en silence
   if(_capMax>0){ const _st=calcStats(parseConf(nc),Math.max(0,Number(_capBlade)||0)); if(_st.total>_capMax+0.5) return 'trop large pour la bobine ('+fmt(_st.total)+' > '+fmt(_capMax)+' mm)'; }   // [L100 · audit e2e #3] capacité physique : Σ(largeurs)+lames ≤ laize utile — une conf « 6×300 » sur une bobine de 1000 mm était acceptée en silence → sous-production fantôme   // [L99 · audit e2e] config sans AUCUN chiffre (« cassée », « voir chef ») : la boucle every([]) la validait à tort → 0 pièce comptée → re-production SILENCIEUSE au recalcul / arrêt manque matière
   const segs=nc.split(/[+,]/).map(x=>x.trim()).filter(Boolean);
   if(segs.some(seg=>!/\d/.test(seg))) return 'segment sans chiffre';   // [L99] un segment texte au milieu (« 6×502 + cassée ») ne passe plus non plus

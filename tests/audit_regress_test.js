@@ -60,6 +60,15 @@ has(/const lostMach=all\.filter\(s=>s\.plannedDate&&dujMachKey\(s\.plannedMachin
 has(/Cet article a ENCORE .*en mouvements/,'#24 stock : avertissement archivage à solde non nul');
 has(/vérifier la couverture de la commande/,'CRIT#1 (audit 9001) : rebut 🗑/NC quantité force hasEcart (anti sous-livraison silencieuse)');
 has(/const _dechetPieces=ficheData\.reduce/,'CRIT#1 : comptage des pièces au rebut à l\'archivage');
+has(/const _resolveKey=fd=>\{/,'CRIT#2 (audit 9001) : désambiguïsation homonymes par LARGEUR dans _resteGroupsFromFiche');
+has(/const MAX_USEFUL_MM=4000/,'#5/#20 anti-gel : clamp laize utile 4000 mm (20000 gelait le DP 135 s)');
+has(/const MAX_BLADE_MM=50/,'#5 anti-gel : clamp lame 50 mm');
+has(/largeur < 1 mm/,'#23 : largeur sub-millimétrique refusée (0 slot → pièce perdue en silence)');
+has(/!before\.d \|\| \(machKey\|\|null\)!==\(before\.m\|\|null\)/,'revue planning #1/#2 : étalement auto SEULEMENT 1re pose ou changement de machine');
+has(/normalisée au 1er jour OUVRÉ suivant/,'revue planning #3 : pose sur férié normalisée');
+has(/if\(M===60\)\{H\+\+;M=0;\}/,'revue planning #12 : _plnH report de retenue (1 h 60 → 2 h)');
+has(/importFullBackup/,'#16 : import de sauvegarde présent (round-trip)');
+has(/Cascade archivage fiche/,'#14 : cascade temps à l\'archivage d\'une fiche');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
