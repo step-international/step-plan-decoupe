@@ -1526,6 +1526,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
       <button class="btn btn-ghost btn-sm" id="btnPendingOnly" onclick="togglePendingOnly()">🕓 À valider</button>
       <button class="btn btn-ghost btn-sm" id="btnToggleValid" onclick="toggleValidatedFiches()">✓ Fiches validées</button>
       <button class="btn btn-ghost btn-sm" onclick="exportFiches()">⬇️ Exporter CSV</button>
+      <span id="archivesModeChip" style="display:none;align-items:center;background:#14371f;border:1px solid #2a5c2a;border-radius:10px;padding:8px 14px;font-size:13px;color:#4ade80"><strong>Mode archives</strong>&nbsp;— fiches validées par Dominique, sorties du flux quotidien.</span><!-- [L207 · demande Esteban] la phrase vit À CÔTÉ d'Exporter CSV (plus de bannière sous la recherche) -->
       <!-- [L79] « Tout archiver » retiré (action de masse dangereuse) — clearFiches conservée sans accès UI -->
     </div>
     <input type="text" id="ficheSearch" aria-label="Rechercher une fiche" oninput="debouncedFicheSearch()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
@@ -1749,7 +1750,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L206';
+const APP_VERSION='2026.07.21-L207';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12654,6 +12655,9 @@ function renderFiches(){
     pb.className='btn btn-sm '+(fichesPendingOnly?'btn-orange':'btn-ghost');
   }
   updateTabBadges();
+  // [L207 · demande Esteban] chip « Mode archives » à côté d'Exporter CSV — mis à jour AVANT le retour
+  // anticipé « liste vide » (sinon il restait affiché/masqué à tort en changeant de vue).
+  { const _ac=document.getElementById('archivesModeChip'); if(_ac) _ac.style.display=showValidatedFiches?'inline-flex':'none'; }
   if(!fiches.length){
     if(q){
       list.innerHTML='<div style="text-align:center;padding:24px 16px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">Aucune fiche ne correspond à « '+esc(q)+' ».</div>';
@@ -12667,10 +12671,7 @@ function renderFiches(){
     return;
   }
   empty.classList.add('hidden');
-  // Bandeau d'info si on consulte les archives
-  const banner=showValidatedFiches
-    ?`<div style="background:#14371f;border:1px solid #2a5c2a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#4ade80"><strong>Mode archives</strong> — fiches validées par Dominique. Toujours stockées, sorties du flux quotidien.</div>`
-    :'';
+  const banner='';   // [L207] « Mode archives » = chip à côté d'Exporter CSV (géré plus haut, plus de bannière dans la liste)
   // Pagination : on ne rend que les N premières (perf tablette), bouton "Voir plus" pour la suite.
   const totalFiches=fiches.length;
   const shown=fiches.slice(0,fichesRenderLimit);
