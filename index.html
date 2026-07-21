@@ -1724,7 +1724,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L195';
+const APP_VERSION='2026.07.21-L196';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8371,7 +8371,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   const blade2=op2Diff?(g('fBlade2')?.value||''):'';
   const useful2=op2Diff?fmt(Math.max(0,parseNum(mother2)-parseNum(edge2))):'';
   const lame=g('fNumLame').value||'—';
-  const lameChg=g('fLameChg')?.checked||false;
+  const lameChg=(g('fLameChg')?.checked && String(g('fLameNew')?.value||'').trim())?true:false;   // [L196 · audit #25/#26] pas de « changement de lame » sans NOUVELLE lame renseignée (symétrique à machChg qui est null si cible vide) → fini la bande fantôme « X → — », et cohérent avec le remap du brouillon de solde
   // [L65] changement de machine op.1 : figé dans l'archive (bandeau + en-tête PDF).
   const machChg=(g('fMachChg')?.checked&&(g('fMachChgTo')?.value||''))?{to:g('fMachChgTo').value,bob:g('fMachChgBob')?.value||''}:null;
   const lameNew=lameChg?(g('fLameNew').value||'—'):'';
@@ -9124,6 +9124,10 @@ async function saveTempsEdit(id){
     longueur:sv('teLong'), largeur:sv('teLarg'),
     numJour:sv('teNumJour'), commentaire:sv('teComm')
   };
+  // [L196 · audit #6] Miroir de la garde de CRÉATION (confirmCommandeRecap, stopManqueMatiere) : un
+  // opérateur 2 renseigné SANS « dès bobine » casse la ventilation bi-machine (tout le temps repart sur
+  // la machine 1, la machine 2 disparaît des stats). On refuse la correction incohérente.
+  if(changes.operateur2 && !changes.op2Bobine){ showToast('⚠ Opérateur 2 renseigné sans « Op.2 dès bobine » : indique le n° de bobine de bascule, ou vide l\'opérateur 2.','err'); return; }
   try{
     await db.collection('temps').doc(id).update(changes);
     Object.assign(t, changes);
@@ -12720,7 +12724,7 @@ function _resteGroupsFromFiche(f){
     const _lastOp2={};   // [L76] nrm(ref) → true si la dernière ligne générée de la réf est une OP2-
     det.forEach(fd=>{
       if(!fd) return;
-      const _lb=String(fd.label||'');
+      const _lb=String(fd.autoLabel||fd.label||'');   // [L196 · audit #7] autoLabel D'ABORD (comme le tag HORS-PLAN du PDF, L141) : renommer une bobine OP2- avec le vrai n° de mère ne doit pas perdre le calage op.2 du plan du reste
       if(/(^|·\s*)OP2-\d/.test(_lb)) _lastOp2[nrm(fd.ref)]=true;          // [L73 · Lot 5 · B55] \d : ne matche que les labels générés OP2-01… (pas une réf client « OP2-FOO »)
       else if(/(^|·\s*)RESTE-\d/.test(_lb)) _lastOp2[nrm(fd.ref)]=false;  // [L76] une RESTE- postérieure = reliquat re-packé op.1
     });
@@ -12728,8 +12732,14 @@ function _resteGroupsFromFiche(f){
     if(_op2Refs.size){
       const _l2=String(f.machine2||'').trim().toLowerCase();   // f.machine2 = LABEL ('MAVEG') → clé ('maveg')
       const _mach2=MACHINE_KEYS.includes(_l2)?_l2:'';
+      const _u2=Math.max(0,_m2-Math.max(0,_e2));   // [L196 · audit #19] laize utile de la mère op.2 (étroite)
       base.forEach(g=>{
         if(multi&&!_op2Refs.has(nrm(g.ref))) return;   // multi-réf : seule la réf ciblée par op.2
+        // [L196 · audit #19] Garde LARGEUR (équivalent auto de la garde LIVE _tooWide2) : si une laize de la
+        // réf dépasse la laize utile de la mère op.2, elle n'y est PAS coupable → on NE cale PAS cette réf
+        // sur op.2 (elle reste sur la mère op.1 large), sinon pièce oversize / sous-livraison au plan du reste.
+        const _maxW=Math.max(0,...(g.rows||[]).map(r=>Number(r.width)||0));
+        if(_u2>0 && _maxW>_u2) return;
         g.mother=_m2; g.edge=Math.max(0,_e2); g.blade=_b2;
         if(_mach2) g.machine=_mach2;
       });
