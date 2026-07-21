@@ -592,6 +592,7 @@ body.atelier .pln-load{font-size:14px}/* [L198] jauge lisible sur tablette */
 body.atelier .fiche-film-badge{font-size:20px}/* [L203] Film (Imprimé…) encore plus gros en atelier */
 body.atelier .pln-flag{font-size:12.5px}
 body.atelier .pln-card.pln-grab{padding-left:26px}/* [L199 · revue planning] le padding:7px 9px atelier (0,2,1) écrasait le padding-left de la poignée ⠿ (0,2,0) → ⠿ chevauchait le texte sur tablette */
+body.atelier .pln-card.late{padding-bottom:20px}/* [L206 · bug Esteban] même écrasement pour l'espace du drapeau EN RETARD : la ligne « livr. » était masquée en atelier */
 body.atelier .fiche-chute-note{font-size:17px}
 body.atelier .chrono-status{font-size:16px}
 body.atelier .text-muted{font-size:16px}
@@ -1748,7 +1749,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L205';
+const APP_VERSION='2026.07.21-L206';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9401,8 +9402,15 @@ function _plnHoursOn(s,machKey){
     // inrésolvable : config changée, s.machine vide), le plan mono-machine posé sur une machine réelle doit
     // recevoir son TOTAL ici (sinon sa charge disparaîtrait — 0 partout, aucun fantôme).
     const realKeys=[].concat(est.byMachDetail?Object.keys(est.byMachDetail):[]).concat(est.byMach?Object.keys(est.byMach):[]).filter(k=>k);
-    if(realKeys.length) return 0;
-    part={metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};   // mono-machine / clé inrésolvable → total
+    if(realKeys.length){
+      // [L206 · bug Esteban] commande DÉPLACÉE (équilibrage 3 machines L183 / glisser) : posée sur mk qui
+      // n'a AUCUNE part native → c'est l'opérateur de mk qui coupera TOUT → TOTAL au débit de mk (même
+      // sémantique que le hOn() de l'autofill). Avant : 0 sur la machine posée (« 0 min / 7h30 » sous une
+      // carte J1/2) + la charge chez la machine native via fantôme = affichage à l'envers du réel.
+      if(dujMachKey(s.plannedMachine||'')===mk) part={metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};
+      else return 0;
+    }
+    else part={metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0};   // mono-machine / clé inrésolvable → total
   }
   return _plnHoursPart(mk,part);
 }
@@ -9481,9 +9489,23 @@ async function plnAutoFill(){
     .map(s=>({s,liv:_plnDateLivMin(s)}))
     .filter(x=>x.liv&&x.liv<=sunday)
     .sort((a,b)=>a.liv.localeCompare(b.liv)||String(a.s.date||'').localeCompare(String(b.s.date||'')));
-  if(!cands.length){ showToast('Rien à répartir : aucune commande « À planifier » à livrer d\'ici la fin de cette semaine.','ok'); return; }
-  if(!confirm('⚡ Planning optimisé — poser automatiquement '+cands.length+' commande(s) sur cette semaine ?\n\n• Priorité aux livraisons les plus proches\n• RÉPARTITION sur les 3 machines (3 opérateurs — tout tourne), préférence à la machine prévue\n• Max '+String(PLN_OVER_H).replace('.',',')+' h de découpe par jour et par machine\n• Une commande trop grande est ÉTALÉE automatiquement sur plusieurs jours\n• Tu pourras tout re-glisser ensuite.')) return;
-  // charge existante (heures) par machine×jour — posés + fantômes, coupées exclues (charge faite)
+  // [L206 · bug Esteban] cartes DÉJÀ POSÉES de la semaine : candidates au RÉ-ÉTALEMENT (celles posées
+  // avant l'étalement auto L197 restaient sur 1 jour → 19h55/56h26 dans une seule journée).
+  const _placedWeek=(savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate&&!_plnDejaCoupe(s,ctx)&&_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0));
+  if(!cands.length&&!_placedWeek.length){ showToast('Rien à répartir : aucune commande « À planifier » à livrer d\'ici la fin de cette semaine.','ok'); return; }
+  if(!confirm('⚡ Planning optimisé — poser '+cands.length+' commande(s) et RÉ-ÉTALER les '+_placedWeek.length+' déjà posées ?\n\n• Priorité aux livraisons les plus proches\n• RÉPARTITION sur les 3 machines (3 opérateurs — tout tourne), préférence à la machine prévue\n• Max '+String(PLN_OVER_H).replace('.',',')+' h de découpe par jour et par machine\n• Une commande trop grande est ÉTALÉE automatiquement sur plusieurs jours (aussi celles DÉJÀ posées)\n• Tu pourras tout re-glisser ensuite.')) return;
+  // [L206 · bug Esteban] 1) RÉ-ÉTALER les cartes déjà posées : D = ⌈part max ÷ 7h30⌉ (on n'ÉLARGIT que —
+  // un étalement volontairement plus large reste respecté). Les 19h55 posés sur UN jour passent sur 3.
+  let respread=0;
+  for(const s of _placedWeek){
+    try{
+      let hMax=0; DUJ_MACHINES.forEach(mk=>{ const hh=_plnHoursOn(s,mk); if(hh!=null&&hh>hMax)hMax=hh; });
+      if(!(hMax>0)) continue;
+      const D=Math.max(1,Math.min(14,Math.ceil(hMax/PLN_OVER_H)));
+      if(D>_plnDays(s)){ const ok=await plnSetPlan(s._id,s.plannedDate,s.plannedMachine,D); if(ok!==false) respread++; }
+    }catch(e){}
+  }
+  // 2) charge existante (heures) par machine×jour — posés + fantômes, coupées exclues (charge faite)
   const load={}; DUJ_MACHINES.forEach(m=>{ load[m]={}; dayIsos.forEach(iso=>{ load[m][iso]=0; }); });
   (savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate&&!_plnDejaCoupe(s,ctx)).forEach(s=>{
     const span=_plnSpanIsos(s);
@@ -9534,8 +9556,8 @@ async function plnAutoFill(){
     }catch(e){ fail++; }
   }
   try{ renderPlanning(); }catch(e){}
-  showToast('⚡ Planning optimisé : '+done+' commande(s) posée(s)'+(spread?' · '+spread+' étalée(s)':'')+(moved?' · '+moved+' déplacée(s) sur une autre machine (équilibrage 3 machines)':'')+(fail?' · '+fail+' échec(s)':'')+' — re-glisse ce qui ne te va pas.','ok');
-  logAudit('planning','saves','auto-fill','Planning optimisé — '+done+' posée(s), '+spread+' étalée(s), '+moved+' déplacée(s) de machine (max '+PLN_OVER_H+' h/j, semaine du '+dayIsos[0]+')').catch(function(){});
+  showToast('⚡ Planning optimisé : '+done+' commande(s) posée(s)'+(respread?' · '+respread+' déjà posée(s) RÉ-ÉTALÉE(S)':'')+(spread?' · '+spread+' étalée(s)':'')+(moved?' · '+moved+' déplacée(s) sur une autre machine (équilibrage 3 machines)':'')+(fail?' · '+fail+' échec(s)':'')+' — re-glisse ce qui ne te va pas.','ok');
+  logAudit('planning','saves','auto-fill','Planning optimisé — '+done+' posée(s), '+respread+' ré-étalée(s), '+spread+' étalée(s), '+moved+' déplacée(s) de machine (max '+PLN_OVER_H+' h/j, semaine du '+dayIsos[0]+')').catch(function(){});
 }
 async function plnSetPlan(sid,dateIso,machKey,days){
   if(!plnCanEdit()){ showToast('🔒 Lecture seule — la planification est réservée au pilotage/admin.','err'); return false; }
@@ -9875,7 +9897,14 @@ function renderPlanning(){
       // plannedMachine possible → la part de l'AUTRE machine disparaissait (charge sous-estimée, estimation
       // qui chutait à la pose). On rend un SEGMENT FANTÔME (non déplaçable) sur chaque autre machine impliquée
       // et on l'y CHARGE aussi. La carte principale (déplaçable) reste sur la machine posée.
-      const ghosts=inSpan.filter(s=>dujMachKey(s.plannedMachine||'')!==m&&(function(){const e=_plnPlanMeters(s);return !!(e&&e.byMachDetail&&e.byMachDetail[m]);})());
+      const ghosts=inSpan.filter(s=>{
+        if(dujMachKey(s.plannedMachine||'')===m) return false;
+        const e=_plnPlanMeters(s); if(!(e&&e.byMachDetail&&e.byMachDetail[m])) return false;
+        // [L206 · bug Esteban] commande DÉPLACÉE (machine posée SANS part native) : TOUT est coupé sur la
+        // machine posée (cf. _plnHoursOn) → AUCUN fantôme chez la native (sinon double affichage/charge).
+        const pm=dujMachKey(s.plannedMachine||'');
+        return !pm || !!(e.byMachDetail[pm]||(e.byMach&&e.byMach[pm]!=null));
+      });
       // [L149 · revue L148 #8/#10] « every » (→ absence de « +? ») calculé sur les cartes ET les fantômes : sinon
       // une cellule à fantômes seuls (cellPlans.length=0) affichait « +? » alors que la part fantôme est estimée.
       let hSum=0,any=false,allEst=true;
