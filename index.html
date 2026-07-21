@@ -1752,7 +1752,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L212';
+const APP_VERSION='2026.07.21-L213';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9532,7 +9532,7 @@ async function plnAutoFill(){
   let done=0,fail=0,spread=0,moved=0,notFit=0;
   const EPS=0.01, wkLoad=mk=>dayIsos.reduce((a,iso)=>a+(load[mk][iso]||0),0);
   // comparaison lexicographique de clés [rank, machineKey, whole, remStart, startIdx, D] (EPS sur les floats)
-  const _plnKeyLt=(a,b)=>{ for(let i=0;i<a.length;i++){ const e=(i===1||i===3)?EPS:0; if(a[i]<b[i]-e) return true; if(a[i]>b[i]+e) return false; } return false; };
+  const _plnKeyLt=(a,b)=>{ for(let i=0;i<a.length;i++){ const e=(i===1||i===3||i===4)?EPS:0; if(a[i]<b[i]-e) return true; if(a[i]>b[i]+e) return false; } return false; };
   // jours de DÉPART candidats : ouvrés de la semaine, pas déjà passés (semaine courante)
   let starts=dayIsos.filter(iso=>plnWeekOffset!==0||iso>=todayIso);
   if(!starts.length) starts=dayIsos.slice();
@@ -9571,7 +9571,10 @@ async function plnAutoFill(){
         // la PLUS PLEINE qui la contient (remStart = place restante minimale) → journées proches de 7h30 ·
         // (4) départ tôt · (5) D le plus petit. La contrainte 7h30 est déjà garantie par `fits`.
         const remStart=PLN_OVER_H-((load[mk][startIso]||0)+perDay);
-        const cand={mk,h,D,perDay,startIso,span,key:[onTime?0:1, mkWk+nat, D===1?0:1, remStart, dayIsos.indexOf(startIso), D]};
+        // [L213 · vérif #12 + demande Esteban « pas de 3h »] PACK-FIRST : machine PRÉVUE (nat) · commande ENTIÈRE
+        // · BEST-FIT (remStart = remplir la journée avant d'en ouvrir une neuve) AVANT l'équilibrage (mkWk, simple
+        // départage) → on comble une journée à 3h avec une commande du pool au lieu d'ouvrir une 4e machine à moitié.
+        const cand={mk,h,D,perDay,startIso,span,key:[onTime?0:1, nat, D===1?0:1, remStart, mkWk, dayIsos.indexOf(startIso), D]};
         if(!best||_plnKeyLt(cand.key,best.key)) best=cand;
       }
     }
@@ -9581,6 +9584,10 @@ async function plnAutoFill(){
       if(ok!==false){
         done++; if(best.D>1) spread++; if(native&&best.mk!==native) moved++;
         best.span.forEach(iso=>_addLoad(best.mk,iso,best.perDay));   // [L212] suit aussi les jours HORS semaine affichée
+        // [L213 · vérif #8] charger aussi les parts FANTÔMES (autres machines de la commande, byMachDetail) pour
+        // les candidats suivants — sinon une machine fantôme pouvait être surchargée dans la même passe.
+        const _es=_plnPlanMeters(s);
+        if(_es&&_es.byMachDetail) DUJ_MACHINES.forEach(gm=>{ if(gm===best.mk||!_es.byMachDetail[gm]) return; const gh=_plnHoursOn(s,gm); if(gh!=null&&gh>0) best.span.forEach(iso=>_addLoad(gm,iso,gh/best.D)); });
       } else fail++;
     }catch(e){ fail++; }
   }
