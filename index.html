@@ -1724,7 +1724,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L194';
+const APP_VERSION='2026.07.21-L195';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12662,10 +12662,26 @@ function _resteGroupsFromFiche(f){
       useful:parseNum(g.mother)-parseNum(g.edge),blade:parseNum(g.blade)}));
     const _known=new Set(_gKeys);
     const _n2k={}; f.refGroups.forEach((g,i)=>{ const nm=nrm(g.ref); if(!(nm in _n2k)) _n2k[nm]=_gKeys[i]; });
+    // [L195 · audit CRIT#2] RÉFS HOMONYMES legacy (refIdKey null) : NE PAS rattacher aveuglément à la
+    // 1re clé du nom — une réf déjà ENTIÈREMENT coupée était comptée pour l'homonyme et RE-PRODUITE
+    // (sur-production / double découpe, prouvé sur fiche réelle 4501927884). Désambiguïsation par
+    // LARGEUR : la ligne va au groupe homonyme dont la COMMANDE contient sa/ses largeur(s). Repli sur
+    // la 1re clé si aucune largeur ne matche. Cas non-homonyme (1 clé/nom) : comportement inchangé.
+    const _nameKeys={}; f.refGroups.forEach((g,i)=>{ const nm=nrm(g.ref); (_nameKeys[nm]=_nameKeys[nm]||[]).push(_gKeys[i]); });
+    const _keyWidths={}; f.refGroups.forEach((g,i)=>{ _keyWidths[_gKeys[i]]=new Set((g.rows||[]).map(r=>Number(r.width)||0)); });
+    const _resolveKey=fd=>{
+      if(fd.refIdKey&&_known.has(fd.refIdKey)) return fd.refIdKey;
+      const nm=nrm(fd.ref), keys=_nameKeys[nm];
+      if(!keys||keys.length<=1) return _n2k[nm]||nm;
+      const ws=parseConf(fd.conf||'').map(p=>Number(p.width)||0).filter(w=>w>0);
+      let best=null,bestScore=0;
+      keys.forEach(k=>{ const s=_keyWidths[k]; const sc=ws.filter(w=>s.has(w)).length; if(sc>bestScore){bestScore=sc;best=k;} });
+      return best||_n2k[nm]||nm;
+    };
     const cutByKey={};
     det.forEach(fd=>{
       if(!fd||fd.coupee!==true||fd.actDechet===true) return;   // mêmes exclusions que cutByRef (L100 #2)
-      const rk=(fd.refIdKey&&_known.has(fd.refIdKey))?fd.refIdKey:(_n2k[nrm(fd.ref)]||nrm(fd.ref));
+      const rk=_resolveKey(fd);
       const m=cutByKey[rk]||(cutByKey[rk]={});
       parseConf(fd.conf||'').forEach(p=>{ m[p.width]=(m[p.width]||0)+p.qty; });
     });
@@ -12857,7 +12873,25 @@ function proposeStockSortie(f){
     // sur-décompte, puis double décompte quand le plan du reste est coupé. Fiches normales : inchangé (toutes
     // coupées avant validation). Une bobine au Déchet garde coupee=true (mère bien consommée) → toujours comptée.
     if(Array.isArray(f.refGroups)&&f.refGroups.length){
-      f.refGroups.forEach(gr=>{ const nb=dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true&&nrm(fd.ref)===nrm(gr.ref)).length; push(gr.ref,gr.mother,gr.longueur,nb); });
+      // [L195 · audit #3] Compter par NOM double-comptait les mères sur réfs HOMONYMES (2 groupes de
+      // même code → même nb poussé 2× → stock décompté ×2). Si homonymes, on attribue chaque bobine
+      // coupée à UN SEUL groupe (par largeur, comme le plan du reste) avant de compter. Sinon : inchangé.
+      const _nm={}; f.refGroups.forEach(gr=>{ const k=nrm(gr.ref); _nm[k]=(_nm[k]||0)+1; });
+      if(Object.values(_nm).some(n=>n>1)){
+        const _gw=f.refGroups.map(gr=>new Set((gr.rows||[]).map(r=>Number(r.width)||0)));
+        const _cnt=f.refGroups.map(()=>0);
+        dets.forEach(fd=>{
+          if(!fd||fd.recut||fd.coupee!==true) return;
+          const cand=[]; f.refGroups.forEach((gr,i)=>{ if(nrm(gr.ref)===nrm(fd.ref)) cand.push(i); });
+          if(!cand.length) return;
+          let gi=cand[0];
+          if(cand.length>1){ const ws=parseConf(fd.conf||'').map(p=>Number(p.width)||0).filter(w=>w>0); let bs=0; cand.forEach(i=>{ const sc=ws.filter(w=>_gw[i].has(w)).length; if(sc>bs){bs=sc;gi=i;} }); }
+          _cnt[gi]++;
+        });
+        f.refGroups.forEach((gr,i)=>push(gr.ref,gr.mother,gr.longueur,_cnt[i]));
+      } else {
+        f.refGroups.forEach(gr=>{ const nb=dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true&&nrm(fd.ref)===nrm(gr.ref)).length; push(gr.ref,gr.mother,gr.longueur,nb); });
+      }
     } else {
       const nb=dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true).length||(f.manqueMatiere?0:Number(f.totalBobines))||0;
       push(f.ref,f.mother,f.longueur,nb);
