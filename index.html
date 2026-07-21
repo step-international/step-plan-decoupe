@@ -1652,7 +1652,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L177';
+const APP_VERSION='2026.07.21-L178';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9277,6 +9277,60 @@ function _plnSpanIsos(s){
 }
 // ── ÉCRITURE pose / déplacement / retrait / étalement (optimiste + retour arrière + logAudit) ──
 const _plnWriteBusy=new Set();   // [L118 · audit #3] sids avec une écriture planning en vol
+// [L178 · demande Esteban] PLANNING OPTIMISÉ : répartit automatiquement les commandes « À planifier » sur la
+// SEMAINE AFFICHÉE, priorité aux dates de LIVRAISON les plus proches. Règles :
+//  · candidates = pool (non posées, non coupées) avec une livraison ≤ dimanche de la semaine affichée
+//    (les sans-livraison restent au pool : rien pour les prioriser) ;
+//  · machine = celle de la commande (s.machine) ; sinon la machine la moins chargée ;
+//  · jour = jour OUVRÉ (fériés exclus) le moins chargé, si possible ≤ la livraison et ≤ PLN_OVER_H ;
+//  · pose 1 jour (l'étalement reste un geste manuel) via plnSetPlan (écritures normales, re-glissables).
+async function plnAutoFill(){
+  if(!plnCanEdit()){ showToast('Pose réservée au pilotage et aux admins.','err'); return; }
+  const ctx=_plnSentKeys();
+  const mon=_plnMonday(plnWeekOffset);
+  const dayIsos=[...Array(5)].map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return _plnIso(d);})
+    .filter(iso=>{const p=iso.split('-').map(Number);return !_joursFeriesFR(p[0]).has(iso);});
+  if(!dayIsos.length){ showToast('Aucun jour ouvré sur cette semaine.','err'); return; }
+  const sunday=(function(){const d=new Date(mon);d.setDate(mon.getDate()+6);return _plnIso(d);})();
+  const todayIso=_plnIso(new Date());
+  const cands=(savesCache||[]).filter(s=>s&&!s.deleted&&!s.plannedDate&&!_plnDejaCoupe(s,ctx))
+    .map(s=>({s,liv:_plnDateLivMin(s)}))
+    .filter(x=>x.liv&&x.liv<=sunday)
+    .sort((a,b)=>a.liv.localeCompare(b.liv)||String(a.s.date||'').localeCompare(String(b.s.date||'')));
+  if(!cands.length){ showToast('Rien à répartir : aucune commande « À planifier » à livrer d\'ici la fin de cette semaine.','ok'); return; }
+  if(!confirm('⚡ Planning optimisé — poser automatiquement '+cands.length+' commande(s) sur cette semaine ?\n\n• Priorité aux livraisons les plus proches\n• Machine de chaque commande, jour le moins chargé (fériés exclus)\n• Tu pourras tout re-glisser ensuite.')) return;
+  // charge existante (heures) par machine×jour — posés + fantômes, coupées exclues (charge faite)
+  const load={}; DUJ_MACHINES.forEach(m=>{ load[m]={}; dayIsos.forEach(iso=>{ load[m][iso]=0; }); });
+  (savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate&&!_plnDejaCoupe(s,ctx)).forEach(s=>{
+    const span=_plnSpanIsos(s);
+    DUJ_MACHINES.forEach(m=>{
+      const h=_plnHoursOn(s,m); if(h==null||!(h>0)) return;
+      span.forEach(iso=>{ if(load[m][iso]!=null) load[m][iso]+=h/_plnDays(s); });
+    });
+  });
+  let done=0,fail=0;
+  for(const x of cands){
+    const s=x.s;
+    let mach=dujMachKey(s.machine||'');
+    if(!mach){ mach=DUJ_MACHINES.slice().sort((a,b)=>(Object.values(load[a]).reduce((p,c)=>p+c,0))-(Object.values(load[b]).reduce((p,c)=>p+c,0)))[0]; }
+    const h=(function(){ const v=_plnHoursOn(Object.assign({},s,{plannedMachine:mach}),mach); return (v!=null&&v>0)?v:1; })();   // repli 1 h si inestimable (équilibre au nombre)
+    // jours candidats : ouvrés, pas déjà passés (semaine courante), si possible ≤ livraison
+    let days=dayIsos.filter(iso=>plnWeekOffset!==0||iso>=todayIso);
+    if(!days.length) days=dayIsos.slice();
+    const beforeLiv=days.filter(iso=>iso<=x.liv);
+    const pool=(beforeLiv.length?beforeLiv:days);
+    // jour le moins chargé, en préférant rester sous PLN_OVER_H
+    const under=pool.filter(iso=>load[mach][iso]+h<=PLN_OVER_H);
+    const pick=(under.length?under:pool).slice().sort((a,b)=>load[mach][a]-load[mach][b])[0];
+    try{
+      const ok=await plnSetPlan(s._id,pick,mach,1);
+      if(ok!==false){ done++; load[mach][pick]+=h; } else fail++;
+    }catch(e){ fail++; }
+  }
+  try{ renderPlanning(); }catch(e){}
+  showToast('⚡ Planning optimisé : '+done+' commande(s) posée(s)'+(fail?' · '+fail+' échec(s)':'')+' — re-glisse ce qui ne te va pas.','ok');
+  logAudit('planning','saves','auto-fill','Planning optimisé — '+done+' commande(s) réparties (semaine du '+dayIsos[0]+')').catch(function(){});
+}
 async function plnSetPlan(sid,dateIso,machKey,days){
   if(!plnCanEdit()){ showToast('🔒 Lecture seule — la planification est réservée au pilotage/admin.','err'); return false; }
   const s=(savesCache||[]).find(x=>x&&x._id===sid);
@@ -9623,6 +9677,7 @@ function renderPlanning(){
         <button onclick="plnNav(1)" title="Semaine suivante" aria-label="Semaine suivante"><span class="pln-navtxt">suiv.</span> ▶</button>
       </div>
       <span id="plnTitle">${titre}</span><!-- [L157 · simplify #18] bouton « ↩ revenir » retiré : doublon exact de « Cette semaine » (même plnNav(0)) dans la même barre -->
+      ${canEdit?`<button class="btn btn-blue btn-sm" onclick="plnAutoFill()" title="Répartir automatiquement les commandes « À planifier » sur cette semaine, priorité aux livraisons les plus proches">⚡ Planning optimisé</button>`:''}
       <span class="pln-weekload">${canEdit?'':'🔒 lecture seule · '}${placedCount} posé(s)${weekH>0?' · charge <b>'+_plnH(weekH).replace('≈ ','≈')+'</b>':''}${beyond>0?' · <span style="color:var(--orange)">'+beyond+' au-delà ▶</span>':''}</span>
     </div>
     <div class="pln-cols">
@@ -14360,9 +14415,14 @@ function renderFicheMachineBlocks(opts){
       // repli (en-tête introuvable) : ancienne ancre ci-dessous
     }
     // Ancre : 1re ligne bobine de cette réf dans le DOM.
+    // [L178 · demande Esteban] HOMONYMES (même nom, films ≠ — ex. TacFlex imprimé / non imprimé) : ancrer par
+    // CLÉ D'IDENTITÉ d'abord (refIdKey embarque film/veka/longueur/useful/blade) — sinon le bloc de la réf 2
+    // s'ancrait sur la 1re bobine de la réf 1 (même nom) et remontait TOUT EN HAUT au lieu du changement de réf.
     const key=nrm(r.ref);
+    const rKey=(typeof _refIdKey==='function')?_refIdKey(r):null;
     let anchor=null;
-    for(const l of ficheLines){ if(nrm(l.ref)===key){ anchor=document.getElementById(l.id); break; } }
+    if(rKey){ for(const l of ficheLines){ if(l.refIdKey===rKey){ anchor=document.getElementById(l.id); break; } } }
+    if(!anchor) for(const l of ficheLines){ if(nrm(l.ref)===key){ anchor=document.getElementById(l.id); break; } }
     if(anchor && anchor.parentNode){
       // Si un séparateur précède immédiatement la bobine, on garde séparateur → bloc → bobine.
       anchor.parentNode.insertBefore(block, anchor);
