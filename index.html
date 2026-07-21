@@ -1495,6 +1495,9 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   <div id="tabContentSaves">
     <div id="backupBtnZone" class="flex-wrap" style="margin-bottom:12px;display:none">
       <button class="btn btn-orange btn-sm" onclick="downloadFullBackup()">📦 Sauvegarde complète JSON</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('backupImportInput').click()" title="Restaure une sauvegarde JSON : recrée les documents absents, n'écrase jamais l'existant (admin)">⬆ Restaurer une sauvegarde</button>
+      <input type="file" id="backupImportInput" accept="application/json,.json" style="display:none" onchange="if(this.files&&this.files[0]){importFullBackup(this.files[0]);this.value='';}"><!-- [L200 · audit #16] round-trip export/import -->
+
       <button class="btn btn-ghost btn-sm" onclick="downloadColdArchive()">🧊 Archive froide</button>
       <button class="btn btn-ghost btn-sm" id="hygieneBtn" onclick="hygieneApply()" title="Retire les plans dont la commande a déjà une fiche découpe (validée ou à valider) — récupérables 45 j via la Corbeille">🧹 Nettoyer les plans déjà coupés</button><!-- [L110 · hygiène 4D] admin/pilotage (masqué par applyRole) -->
 
@@ -1744,7 +1747,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L199';
+const APP_VERSION='2026.07.21-L200';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1903,6 +1906,10 @@ window.addEventListener('unhandledrejection',function(e){
 // Protection contre la fermeture/rechargement accidentel pendant une commande.
 // Tant que le chrono tourne, une fiche est en cours : on avertit avant de quitter.
 window.addEventListener('beforeunload',function(e){
+  // [L200 · audit #10] reload de version VOLONTAIRE (updReload, déjà confirmé chrono en main) : ne pas
+  // re-demander via l'alerte native — la 2e question annulable laissait le cache SW déjà basculé sur la
+  // nouvelle version (gel L89 rompu au prochain reload accidentel).
+  if(typeof _updReloading!=='undefined' && _updReloading) return;
   if(typeof chronoRunning!=='undefined' && chronoRunning){
     e.preventDefault();
     e.returnValue='';
@@ -2501,7 +2508,9 @@ function applyRole(){
   }
   // Boutons export / archive globale : admin + pilotage
   var canManage=canManageData();
-  // MINEUR-8 : les règles Firestore réservent saves create/update au pilotage/admin
+  // MINEUR-8 · [L200 · audit #13] CORRECTION du commentaire : les règles Firestore N'EN FONT RIEN —
+  // saves/temps create+update sont ouverts à TOUT compte connu (choix assumé : les opérateurs envoient
+  // fiches+temps et parquent des plans). Le droit fin est appliqué CÔTÉ CLIENT uniquement (canManageData).
   // → masquer le bouton Sauvegarder du plan pour les opérateurs (sinon erreur permissions brute).
   var psb=document.getElementById('planSaveBtn');if(psb)psb.style.display=canManage?'':'none';
   var fmb=document.getElementById('fichesManageBtns');if(fmb)fmb.style.display=canManage?'':'none';
@@ -14181,6 +14190,17 @@ async function deleteFiche(id){
     const item=fichesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
     await logAudit('delete','fiches',id,item?`${item.client||''} / ${item.ref||''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
+    // [L200 · audit #14] CASCADE : le(s) relevé(s) de temps de CETTE commande partent aussi à la corbeille
+    // (récupérables 45 j, comme la fiche) — sinon temps ORPHELIN, compté au KPI d'une fiche disparue.
+    // Borné au numCmd RÉEL (jamais sur '—'/vide : client+ref seuls sur-matcheraient d'anciennes commandes).
+    try{
+      const _nc=item?String(item.numCmd||'').trim():'';
+      if(_nc&&_nc!=='—'){
+        const _tt=(tempsCache||[]).filter(t=>t&&!t.deleted&&String(t.numCmd||'').trim()===_nc&&t.client===item.client&&t.ref===item.ref);
+        for(const t of _tt){ await db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()}); t.deleted=true; t.deletedAt=isoNow(); }
+        if(_tt.length) await logAudit('delete','temps',_tt.map(t=>t._id).join(','),'Cascade archivage fiche — '+_tt.length+' relevé(s) de temps ('+(item.client||'')+' / '+(item.ref||'')+')');
+      }
+    }catch(e){ console.warn('Cascade temps :',e); }
   }catch(e){showToast('Erreur : '+e.message,'err');}
   renderFiches();
 }
@@ -14208,17 +14228,58 @@ async function _downloadFullBackupInner(){
   // [L89] charge AUTOMATIQUEMENT l'historique complet avant d'exporter (même garde-fou que les exports CSV)
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }
   if(!savesCache.length&&!tempsCache.length&&!fichesCache.length){showToast('Aucune donnée à exporter.','err');return;}
+  // [L200 · audit #17] Export VRAIMENT complet : requêtes DIRECTES par collection, SANS filtre deleted
+  // (les caches boot excluent les archivés) et sur les 10 collections — pas seulement saves/temps/fiches.
+  // Une collection inaccessible (droits) est signalée dans _skipped au lieu d'échouer en silence.
+  const COLS=['saves','temps','fiches','brouillons','maintenance','stockArticles','stockMouvements','machines','agregats','audit'];
   const backup={
     exportDate:new Date().toISOString(),
     exportBy:currentUser?currentUser.nom:'inconnu',
-    note:fullHistoryLoaded?'Export COMPLET — historique intégral chargé avant export.':'Export PARTIEL (données récentes uniquement — historique complet indisponible au moment de l\'export). Backup complet = sauvegarde automatique Firestore.',
-    saves:savesCache,
-    temps:tempsCache,
-    fiches:fichesCache
+    note:'Export COMPLET v2 — toutes collections, archivés (deleted) INCLUS. Restaurable via « Restaurer une sauvegarde » (crée les docs manquants, n\'écrase jamais). Les pièces jointes (photos/BL) restent des URLs Firebase Storage (non embarquées).',
+    _v:2, _skipped:[]
   };
+  for(const c of COLS){
+    try{
+      const snap=await db.collection(c).get();
+      backup[c]=snap.docs.map(d=>({_id:d.id,...d.data()}));
+    }catch(e){ backup._skipped.push(c+' ('+(e.code||e.message||'?')+')'); }
+  }
   const json=JSON.stringify(backup,null,2);
   const b=new Blob([json],{type:'application/json'});
-  downloadBlob(b,(fullHistoryLoaded?'step_export_complet_':'step_export_visible_')+todayISO()+'.json');   // [L99 · simpl.8] queue factorisée (dernier site)
+  downloadBlob(b,'step_export_complet_'+todayISO()+'.json');   // [L99 · simpl.8] queue factorisée (dernier site)
+  showToast('📦 Export v2 : '+COLS.filter(c=>backup[c]).map(c=>c+' '+backup[c].length).join(' · ')+(backup._skipped.length?'\n⚠ Non exporté : '+backup._skipped.join(', '):''),'ok');
+}
+// [L200 · audit #16] IMPORT d'une sauvegarde (admin) — round-trip enfin possible. Sémantique SÛRE :
+// ne CRÉE que les docs ABSENTS (id manquant dans Firestore), n'écrase JAMAIS un doc existant.
+// machines/ (annuaire auto, se recrée au login) et audit/ (journal append-only : recréer = forger) exclus.
+// Fiches VALIDÉES : les rules refusent create avec valide≠null → création en 2 temps (create valide:null
+// puis update valide/valideBy/valideAt — permis isManage).
+async function importFullBackup(file){
+  if(typeof canViewAnalyse==='function'&&!canViewAnalyse()){ showToast('Restauration réservée aux admins.','err'); return; }
+  let data;
+  try{ data=JSON.parse(await file.text()); }catch(e){ showToast('Fichier illisible : '+e.message,'err'); return; }
+  const COLS=['saves','temps','fiches','brouillons','maintenance','stockArticles','stockMouvements','agregats'];
+  const found=COLS.filter(c=>Array.isArray(data[c])&&data[c].length);
+  if(!found.length){ showToast('Aucune collection restaurable dans ce fichier.','err'); return; }
+  if(!(await confirmDlg('Restaurer cette sauvegarde ('+(data.exportDate||'date ?')+') ?\n\n'+found.map(c=>c+' : '+data[c].length).join(' · ')+'\n\nSeuls les documents ABSENTS seront recréés — rien d\'existant ne sera écrasé.',{ok:'Restaurer'}))) return;
+  let created=0,skipped=0,failed=0; const fichesValid=[];
+  for(const c of found){
+    for(const doc of data[c]){
+      const id=doc&&doc._id; if(!id){ failed++; continue; }
+      try{
+        const ref=db.collection(c).doc(id);
+        const cur=await ref.get();
+        if(cur.exists){ skipped++; continue; }
+        const body={...doc}; delete body._id;
+        if(c==='fiches'&&body.valide!=null){ const _v={valide:body.valide,valideBy:body.valideBy||null,valideAt:body.valideAt||null}; body.valide=null; body.valideBy=null; body.valideAt=null; await ref.set(body); fichesValid.push({ref,_v}); }
+        else await ref.set(body);
+        created++;
+      }catch(e){ failed++; }
+    }
+  }
+  for(const f of fichesValid){ try{ await f.ref.update(f._v); }catch(e){ failed++; } }
+  try{ await logAudit('import','backup','restore','Restauration sauvegarde — '+created+' créé(s), '+skipped+' existant(s) intacts, '+failed+' échec(s)'); }catch(e){}
+  showToast((failed?'⚠':'✓')+' Restauration : '+created+' recréé(s) · '+skipped+' déjà présents (intacts)'+(failed?' · '+failed+' échec(s)':'')+'.\n\nRecharge la page pour voir les données restaurées.',(failed?'err':'ok'));
 }
 
 // ============================================================
