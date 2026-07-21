@@ -317,7 +317,11 @@ body.atelier .fl-badge{font-size:17px;padding:3px 10px}
 .nc-checks{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
 .nc-check{display:flex;align-items:center;gap:5px;padding:9px 12px;min-height:44px;border-radius:7px;border:1px solid var(--border2);background:#1a1a18;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;user-select:none}   /* [L105 · Phase 1 · G] 36→44px (cible tactile gants) */
 .nc-check input{display:none}
-.nc-check.ras.sel{background:#14371f;border-color:var(--green);color:var(--green)}
+/* [L177 · demande Esteban] R.A.S. GRIS tant que le test 2ᵉ n'est pas conforme, VERT quand il l'est
+   (classe .t2ok posée par updateTest2Subs : Dévidage + Droit cochés ; FEBA : Dévidage seul).
+   L'input reste coché par défaut (logique NC/badge/gardes STRICTEMENT inchangée — c'est un signal visuel). */
+.nc-check.ras.sel{background:#222220;border-color:var(--border2);color:var(--muted)}
+.nc-check.ras.sel.t2ok{background:#14371f;border-color:var(--green);color:var(--green)}
 .nc-check.bad.sel{background:#3d1414;border-color:var(--red);color:var(--red)}
 .nc-check:not(.sel){color:var(--muted)}
 .test2-block{background:#1a1a18;border:1px solid var(--border2);border-radius:8px;padding:7px 10px}
@@ -731,6 +735,11 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 .pln-hcell{font-family:var(--f-head);letter-spacing:.08em}
 .pln-card{box-shadow:var(--e1)}
 .pln-card b,.pln-load{font-family:var(--f-head)}
+/* [L177 · demande Esteban] DÉJÀ COUPÉE (fiche envoyée) : grisée + bandeau ✓ — l'info reste, le bruit part */
+.pln-card.deja-coupe{opacity:.45;filter:grayscale(.65);box-shadow:none}
+.pln-card.deja-coupe::after{content:"✂ DÉJÀ COUPÉE";display:block;margin-top:4px;font:700 10px/1 var(--f-head);letter-spacing:.08em;color:var(--ok)}
+/* [L177 · demande Esteban] À COUPER AUJOURD'HUI : mise en avant ambre (autre couleur que le reste) */
+.pln-card.du-jour{border-color:color-mix(in srgb,var(--action) 60%,var(--border2));box-shadow:var(--e2),inset 0 0 0 1px color-mix(in srgb,var(--action) 35%,transparent);background:color-mix(in srgb,var(--action) 7%,var(--section))}
 .pln-machwk{font-size:10.5px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .pln-machwk.warn{color:var(--orange)} .pln-machwk.over{color:var(--red)}
 .pln-mach.feba{--mc:var(--feba)} .pln-mach.maveg{--mc:var(--maveg)} .pln-mach.cevenini{--mc:var(--cevenini)}
@@ -1643,7 +1652,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L176';
+const APP_VERSION='2026.07.21-L177';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9502,7 +9511,11 @@ function renderPlanning(){
   _plnEstCache={}; _plnAddCalCache={}; _plnDebitCache={}; _plnSpanCache={};   // [L125 · T5] cache calibration corrigé-laize · [L132 · perf] cache débit m/h · [L133 · perf] cache span jours ouvrés
   const ctx=_plnSentKeys();
   const todayIso=_plnIso(new Date());
-  const all=(savesCache||[]).filter(s=>s&&!s.deleted&&!_plnDejaCoupe(s,ctx));
+  // [L177 · demande Esteban] les commandes DÉJÀ COUPÉES (fiche envoyée) ne sont plus INVISIBLES : celles qui
+  // sont POSÉES restent affichées GRISÉES (info « c'est fait ») — _plnCutSet pilote le style + les exclusions
+  // (charge, reports, compteur). Le pool « À planifier » continue de les exclure (aucun sens de les planifier).
+  const _plnCutSet=new Set((savesCache||[]).filter(s=>s&&!s.deleted&&_plnDejaCoupe(s,ctx)).map(s=>s._id));
+  const all=(savesCache||[]).filter(s=>s&&!s.deleted&&(!_plnCutSet.has(s._id)||s.plannedDate));
   const mon=_plnMonday(plnWeekOffset);
   const days=[...Array(5)].map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
   const dayIsos=days.map(_plnIso);
@@ -9532,7 +9545,9 @@ function renderPlanning(){
     const hTot=(kind==='placed'||kind==='report')?_plnHoursOn(s,s.plannedMachine):_plnHoursAuto(s);
     const hShow=(kind==='placed'&&D>1&&hTot!=null)?hTot/D:hTot;
     const machCls=(kind==='placed'||kind==='report')?dujMachKey(s.plannedMachine||''):'';
-    return `<div class="pln-card ${machCls}${red?' late':''}${D>1?' span':''}${canEdit?' pln-grab':''}" data-pln-sid="${esc(s._id)}"
+    const _cut=_plnCutSet.has(s._id);   // [L177] déjà coupée (fiche envoyée) → grisée
+    const _today=(kind==='placed'&&!_cut&&cellIso===todayIso);   // [L177] à couper AUJOURD'HUI → mise en avant ambre
+    return `<div class="pln-card ${machCls}${red?' late':''}${D>1?' span':''}${canEdit?' pln-grab':''}${_cut?' deja-coupe':''}${_today?' du-jour':''}" data-pln-sid="${esc(s._id)}"
       ${canEdit?`onpointerdown="plnPointerDown(event,'${esc(s._id)}')" ${dragAttrs}`:''}
       onclick="plnCardTap('${esc(s._id)}','${kind}',event)">
       <div class="pc-top"><b>${esc(s.client||'—')}</b>${spanChip}${chip}</div>
@@ -9548,7 +9563,7 @@ function renderPlanning(){
   // [L127 · audit #9] une commande de la semaine passée dont l'étalement mord ENCORE sur la semaine
   // affichée est déjà rendue comme segment dans la grille (case × machine) → on l'exclut des
   // « Reportés » pour ne pas la montrer deux fois avec des chips contradictoires (« non fait » vs « J k/n »).
-  const reports=(plnWeekOffset===0?all.filter(s=>s.plannedDate&&s.plannedDate<thisMondayIso&&!_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0)):[]).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
+  const reports=(plnWeekOffset===0?all.filter(s=>s.plannedDate&&!_plnCutSet.has(s._id)&&s.plannedDate<thisMondayIso&&!_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0)):[]).sort((a,b)=>String(a.plannedDate).localeCompare(String(b.plannedDate)));
   const _poolSorters={
     recent:(a,b)=>String(b.date||'').localeCompare(String(a.date||'')),                                   // plan le plus récemment enregistré d'abord
     liv:(a,b)=>String(_plnDateLivMin(a)||'9999-99-99').localeCompare(String(_plnDateLivMin(b)||'9999-99-99')), // livraison la plus proche d'abord
@@ -9573,7 +9588,8 @@ function renderPlanning(){
       // [L149 · revue L148 #8/#10] « every » (→ absence de « +? ») calculé sur les cartes ET les fantômes : sinon
       // une cellule à fantômes seuls (cellPlans.length=0) affichait « +? » alors que la part fantôme est estimée.
       let hSum=0,any=false,allEst=true;
-      const _acc=s=>{ const h=_plnHoursOn(s,m); if(h==null) allEst=false; else { hSum+=h/_plnDays(s); any=true; } };
+      const _acc=s=>{ if(_plnCutSet.has(s._id)) return;   // [L177] déjà coupée → sa charge est FAITE, ne compte plus
+        const h=_plnHoursOn(s,m); if(h==null) allEst=false; else { hSum+=h/_plnDays(s); any=true; } };
       cellPlans.forEach(_acc); ghosts.forEach(_acc);
       const every=allEst && (cellPlans.length+ghosts.length)>0;
       return {iso,cellPlans,ghosts,hSum,every,any};
@@ -9588,12 +9604,12 @@ function renderPlanning(){
       const loadTxt=(dc.cellPlans.length||(dc.ghosts&&dc.ghosts.length))?(dc.any?_plnH(dc.hSum)+(dc.every?'':' +?'):'—'):'';   // [L148 · revue #4] compter aussi les cellules à FANTÔMES seuls (leur charge est déjà dans hSum/machWeek) → charge du jour cohérente avec le total /sem + alerte over du jour préservée
       const loadCls=(dc.any&&dc.hSum>PLN_OVER_H)?' over':((dc.any&&dc.hSum>PLN_WARN_H)?' warn':'');
       const ghostHtml=(dc.ghosts||[]).map(s=>{ const h=_plnHoursOn(s,m); const hd=(h!=null)?_plnH(h/_plnDays(s)):''; const posted=getMachineLabel(dujMachKey(s.plannedMachine||''))||'—';
-        return `<div class="pln-card" style="border-style:dashed;opacity:.75" onclick="event.stopPropagation()" title="Part de cette commande coupée sur ${esc(getMachineLabel(m))} — carte principale posée sur ${esc(posted)} (déplace-la depuis ${esc(posted)})"><div class="pc-top"><b>${esc(s.client||'—')}</b><span class="pln-chip">◅ posé ${esc(posted)}</span></div><div class="pc-meta">${esc(s.ref||'—')}</div><div class="pc-meta">part ${esc(getMachineLabel(m))}${hd?` · <span class="pc-h">${hd}</span>`:''}</div></div>`;
+        return `<div class="pln-card${_plnCutSet.has(s._id)?' deja-coupe':''}" style="border-style:dashed;opacity:.75" onclick="event.stopPropagation()" title="Part de cette commande coupée sur ${esc(getMachineLabel(m))} — carte principale posée sur ${esc(posted)} (déplace-la depuis ${esc(posted)})"><div class="pc-top"><b>${esc(s.client||'—')}</b><span class="pln-chip">◅ posé ${esc(posted)}</span></div><div class="pc-meta">${esc(s.ref||'—')}</div><div class="pc-meta">part ${esc(getMachineLabel(m))}${hd?` · <span class="pc-h">${hd}</span>`:''}</div></div>`;
       }).join('');
       grid+=`<div class="pln-cell${dc.iso===todayIso?' today':''}" data-day="${dc.iso}" data-mach="${m}" onclick="plnCellTap('${dc.iso}','${m}')"><div class="pln-load${loadCls}" title="charge estimée du jour sur cette machine">${loadTxt}</div>${dc.cellPlans.map(s=>cardHtml(s,'placed',dc.iso)).join('')}${ghostHtml}</div>`;
     });
   });
-  const placedCount=all.filter(s=>s.plannedDate&&dayIsos.indexOf(s.plannedDate)>=0).length;
+  const placedCount=all.filter(s=>s.plannedDate&&!_plnCutSet.has(s._id)&&dayIsos.indexOf(s.plannedDate)>=0).length;   // [L177] coupées exclues du compteur
   const beyond=all.filter(s=>s.plannedDate&&s.plannedDate>dayIsos[4]).length;   // [L118 · audit #28] plans planifiés APRÈS la semaine affichée
   // [L147 · audit #22] plan posé sur une machine NON résolvable (dujMachKey='' : machine renommée/retirée de la
   // config, ou donnée héritée) : rendu dans aucune case → FANTÔME compté en « X posé(s) » mais invisible/introuvable.
@@ -14842,11 +14858,7 @@ function addFicheLine(data){
 <!-- [L121 · T4-A2] « ♻ Recalculer les écarts » retiré d'ICI (répété 1×/bobine) → un seul bouton dans la barre d'outils de la fiche -->
         ${data.chuteNote?`<div class="fiche-chute-note">${esc(data.chuteNote)}</div>`:''}
       </div>
-      <div class="field" style="grid-column:1/-1"><!-- [L79] Cumul bobineaux remonté juste sous « ♻ Recalculer les écarts » -->
-        <label>Cumul bobineaux par laize</label>
-        <div class="cumul-box" id="flCumul_${id}"><span style="color:var(--muted);font-size:13px">—</span></div>
-      </div>
-      <div class="field" style="grid-column:1/-1"><!-- [L107 · Phase 1 · B/C] test 2ᵉ VISIBLE directement (plus d'étape cachée) : Dévidage/Droit d'abord, puis Conforme / Non conforme CÔTE À CÔTE (A). FEBA : Droit masqué par updateTest2Subs (ids inchangés). -->
+      <div class="field" style="grid-column:1/-1"><!-- [L177 · demande Esteban] UNE SEULE LIGNE : Dévidage · Droit · ⚠ NC · ✓ R.A.S. — le R.A.S. (gris) passe VERT automatiquement quand le test 2ᵉ est conforme (Dévidage + Droit ; FEBA : Dévidage seul). Le bloc « Conforme — auto » est SUPPRIMÉ de l'affichage (inputs conservés cachés : updateTest2Subs/gardes d'envoi inchangés). -->
         <label>Test 2ème bobineaux</label>
         <div class="test2-block">
           <div class="test2-subs">
@@ -14856,20 +14868,16 @@ function addFicheLine(data){
             <label class="test2-sub" id="sub_droit_${id}">
               <input type="checkbox" id="flDroit_${id}" onchange="updateTest2Subs('${id}')"> ➡ Droit
             </label>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px;align-items:stretch">
-            <div class="test2-main" style="flex:1;margin-bottom:0">
-              <input type="checkbox" id="flTest2main_${id}" disabled>
-              <span id="test2desc_${id}">Conforme — auto si Dévidage ET Droit cochés ci-dessus</span>
-            </div>
-            <label class="test2-nc" id="test2nc_${id}" style="flex:1;margin-bottom:0">
-              <input type="checkbox" id="flTest2nc_${id}" onchange="updateTest2Subs('${id}')"> ⚠ Non conforme
+            <label class="test2-nc" id="test2nc_${id}" style="margin-bottom:0;flex:1">
+              <input type="checkbox" id="flTest2nc_${id}" onchange="updateTest2Subs('${id}')"> ⚠ NC
             </label>
+            <label class="nc-check ras sel" id="nc_ras_${id}" style="flex:1;justify-content:center;margin:0"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ R.A.S.</label>
+          </div>
+          <div class="test2-main" style="display:none"><!-- [L177] masqué (logique conservée) -->
+            <input type="checkbox" id="flTest2main_${id}" disabled>
+            <span id="test2desc_${id}"></span>
           </div>
         </div>
-      </div>
-      <div class="field" style="grid-column:1/-1;margin-bottom:0"><!-- [L107 · Phase 1 · C] R.A.S. visible dans le flux principal -->
-        <label class="nc-check ras sel" id="nc_ras_${id}" style="width:100%;justify-content:center"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ R.A.S.</label>
       </div>
       <details class="fl-more" id="flMore_${id}"><!-- [L107 · Phase 1 · F] zone Défaut REPLIÉE par défaut (aucune place prise) ; s'ouvre au tap, ou AUTO si NC / action requise (syncFlMore, toggleCoupee) -->
         <summary>⚠ Défaut — NC · chutes/déchet <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary>
@@ -14897,6 +14905,10 @@ function addFicheLine(data){
       </div>
         </div>
       </details>
+      <div class="field" style="grid-column:1/-1;margin-bottom:0;margin-top:6px"><!-- [L177 · demande Esteban] cumul par laize JUSTE AU-DESSUS du bouton ✂ Coupée -->
+        <label>Cumul bobineaux par laize</label>
+        <div class="cumul-box" id="flCumul_${id}"><span style="color:var(--muted);font-size:13px">—</span></div>
+      </div>
       <button id="coupeeBtn_${id}" onclick="toggleCoupee('${id}')" aria-label="Marquer cette bobine comme coupée"
         style="grid-column:1/-1;width:100%;margin-top:2px;padding:16px 18px;min-height:56px;border-radius:10px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:17px;font-weight:800;cursor:pointer;transition:all .2s;white-space:nowrap">
         ✂ Coupée
@@ -15248,6 +15260,9 @@ function updateTest2Subs(id){
   // Style visuel du bloc selon le mode.
   const ncLabel=document.getElementById('test2nc_'+id);
   if(ncLabel) ncLabel.classList.toggle('sel',ncMode);
+  // [L177 · demande Esteban] le R.A.S. passe VERT quand le test 2ᵉ est conforme (et pas en mode NC).
+  { const rasL=document.getElementById('nc_ras_'+id);
+    if(rasL){ const both=feba?elDevi.checked:(elDevi.checked&&elDroit.checked); rasL.classList.toggle('t2ok',both&&!ncMode); } }
   const line=document.getElementById(id);
   if(line) line.classList.toggle('test2-nc-flag',ncMode);
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] statut du volet « ⋯ Contrôles »
