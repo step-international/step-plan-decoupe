@@ -1724,7 +1724,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L196';
+const APP_VERSION='2026.07.21-L197';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9472,7 +9472,14 @@ async function plnSetPlan(sid,dateIso,machKey,days){
   const curDays=_plnDays(s);
   const before={d:s.plannedDate||null,m:s.plannedMachine||null,days:s.plannedDays||null};
   // [L119] retrait (dateIso null) → plannedDays effacé ; sinon days fourni, ou on garde l'étalement courant
-  const nDays=dateIso?(days!=null?Math.max(1,Math.min(14,days|0)):curDays):null;
+  // [L197 · demande Esteban] POSE MANUELLE : étaler AUTOMATIQUEMENT sur plusieurs jours comme l'auto-fill
+  // (D = ⌈heures ÷ 7h30⌉ sur la machine cible) au lieu de tout coller sur 1 jour → une grosse commande ne
+  // surcharge plus un seul jour. days explicite (bouton) → honoré ; durée indisponible → repli sur l'existant.
+  let _autoDays=curDays;
+  if(dateIso && days==null){
+    try{ const _h=_plnHoursOn(Object.assign({},s,{plannedMachine:machKey}),machKey); if(_h!=null && _h>0) _autoDays=Math.max(1,Math.min(14,Math.ceil(_h/PLN_OVER_H))); }catch(e){}
+  }
+  const nDays=dateIso?(days!=null?Math.max(1,Math.min(14,days|0)):_autoDays):null;
   const after={d:dateIso||null,m:machKey||null,days:nDays};
   if(before.d===after.d&&before.m===after.m&&(before.days||1)===(after.days||1)) return true;
   if(_plnWriteBusy.has(sid)) return false;   // [L118 · audit #3] un seul write en vol par carte : évite que le rollback d'un 1er glisser écrase un 2e glisser rapide
@@ -9760,6 +9767,7 @@ function renderPlanning(){
   };
   const pool=all.filter(s=>!s.plannedDate).sort(_poolSorters[plnPoolSort]||_poolSorters.recent);
   let weekH=0;   // [L117] charge totale estimée posée sur la semaine affichée
+  const _dayMaxTxt=_plnH(PLN_OVER_H).replace('≈ ','');   // [L197 · demande Esteban] « 7h30 » — capacité max par jour, affichée en référence dans chaque case
   const _inSpanByIso={}; dayIsos.forEach(iso=>{ _inSpanByIso[iso]=all.filter(s=>s.plannedDate&&_plnSpanIsos(s).indexOf(iso)>=0); });   // [L157 · simplify #8] ne dépend que du jour → calculé 1× par jour (était recalculé PAR machine × jour)
   let grid=`<div class="pln-corner"></div>`+days.map((d,i)=>`<div class="pln-hcell${dayIsos[i]===todayIso?' today':''}">${PLN_JOURS[i]}<span class="pd">${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}</span></div>`).join('');
   DUJ_MACHINES.forEach(m=>{
@@ -9789,7 +9797,9 @@ function renderPlanning(){
     const _dbM=_plnDebit(m); const _noDeb=(!_dbM||!_dbM.d||_dbM.src==='global');   // [L132 · perf] mémoïsé (partagé avec _plnHoursPart)
     grid+=`<div class="pln-mach ${m}"><span>${esc(getMachineLabel(m))}</span>${machWeek>0?`<small class="pln-machwk${mwCls}">${_plnH(machWeek).replace('≈ ','')}/sem</small>`:(_noDeb?`<small class="pln-machwk" title="Aucune commande chronométrée pour cette machine — durées non estimées">⏱ pas de débit</small>`:'')}</div>`;
     dayCells.forEach(dc=>{
-      const loadTxt=(dc.cellPlans.length||(dc.ghosts&&dc.ghosts.length))?(dc.any?_plnH(dc.hSum)+(dc.every?'':' +?'):'—'):'';   // [L148 · revue #4] compter aussi les cellules à FANTÔMES seuls (leur charge est déjà dans hSum/machWeek) → charge du jour cohérente avec le total /sem + alerte over du jour préservée
+      // [L197 · demande Esteban] charge du jour affichée AVEC le max 7h30 en référence (« 5h30 / 7h30 ») → on
+      // voit d'un coup d'œil si le jour est plein/dépassé. « +? » = au moins une part estimée sans débit chrono.
+      const loadTxt=(dc.cellPlans.length||(dc.ghosts&&dc.ghosts.length))?(dc.any?_plnH(dc.hSum).replace('≈ ','')+' / '+_dayMaxTxt+(dc.every?'':' +?'):'—'):'';
       const loadCls=(dc.any&&dc.hSum>PLN_OVER_H)?' over':((dc.any&&dc.hSum>PLN_WARN_H)?' warn':'');
       const ghostHtml=(dc.ghosts||[]).map(s=>{ const h=_plnHoursOn(s,m); const hd=(h!=null)?_plnH(h/_plnDays(s)):''; const posted=getMachineLabel(dujMachKey(s.plannedMachine||''))||'—';
         return `<div class="pln-card${_plnCutSet.has(s._id)?' deja-coupe':''}" style="border-style:dashed;opacity:.75" onclick="event.stopPropagation()" title="Part de cette commande coupée sur ${esc(getMachineLabel(m))} — carte principale posée sur ${esc(posted)} (déplace-la depuis ${esc(posted)})"><div class="pc-top"><b>${esc(s.client||'—')}</b><span class="pln-chip">◅ posé ${esc(posted)}</span></div><div class="pc-meta">${esc(s.ref||'—')}</div><div class="pc-meta">part ${esc(getMachineLabel(m))}${hd?` · <span class="pc-h">${hd}</span>`:''}</div></div>`;
