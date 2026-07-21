@@ -54,7 +54,9 @@ hasSw(/const FIREBASE_URLS=\[/,'sw.js : liste des scripts Firebase à précacher
 hasSw(/_isFirebaseSdk\(url\)\)\{/,'sw.js : fetch cache-first Firebase');
 hasSw(/const cur=await c\.match\('index\.html'\)/,'sw.js : GEL de version index.html PRÉSERVÉ');
 has(/SEGMENT FANTÔME/,'#9 planning : segments fantômes multi-machines');
-has(/const ghosts=inSpan\.filter\(s=>dujMachKey\(s\.plannedMachine\|\|''\)!==m/,'#9 filtre des fantômes (autre machine)');
+has(/if\(dujMachKey\(s\.plannedMachine\|\|''\)===m\) return false;/,'#9 filtre des fantômes (autre machine) — forme L206 (bloc)');
+has(/AUCUN fantôme chez la native/,'L206 : commande déplacée → pas de fantôme natif (charge sur la machine posée)');
+has(/RÉ-ÉTALER les cartes déjà posées|1\) RÉ-ÉTALER/,'L206 : autofill ré-étale les commandes déjà posées (max 7h30/j)');
 has(/✂ Chute stock <span style="font-weight:700;color:var\(--orange\)">\$\{fmt\(chuteStockMm\)/,'#12 chute stock unifié en orange');
 has(/const lostMach=all\.filter\(s=>s\.plannedDate&&dujMachKey\(s\.plannedMachine\|\|''\)===''/,'#22 planning : bande « machine inconnue »');
 has(/Cet article a ENCORE .*en mouvements/,'#24 stock : avertissement archivage à solde non nul');
