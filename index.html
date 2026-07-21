@@ -1748,7 +1748,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L203';
+const APP_VERSION='2026.07.21-L204';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11247,6 +11247,13 @@ async function bkRunImport(btn){
   if(!canViewStock()){ showToast('Accès réservé.','err'); return; }
   if(!db){ showToast('Base indisponible.','err'); return; }
   if(!_bkPlanned||(!_bkPlanned.mvts.length&&!_bkPlanned.arts.length)){ showToast('Analyse d\'abord la liste (🔎).','err'); return; }
+  // [L204 · audit #9] Import B+K HORS-LIGNE : la désambiguïsation des jetons collisionnés (_rN) dépend du
+  // cache LOCAL — deux postes qui importent hors-ligne en même temps peuvent produire des ids divergents
+  // (doublons de stock à la resynchronisation). Prévention à la frontière : on prévient et on recommande
+  // d'attendre le réseau. (Refonte déterministe du schéma d'ids = conception dédiée, jamais nécessaire à ce jour.)
+  if(typeof navigator!=='undefined'&&navigator.onLine===false){
+    if(!(await confirmDlg('📡 HORS-LIGNE : si un AUTRE poste importe aussi cette liste hors-ligne, des doublons de stock peuvent apparaître à la reconnexion.\n\nRecommandé : attendre le retour du réseau.\n\nImporter quand même ?',{danger:true,ok:'Importer hors-ligne'}))) return;
+  }
   const {arts,mvts}=_bkPlanned;
   if(!(await confirmDlg(`Importer ${mvts.length} mouvement(s) de stock${arts.length?` + créer ${arts.length} article(s) matière`:''} ?\n\nChaque mouvement reste annulable individuellement (contre-écriture tracée).`,{ok:'Importer'}))) return;
   if(btn){ btn.disabled=true; btn.textContent='⏳ Import…'; }
