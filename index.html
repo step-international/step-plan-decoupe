@@ -1724,7 +1724,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L192';
+const APP_VERSION='2026.07.21-L193';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3853,6 +3853,12 @@ function importPlanToFiche(opts){
                        'Cliquer OK va TOUT EFFACER et regénérer la fiche depuis le Plan.\n\nContinuer ?');
       if(!ok) return;
     }
+    // [L193 · audit #8] Régénération RÉELLE de la fiche depuis le Plan (fiche vierge en auto, ou
+    // écrasement confirmé au clic) : cette fiche n'est plus « la reprise du brouillon d'un autre
+    // poste » → on DÉSARME la passation, sinon un envoi SANS RAPPORT consommait/écrasait le brouillon
+    // AUTO de l'autre poste. resumeDraft passe par restoreFicheState (PAS ici) et l'import auto sort
+    // tôt quand la fiche a du contenu → la reprise légitime reste intacte.
+    _resumedForeignDraftId=null; _resumedDraftId=null;
     // L32 — Contrôle de cohérence plan→fiche : le plan manuel couvre-t-il exactement
     // les quantités commandées (bobineaux produits + chutes stock) ? Avertissement
     // NON bloquant (l'opérateur peut continuer) : en auto un toast, au clic une
@@ -14971,6 +14977,7 @@ function getMachineLabel(m){return {feba:'FEBA',maveg:'MAVEG',cevenini:'CEVENINI
 // Classe CSS de couleur selon la machine (feba/maveg/cevenini), '' si inconnue.
 function machineCls(m){return MACHINE_KEYS.includes(m)?(' '+m):'';}
 
+let _flIdSeq=0;   // [L193 · audit #4] séquence monotone pour garantir l'unicité des id de ligne fiche
 function addFicheLine(data){
   // [L67 · Audit] ajout MANUEL (bouton, sans data) bloqué pendant un partage : une ligne
   // insérée décale les index des verrous cuts chez tous les postes. Les appels internes
@@ -14992,7 +14999,7 @@ function addFicheLine(data){
       }catch(e){}
     }
   }
-  const id='fl_'+Date.now()+'_'+Math.floor(Math.random()*9999);
+  const id='fl_'+Date.now()+'_'+(++_flIdSeq)+'_'+Math.floor(Math.random()*9999);   // [L193 · audit #4] compteur monotone → id de ligne fiche unique même à la même ms (batch import/restore) : plus de double comptage getFicheLinesData/countCoupees
   data=data||{};
   ficheLines.push({id,label:String(((data.autoLabel!==undefined)?data.autoLabel:data.label)||''),rattrapage:!!data.rattrapage,origConf:(data.origConf!==undefined?String(data.origConf):normConf(data.conf)),   // [L97 · relecture #18/#19] label en meta (le correctif L94 « étiquette auto ne gèle plus » était INOPÉRANT sans lui) + origConf restauré prioritaire — [L102 · BUG L97] au round-trip brouillon/partage, la meta vient d'autoLabel (étiquette AUTO du gel) et l'input de label (saisie réelle de l'opérateur) ; anciens brouillons sans autoLabel : comportement inchangé
     ref:data.ref||'', useful:data.useful||0, blade:data.blade||0, machine:data.machine||'',
@@ -15265,7 +15272,7 @@ function updateCoupeeStatus(){
       if(!ficheLines.length){ fp.style.display='none'; }
       else{
         const t=ficheLines.length, d=countCoupees();
-        const nc=ficheLines.filter(({id})=>{const b=document.getElementById('badge_'+id);return b&&b.classList.contains('badge-red');}).length;
+        const nc=ficheLines.filter(({id})=>{const el=document.getElementById(id);const b=document.getElementById('badge_'+id);return el&&el.classList.contains('coupee')&&b&&b.classList.contains('badge-red');}).length;   // [L193 · audit #28] NC comptée SEULEMENT sur les bobines coupées → barre cohérente (coupé vert · NC hachures · gris restant)
         const okN=Math.max(0,d-nc), pct=Math.round(d/t*100);
         fp.style.display='flex';
         fp.innerHTML='<span class="fp-num tabnum"><b>'+d+'</b><small> / '+t+' coupées</small></span>'
