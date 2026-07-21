@@ -1724,7 +1724,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L193';
+const APP_VERSION='2026.07.21-L194';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8350,8 +8350,8 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   // (importPlanToFiche crée aussi une ligne par rouleau) — sinon écart fantôme signalé.
   const nbPlan=bobines.length+computed.reduce((s,c)=>s+((c.recutBobines||[]).length),0);
   const nbFiche=ficheLines.length;
-  const hasEcart=opts.modifié||(nbFiche!==nbPlan);
-  const ecartMsg=(opts.ecartLines&&opts.ecartLines.length)?opts.ecartLines.join(' ; '):
+  let hasEcart=opts.modifié||(nbFiche!==nbPlan);
+  let ecartMsg=(opts.ecartLines&&opts.ecartLines.length)?opts.ecartLines.join(' ; '):
     (nbFiche>nbPlan?`+${nbFiche-nbPlan} bobine(s) en plus`:nbFiche<nbPlan?`-${nbPlan-nbFiche} bobine(s) en moins`:'');
 
   // L31 — client archivé : FICHE d'abord (comme l'affichage : la fiche est la
@@ -8405,6 +8405,21 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     :(()=>{const _nc=nrm(g('planNumCmd')?.value||g('fNumCmd')?.value||'');const m=tempsCache.find(t=>!t.deleted && t.client===client && t.ref===ref && (!_nc || nrm(t.numCmd||'')===_nc));return m?`${fmtTimeFr(m.duree)} (${m.operateur} — ${new Date(m.date).toLocaleDateString('fr-FR')})`:'non enregistré';})();
 
   const ficheData=getFicheLinesData();
+  // [L194 · audit CRIT#1] Sous-livraison SILENCIEUSE : un rebut (🗑 Déchet) ou une NC de QUANTITÉ
+  // retire des pièces de la livraison, mais le compte de LIGNES (nbFiche vs nbPlan) l'ignore — la
+  // ligne rebut « équilibre » nbPlan → la fiche s'archivait « sans écart » en livrant MOINS que
+  // commandé (prouvé sur fiches réelles : 14 à 32 pièces manquantes, aucune alerte). On force
+  // l'écart « à vérifier ». Hors manque-matière (opts.manqueMatiere : un reste couvre déjà le manque).
+  // Pièces comptées uniquement sur 🗑 Déchet (perte non ambiguë) ; NC quantité → simple signal.
+  if(!opts.manqueMatiere){
+    const _dechetPieces=ficheData.reduce((s,fd)=>(fd.recut||!fd.actDechet)?s:s+parseConf(fd.conf||'').reduce((a,p)=>a+(Number(p.qty)||0),0),0);
+    const _hasNcQty=ficheData.some(fd=>!fd.recut && fd.ncQty);
+    if(_dechetPieces>0 || _hasNcQty){
+      hasEcart=true;
+      const _mm=(_dechetPieces>0?('⚠ '+_dechetPieces+' pièce(s) au rebut'):'⚠ NC quantité')+' — vérifier la couverture de la commande';
+      ecartMsg=ecartMsg?(_mm+' ; '+ecartMsg):_mm;
+    }
+  }
   const planName=buildPlanName();
   // [L63 · Lot 5] commande partagée : embarquer « qui a coupé quoi » (champ cuts du doc
   // partagé, garde d'étiquette incluse) dans chaque ligne de la fiche archivée. Les
