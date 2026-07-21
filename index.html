@@ -1714,7 +1714,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L184';
+const APP_VERSION='2026.07.21-L185';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7697,7 +7697,7 @@ async function stopManqueMatiere(){
     const _soldeFiche=_ficheId||_pendingFicheId||'';
     const _soldeId='d_solde_'+(_soldeFiche||('t'+Date.now()));
     const _parkSolde=()=>{ const drafts=loadDrafts().filter(function(x){return x&&x.id!==_soldeId;});
-      const _rec={id:_soldeId,savedAt:isoNow(),label:soldeLabel,state:soldeState,owner:_ini(),fromFicheId:_soldeFiche};
+      const _rec={id:_soldeId,savedAt:isoNow(),label:soldeLabel,state:soldeState,owner:_ini(),ownerPost:_machinePostName(),fromFicheId:_soldeFiche};
       drafts.unshift(_rec);
       if(!persistDrafts(drafts)){ if(!_draftFallbackPush(_rec)) throw new Error('stockage indisponible'); } };
     try{
@@ -15669,6 +15669,9 @@ function _uid(){ try{ return (firebase.auth().currentUser||{}).uid || 'anon'; }c
 // l'opérateur qui a choisi ses INITIALES dans la fiche. INERTE pour les comptes personnels (ini renseigné →
 // même valeur qu'avant) : la branche fInitiales ne sert QUE quand currentUser.ini est vide (compte machine).
 function _ini(){ return (currentUser&&currentUser.ini)?currentUser.ini:(document.getElementById('fInitiales')?.value||'?'); }
+// [L185] Compte MACHINE partagé (feba@/maveg@/cevenini@) : nom court du poste (CEVENINI/MAVEG/FEBA)
+// sans le préfixe « Poste ». '' si session normale. Sert à préfixer l'auteur d'un brouillon → « CEVENINI / JF ».
+function _machinePostName(){ return (currentUser&&currentUser.ini===''&&/^Poste /.test(currentUser.nom||''))?String(currentUser.nom).replace(/^Poste\s+/,''):''; }
 // ============================================================
 // [L59 · Lot 1] COMMANDE PARTAGÉE — UI (bouton + modale + badge)
 // [L60 · Lot 2] Persistance Firestore : le partage écrit un doc d_shared_<uid>_<ts>
@@ -16598,7 +16601,7 @@ async function saveDraftManual(){
   try{   // [L73 · Lot 5 · B41] verrou libéré en finally, même si serializeFicheState/Firestore jette
   const st=serializeFicheState();
   const label=(st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°');
-  const draft={id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,owner:_ini()};   // [L113 · audit #7] owner → la garde « jamais le brouillon d'un AUTRE poste » redevient effective (anti-doublon L109)
+  const draft={id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,owner:_ini(),ownerPost:_machinePostName()};   // [L113 · audit #7] owner → la garde « jamais le brouillon d'un AUTRE poste » redevient effective (anti-doublon L109) · [L185] ownerPost = poste machine pour l'affichage « CEVENINI / JF »
   const stripped=_draftStrip(draft);
   const _photosDropped=_draftStripLastCount;   // DRAFT-3 : capturé AVANT tout await (un autosave concurrent réécrit _draftStripLastCount)
   // DRAFT-2 : avant, persistDrafts (fire-and-forget) renvoyait true même si tous les
@@ -16765,7 +16768,7 @@ function autosaveDraftTick(force){
   }catch(e){}
   const label='🔄 Auto · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
   const drafts=loadDrafts().filter(d=>d.id!==aid);
-  drafts.unshift({id:aid,savedAt:isoNow(),label,state:st,auto:true,owner:_ini()});
+  drafts.unshift({id:aid,savedAt:isoNow(),label,state:st,auto:true,owner:_ini(),ownerPost:_machinePostName()});
   if(persistDrafts(drafts)) _autosaveLastSig=sig;
 }
 function startAutosave(){
@@ -16962,7 +16965,7 @@ function planAutosaveTick(){
   const label='🔄 Auto plan · '+((st.plan.client||'—')+' / '+(st.plan.numCmd||'sans n°'));
   const pid=planAutosaveId();
   const drafts=loadDrafts().filter(d=>d.id!==pid);
-  drafts.unshift({id:pid,savedAt:isoNow(),label,state:st,auto:true,planDraft:true,owner:_ini()});
+  drafts.unshift({id:pid,savedAt:isoNow(),label,state:st,auto:true,planDraft:true,owner:_ini(),ownerPost:_machinePostName()});
   if(persistDrafts(drafts)) _planAutosaveLast=sig;
 }
 function startPlanAutosave(){
@@ -17307,7 +17310,7 @@ function renderDrafts(){
     return `<div class="save-card">
       <div class="save-info">
         <div class="save-title">${esc(d.label)}${tag}</div>
-        <div class="save-meta">Brouillon du ${ds} · ${meta}${d.owner?' · <b style="color:var(--blue)">'+esc(d.owner)+'</b>':''}</div>
+        <div class="save-meta">Brouillon du ${ds} · ${meta}${d.owner?' · <b style="color:var(--blue)">'+esc((d.ownerPost&&d.owner!=='?')?d.ownerPost+' / '+d.owner:d.owner)+'</b>':''}</div>
       </div>
       <div class="save-actions">
         <button class="btn btn-green btn-sm" onclick="resumeDraft('${d.id}')">▶ Reprendre</button>
