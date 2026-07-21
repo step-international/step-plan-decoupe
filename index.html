@@ -615,10 +615,10 @@ body.has-topbanner #nav{top:48px}
 .fc-cell{display:flex;flex-direction:column;gap:2px;min-width:0}
 .fc-lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .fc-val{font-size:14px;color:var(--text);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fc-val-wrap{font-size:14px;color:var(--text);font-weight:700;white-space:normal;word-break:break-word;line-height:1.35}
+.fc-val-wrap{font-size:16.5px;color:var(--text);font-weight:800;white-space:normal;word-break:break-word;line-height:1.3}/* [L187] référence produit agrandie (demande Esteban : mieux différencier deux réfs, ex. imprimée vs non) */
 .fc-cmdline{padding:8px 12px;background:#1c2e44;border-radius:8px;font-family:monospace;font-size:13px;color:var(--blue);font-weight:700;word-break:break-word;white-space:pre-line;line-height:1.5}
 .fc-refblock{display:flex;flex-direction:column;gap:3px}
-.fc-refrow{display:flex;align-items:baseline;gap:6px;font-size:13px}
+.fc-refrow{display:flex;align-items:baseline;gap:6px;font-size:15.5px}/* [L187] réfs multi agrandies (demande Esteban) */
 .fc-refrow .fc-refname{font-weight:700;color:var(--text);word-break:break-word}
 .fc-refrow .fc-refdot{color:var(--ref-accent);font-weight:800;flex-shrink:0}
 .fc-pkg{font-size:12px;color:var(--muted);padding:4px 0}
@@ -1714,7 +1714,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L186';
+const APP_VERSION='2026.07.21-L187';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3562,7 +3562,7 @@ function blCardBlock(f){
   const trash=(i)=>manage?` <button onclick="deleteBLFiche('${fid}',${i})" title="Retirer ce BL" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:13px">🗑</button>`:'';
   const head=complete
     ? `<div style="color:#4ade80;font-weight:700;font-size:12px;margin-bottom:4px">📎 BL complet</div>`
-    : `<div style="color:var(--orange);font-weight:700;font-size:12px;margin-bottom:4px">📎 BL non joint <span style="color:var(--muted);font-weight:600">(recommandé — traçabilité ISO)</span></div>`;   // [L122 · T2-B] le BL ne bloque plus la validation (choix Esteban) : message informatif, pas bloquant
+    : '';   // [L187] « BL non joint » retiré de la carte écran (demande Esteban) — le BL reste dans le PDF (traçabilité ISO) et « Ajouter un BL » reste dispo
   let body='';
   // Liste de TOUS les BL joints (plusieurs possibles), chacun avec sa poubelle.
   bls.forEach((b,i)=>{
@@ -3584,7 +3584,13 @@ function blCardBlock(f){
     actions+=`<button onclick="triggerBLFiche('${fid}',null)" style="background:#14371f;border:1px solid #1e5c30;color:#4ade80;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;padding:3px 8px">📎 Ajouter un BL${multi?' (global)':''}</button>`;
     actions+=`</div>`;
   }
-  return `<div style="margin:6px 0;padding:8px 10px;border-radius:8px;background:${complete?'rgba(74,222,128,0.08)':'rgba(248,113,113,0.08)'};border:1px solid ${complete?'#1e5c30':'#7a2222'}">${head}${body}${actions}</div>`;
+  // [L187] Plus de « case BL non joint » (demande Esteban) : aucun BL joint → pas de boîte d'alarme
+  // rouge ; seul un bouton discret « Ajouter un BL » subsiste pour le pilotage. La boîte VERTE
+  // « BL complet » reste. Multi-réf partiel : boîte NEUTRE (plus de rouge) avec le statut par réf.
+  if(!bls.length && !complete){
+    return manage ? `<div style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap"><button onclick="triggerBLFiche('${fid}',null)" style="background:#1a1a18;border:1px solid var(--border2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;padding:3px 8px">📎 Ajouter un BL${multi?' (global)':''}</button></div>` : '';
+  }
+  return `<div style="margin:6px 0;padding:8px 10px;border-radius:8px;background:${complete?'rgba(74,222,128,0.08)':'transparent'};border:1px solid ${complete?'#1e5c30':'var(--border2)'}">${head}${body}${actions}</div>`;
 }
 
 // Fichiers de la commande client (niveau plan) — multi-fichiers, tous types
@@ -12504,7 +12510,8 @@ function renderFiches(){
     // (valide==null). Une fiche REFUSÉE (valide===false) n'affiche plus le bouton vert — sa réhabilitation
     // passe par une action DISTINCTE confirmée (le bouton « ✗ Refuser » ayant été retiré en L122).
     const validBtns=canValidate()?`
-      ${f.valide==null?`<span class="fc-btn" style="cursor:default;border-color:${blOk?'#1e5c30':'#caa15a'};color:${blOk?'#4ade80':'var(--orange)'};background:${blOk?'#14371f':'#3a2a0e'}" title="${blOk?'Bon de livraison joint':'BL non joint — recommandé (ISO), non obligatoire'}">${blOk?'📎 BL joint':'📎 BL non joint'}</span>`:''}
+      ${f.valide==null&&blOk?`<span class="fc-btn" style="cursor:default;border-color:#1e5c30;color:#4ade80;background:#14371f" title="Bon de livraison joint">📎 BL joint</span>`:''}<!-- [L187] badge « BL non joint » retiré (demande Esteban) : on n'affiche que la confirmation verte quand un BL est joint -->
+
       ${f.valide==null?`<button class="fc-btn fc-btn-green" onclick="validateFiche('${f._id}')" title="Valider">✓ Valider</button>`:''}
       ${f.valide===false?`<button class="fc-btn fc-btn-ghost" onclick="rehabFiche('${f._id}')" title="Réhabiliter cette fiche refusée (repasse en attente de validation)">↩ Réhabiliter</button>`:''}`:'';
     // [L79] Bordure gauche colorée par ÉTAT (séparation nette) : vert=validée · orange=à valider · rouge=refusée/manque matière.
@@ -14988,10 +14995,8 @@ function addFicheLine(data){
     <div class="fiche-line-header"><!-- [L107 · Phase 1 · C] le ✂ descend en GROS bouton en bas de carte · [L110] case photo remontée ICI, à droite de « 1/9 Bobine RAS » (demande Esteban) -->
       <span class="fl-pos" id="pos_${id}">—</span>
       <span class="fl-title">Bobine <span id="badge_${id}" class="fl-badge badge-green">✓ RAS</span></span><!-- [L142 · ergo #8] forme + texte (pas la couleur seule) : sûr pour le daltonisme sous reflets/gants -->
-      <div class="photo-zone photo-zone-hd" id="photoZone_${id}">
-        <button class="photo-btn" onclick="triggerPhoto('${id}')" title="Ajouter une photo">📷 Photo</button>
-      </div>
-      <button class="btn btn-ghost btn-sm" style="min-width:48px;color:var(--red)" aria-label="Retirer cette bobine" title="Retirer cette bobine de la fiche" onclick="removeFicheLine('${id}')">✕</button><!-- [L121 · T4-C2] ghost (le rouge plein se noyait avec la bordure NC rouge de la carte) -->
+      <button class="btn btn-ghost btn-sm" style="min-width:48px;margin-left:auto;color:var(--red)" aria-label="Retirer cette bobine" title="Retirer cette bobine de la fiche" onclick="removeFicheLine('${id}')">✕</button><!-- [L187] case photo par ligne retirée (demande Esteban : pas besoin d'image dans la fiche découpe). refreshPhotoZone est gardé (if(!zone)return) → aucun impact JS -->
+<!-- [L121 · T4-C2] ghost (le rouge plein se noyait avec la bordure NC rouge de la carte) -->
     </div>
     <div class="fiche-grid">
       <div class="field" style="grid-column:1/-1;display:none"><label>Étiquette bobine mère</label><!-- [L154 · demande Esteban] champ MASQUÉ (inutile à l'atelier, prenait de la place) — l'input RESTE dans le DOM avec son étiquette AUTO (BOB-xxx) : PDF, partage, sélecteur op.2, hors-plan et toasts continuent de la lire (même patron que les champs conditionnement L1098) -->
