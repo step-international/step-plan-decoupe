@@ -1752,7 +1752,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L211';
+const APP_VERSION='2026.07.21-L212';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9506,27 +9506,28 @@ async function plnAutoFill(){
   const _placedWeek=(savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate&&!_plnDejaCoupe(s,ctx)&&_plnSpanIsos(s).some(iso=>dayIsos.indexOf(iso)>=0));
   if(!cands.length&&!_placedWeek.length){ showToast('Rien à répartir : aucune commande « À planifier » à livrer d\'ici la fin de cette semaine.','ok'); return; }
   if(!confirm('⚡ Planning optimisé — poser '+cands.length+' commande(s) et RÉ-ÉTALER les '+_placedWeek.length+' déjà posées ?\n\n• Priorité aux livraisons les plus proches\n• RÉPARTITION sur les 3 machines (3 opérateurs — tout tourne), préférence à la machine prévue\n• Max '+String(PLN_OVER_H).replace('.',',')+' h de découpe par jour et par machine\n• Une commande trop grande est ÉTALÉE automatiquement sur plusieurs jours (aussi celles DÉJÀ posées)\n• Tu pourras tout re-glisser ensuite.')) return;
-  // [L206 · bug Esteban] 1) RÉ-ÉTALER les cartes déjà posées : D = ⌈part max ÷ 7h30⌉ (on n'ÉLARGIT que —
-  // un étalement volontairement plus large reste respecté). Les 19h55 posés sur UN jour passent sur 3.
+  // [L206 · bug Esteban] 1) RÉ-ÉTALER les cartes déjà posées via le GARDIEN (plnSetPlan sans days = recalcul
+  // load-aware ≤ 7h30, [L212] tenant compte des VOISINES). Une carte 8h/1j devient conforme ; silent=true → pas
+  // de toast par carte. Refus (jour plein) → on la laisse telle quelle (l'utilisateur re-glissera).
   let respread=0;
   for(const s of _placedWeek){
     try{
-      let hMax=0; DUJ_MACHINES.forEach(mk=>{ const hh=_plnHoursOn(s,mk); if(hh!=null&&hh>hMax)hMax=hh; });
-      if(!(hMax>0)) continue;
-      const D=Math.max(1,Math.min(14,Math.ceil(hMax/PLN_OVER_H)));
-      if(D>_plnDays(s)){ const ok=await plnSetPlan(s._id,s.plannedDate,s.plannedMachine,D); if(ok!==false) respread++; }
+      const _bd=_plnDays(s);
+      const ok=await plnSetPlan(s._id,s.plannedDate,s.plannedMachine,null,true);
+      if(ok!==false && _plnDays(s)!==_bd) respread++;
     }catch(e){}
   }
   // 2) charge existante (heures) par machine×jour — MÊME sémantique que la GRILLE : sur la machine POSÉE +
-  //    les machines à part fantôme (byMachDetail), PAS sur les 3. [L208 · audit planning #3] un plan mono /
-  //    à machine inconnue était compté ×3 (repli TOTAL × boucle 3 machines) → journées pleines FICTIVES,
-  //    l'optimiseur refusait d'y poser. Coupées exclues (charge faite).
-  const load={}; DUJ_MACHINES.forEach(m=>{ load[m]={}; dayIsos.forEach(iso=>{ load[m][iso]=0; }); });
+  //    les machines à part fantôme (byMachDetail), PAS sur les 3. [L208 · #3] un plan mono/machine inconnue
+  //    était compté ×3 → journées pleines FICTIVES. Coupées exclues. [L212 · vérif] load NON borné à la semaine
+  //    affichée (clé = n'importe quel ISO) → un span qui déborde sur la SEMAINE SUIVANTE est suivi et contrôlé.
+  const load={}; DUJ_MACHINES.forEach(m=>{ load[m]={}; });
+  const _addLoad=(m,iso,h)=>{ if(load[m]) load[m][iso]=(load[m][iso]||0)+h; };
   (savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate&&!_plnDejaCoupe(s,ctx)).forEach(s=>{
     const span=_plnSpanIsos(s);
     const machs=new Set(); const _pm=dujMachKey(s.plannedMachine||''); if(_pm) machs.add(_pm);
     const _e=_plnPlanMeters(s); if(_e&&_e.byMachDetail) Object.keys(_e.byMachDetail).forEach(k=>{ if(k) machs.add(k); });
-    machs.forEach(m=>{ if(!load[m]) return; const h=_plnHoursOn(s,m); if(h==null||!(h>0)) return; span.forEach(iso=>{ if(load[m][iso]!=null) load[m][iso]+=h/_plnDays(s); }); });
+    machs.forEach(m=>{ if(!load[m]) return; const h=_plnHoursOn(s,m); if(h==null||!(h>0)) return; span.forEach(iso=>_addLoad(m,iso,h/_plnDays(s))); });
   });
   let done=0,fail=0,spread=0,moved=0,notFit=0;
   const EPS=0.01, wkLoad=mk=>dayIsos.reduce((a,iso)=>a+(load[mk][iso]||0),0);
@@ -9576,10 +9577,10 @@ async function plnAutoFill(){
     }
     if(!best){ notFit++; continue; }   // [L210] aucune place SOUS 7h30 cette semaine → laissée au pool (jamais forcée au-dessus)
     try{
-      const ok=await plnSetPlan(s._id,best.startIso,best.mk,best.D,best.D);   // [L210] D explicite : l'étalement calculé (sous 7h30) est HONORÉ tel quel
+      const ok=await plnSetPlan(s._id,best.startIso,best.mk,best.D,true);   // [L210] D explicite (honoré) · [L212] silent (l'autofill gère ses propres compteurs/toast)
       if(ok!==false){
         done++; if(best.D>1) spread++; if(native&&best.mk!==native) moved++;
-        best.span.forEach(iso=>{ if(load[best.mk][iso]!=null) load[best.mk][iso]+=best.perDay; });
+        best.span.forEach(iso=>_addLoad(best.mk,iso,best.perDay));   // [L212] suit aussi les jours HORS semaine affichée
       } else fail++;
     }catch(e){ fail++; }
   }
@@ -9587,7 +9588,7 @@ async function plnAutoFill(){
   showToast('⚡ Planning optimisé : '+done+' commande(s) posée(s)'+(respread?' · '+respread+' déjà posée(s) RÉ-ÉTALÉE(S)':'')+(spread?' · '+spread+' étalée(s)':'')+(moved?' · '+moved+' déplacée(s) sur une autre machine':'')+(notFit?' · ⚠ '+notFit+' NON placée(s) (semaine pleine — aucune place sous 7h30)':'')+(fail?' · '+fail+' échec(s)':'')+'.','ok');
   logAudit('planning','saves','auto-fill','Planning optimisé — '+done+' posée(s), '+respread+' ré-étalée(s), '+spread+' étalée(s), '+moved+' déplacée(s), '+notFit+' non placée(s) (max '+PLN_OVER_H+' h/j, semaine du '+dayIsos[0]+')').catch(function(){});
 }
-async function plnSetPlan(sid,dateIso,machKey,days){
+async function plnSetPlan(sid,dateIso,machKey,days,silent){
   if(!plnCanEdit()){ showToast('🔒 Lecture seule — la planification est réservée au pilotage/admin.','err'); return false; }
   const s=(savesCache||[]).find(x=>x&&x._id===sid);
   if(!s){ showToast('Plan introuvable — recharge la page.','err'); return false; }
@@ -9601,34 +9602,38 @@ async function plnSetPlan(sid,dateIso,machKey,days){
   }catch(e){} }
   const curDays=_plnDays(s);
   const before={d:s.plannedDate||null,m:s.plannedMachine||null,days:s.plannedDays||null};
-  // [L119] retrait (dateIso null) → plannedDays effacé ; sinon days fourni, ou on garde l'étalement courant
-  // [L197 · demande Esteban] POSE MANUELLE : étaler AUTOMATIQUEMENT (D = ⌈heures ÷ 7h30⌉).
-  // [L199 · revue #1/#2] SEULEMENT à la 1re pose (pool → grille) ou à un CHANGEMENT de machine (la durée
-  // change avec le débit) : un simple déplacement de jour PRÉSERVE l'étalement courant — le choix explicite
-  // du modal (1 j / 4 j) n'est plus écrasé, et re-déposer la carte au même endroit redevient un no-op.
-  // [L199 · revue #7] D = part la PLUS LONGUE parmi les 3 machines (multi-machines : les parts fantômes
-  // partagent le même span — dimensionner sur la seule machine cible comprimait les autres au-delà de 7h30).
-  let _autoDays=curDays;
-  if(dateIso && days==null && (!before.d || (machKey||null)!==(before.m||null))){
-    try{
-      let _h=0;
-      DUJ_MACHINES.forEach(function(mk){ const hh=_plnHoursOn(Object.assign({},s,{plannedMachine:machKey}),mk); if(hh!=null&&hh>_h)_h=hh; });
-      if(_h>0){
-        // [L210 · demande Esteban] glisser MANUEL : ne JAMAIS dépasser 7h30. On calcule le D minimal qui fait
-        // tenir la commande sous 7h30 à partir du jour déposé, COMPTE TENU de la charge déjà posée sur cette
-        // machine (les AUTRES commandes) → la journée se remplit jusqu'à 7h30 puis ça DÉBORDE sur le(s) suivant(s).
-        const _mk=dujMachKey(machKey||''), _dl={};
-        if(_mk){ (savesCache||[]).forEach(function(o){ if(!o||o.deleted||o._id===sid||o.plannedDate==null) return;
-          const _om=new Set(); const _p=dujMachKey(o.plannedMachine||''); if(_p)_om.add(_p);
-          const _oe=_plnPlanMeters(o); if(_oe&&_oe.byMachDetail) Object.keys(_oe.byMachDetail).forEach(function(k){ if(k)_om.add(k); });
-          if(!_om.has(_mk)) return; const _oh=_plnHoursOn(o,_mk); if(_oh==null||!(_oh>0)) return;
-          _plnSpanIsos(o).forEach(function(iso){ _dl[iso]=(_dl[iso]||0)+_oh/_plnDays(o); }); }); }
-        let _D=Math.max(1,Math.min(14,Math.ceil(_h/PLN_OVER_H)));
-        while(_D<=14){ const sp=_plnSpanIsos({plannedDate:dateIso,plannedDays:_D}); if(sp.length<_D) break; const pd=_h/_D; if(sp.every(function(iso){return (_dl[iso]||0)+pd<=PLN_OVER_H+0.01;})){ _autoDays=_D; break; } _autoDays=_D; _D++; }
+  // [L212 · vérif adversariale scheduling — GARDIEN UNIQUE 7h30] TOUTE pose sans `days` explicite (glisser/tap,
+  // Y COMPRIS un simple changement de JOUR sur la même machine — la faille CRITIQUE) recalcule l'étalement pour
+  // que CHAQUE jour du span reste ≤ 7h30, charge réelle des AUTRES commandes comprise (SUR TOUT L'HORIZON, pas
+  // que la semaine — coupées exclues). Le jour de dépôt est déjà plein → on REFUSE (jamais de dépassement
+  // silencieux). `days` EXPLICITE (autofill/modal) → honoré tel quel (le caller a déjà garanti la tenue).
+  let nDays;
+  if(!dateIso){ nDays=null; }
+  else if(days!=null){ nDays=Math.max(1,Math.min(14,days|0)); }
+  else {
+    const _mk=dujMachKey(machKey||'');
+    let _h=0; DUJ_MACHINES.forEach(function(mk){ const hh=_plnHoursOn(Object.assign({},s,{plannedMachine:machKey}),mk); if(hh!=null&&hh>_h)_h=hh; });
+    if(!(_h>0)){ nDays=curDays; }   // pas d'estimation (débit/longueur manquant) → on garde l'étalement courant
+    else{
+      const _ctx=(typeof _plnSentKeys==='function')?_plnSentKeys():null, _dl={};
+      if(_mk){ (savesCache||[]).forEach(function(o){ if(!o||o.deleted||o._id===sid||o.plannedDate==null) return;
+        if(_ctx&&_plnDejaCoupe(o,_ctx)) return;   // [L212] coupée → charge faite, ne compte plus
+        const _om=new Set(); const _p=dujMachKey(o.plannedMachine||''); if(_p)_om.add(_p);
+        const _oe=_plnPlanMeters(o); if(_oe&&_oe.byMachDetail) Object.keys(_oe.byMachDetail).forEach(function(k){ if(k)_om.add(k); });
+        if(!_om.has(_mk)) return; const _oh=_plnHoursOn(o,_mk); if(_oh==null||!(_oh>0)) return;
+        _plnSpanIsos(o).forEach(function(iso){ _dl[iso]=(_dl[iso]||0)+_oh/_plnDays(o); }); }); }
+      const _minD=Math.max(1,Math.ceil(_h/PLN_OVER_H));
+      let _D=_minD, _ok=false;
+      while(_D<=14){ const sp=_plnSpanIsos({plannedDate:dateIso,plannedDays:_D}); if(sp.length<_D) break; const pd=_h/_D; if(sp.every(function(iso){return (_dl[iso]||0)+pd<=PLN_OVER_H+0.01;})){ _ok=true; break; } _D++; }
+      if(!_ok){
+        try{ renderPlanning(); }catch(e){}   // remet la carte à sa place (le glisser l'avait déplacée visuellement)
+        if(!silent) showToast('⚠ Impossible sans dépasser 7h30 : à partir du '+new Date(dateIso+'T12:00:00').toLocaleDateString('fr-FR')+', '+(getMachineLabel(_mk)||'cette machine')+' est déjà plein(e) sur les jours disponibles.\n\nDépose sur un jour plus libre, ou lance ⚡ Planning optimisé.','err');
+        return false;
       }
-    }catch(e){}
+      nDays=_D;
+      if(!silent && _D>_minD) showToast('🗓 Étalée sur '+_D+' jours pour tenir sous 7h30 (les journées suivantes se remplissent).','ok');
+    }
   }
-  const nDays=dateIso?(days!=null?Math.max(1,Math.min(14,days|0)):_autoDays):null;
   const after={d:dateIso||null,m:machKey||null,days:nDays};
   if(before.d===after.d&&before.m===after.m&&(before.days||1)===(after.days||1)) return true;
   if(_plnWriteBusy.has(sid)) return false;   // [L118 · audit #3] un seul write en vol par carte : évite que le rollback d'un 1er glisser écrase un 2e glisser rapide

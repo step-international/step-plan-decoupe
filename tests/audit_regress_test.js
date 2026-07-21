@@ -66,7 +66,8 @@ has(/const _resolveKey=fd=>\{/,'CRIT#2 (audit 9001) : désambiguïsation homonym
 has(/const MAX_USEFUL_MM=4000/,'#5/#20 anti-gel : clamp laize utile 4000 mm (20000 gelait le DP 135 s)');
 has(/const MAX_BLADE_MM=50/,'#5 anti-gel : clamp lame 50 mm');
 has(/largeur < 1 mm/,'#23 : largeur sub-millimétrique refusée (0 slot → pièce perdue en silence)');
-has(/!before\.d \|\| \(machKey\|\|null\)!==\(before\.m\|\|null\)/,'revue planning #1/#2 : étalement auto SEULEMENT 1re pose ou changement de machine');
+has(/GARDIEN UNIQUE 7h30/,'L212 : plnSetPlan = gardien unique 7h30 (toute pose sans days recalcule load-aware, refuse si jour plein)');
+has(/Impossible sans dépasser 7h30/,'L212 : refus de pose quand le jour est déjà plein (jamais de dépassement au glisser)');
 has(/normalisée au 1er jour OUVRÉ suivant/,'revue planning #3 : pose sur férié normalisée');
 has(/if\(M===60\)\{H\+\+;M=0;\}/,'revue planning #12 : _plnH report de retenue (1 h 60 → 2 h)');
 has(/importFullBackup/,'#16 : import de sauvegarde présent (round-trip)');
