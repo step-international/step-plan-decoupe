@@ -1748,7 +1748,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.21-L204';
+const APP_VERSION='2026.07.21-L205';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8514,6 +8514,29 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     groupsForRecord=_recForRecord({...c0,ref:''}).concat(_planGroupsByLaize(groups,ref).map(gp=>({label:makeLabel(gp.pattern),count:gp.count,total:fmt(calcStats(gp.pattern,blade).total),waste:fmt(useful-calcStats(gp.pattern,blade).total),isLast:false})));
   }
 
+  // [L205 · audit CRIT#1 v2] COUVERTURE PAR LARGEUR complète à l'archivage : on rejoue
+  // _resteGroupsFromFiche (la MÊME fonction, homonyme-aware L195, qui construit le plan du reste)
+  // sur la fiche en cours d'archivage. Tout reliquat = pièces commandées NON produites — y compris
+  // les bobines SOUS-REMPLIES sans rebut (le cas invisible du compte de lignes, prouvé sur fiche
+  // réelle idx34 : 25×300 livrées pour 30 commandées, archivée « sans écart »). Hors manque-matière
+  // (reste déjà géré). Signal informatif (bandeau écart), jamais bloquant.
+  if(!opts.manqueMatiere){
+    try{
+      const _pseudo={ficheDetail:ficheDetailTagged, rows,
+        mother:multi?computed.map(c=>fmt(c.mother)).join(' / '):mother,
+        useful:multi?computed.map(c=>fmt(c.useful)).join(' / '):fmt(useful), blade:fmt(blade),
+        refGroups:multi?serializeRefGroups():null, chutesStock:getPlanChutesUsedByWidth(),
+        machine, machine2:'', mother2:'', ref, longueur};
+      const _rg=_resteGroupsFromFiche(_pseudo);
+      const _miss=[];
+      _rg.forEach(gg=>{ (gg.rows||[]).forEach(r=>{ if(r.qty>0&&r.width>0) _miss.push(r.qty+'×'+r.width); }); });
+      if(_miss.length){
+        hasEcart=true;
+        const _mm2='⚠ non couvert : '+_miss.slice(0,6).join(' + ')+(_miss.length>6?' …':'')+' mm — pièces commandées non produites';
+        if(ecartMsg.indexOf('non couvert')<0) ecartMsg=ecartMsg?(_mm2+' ; '+ecartMsg):_mm2;
+      }
+    }catch(e){ console.warn('Couverture archive :',e); }
+  }
   const ficheEntry={
     name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,machine2,mother2,edge2,blade2,useful2,lame,lameChg,lameNew,lameChgBob,machineChg:machChg,numJour,longueur,mother,rows,
     refGroups:multi?serializeRefGroups():null,

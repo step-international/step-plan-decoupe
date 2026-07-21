@@ -69,6 +69,7 @@ has(/normalisée au 1er jour OUVRÉ suivant/,'revue planning #3 : pose sur féri
 has(/if\(M===60\)\{H\+\+;M=0;\}/,'revue planning #12 : _plnH report de retenue (1 h 60 → 2 h)');
 has(/importFullBackup/,'#16 : import de sauvegarde présent (round-trip)');
 has(/Cascade archivage fiche/,'#14 : cascade temps à l\'archivage d\'une fiche');
+has(/pièces commandées non produites/,'CRIT#1 v2 : couverture PAR LARGEUR à l\'archivage (_resteGroupsFromFiche rejoué — détecte les bobines sous-remplies sans rebut)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
