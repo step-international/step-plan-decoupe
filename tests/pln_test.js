@@ -24,7 +24,7 @@ global._plnEstCache={};
 global._dujAddOverride=null; global._plnAddCalCache={}; global.dujCalibrateAdditive=()=>null;   // [L125] pas de calibration en test → repli m/h (comportement historique)
 global._plnDebitCache={};   // [L132] cache débit m/h mémoïsé (vidé par rendu dans l'appli)
 global._plnSpanCache={}; global._friesCache={};    // [L133] cache span jours ouvrés mémoïsé
-for(const n of ['_plnMonday','_plnIsoWeekNum','_plnIso','_plnSentKeys','_plnDejaCoupe','_plnDateLivMin','_plnPlanMeters','_plnHoursPart','_plnAddCal','_plnDebit','_plnHoursOn','_plnHoursAuto','_plnH','hygieneDryRun','_plnDays','_joursFeriesFR','_plnSpanIsos']){
+for(const n of ['_plnMonday','_plnIsoWeekNum','_plnIso','_plnSentKeys','_plnDejaCoupe','_plnDateLivMin','_plnPlanMeters','_plnHoursPart','_plnAddCal','_plnDebit','_plnHoursOn','_plnHoursAuto','_plnTouchedParts','_plnH','hygieneDryRun','_plnDays','_joursFeriesFR','_plnSpanIsos']){
   global[n]=eval('('+fnOf(n)+')');
 }
 
@@ -162,7 +162,9 @@ ok(/nat=\(native&&mk!==native\)\?1\.5:0/.test(src),'plnAutoFill : équilibrage 3
 ok(/D===1\?0:1/.test(src)&&/remStart/.test(src),'plnAutoFill : commande ENTIÈRE d\'abord + BEST-FIT (journées proches de 7h30 — L210)');
 ok(/if\(sp\.length<_?D\) break;/.test(src)&&/\+pd<=PLN_OVER_H\+/.test(src),'plnAutoFill/plnSetPlan : D minimal qui TIENT sous 7h30 (jamais de dépassement — L210)');
 ok(/notFit\+\+/.test(src),'plnAutoFill : commande sans place sous 7h30 laissée au pool (jamais forcée au-dessus — L210)');
-ok(/Math\.min\(14,Math\.ceil\(h\/PLN_OVER_H\)\)/.test(src),'plnAutoFill : D borné à 14 (L208 audit #2)');
+ok(/Math\.min\(14,Math\.ceil\(hMk\/PLN_OVER_H\)\)/.test(src),'plnAutoFill : D borné à 14, dimensionné sur la part machine cible hMk (L208/L216)');
+ok(/Object\.keys\(parts\)\.every\(m=>/.test(src),'plnAutoFill : contrôle 7h30 sur TOUTES les machines touchées (L216)');
+ok(/function _plnTouchedParts\(s,mk\)/.test(src),'helper _plnTouchedParts : parts par machine (cible + fantômes) — L216');
   console.log(fail?('\n💥 '+fail+' échec(s)'):'\n🏆 L119 PLANNING VALIDÉ : ISO · garde date/refusée · multi-jours (span/étalement) · fériés · pose/retrait/retour-arrière');
   process.exit(fail?1:0);
 })();

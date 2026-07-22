@@ -1752,7 +1752,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.22-L215';
+const APP_VERSION='2026.07.22-L216';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9442,6 +9442,19 @@ function _plnHoursAuto(s){   // carte non posée (POOL) : chaque réf sur SA mac
   _plnAutoApprox=got&&approx;
   return got?(h||null):null;
 }
+// [L216 · vérif gardien] Parts de charge PAR machine RÉELLEMENT touchée quand la commande s est posée sur mk
+// (cible + fantômes, MÊME règle que la grille) → {machine: heures}. MONO déplacée sur une autre machine = TOUT
+// sur mk (aucun fantôme) ; MULTI répartie = sa part sur CHAQUE machine. Sert au contrôle 7h30 sur TOUTES les
+// machines touchées (le trou majeur de L212 : on ne vérifiait QUE la cible → une part fantôme débordait).
+function _plnTouchedParts(s,mk){
+  const out={}; if(!mk) return out;
+  const est=_plnPlanMeters(s);
+  const hMk=_plnHoursOn(Object.assign({},s,{plannedMachine:mk}),mk);
+  if(hMk!=null&&hMk>0) out[mk]=hMk;
+  const mkNative=!!(est&&((est.byMachDetail&&est.byMachDetail[mk])||(est.byMach&&est.byMach[mk]!=null)));
+  if(mkNative&&est&&est.byMachDetail) DUJ_MACHINES.forEach(function(m){ if(m===mk||!est.byMachDetail[m]) return; const p=_plnHoursOn(Object.assign({},s,{plannedMachine:mk}),m); if(p!=null&&p>0) out[m]=p; });
+  return out;
+}
 function _plnH(h){ if(h==null||!isFinite(h)||h<=0) return '—'; let H=Math.floor(h),M=Math.round((h-H)*60); if(M===60){H++;M=0;} return '≈ '+(H>0?(H+' h'+(M?' '+String(M).padStart(2,'0'):'')):(M+' min')); }   // [L199 · revue planning] report de retenue : 1,996 h affichait « 1 h 60 » (et 0,999 h « 60 min ») au lieu de « 2 h » / « 1 h »
 // [L119 · demande Esteban] commande longue : ÉTALÉE sur plusieurs jours. plannedDays (1..14) = nb de
 // jours OUVRÉS occupés à partir de plannedDate, sur la même machine. Les ISO occupés :
@@ -9548,52 +9561,45 @@ async function plnAutoFill(){
     // [L183 · demande Esteban] RÉPARTIR SUR LES 3 MACHINES (3 opérateurs, tout tourne) : machine PRÉVUE
     // préférée (pénalité +1,5 h ailleurs), sinon la machine la moins chargée de la semaine.
     const est=_plnPlanMeters(s);
-    const hOn=(mk)=>{
-      if(mk===native){ const v=_plnHoursOn(Object.assign({},s,{plannedMachine:mk}),mk); if(v!=null&&v>0) return v; }
-      if(est){ const v=_plnHoursPart(mk,{metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0}); if(v!=null&&v>0) return v; }   // durée estimée avec le DÉBIT de la machine cible
-      return 1;   // repli 1 h si inestimable (équilibre au nombre)
+    // [L216 · vérif gardien] parts PAR machine touchée si la commande était posée sur mk (cible + fantômes) ;
+    // si mk n'a pas de part native → estimation au débit de mk (repli), sans fantôme.
+    const partsOn=(mk)=>{
+      const p=_plnTouchedParts(s,mk);
+      if(!(p[mk]>0)){ const e=est?_plnHoursPart(mk,{metres:est.metres,nbMother:est.nbMother||0,nbDaughters:est.nbDaughters||0}):null; p[mk]=(e!=null&&e>0)?e:1; }
+      return p;
     };
     let best=null;
     for(const mk of DUJ_MACHINES){
-      const h=hOn(mk);
+      const parts=partsOn(mk), hMk=parts[mk];
       const mkWk=wkLoad(mk), nat=(native&&mk!==native)?1.5:0;   // équilibrage 3 machines + préférence machine prévue
       for(const startIso of starts){
-        // [L210 · demande Esteban] CONTRAINTE DURE : aucune journée ne dépasse JAMAIS 7h30. On cherche le D
-        // MINIMAL (≥ ⌈h/7,5⌉) qui fait tenir la commande sous 7h30 sur CHAQUE jour de son span COMPTE TENU de
-        // la charge déjà posée → ça REMPLIT le jour entamé jusqu'à 7h30 puis DÉBORDE sur le(s) suivant(s).
-        // Aucun D≤14 ne tient (semaine pleine à partir de ce jour) → ce départ est écarté (jamais de dépassement).
-        let D=Math.max(1,Math.min(14,Math.ceil(h/PLN_OVER_H))), span=null, perDay=0, fits=false;
+        // [L210/L216] CONTRAINTE DURE : aucune journée > 7h30 sur AUCUNE machine touchée. D minimal (≥⌈h/7,5⌉)
+        // qui fait tenir la commande sous 7h30 sur CHAQUE machine touchée × CHAQUE jour de son span, charge déjà
+        // posée comprise → remplit le jour entamé jusqu'à 7h30 puis DÉBORDE. Aucun D≤14 ne tient → départ écarté.
+        let D=Math.max(1,Math.min(14,Math.ceil(hMk/PLN_OVER_H))), span=null, fits=false;
         while(D<=14){
           const sp=_plnSpanIsos({plannedDate:startIso,plannedDays:D});
-          if(sp.length<D) break;   // plus assez de jours ouvrés d'ici la fin
-          const pd=h/D;
-          if(sp.every(iso=>(load[mk][iso]||0)+pd<=PLN_OVER_H+EPS)){ span=sp; perDay=pd; fits=true; break; }
+          if(sp.length<D) break;
+          if(Object.keys(parts).every(m=>{ const pd=parts[m]/D; return sp.every(iso=>((load[m]&&load[m][iso])||0)+pd<=PLN_OVER_H+EPS); })){ span=sp; fits=true; break; }
           D++;
         }
-        if(!fits) continue;   // impossible sous 7h30 depuis ce jour → on ne DÉBORDE PAS, on essaie ailleurs
+        if(!fits) continue;
+        const perDay=hMk/D;
         const onTime=(span[span.length-1]||startIso)<=x.liv;
-        // Clés lexicographiques : (0) livré à TEMPS · (1) ÉQUILIBRE 3 machines (machineKey) · (2) commande
-        // ENTIÈRE d'abord (D=1 : moins de fragmentation que l'étalement) · (3) BEST-FIT = remplir la journée
-        // la PLUS PLEINE qui la contient (remStart = place restante minimale) → journées proches de 7h30 ·
-        // (4) départ tôt · (5) D le plus petit. La contrainte 7h30 est déjà garantie par `fits`.
+        // Clés : (0) à TEMPS · (1) machine PRÉVUE · (2) commande ENTIÈRE (D=1) · (3) BEST-FIT (remStart : remplir
+        // la journée) · (4) équilibrage 3 machines (départage) · (5) départ tôt · (6) D petit. 7h30 garanti par fits.
         const remStart=PLN_OVER_H-((load[mk][startIso]||0)+perDay);
-        // [L213 · vérif #12 + demande Esteban « pas de 3h »] PACK-FIRST : machine PRÉVUE (nat) · commande ENTIÈRE
-        // · BEST-FIT (remStart = remplir la journée avant d'en ouvrir une neuve) AVANT l'équilibrage (mkWk, simple
-        // départage) → on comble une journée à 3h avec une commande du pool au lieu d'ouvrir une 4e machine à moitié.
-        const cand={mk,h,D,perDay,startIso,span,key:[onTime?0:1, nat, D===1?0:1, remStart, mkWk, dayIsos.indexOf(startIso), D]};
+        const cand={mk,parts,D,perDay,startIso,span,key:[onTime?0:1, nat, D===1?0:1, remStart, mkWk, dayIsos.indexOf(startIso), D]};
         if(!best||_plnKeyLt(cand.key,best.key)) best=cand;
       }
     }
     if(!best){ notFit++; continue; }   // [L210] aucune place SOUS 7h30 cette semaine → laissée au pool (jamais forcée au-dessus)
     try{
-      const ok=await plnSetPlan(s._id,best.startIso,best.mk,best.D,true);   // [L210] D explicite (honoré) · [L212] silent (l'autofill gère ses propres compteurs/toast)
+      const ok=await plnSetPlan(s._id,best.startIso,best.mk,best.D,true);   // [L210] D explicite (honoré) · [L212] silent
       if(ok!==false){
         done++; if(best.D>1) spread++; if(native&&best.mk!==native) moved++;
-        best.span.forEach(iso=>_addLoad(best.mk,iso,best.perDay));   // [L212] suit aussi les jours HORS semaine affichée
-        // [L213 · vérif #8] charger aussi les parts FANTÔMES (autres machines de la commande, byMachDetail) pour
-        // les candidats suivants — sinon une machine fantôme pouvait être surchargée dans la même passe.
-        const _es=_plnPlanMeters(s);
-        if(_es&&_es.byMachDetail) DUJ_MACHINES.forEach(gm=>{ if(gm===best.mk||!_es.byMachDetail[gm]) return; const gh=_plnHoursOn(s,gm); if(gh!=null&&gh>0) best.span.forEach(iso=>_addLoad(gm,iso,gh/best.D)); });
+        // [L216] charger TOUTES les machines touchées (cible + fantômes) pour les candidats suivants
+        Object.keys(best.parts).forEach(m=>{ const pd=best.parts[m]/best.D; best.span.forEach(iso=>_addLoad(m,iso,pd)); });
       } else fail++;
     }catch(e){ fail++; }
   }
@@ -9625,22 +9631,28 @@ async function plnSetPlan(sid,dateIso,machKey,days,silent){
   else if(days!=null){ nDays=Math.max(1,Math.min(14,days|0)); }
   else {
     const _mk=dujMachKey(machKey||'');
-    let _h=0; DUJ_MACHINES.forEach(function(mk){ const hh=_plnHoursOn(Object.assign({},s,{plannedMachine:machKey}),mk); if(hh!=null&&hh>_h)_h=hh; });
-    if(!(_h>0)){ nDays=curDays; }   // pas d'estimation (débit/longueur manquant) → on garde l'étalement courant
+    // [L216 · vérif gardien #1/#2/#4] parts PAR machine touchée (cible + fantômes) — plus le MAX écrasé sur la
+    // seule cible : une commande native lente déposée sur une machine rapide est estimée à SON débit, et une
+    // part fantôme sur une AUTRE machine est enfin contrôlée.
+    const _parts=_plnTouchedParts(s,_mk);
+    const _touched=Object.keys(_parts);
+    if(!_touched.length){ nDays=curDays; }   // pas d'estimation (débit/longueur manquant) → on garde l'étalement courant
     else{
       const _ctx=(typeof _plnSentKeys==='function')?_plnSentKeys():null, _dl={};
-      if(_mk){ (savesCache||[]).forEach(function(o){ if(!o||o.deleted||o._id===sid||o.plannedDate==null) return;
-        if(_ctx&&_plnDejaCoupe(o,_ctx)) return;   // [L212] coupée → charge faite, ne compte plus
-        const _om=new Set(); const _p=dujMachKey(o.plannedMachine||''); if(_p)_om.add(_p);
-        const _oe=_plnPlanMeters(o); if(_oe&&_oe.byMachDetail) Object.keys(_oe.byMachDetail).forEach(function(k){ if(k)_om.add(k); });
-        if(!_om.has(_mk)) return; const _oh=_plnHoursOn(o,_mk); if(_oh==null||!(_oh>0)) return;
-        _plnSpanIsos(o).forEach(function(iso){ _dl[iso]=(_dl[iso]||0)+_oh/_plnDays(o); }); }); }
-      const _minD=Math.max(1,Math.ceil(_h/PLN_OVER_H));
+      _touched.forEach(function(m){ _dl[m]={}; });
+      (savesCache||[]).forEach(function(o){ if(!o||o.deleted||o._id===sid||o.plannedDate==null) return;
+        if(_ctx&&_plnDejaCoupe(o,_ctx)) return;   // [L212] coupée → charge faite
+        const spo=_plnSpanIsos(o), _do=_plnDays(o);
+        _touched.forEach(function(m){ const oh=_plnHoursOn(o,m); if(oh==null||!(oh>0)) return; spo.forEach(function(iso){ _dl[m][iso]=(_dl[m][iso]||0)+oh/_do; }); });
+      });
+      const _minD=Math.max.apply(null,_touched.map(function(m){ return Math.max(1,Math.ceil(_parts[m]/PLN_OVER_H)); }));
       let _D=_minD, _ok=false;
-      while(_D<=14){ const sp=_plnSpanIsos({plannedDate:dateIso,plannedDays:_D}); if(sp.length<_D) break; const pd=_h/_D; if(sp.every(function(iso){return (_dl[iso]||0)+pd<=PLN_OVER_H+0.01;})){ _ok=true; break; } _D++; }
+      while(_D<=14){ const sp=_plnSpanIsos({plannedDate:dateIso,plannedDays:_D}); if(sp.length<_D) break;
+        if(_touched.every(function(m){ const pd=_parts[m]/_D; return sp.every(function(iso){ return (_dl[m][iso]||0)+pd<=PLN_OVER_H+0.01; }); })){ _ok=true; break; }
+        _D++; }
       if(!_ok){
         try{ renderPlanning(); }catch(e){}   // remet la carte à sa place (le glisser l'avait déplacée visuellement)
-        if(!silent) showToast('⚠ Impossible sans dépasser 7h30 : à partir du '+new Date(dateIso+'T12:00:00').toLocaleDateString('fr-FR')+', '+(getMachineLabel(_mk)||'cette machine')+' est déjà plein(e) sur les jours disponibles.\n\nDépose sur un jour plus libre, ou lance ⚡ Planning optimisé.','err');
+        if(!silent) showToast('⚠ Impossible sans dépasser 7h30 : à partir du '+new Date(dateIso+'T12:00:00').toLocaleDateString('fr-FR')+', la/les machine(s) concernée(s) sont déjà pleines sur les jours disponibles.\n\nDépose sur un jour plus libre, ou lance ⚡ Planning optimisé.','err');
         return false;
       }
       nDays=_D;
@@ -9654,7 +9666,7 @@ async function plnSetPlan(sid,dateIso,machKey,days,silent){
   // [L118 · audit #2] optimiste. NB : savesCache n'a pas de listener temps réel → un AUTRE poste ne
   // verra ce changement qu'à son prochain chargement (planification = usage pilotage, mono-poste en pratique).
   s.plannedDate=after.d; s.plannedMachine=after.m; s.plannedDays=after.days;
-  renderPlanning();
+  try{ renderPlanning(); }catch(e){}   // [L216 · vérif gardien #3] HORS du try/finally : si renderPlanning levait, _plnWriteBusy fuyait → carte GELÉE définitivement. Enrobé.
   try{
     await boundedWrite(db.collection('saves').doc(sid).update({plannedDate:after.d,plannedMachine:after.m,plannedDays:after.days}),10000);
     const lbl=(s.client||'—')+' / N° '+(s.numCmd||'—');
