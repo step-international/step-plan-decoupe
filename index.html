@@ -594,6 +594,7 @@ body.atelier .pln-mach{padding:2px}
 body.atelier .pln-mach span{font-size:15px;padding:3px 9px;letter-spacing:.04em}
 body.atelier .pln-machwk{font-size:13px}
 body.atelier .pln-load{font-size:14px}/* [L198] jauge lisible sur tablette */
+.fiche-film-badge{font-size:16.5px}/* [L218] taille de base EN CSS (retirée de l'inline) : un style inline l'emportait sur l'override atelier ci-dessous → il ne s'appliquait jamais */
 body.atelier .fiche-film-badge{font-size:20px}/* [L203] Film (Imprimé…) encore plus gros en atelier */
 body.atelier .pln-flag{font-size:12.5px}
 body.atelier .pln-card.pln-grab{padding-left:26px}/* [L199 · revue planning] le padding:7px 9px atelier (0,2,1) écrasait le padding-left de la poignée ⠿ (0,2,0) → ⠿ chevauchait le texte sur tablette */
@@ -1757,7 +1758,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.22-L217';
+const APP_VERSION='2026.07.22-L218';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3862,6 +3863,7 @@ function importPlanToFiche(opts){
   // sinon : clic explicite sur le bouton (confirmations + bascule + toast)
   opts=opts||{};
   const auto=!!opts.auto;
+  const _fromResume=_resumeAutoImportGuard; _resumeAutoImportGuard=false;   // [L218 · régression revue] consommé UNE fois quelle que soit la sortie (verrou partage / plan vide / oversize) pour ne pas fuir sur un import ultérieur
   // [L103 · audit-max] STRUCTURE FIGÉE pendant un partage (émetteur OU vue miroir) : régénérer
   // la fiche depuis le Plan décalerait les verrous cuts.<idx> (indexés par POSITION) chez tous
   // les postes — même invariant que addFicheLine/removeFicheLine (L67). Silencieux en auto
@@ -3895,9 +3897,13 @@ function importPlanToFiche(opts){
     // [L193 · audit #8] Régénération RÉELLE de la fiche depuis le Plan (fiche vierge en auto, ou
     // écrasement confirmé au clic) : cette fiche n'est plus « la reprise du brouillon d'un autre
     // poste » → on DÉSARME la passation, sinon un envoi SANS RAPPORT consommait/écrasait le brouillon
-    // AUTO de l'autre poste. resumeDraft passe par restoreFicheState (PAS ici) et l'import auto sort
-    // tôt quand la fiche a du contenu → la reprise légitime reste intacte.
-    _resumedForeignDraftId=null; _resumedDraftId=null;
+    // AUTO de l'autre poste.
+    // [L218 · régression revue] SAUF si CET import est justement celui déclenché par la reprise (resumeDraft
+    // → showPage(1) → import auto). Une reprise NON coupée est isFicheUntouched()===true : elle ne sortait
+    // donc PAS tôt (L3889) → elle atteignait ce reset → la passation qu'on venait d'armer était effacée →
+    // le brouillon de l'AUTRE poste n'était jamais purgé à l'envoi → il restait proposé au redémarrage =
+    // DOUBLE DÉCOUPE (exactement la régression que L103 avait fermée). Le flag transitoire l'évite.
+    if(!_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }
     // L32 — Contrôle de cohérence plan→fiche : le plan manuel couvre-t-il exactement
     // les quantités commandées (bobineaux produits + chutes stock) ? Avertissement
     // NON bloquant (l'opérateur peut continuer) : en auto un toast, au clic une
@@ -3950,7 +3956,7 @@ function importPlanToFiche(opts){
       }).filter(Boolean);
       if(attrs.length){
         zone.style.display='';
-        zone.innerHTML='<div class="fiche-film-badge" style="background:rgba(167,139,250,0.12);border:1px solid #5b21b6;border-radius:8px;padding:9px 13px;font-size:16.5px;font-weight:700;color:#c4b5fd">'   // [L203 · demande Esteban] Film (Imprimé…) bien plus GROS dans la fiche découpe
+        zone.innerHTML='<div class="fiche-film-badge" style="background:rgba(167,139,250,0.12);border:1px solid #5b21b6;border-radius:8px;padding:9px 13px;font-weight:700;color:#c4b5fd">'   // [L203 · demande Esteban] Film (Imprimé…) bien plus GROS dans la fiche découpe ; taille en CSS (.fiche-film-badge) pour que l'override atelier prenne [L218]
           +'<span style="font-weight:800;margin-right:7px">🎞 Film :</span>'
           +attrs.map(a=>`<span style="margin-right:10px">${esc(a)}</span>`).join('')
           +'</div>';
@@ -4215,7 +4221,7 @@ function initClientDropdown(){
 }
 
 // Affiche le menu "VEKA" (Profilé / VEKA) uniquement pour le client VEKA.
-function updateVekaVisibility(){
+function updateVekaVisibility(fromClientChange){
   const client=(document.getElementById('planClient')?.value||'').toUpperCase();
   // [L215 · bug Esteban] client VEKA reconnu même AVEC suffixe (« VEKA pour le 29 07 26 n°… »), pas seulement
   // le match EXACT 'VEKA' : sinon, au chargement d'un plan VEKA, le sous-type film (PROFILÉ/VEKA) était masqué
@@ -4224,9 +4230,15 @@ function updateVekaVisibility(){
   const show=client.indexOf('VEKA')===0;
   document.querySelectorAll('.ref-block [data-rb="vekafield"]').forEach(el=>{
     const sel=el.querySelector('[data-rb="veka"]');
-    const hasVal=!!(sel&&sel.value);   // [L215] ne JAMAIS effacer un sous-type DÉJÀ renseigné/chargé — on ne vide que si le champ est vide ET le client n'est pas VEKA
-    el.style.display=(show||hasVal)?'':'none';
-    if(!show&&!hasVal&&sel) sel.value='';
+    const hasVal=!!(sel&&sel.value);
+    // [L218 · régression revue] le garde anti-effacement L215 protège le CHARGEMENT d'un plan (course : sous-type
+    // posé avant le client) — mais s'il s'applique AUSSI au changement de client INTERACTIF, un sous-type VEKA
+    // restait collé après passage VEKA→client non-VEKA (pollue refIdKey + badge « VEKA » sur commande non-VEKA).
+    // Donc : sur un changement interactif (fromClientChange), on VIDE toujours sur non-VEKA ; au chargement, on
+    // garde le garde hasVal.
+    if(!show && (fromClientChange||!hasVal) && sel) sel.value='';
+    const stillHas=!!(sel&&sel.value);
+    el.style.display=(show||stillHas)?'':'none';
   });
   if(typeof colorVekaSelects==='function') colorVekaSelects();
 }
@@ -4244,7 +4256,7 @@ function onClientChange(){
   });
   const lg=document.getElementById('planLongueur'); if(lg) lg.value='';
   const lr=document.getElementById('planLargeur'); if(lr) lr.value='';
-  updateVekaVisibility();
+  updateVekaVisibility(true);   // [L218] changement de client INTERACTIF → vide le sous-type VEKA si on quitte VEKA (anti-rétention)
   updateMandrinVisibility();
   if(client) applyPackagingRules(client);
   recalcPlan();
@@ -14359,9 +14371,18 @@ async function deleteFiche(id){
     try{
       const _nc=item?String(item.numCmd||'').trim():'';
       if(_nc&&_nc!=='—'){
-        const _tt=(tempsCache||[]).filter(t=>t&&!t.deleted&&String(t.numCmd||'').trim()===_nc&&t.client===item.client&&t.ref===item.ref);
-        for(const t of _tt){ await db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()}); t.deleted=true; t.deletedAt=isoNow(); }
-        if(_tt.length) await logAudit('delete','temps',_tt.map(t=>t._id).join(','),'Cascade archivage fiche — '+_tt.length+' relevé(s) de temps ('+(item.client||'')+' / '+(item.ref||'')+')');
+        // [L218 · régression revue] NE cascader QUE si plus AUCUNE fiche VIVANTE ne partage ce triplet
+        // (numCmd+client+ref). Plusieurs fiches par commande sont légitimes (fiche manque-matière + fiche
+        // solde ; ou multi-machine) et leurs relevés de temps portent le MÊME triplet sans lien ficheId.
+        // Sans ce garde, archiver UNE fiche envoyait à la corbeille le temps d'une fiche SŒUR encore
+        // active → sous-comptage KPI silencieux. Quand une sœur survit, le temps reste correctement
+        // attribué à la commande TOUJOURS vivante : rien d'orphelin, donc on ne cascade pas.
+        const _sibling=(fichesCache||[]).some(f=>f&&!f.deleted&&f._id!==id&&String(f.numCmd||'').trim()===_nc&&f.client===item.client&&f.ref===item.ref);
+        if(!_sibling){
+          const _tt=(tempsCache||[]).filter(t=>t&&!t.deleted&&String(t.numCmd||'').trim()===_nc&&t.client===item.client&&t.ref===item.ref);
+          for(const t of _tt){ await db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()}); t.deleted=true; t.deletedAt=isoNow(); }
+          if(_tt.length) await logAudit('delete','temps',_tt.map(t=>t._id).join(','),'Cascade archivage fiche — '+_tt.length+' relevé(s) de temps ('+(item.client||'')+' / '+(item.ref||'')+')');
+        }
       }
     }catch(e){ console.warn('Cascade temps :',e); }
   }catch(e){showToast('Erreur : '+e.message,'err');}
@@ -16816,6 +16837,7 @@ function _deviceId(){
 function autosaveId(){ return 'd_autosave_'+_uid()+'_'+_deviceId(); }
 function planAutosaveId(){ return 'd_autosave_plan_'+_uid()+'_'+_deviceId(); }
 let _resumedForeignDraftId=null;   // [L103 · audit-max] brouillon AUTO d'un autre poste repris ici (passation) — purgé à l'envoi réussi (clearCurrentDraft)
+let _resumeAutoImportGuard=false;  // [L218 · régression revue] transitoire : l'import auto déclenché PAR une reprise (resumeDraft→showPage(1)) ne doit PAS désarmer la passation qu'on vient d'armer
 let _resumedDraftId=null;          // [L108 · Phase 4C] brouillon (manuel 💾 / solde ⛔ / fromSend) repris à l'écran — marqué consommé à l'envoi réussi de la commande
 // [L73 · Lot 5 · B38] borne TOTALE ~900 Ko (marge sous la limite dure Firestore 1 Mo/doc).
 // Le strip unitaire (>10k par string) laisse passer une SOMME de petites images data:
@@ -17470,6 +17492,7 @@ function resumeDraft(id){
     showPage(0);
     showToast('Saisie de plan reprise depuis le brouillon auto','ok');
   }else{
+    _resumeAutoImportGuard=true;   // [L218 · régression revue] la reprise déclenche un import auto (showPage 1) : il ne doit PAS désarmer la passation qu'on vient d'armer (sinon brouillon de l'autre poste non purgé → double découpe)
     showPage(1);
     showToast('Brouillon chargé — vérifie les bobines puis envoie','ok');
   }

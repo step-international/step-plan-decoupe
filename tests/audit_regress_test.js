@@ -74,5 +74,14 @@ has(/importFullBackup/,'#16 : import de sauvegarde présent (round-trip)');
 has(/Cascade archivage fiche/,'#14 : cascade temps à l\'archivage d\'une fiche');
 has(/pièces commandées non produites/,'CRIT#1 v2 : couverture PAR LARGEUR à l\'archivage (_resteGroupsFromFiche rejoué — détecte les bobines sous-remplies sans rebut)');
 
+console.log('── L218 régressions revue (diff du jour) ──');
+has(/const _fromResume=_resumeAutoImportGuard; _resumeAutoImportGuard=false;/,'#1 MAJEUR : import auto capture le flag reprise (consommé une fois)');
+has(/if\(!_fromResume\)\{ _resumedForeignDraftId=null; _resumedDraftId=null; \}/,'#1 MAJEUR : reset passation SAUTÉ si import déclenché par la reprise (anti double découpe — régression fix L103)');
+has(/_resumeAutoImportGuard=true;   \/\/ \[L218/,'#1 MAJEUR : resumeDraft arme le flag avant showPage(1)');
+has(/const _sibling=\(fichesCache\|\|\[\]\)\.some\(f=>f&&!f\.deleted&&f\._id!==id/,'#2 : cascade temps ne s\'exécute QUE si aucune fiche sœur vivante ne partage le triplet (anti sous-comptage KPI)');
+has(/if\(!show && \(fromClientChange\|\|!hasVal\) && sel\) sel\.value='';/,'#3 : VEKA→non-VEKA interactif VIDE le sous-type (anti-rétention — régression du garde L215)');
+has(/updateVekaVisibility\(true\);   \/\/ \[L218\]/,'#3 : onClientChange passe fromClientChange=true');
+has(/\.fiche-film-badge\{font-size:16\.5px\}/,'#4 : taille badge film en CSS (plus en inline) → override atelier 20px prend');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
