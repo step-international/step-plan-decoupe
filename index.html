@@ -553,6 +553,10 @@ select option{color:var(--text)}
 
 /* === MODE ATELIER : gros boutons, police agrandie, contraste renforcé === */
 body.atelier{font-size:18px}
+/* [L250 · R5] mode atelier sur ANALYSE : les tailles inline du dashboard ignoraient le réglage → zoom
+   global du conteneur (textes + SVG + tuiles grossissent ensemble, lisible à 60 cm sur la tablette) */
+body.atelier #tabContentAnalyse{zoom:1.18}
+body.atelier .ana-fold>summary{font-size:16px;min-height:48px}
 body.atelier .btn{font-size:17px;padding:14px 20px;min-height:52px}
 body.atelier .btn-sm{font-size:15px;padding:11px 16px;min-height:44px}
 body.atelier label{font-size:15px;color:#fff}
@@ -907,7 +911,7 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 #plnHint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:#3a2a0e;border:1px solid var(--action);color:#fbbf24;border-radius:14px;padding:11px 15px;font-size:13.5px;z-index:1200;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.55);max-width:94vw}
 /* [L118] case « Temps » d'Analyse : chevron qui pivote à l'ouverture (affordance claire, discrète) */
 .dbx-chev{display:inline-block;transition:transform .15s;color:var(--muted)}
-details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
+details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{transform:rotate(90deg)}   /* [L250 · R5] chevron des blocs Analyse repliables */
 .dbx-sum:hover{background:rgba(255,255,255,.02)}
 </style>
 </head>
@@ -1757,7 +1761,10 @@ const RETENTION_DRAFT_DAYS=45;    // brouillons / fiches NON validées : purge a
 const RETENTION_VALID_DAYS=730;   // fiches VALIDÉES : conservées 2 ans (730 j) — qualité / ISO / réclamations
 const COLD_ARCHIVE_KEY='step_cold_archive'; // archivage froid local avant purge définitive
 // COS-4 : palette couleur par opérateur — source unique (était dupliquée à l'identique dans 2 fonctions).
-const OP_COLORS={'TB':'#60a5fa','JF':'#4ade80','MT':'#f59e0b','DC':'#a78bfa','ER':'#f87171','CH':'#34d399','?':'#888'};
+// [L250 · R5] palette RÉVISÉE (rapport §e validé) : JF/CH étaient DEUX VERTS indiscernables (#4ade80 vs
+// #34d399) et TB/JF/DC portaient LES couleurs machine (FEBA/MAVEG/CEVENINI) → à 60 cm on confondait
+// « courbe d'un op » et « badge machine ». Teintes désormais toutes distinctes entre elles ET des machines.
+const OP_COLORS={'TB':'#22d3ee','JF':'#a3e635','MT':'#f59e0b','DC':'#e879f9','ER':'#f87171','CH':'#10b981','?':'#9ca3af'};
 // Palette couleur PAR RÉFÉRENCE (ordre de coupe) — distincte des couleurs machine, forte lisibilité
 // sur fond sombre. Sert à distinguer visuellement chaque réf dans l'ordre de coupe et les blocs machine.
 const REF_PALETTE=['#818cf8','#22d3ee','#f472b6','#2dd4bf','#94a3b8','#38bdf8','#e879f9','#facc15'];
@@ -1781,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L249';
+const APP_VERSION='2026.07.23-L250';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10440,7 +10447,7 @@ function buildFicheAnalytics(){
 
   return `
     <div class="ana-card">
-      <div class="ana-card-title">🥧 Répartition des non-conformités par type</div>
+      <div class="ana-card-title">🥧 Quel défaut revient le plus ? <span style="font-weight:600;color:var(--muted)">(NC par type)</span></div>
       ${_anaFiltered()?`<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:10px">🎛 Périmètre filtré : ${esc([analyseFilter.mach!=='ALL'?analyseFilter.mach:'',analyseFilter.op!=='ALL'?analyseFilter.op:'',analyseFilter.month!=='ALL'?analyseFilter.month:'',analyseFilter.client!=='ALL'?analyseFilter.client:''].filter(Boolean).join(' · '))}</div>`:''}
       ${ncBlock}
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
@@ -10451,12 +10458,12 @@ function buildFicheAnalytics(){
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
       <div class="ana-card">
-        <div class="ana-card-title">⚠ Taux de NC par opérateur</div>
+        <div class="ana-card-title">⚠ Quel opérateur accompagner ? <span style="font-weight:600;color:var(--muted)">(taux NC)</span></div>
         <div style="overflow-x:auto">${svgHBars(opItems,'%',420,46)}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:6px">NC ÷ bobines contrôlées. À lire comme un indicateur de formation, pas de sanction.</div>
       </div>
       <div class="ana-card">
-        <div class="ana-card-title">⚙️ Taux de NC par machine</div>
+        <div class="ana-card-title">⚙️ Quelle machine sort le plus de NC ?</div>
         <div style="overflow-x:auto">${svgHBars(machItems,'%',420,80)}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:6px">Une machine qui sort plus de NC = réglage ou maintenance à prévoir.</div>
       </div>
@@ -10478,6 +10485,7 @@ function _atipShow(ev,html){ const e=_atipEl(); e.innerHTML=html; e.style.opacit
 function _atipMove(ev){ const e=_atipEl(); const p=(ev&&ev.touches&&ev.touches[0])||ev; if(!p) return; e.style.left=Math.min(p.clientX+14,window.innerWidth-270)+'px'; e.style.top=(p.clientY+14)+'px'; }
 function _atipHide(){ const e=document.getElementById('analyseTip'); if(e&&e.style.opacity!=='0') e.style.opacity='0'; }   // [L163 · sweep perf #16] idempotent : ne touche le DOM que si nécessaire (écoute TOUS les scrolls en capture, ~60 Hz)
 document.addEventListener('scroll',_atipHide,{capture:true,passive:true});   // [L163] passive : ne bloque jamais le scroll
+document.addEventListener('click',e=>{ try{ if(!e.target.closest('svg')) _atipHide(); }catch(err){} },true);   // [L250 · R5] tap hors graphe = tooltip refermé (tablette : il restait planté)
 
 // [L249 · R4a — retrait VALIDÉ, rapport §c] svgBarChart SUPPRIMÉ avec la carte « Temps moyen par largeur »
 // (redondante : le modèle additif corrigé-laize du Débit porte la même info, normalisée par le nombre de laizes).
@@ -10715,7 +10723,7 @@ function buildKpiMoisBlock(){
   }).join('');
   return `<div class="ana-card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">📊 KPI mensuels</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">📊 Le mois tient-il ses objectifs ? <span style="text-transform:none;font-weight:600">(KPI mensuels)</span></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="kpiMoisSel" onchange="renderKpiMois(this.value)" style="width:auto;max-width:200px">${opts}</select>
         <button onclick="printKpiMois(document.getElementById('kpiMoisSel').value)" class="btn btn-ghost btn-sm" title="Imprimer / PDF — revue de direction ISO 9001" aria-label="Imprimer les KPI du mois">🖨</button>
@@ -10857,8 +10865,8 @@ function buildTendancesBlock(){
       });
       const last=pts[pts.length-1];
       out+=`<circle cx="${X(last.i).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="3.5" fill="${color}"/>`;
-      out+=`<text x="${padX}" y="${H-2}" fill="#666" font-size="9">${mLbl(months[0])}</text><text x="${W-padX}" y="${H-2}" text-anchor="end" fill="#666" font-size="9">${mLbl(months[months.length-1])}</text>`;
-      out+=`<text x="${W-padX}" y="${padT-1}" text-anchor="end" fill="#555" font-size="9">max ${mx.toLocaleString('fr-FR')}</text>`;
+      out+=`<text x="${padX}" y="${H-2}" fill="#8a8a86" font-size="9">${mLbl(months[0])}</text><text x="${W-padX}" y="${H-2}" text-anchor="end" fill="#8a8a86" font-size="9">${mLbl(months[months.length-1])}</text>`;
+      out+=`<text x="${W-padX}" y="${padT-1}" text-anchor="end" fill="#8a8a86" font-size="9">max ${mx.toLocaleString('fr-FR')}</text>`;
       return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
     };
     const cards=SERIES.map(sr=>{
@@ -10880,7 +10888,7 @@ function buildTendancesBlock(){
       </div>`;
     }).join('');
     return `<div class="ana-card">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">📈 Tendances 12 mois</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">📈 Où va-t-on ? <span style="text-transform:none;font-weight:600">(tendances 12 mois)</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">${cards}</div>
       <div style="font-size:12px;color:var(--muted);margin-top:10px">Mois figés avant cette version : NC / ponctualité absents (trou dans la courbe) — « ♻ Recalculer ce mois » pour compléter. Mois non figés = trous. Dernier point = mois en cours (calcul live).</div>
     </div>`;
@@ -12537,7 +12545,7 @@ function buildDebitToolbox(){
   const tabBtn=(id,lbl,act)=>`<button id="dujTab_${id}" onclick="dujTab('${id}')" style="flex:1;padding:9px 6px;border:1px solid ${act?'var(--orange)':'var(--border2)'};background:${act?'rgba(245,158,11,.12)':'var(--card)'};color:${act?'var(--orange)':'var(--muted)'};font-size:12.5px;font-weight:700;cursor:pointer;border-radius:8px">${lbl}</button>`;
   return `
   <details id="dujBox" ${dujBoxOpen?'open':''} ontoggle="dujBoxOpen=this.open" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;margin-bottom:4px"><!-- [L110/L118] case Temps PETITE, discrète et repliable (chevron clair) -->
-    <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--muted)"><span class="dbx-chev">▸</span> ⏱ <b style="color:var(--orange);font-weight:800">Temps de découpe</b> — estimation &amp; capacité <span style="margin-left:auto;font-size:11px;color:var(--muted)">toucher pour ouvrir / fermer</span></summary>
+    <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--muted)"><span class="dbx-chev">▸</span> ⏱ <b style="color:var(--orange);font-weight:800">Combien de temps prendra une commande ?</b> — débit, estimation &amp; capacité <span style="margin-left:auto;font-size:11px;color:var(--muted)">toucher pour ouvrir / fermer</span></summary>
     <div style="padding:0 16px 16px">
     ${indicatif}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${machRows}</div>
@@ -12838,7 +12846,7 @@ function buildPilotageBlock(){
       return `<tr><td style="padding:3px 8px 3px 0;font-size:11.5px;font-weight:800;color:${MCOL[m]};text-transform:uppercase;white-space:nowrap;font-family:var(--f-head)">${getMachineLabel(m)}</td>${cells}<td style="padding:3px 0 3px 8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap">${h1(dayIsos.reduce((a,iso)=>a+(load[m][iso]||0),0))} h</td></tr>`;
     }).join('');
     return `<div class="ana-card" style="border-left:4px solid var(--action)">
-      <div class="ana-card-title">🎯 Pilotage — semaine en cours</div>
+      <div class="ana-card-title">🎯 Où agir cette semaine ? <span style="font-weight:600;color:var(--muted)">(retards · à planifier · charge)</span></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
         <div onclick="_pilotToggle('late')" style="flex:1;min-width:150px;cursor:pointer" title="Voir la liste des retards">${tile(late.length,'Retards (livraison passée) ▾',late.length?'#f87171':'#4ade80',late.length?late.filter(s=>s.plannedDate).length+' posée(s) · '+late.filter(s=>!s.plannedDate).length+' non posée(s)':'rien en retard 👍')}</div>
         <div onclick="_pilotToggle('pool')" style="flex:1;min-width:150px;cursor:pointer" title="Voir les commandes à planifier">${tile(pool.length,'À planifier ▾',pool.length?'var(--orange)':'#4ade80','commandes sans jour posé')}</div>
@@ -12847,7 +12855,7 @@ function buildPilotageBlock(){
       </div>
       ${_dd('late','⏰ Commandes en retard ('+late.length+')',lateList)}
       ${_dd('pool','🗂 À planifier ('+pool.length+')',poolList)}
-      <table style="width:100%;border-collapse:collapse"><thead><tr><th></th>${dayLbl.map(d=>`<th style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;padding:0 4px 4px">${d}</th>`).join('')}<th></th></tr></thead><tbody>${rows}</tbody></table>
+      <div style="overflow-x:auto"><table style="width:100%;min-width:430px;border-collapse:collapse"><!-- [L250 · R5] défilement propre sur téléphone --><thead><tr><th></th>${dayLbl.map(d=>`<th style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;padding:0 4px 4px">${d}</th>`).join('')}<th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <div style="margin-top:10px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('planning')">📅 Ouvrir le planning</button></div>
     </div>`;
   }catch(e){ console.warn('buildPilotageBlock:',e); return ''; }
@@ -12935,7 +12943,7 @@ function svgBars(items,opts){
     out+=`<text x="${x+barW/2}" y="${y-6}" text-anchor="middle" fill="#f0f0ee" font-size="13" font-weight="800">${it.value}</text>`;
     out+=`<text x="${x+barW/2}" y="${H-padB+15}" text-anchor="middle" fill="#aaa" font-size="10.5" font-weight="600">${esc(String(it.label))}</text>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg"><defs>${defs}</defs>${out}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;min-width:420px;display:block" xmlns="http://www.w3.org/2000/svg"><defs>${defs}</defs>${out}</svg>`;   // [L250 · R5] min-width anti-rétrécissement (labels lames lisibles sur téléphone)
 }
 // Mois disponibles (union des dates fiches/temps/maintenance), récents d'abord.
 function _lameStatsMonths(){
@@ -13056,6 +13064,18 @@ function analyseFilterBar(allTemps){
     <div style="font-size:12px;color:var(--muted);margin-top:8px">S'applique aux graphiques de productivité ET aux blocs NC (fiches). Débit médian, KPI mensuels, Tendances et Pilotage restent « tout atelier » (bandeau jaune quand un filtre est actif).</div>
   </div>`;
 }
+// [L250 · R5] Blocs Analyse repliables avec ÉTAT RETENU (localStorage, modèle stockSecOpen) : les blocs
+// « expliquer » se replient, le bloc « agir » (Pilotage) reste toujours ouvert en tête. Les titres sont des
+// QUESTIONS dirigeant : on ouvre le bloc qui répond à la question qu'on se pose.
+function _anaFoldState(){ try{ return JSON.parse(localStorage.getItem('step_ana_fold')||'{}')||{}; }catch(e){ return {}; } }
+function _anaFoldSave(id,open){ try{ const st=_anaFoldState(); st[id]=!!open; localStorage.setItem('step_ana_fold',JSON.stringify(st)); }catch(e){} }
+function _anaFold(id,title,inner,defOpen){
+  const st=_anaFoldState(); const open=(id in st)?!!st[id]:(defOpen!==false);
+  return `<details class="ana-fold" id="anaFold_${id}" ${open?'open':''} ontoggle="_anaFoldSave('${id}',this.open)" style="background:var(--section);border:1px solid var(--border2);border-radius:10px">
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:13.5px;font-weight:800;color:var(--text);min-height:44px"><span class="dbx-chev">▸</span>${title}</summary>
+    <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:20px">${inner}</div>
+  </details>`;
+}
 function renderAnalyse(partial){
   // [L233 · A3] renderLameStats parti dans renderMaintenance (onglet Lame)
   const allTemps=tempsCache.filter(t=>!t.deleted);
@@ -13096,8 +13116,8 @@ function renderAnalyse(partial){
     ${partialDataBanner()}
     <div id="zonePilotage" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildPilotageBlock()}</div>
     <div id="zoneFbar">${_fbar}</div>
-    <div id="zoneCharts" style="display:flex;flex-direction:column;gap:20px">${chartsHTML}</div>
-    <div id="zoneFa" style="display:flex;flex-direction:column;gap:20px">${faHTML}</div>
+    ${_anaFold('prod','📈 Productivité — chaque opérateur progresse-t-il ? Quelle machine décroche ?','<div id="zoneCharts" style="display:flex;flex-direction:column;gap:20px">'+chartsHTML+'</div>',true)}
+    ${_anaFold('qual','🥧 Qualité — quel défaut revient ? Qui accompagner ? Quelle machine régler ?','<div id="zoneFa" style="display:flex;flex-direction:column;gap:20px">'+faHTML+'</div>',true)}
     <div id="zoneDebit" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildDebitToolbox()}</div>
     <div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildKpiMoisBlock()}</div>
     <div id="zoneTendances" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildTendancesBlock()}</div>
@@ -13160,17 +13180,17 @@ function _anaChartsHTML(valid,_filtered){
   const W2=780,H2=250;
   return `
     <div class="ana-card">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📈 Évolution sec/laize par opérateur (par semaine)</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📈 Chaque opérateur progresse-t-il ? <span style="text-transform:none;font-weight:600">(sec/laize hebdo — plus bas = plus rapide)</span></div>
       <div style="margin-bottom:10px">${legendOps}</div>
       <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W2} ${H2}" style="width:100%;max-width:${W2}px;display:block" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 ${W2} ${H2}" style="width:100%;max-width:${W2}px;min-width:560px;display:block" xmlns="http://www.w3.org/2000/svg"><!-- [L250 · R5] min-width : le graphe DÉFILE au lieu de rétrécir (labels restent lisibles) -->
           ${svgLineChart(series,allWeeks,W2,H2,padL,padB)}
         </svg>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-top:6px">Axe X = semaine de l'année · Axe Y = secondes par laize (moyenne hebdo)</div>
     </div>
     <div class="ana-card">
-      <div class="ana-card-title">⚙️ Comparaison machines</div>
+      <div class="ana-card-title">⚙️ Quelle machine décroche ? <span style="font-weight:600;color:var(--muted)">(sec/laize pondéré)</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
         ${machItems.map(m=>`
         <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px;text-align:center">
@@ -13180,7 +13200,7 @@ function _anaChartsHTML(valid,_filtered){
         </div>`).join('')}
       </div>
       <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} 140" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 ${W} 140" style="width:100%;max-width:${W}px;min-width:560px;display:block" xmlns="http://www.w3.org/2000/svg"><!-- [L250 · R5] min-width anti-rétrécissement -->
           ${(()=>{
             const items=machItems.map(m=>({label:m.label,value:m.avg,color:m.color}));
             if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
@@ -13190,7 +13210,7 @@ function _anaChartsHTML(valid,_filtered){
             for(let i=0;i<=4;i++){
               const x=padL+i*(W-padL-10)/4;
               out+=`<line x1="${x}" x2="${x}" y1="${padT}" y2="${padT+n*gap+10}" stroke="#2a2a28" stroke-width="1"/>`;
-              out+=`<text x="${x}" y="${padT+n*gap+22}" text-anchor="middle" fill="#666" font-size="10">${Math.round(maxV*i/4)}s</text>`;
+              out+=`<text x="${x}" y="${padT+n*gap+22}" text-anchor="middle" fill="#8a8a86" font-size="10">${Math.round(maxV*i/4)}s</text>`;
             }
             items.forEach((it,i)=>{
               const y=padT+i*gap;

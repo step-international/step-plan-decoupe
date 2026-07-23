@@ -156,5 +156,15 @@ has(/function _kpiFichesToggle\(/,'R4b : tuile Fiches → liste du mois (mois fi
 has(/liste limitée à \$\{CAP\}/,'R4b : cap de liste ANNONCÉ (jamais de troncature silencieuse)');
 has(/function _openNcRegistre\(/,'R4b : carte NC → Registre NC (ncBox)');
 
+console.log('── L250 chantier ANALYSE — lot R5 ──');
+has(/'JF':'#a3e635','MT':'#f59e0b','DC':'#e879f9','ER':'#f87171','CH':'#10b981'/,'R5 : palette opérateurs — JF/CH séparés (lime vs émeraude), plus AUCUNE identité avec les couleurs machine');
+has(/body\.atelier #tabContentAnalyse\{zoom:1\.18\}/,'R5 : mode atelier AGIT sur Analyse (zoom conteneur — lisible à 60 cm)');
+has(/min-width:560px;display:block/,'R5 : graphes non-rétrécissants (défilement au lieu de labels 5 px sur téléphone)');
+has(/function _anaFold\(/,'R5 : blocs repliables avec état retenu (localStorage step_ana_fold)');
+has(/step_ana_fold/,'R5 : clé de persistance des blocs');
+has(/if\(!e\.target\.closest\('svg'\)\) _atipHide\(\)/,'R5 : tooltip refermable au tap hors graphe');
+has(/Quelle machine décroche \?/,'R5 : titres reformulés en QUESTIONS dirigeant');
+has(/min-width:430px;border-collapse:collapse/,'R5 : table Pilotage défile proprement sur petit écran');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
