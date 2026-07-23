@@ -1780,7 +1780,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L236';
+const APP_VERSION='2026.07.23-L237';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11601,7 +11601,7 @@ async function bkRunImport(btn){
 // Lecture/écriture ouvertes à tous les connectés ; delete réservé.
 // ============================================================
 var maintenanceCache=[]; var maintLoaded=false;
-const MAINT_CAT_LABEL={installation:'Installation', affutage:'Envoi à l\'affûtage', stock:'Retour en stock'};   // [L232 · refonte Lames A1] 'affutage' = ENVOI chez l'affûteur (état « en cours ») ; 'stock' = entrée/retour en réserve (lame disponible)
+const MAINT_CAT_LABEL={installation:'Installation', affutage:'Envoi à l\'affûtage', stock:'Retour en stock', demonte:'Démontée — à affûter'};   // [L237 · revue] demonte = état « à affûter » EXPLICITE (le seed n'antidate plus d'installations — CRITIQUE #1 : une machine sans pose active « montait » la lame par erreur)   // [L232 · refonte Lames A1] 'affutage' = ENVOI chez l'affûteur (état « en cours ») ; 'stock' = entrée/retour en réserve (lame disponible)
 function maintCatLabel(type,cat){ return MAINT_CAT_LABEL[cat]||cat||''; }
 // ============================================================
 // SUIVI DES LAMES (catégorie 'installation' dans la collection maintenance)
@@ -11838,7 +11838,7 @@ function renderMaintenance(){
   // l'historique complet n'est pas chargé, le compte porte sur les dernières
   // fiches en mémoire seulement → on charge le complet puis on re-rend l'encart.
   if(typeof ensureFullHistory==='function' && !fullHistoryLoaded){
-    ensureFullHistory().then(()=>{ if(document.getElementById('lameEtat')) renderLameEtat(); }).catch(()=>{});
+    ensureFullHistory().then(()=>{ if(document.getElementById('lameEtat')) renderLameEtat(); try{ renderLameStats(); }catch(e){} }).catch(()=>{});   // [L237 · revue #6] les stats lames se re-rendent sur l'historique COMPLET (elles restaient figées sur le cache partiel)
   }
 }
 // Encart « État des lames » — visible par tous. Pour chaque machine : lame
@@ -11939,7 +11939,7 @@ function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${
 // Fonction PURE (testée par harnais Node).
 function lameClasseurEtat(traces,nowIso){
   const evts=(traces||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&String(r.lameNum||'').trim())
-    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||''))||((a.categorie==='installation'?1:0)-(b.categorie==='installation'?1:0)));   // [L94 · vérif #2] à date ÉGALE l'installation passe APRÈS l'affûtage — la lame qu'on venait d'affûter disparaissait du classeur (non déterministe au rechargement)
+    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||''))||((({affutage:0,stock:1,demonte:2,installation:3})[a.categorie]||0)-(({affutage:0,stock:1,demonte:2,installation:3})[b.categorie]||0)));   // [L94 · vérif #2][L237 · revue #4] rang de catégorie COMPLET : à date égale stock vs affutage n'est plus tributaire de l'ordre du cache (non déterministe au rechargement Firestore) à date ÉGALE l'installation passe APRÈS l'affûtage — la lame qu'on venait d'affûter disparaissait du classeur (non déterministe au rechargement)
   const last={}, activeByMachine={};
   evts.forEach(r=>{ const n=nrm(r.lameNum); last[n]=r; if(r.categorie==='installation'&&r.machine) activeByMachine[r.machine]=n; });   // [L94 · vérif #4] clé insensible à la casse : reposer « l-2401 » ne crée plus une lame fantôme à côté de « L-2401 »
   const groupes={feba:[],maveg:[],cevenini:[],hors:[]}, recentes=[];
@@ -11972,6 +11972,7 @@ function lameClasseurEtat(traces,nowIso){
       else parMachine[m].aAffuter.push(item);
     }else if(r.categorie==='affutage') parMachine[m].enAffutage.push(item);
     else if(r.categorie==='stock') parMachine[m].stockees.push(item);
+    else if(r.categorie==='demonte') parMachine[m].aAffuter.push(item);   // [L237] à-affûter explicite (seed + futurs démontages manuels)
     else parMachine[m].aAffuter.push(item);   // catégorie inconnue : visible, jamais perdue
   });
   Object.values(parMachine).forEach(g=>Object.values(g).forEach(a=>a.sort((x,y)=>String(x.num).localeCompare(String(y.num),undefined,{numeric:true}))));
@@ -12015,29 +12016,28 @@ async function lameSeedInventaire(btn){
   const inv=_LAME_INVENTAIRE_2607;
   const etat=lameClasseurEtat(maintenanceCache).parMachine;
   const inState=(m,num,st)=>etat[m]&&etat[m][st]&&etat[m][st].some(x=>nrm(x.num)===nrm(num));
-  const plan=[];
+  const plan=[], ignorees=[];
+  // [L237 · revue CRITIQUE #1 + MAJ #3/#10/#11] : plus AUCUNE installation antidatée (une machine sans pose
+  // active « montait » la lame par erreur, et le seed ne convergeait jamais) → l'état « à affûter » s'écrit
+  // via la catégorie EXPLICITE demonte. Et une lame actuellement MONTÉE n'est JAMAIS touchée par le seed
+  // (sinon l'encart « État des lames » et les sections se contredisaient) : elle est listée « ignorée ».
   ['cevenini','maveg','feba'].forEach(m=>{
-    (inv.stockees[m]||[]).forEach(n=>{ if(!inState(m,n,'stockees')) plan.push({m,n,cat:'stock',lbl:'stock'}); });
-    (inv.enAffutage[m]||[]).forEach(n=>{ if(!inState(m,n,'enAffutage')) plan.push({m,n,cat:'affutage',lbl:'en affûtage'}); });
-    // À AFFÛTER : état dérivé = « installation non active ». Une lame déjà à-affûter est laissée ;
-    // sinon on écrit une installation ANTIDATÉE (avant la pose de la lame montée actuelle) → démontée.
-    (inv.aAffuter[m]||[]).forEach(n=>{ if(!inState(m,n,'aAffuter')) plan.push({m,n,cat:'installation',lbl:'à affûter (pose antidatée)'}); });
+    const seed1=(n,st,cat,lbl)=>{
+      if(inState(m,n,'montees')){ ignorees.push(getMachineLabel(m)+' lame '+n+' (actuellement MONTÉE — démonte-la d\'abord via une pose)'); return; }
+      if(!inState(m,n,st)) plan.push({m,n,cat,lbl});
+    };
+    (inv.stockees[m]||[]).forEach(n=>seed1(n,'stockees','stock','stock'));
+    (inv.enAffutage[m]||[]).forEach(n=>seed1(n,'enAffutage','affutage','en affûtage'));
+    (inv.aAffuter[m]||[]).forEach(n=>seed1(n,'aAffuter','demonte','à affûter'));
   });
-  if(!plan.length){ showToast('✓ Inventaire déjà à jour — rien à écrire.','ok'); return; }
-  if(!(await confirmDlg('Injecter l\'inventaire réel des lames ?\n\n'+plan.length+' événement(s) à écrire :\n'+plan.map(p=>'· '+getMachineLabel(p.m)+' lame '+p.n+' → '+p.lbl).join('\n')+'\n\nIdempotent : re-cliquer n\'écrira pas de doublon.',{ok:'Injecter'}))) return;
+  if(!plan.length){ showToast('✓ Inventaire déjà à jour — rien à écrire.'+(ignorees.length?' ('+ignorees.length+' ignorée(s) car montée(s))':''),'ok'); return; }
+  if(!(await confirmDlg('Injecter l\'inventaire réel des lames ?\n\n'+plan.length+' événement(s) à écrire :\n'+plan.map(p=>'· '+getMachineLabel(p.m)+' lame '+p.n+' → '+p.lbl).join('\n')+(ignorees.length?'\n\n⚠ Ignorées (montées) :\n'+ignorees.map(x=>'· '+x).join('\n'):'')+'\n\nIdempotent : re-cliquer n\'écrira pas de doublon.',{ok:'Injecter'}))) return;
   if(btn) btn.disabled=true;
   let okN=0,koN=0;
   try{
     for(const p of plan){
       try{
-        let d=undefined;
-        if(p.cat==='installation'){
-          // antidater AVANT la pose active de la machine (sinon la lame deviendrait « montée »)
-          const act=lameActiveForMachine(p.m);
-          const ref=act?new Date(String(act.dateInstall||act.date)).getTime():Date.now();
-          d=new Date(ref-14*86400000).toISOString();
-        }
-        await _lameEvent(p.cat,p.m,p.n,'Seed inventaire 23/07/2026 — lame '+p.n+' '+getMachineLabel(p.m)+' : '+p.lbl,d);
+        await _lameEvent(p.cat,p.m,p.n,'Seed inventaire 23/07/2026 — lame '+p.n+' '+getMachineLabel(p.m)+' : '+p.lbl);
         okN++;
       }catch(e){ koN++; console.warn('seed lame',p,e); }
     }
@@ -12091,18 +12091,18 @@ function renderAffutageList(){
     return `<div class="lame-sec">
       <div class="lame-sec-hd">${icone} ${titre} <span class="lame-sec-tot">${tot}</span></div>
       <div class="lame-sec-hint">${hint}</div>
-      <div class="lame-sec-grid">${machs.map(m=>mgrp(m,parMachine[m][statut],mkAction,dateLbl,emptyTxt)).join('')}</div>
+      <div class="lame-sec-grid">${machs.map(m=>mgrp(m,parMachine[m][statut],(m==='hors')?(()=>''):mkAction,dateLbl,emptyTxt)).join('')}</div><!-- [L237 · revue #2] groupe « hors machine » = LECTURE SEULE (agir dessus écrivait machine:'hors' en base puis faisait disparaître la lame de toute l'UI) -->
     </div>`;
   };
   el.innerHTML=
     sec('🟠','Lames à affûter','Démontées de leur machine, en attente de départ chez l\'affûteur.','aAffuter',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" onclick="lameEnvoyerAffutage('${esc(m)}','${esc(l.num)}')">🛠 Envoyer à l'affûtage</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`:'',
       'démontée le','aucune lame à affûter 👍')
     +sec('📦','Lames stockées','Affûtées, disponibles — prêtes à être montées.','stockees',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" onclick="lameMonterDepuisStock('${esc(m)}','${esc(l.num)}')">⬆ Monter</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameMonterDepuisStock(this.dataset.mch,this.dataset.num)">⬆ Monter</button>`:'',
       'en stock depuis le','aucune lame en stock')
     +sec('🛠','Lames en cours d\'affûtage','Parties chez l\'affûteur — à réceptionner au retour.','enAffutage',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(96,165,250,.12);border:1px solid var(--blue);color:var(--blue)" onclick="lameRetourStock('${esc(m)}','${esc(l.num)}')">📦 Réceptionner</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(96,165,250,.12);border:1px solid var(--blue);color:var(--blue)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetourStock(this.dataset.mch,this.dataset.num)">📦 Réceptionner</button>`:'',
       'envoyée le','aucune lame chez l\'affûteur');
 }
 // [L233 · A3] STOCKÉE → MONTÉE : pose une lame du stock sur SA machine (la lame montée actuelle, s'il y en
@@ -12562,14 +12562,19 @@ function buildPilotageBlock(){
     const late=all.filter(s=>{ const l=_plnDateLivMin(s); return l&&l<todayIso&&!cut(s); });
     // À planifier : pas posée, pas coupée
     const pool=all.filter(s=>!s.plannedDate&&!cut(s));
-    // Charge posée de la SEMAINE COURANTE (lun→ven) par machine×jour — même sémantique que plnAutoFill
-    const mon=_plnMonday(0), dayIsos=[]; for(let i=0;i<5;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); dayIsos.push(_plnIso(d)); }
+    // Charge posée de la SEMAINE COURANTE par machine×jour — [L237 · revue #5] via _plnTouchedParts (la MÊME
+    // logique anti-double-comptage que la grille : une commande déplacée ne compte plus 2×) ; [L237 · #7]
+    // caches débit/calibration REMIS À ZÉRO (sinon heures calculées sur des débits périmés hors planning) ;
+    // [L237 · #8] jours FÉRIÉS exclus de la semaine (comme la grille) → capacité et jauges justes.
+    _plnAddCalCache={}; _plnDebitCache={};
+    const mon=_plnMonday(0), dayIsos=[], dayLbls=[], _dl0=['lun','mar','mer','jeu','ven'];
+    for(let i=0;i<5;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); const iso=_plnIso(d); if(!_joursFeriesFR(d.getFullYear()).has(iso)){ dayIsos.push(iso); dayLbls.push(_dl0[i]); } }
     const load={}; DUJ_MACHINES.forEach(m=>{ load[m]={}; });
     all.filter(s=>s.plannedDate&&!cut(s)).forEach(s=>{
       const span=_plnSpanIsos(s);
-      const machs=new Set(); const pm=dujMachKey(s.plannedMachine||''); if(pm) machs.add(pm);
-      const e=_plnPlanMeters(s); if(e&&e.byMachDetail) Object.keys(e.byMachDetail).forEach(k=>{ if(k) machs.add(k); });
-      machs.forEach(m=>{ if(!load[m]) return; const h=_plnHoursOn(s,m); if(h==null||!(h>0)) return; span.forEach(iso=>{ if(dayIsos.indexOf(iso)>=0) load[m][iso]=(load[m][iso]||0)+h/_plnDays(s); }); });
+      const pm=dujMachKey(s.plannedMachine||''); if(!pm) return;   // machine inconnue : hors jauges (comme la grille)
+      const parts=(typeof _plnTouchedParts==='function')?_plnTouchedParts(s,pm):{};
+      Object.keys(parts).forEach(m=>{ const h=parts[m]; if(!load[m]||!(h>0)) return; span.forEach(iso=>{ if(dayIsos.indexOf(iso)>=0) load[m][iso]=(load[m][iso]||0)+h/_plnDays(s); }); });
     });
     const posedH=DUJ_MACHINES.reduce((a,m)=>a+dayIsos.reduce((b,iso)=>b+(load[m][iso]||0),0),0);
     const capH=DUJ_MACHINES.length*dayIsos.length*PLN_OVER_H;
@@ -12581,7 +12586,7 @@ function buildPilotageBlock(){
     const h1=v=>String(Math.round(v*10)/10).replace('.',',');
     const tile=(val,lbl,col,sub)=>`<div style="flex:1;min-width:150px;background:var(--card);border:1px solid var(--border2);border-left:4px solid ${col};border-radius:10px;padding:12px 14px"><div style="font-size:26px;font-weight:800;color:${col};line-height:1;font-variant-numeric:tabular-nums">${val}</div><div style="font-size:12px;color:var(--muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.04em">${lbl}</div>${sub?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>`:''}</div>`;
     const MCOL={feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'};
-    const dayLbl=['lun','mar','mer','jeu','ven'];
+    const dayLbl=dayLbls;   // [L237 · #8] libellés alignés sur les jours OUVRÉS retenus
     const rows=DUJ_MACHINES.map(m=>{
       const cells=dayIsos.map((iso,i)=>{ const h=load[m][iso]||0; const pct=Math.min(100,Math.round(h/PLN_OVER_H*100));
         const col=h>PLN_OVER_H+0.01?'var(--red)':(h>=6.5?'var(--ok,#4ade80)':(h>0?'var(--orange)':'var(--border2)'));

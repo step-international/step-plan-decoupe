@@ -31,6 +31,15 @@ ok(pm.feba.montees.some(x=>x.num==='31'),'MONTÉE : feba 31');
 ok(pm.feba.stockees.some(x=>x.num==='32')&&!pm.feba.aAffuter.some(x=>x.num==='32')&&!pm.feba.enAffutage.some(x=>x.num==='32'),'CYCLE COMPLET : feba 32 démontée→affûtage→stock = STOCKÉE (une seule fois)');
 ok(pm.maveg.aAffuter.some(x=>x.num==='99'),'catégorie inconnue → visible en à-affûter (jamais perdue)');
 ok(pm.hors.stockees.some(x=>x.num==='50'),'sans machine → groupe hors');
+// [L237] demonte = à-affûter EXPLICITE (seed sans installation antidatée)
+const T3=[{type:'lame',categorie:'demonte',machine:'feba',lameNum:'32',dateInstall:'2026-07-23'}];
+const r3=lameClasseurEtat(T3,'2026-07-23T12:00:00.000Z');
+ok(r3.parMachine.feba.aAffuter.some(x=>x.num==='32')&&!r3.parMachine.feba.montees.length,'[L237] demonte → À AFFÛTER, jamais montée (CRITIQUE seed corrigé : machine sans pose active)');
+// [L237] tri déterministe à date ÉGALE : stock (retour) gagne sur affutage (envoi)
+const T4a=[{type:'lame',categorie:'affutage',machine:'maveg',lameNum:'7',dateInstall:'2026-07-20'},{type:'lame',categorie:'stock',machine:'maveg',lameNum:'7',dateInstall:'2026-07-20'}];
+const T4b=[T4a[1],T4a[0]];
+const ra=lameClasseurEtat(T4a,'2026-07-23T12:00:00.000Z'), rb=lameClasseurEtat(T4b,'2026-07-23T12:00:00.000Z');
+ok(ra.parMachine.maveg.stockees.some(x=>x.num==='7')&&rb.parMachine.maveg.stockees.some(x=>x.num==='7'),'[L237] date égale stock vs affutage → STOCKÉE quel que soit l\'ordre du cache (déterministe)');
 ok(!!r.groupes&&!!r.recentes,'rétro-compat : groupes/recentes toujours servis');
 // tri numérique
 const T2=[['2','stock'],['10','stock'],['1','stock']].map(([n,c])=>({type:'lame',categorie:c,machine:'maveg',lameNum:n,dateInstall:'2026-07-01'}));
