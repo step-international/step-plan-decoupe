@@ -1765,7 +1765,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L229';
+const APP_VERSION='2026.07.23-L230';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3453,6 +3453,8 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
   });
 })();
 let _efPhotoUploads=0;   // [L169 · audit #17] uploads photo en cours en ÉDITION de fiche archivée
+// [L230] hauteur AUTO du champ conf (Nb bob. × Largeur) : 1 ligne par défaut, passe sur 2+ lignes quand le texte déborde.
+function _confAutoH(el){ if(!el) return; el.style.height='auto'; el.style.height=Math.max(44,el.scrollHeight)+'px'; }
 function refreshPhotoZone(lineId){
   const zone=document.getElementById('photoZone_'+lineId);
   if(!zone) return;
@@ -15563,9 +15565,12 @@ function addFicheLine(data){
         <input type="text" id="flLabel_${id}" value="${esc(data.label||'')}" placeholder="BOB-001" inputmode="text" oninput="refreshOp2BobineList()">
       </div>
       <div class="field" style="grid-column:1/-1"><label>Nb bob. × Largeur</label>
-        <input type="text" id="flConf_${id}" value="${esc(data.conf||'')}" placeholder="5×80 + 3×50"
-          inputmode="text" oninput="onFicheConfChange('${id}')">
-<button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="recalcEcartsFromFiche()" title="Recalcule les écarts de cette bobine (rattrapage / surplus) — les bobines coupées sont toujours conservées">♻ Recalculer les écarts</button><!-- [L222 · ergo #11/#12] RÉTABLI sur chaque bobine (retiré à tort en L121, demande Esteban « c très grave ») : le geste vit à côté de la conf modifiée ; les coupées ne sont jamais touchées -->
+        <div style="display:flex;gap:8px;align-items:stretch"><!-- [L230 · demande Esteban] conf RÉTRÉCIE + bouton ♻ JAUNE au BOUT de la ligne ; conf longue → passe sur 2 lignes (textarea auto-hauteur, Enter bloqué) -->
+          <textarea id="flConf_${id}" rows="1" placeholder="5×80 + 3×50" style="flex:1;min-width:0;resize:none;overflow:hidden;min-height:44px;font-size:16px;line-height:1.4"
+            oninput="if(this.value.indexOf('\\n')>-1)this.value=this.value.replace(/\\n/g,' ');onFicheConfChange('${id}');_confAutoH(this)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(data.conf||'')}</textarea>
+          <button type="button" class="btn btn-sm" style="flex-shrink:0;align-self:flex-start;min-height:44px;background:var(--action);border:1px solid var(--action);color:#141310;font-weight:800" onclick="recalcEcartsFromFiche()" title="Recalcule les écarts de cette bobine (rattrapage / surplus) — les bobines coupées sont toujours conservées">♻ Recalculer les écarts</button><!-- [L222 · ergo #11/#12 rétabli · L230 jaune] -->
+        </div>
         ${data.chuteNote?`<div class="fiche-chute-note">${esc(data.chuteNote)}</div>`:''}
       </div>
       <div class="field" style="grid-column:1/-1"><!-- [L177 · demande Esteban] UNE SEULE LIGNE : Dévidage · Droit · ⚠ NC · ✓ R.A.S. — le R.A.S. (gris) passe VERT automatiquement quand le test 2ᵉ est conforme (Dévidage + Droit ; FEBA : Dévidage seul). Le bloc « Conforme — auto » est SUPPRIMÉ de l'affichage (inputs conservés cachés : updateTest2Subs/gardes d'envoi inchangés). -->
@@ -15626,6 +15631,7 @@ function addFicheLine(data){
     </div>`;
   document.getElementById('ficheLines').appendChild(div);
   refreshPhotoZone(id);
+  _confAutoH(document.getElementById('flConf_'+id));   // [L230] conf longue restaurée (brouillon/recalc) → hauteur 2 lignes dès la création
   updateTest2Subs(id);
   // [L72 · Audit B50] restauration en masse (miroir partagé toutes les 10 s, brouillons) :
   // ces recomptes globaux coûtaient O(n²) — ils sont refaits UNE fois à la fin par l'appelant.
