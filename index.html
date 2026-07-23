@@ -1780,7 +1780,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L237';
+const APP_VERSION='2026.07.23-L238';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11961,12 +11961,17 @@ function lameClasseurEtat(traces,nowIso){
   // DERNIER événement de chaque lame : installation+active → MONTÉE ; installation non active → À AFFÛTER ;
   // affutage → EN AFFÛTAGE (envoi chez l'affûteur, plus de fenêtre 30 j ni de disparition) ; stock → STOCKÉE.
   // Catégorie inconnue : la lame reste visible dans son dernier état connu (plus de disparition silencieuse).
-  const lastMK={}, activeMK={};
-  evts.forEach(r=>{ const mk=(r.machine&&groupes[r.machine]!==undefined&&r.machine!=='hors')?r.machine:(r.machine||'hors'); const k=nrm(mk)+'|'+nrm(r.lameNum); lastMK[k]=r; if(r.categorie==='installation'&&r.machine) activeMK[r.machine]=nrm(r.lameNum); });
+  const lastMK={}, activeMK={}, datesMK={};
+  evts.forEach(r=>{ const mk=(r.machine&&groupes[r.machine]!==undefined&&r.machine!=='hors')?r.machine:(r.machine||'hors'); const k=nrm(mk)+'|'+nrm(r.lameNum); lastMK[k]=r; if(r.categorie==='installation'&&r.machine) activeMK[r.machine]=nrm(r.lameNum);
+    const d=String(r.dateInstall||r.date||r.createdAt||'');   // [L238 · demande Esteban] dates de cycle : dernière PARTIE à l'affûtage + dernier RETOUR de l'affûtage, affichées sur les cartes
+    if(!datesMK[k]) datesMK[k]={};
+    if(r.categorie==='affutage') datesMK[k].envoi=d;
+    else if(r.categorie==='stock') datesMK[k].retour=d; });
   const parMachine={feba:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},maveg:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},cevenini:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},hors:{montees:[],aAffuter:[],stockees:[],enAffutage:[]}};
   Object.values(lastMK).forEach(r=>{
     const m=(r.machine&&parMachine[r.machine])?r.machine:'hors';
-    const item={num:String(r.lameNum).trim(),machine:r.machine||'',date:String(r.dateInstall||r.date||r.createdAt||''),description:r.description||''};
+    const k2=nrm((r.machine&&parMachine[r.machine])?r.machine:'hors')+'|'+nrm(r.lameNum);
+    const item={num:String(r.lameNum).trim(),machine:r.machine||'',date:String(r.dateInstall||r.date||r.createdAt||''),description:r.description||'',envoiDate:(datesMK[k2]||{}).envoi||'',retourDate:(datesMK[k2]||{}).retour||''};
     if(r.categorie==='installation'){
       if(r.machine&&activeMK[r.machine]===nrm(r.lameNum)) parMachine[m].montees.push(item);
       else parMachine[m].aAffuter.push(item);
@@ -12045,6 +12050,21 @@ async function lameSeedInventaire(btn){
   showToast('✓ Inventaire injecté : '+okN+' événement(s)'+(koN?' · ⚠ '+koN+' échec(s)':''),koN?'err':'ok');
   renderMaintenance();
 }
+// [L238 · demande Esteban] RETIRER UNE LAME DU SUIVI (fantômes legacy, ex. « 22/35 maveg » d'anciennes traces) :
+// archive TOUTES ses traces maintenance (soft-delete → corbeille, récupérables 45 j, jamais de perte ISO).
+// La même lame sur une AUTRE machine n'est pas touchée (clé machine|num).
+async function lameRetirerDuSuivi(machine,num){
+  if(!canManageData()){ showToast('🔒 Réservé pilotage/admin.','err'); return; }
+  const mk=nrm(machine||''), nn=nrm(num);
+  const evts=(maintenanceCache||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&nrm(r.lameNum)===nn&&nrm(r.machine||'')===mk);
+  if(!evts.length){ showToast('Aucune trace à retirer.','err'); return; }
+  if(!(await confirmDlg('Retirer la lame '+num+' ('+(getMachineLabel(machine)||'hors machine')+') du suivi ?\n\n'+evts.length+' trace(s) partiront à la corbeille (récupérables 45 j).\nLa même lame sur une autre machine n\'est pas touchée.',{danger:true,ok:'Retirer'}))) return;
+  let n=0;
+  for(const r of evts){ try{ await boundedWrite(db.collection('maintenance').doc(r.id).update({deleted:true,deletedAt:isoNow()}),10000); r.deleted=true; n++; }catch(e){ console.warn('retrait lame:',e); } }
+  logAudit('delete','maintenance',evts.map(r=>r.id).join(','),'Lame '+num+' ('+(getMachineLabel(machine)||'hors')+') retirée du suivi — '+n+' trace(s) archivée(s)').catch(function(){});
+  showToast('🗑 Lame '+num+' retirée du suivi ('+n+' trace(s) → corbeille)','ok');
+  renderMaintenance();
+}
 // Affûtage d'une lame DÉMONTÉE : trace SEULE (pas de réinstallation — la lame n'est
 // plus sur la machine). La machine d'origine est conservée dans la trace (ISO).
 async function lameAffuterSeule(machine,lameNum){
@@ -12073,11 +12093,15 @@ function renderAffutageList(){
   const {parMachine}=lameClasseurEtat(maintenanceCache);
   const MCOL={feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)',hors:'#888'};
   const dt=d=>d?new Date(d).toLocaleDateString('fr-FR'):'—';
+  const canDel=canManageData();
   const card=(m,l,action,dateLbl)=>`<div class="lame-card" style="border-left:4px solid ${MCOL[m]||'#888'}">
       <span class="lc-num">🔪 <b>${esc(l.num)}</b></span>
       <span class="lc-date">${esc(dateLbl)} ${dt(l.date)}</span>
+      ${l.envoiDate&&l.envoiDate!==l.date?`<span class="lc-date" title="dernier départ à l'affûtage">🛠 partie le ${dt(l.envoiDate)}</span>`:''}
+      ${l.retourDate&&l.retourDate!==l.date?`<span class="lc-date" title="dernier retour de l'affûtage">📦 revenue le ${dt(l.retourDate)}</span>`:''}
       ${l.description&&!/^(Pose lame|Seed inventaire|Envoi à l|Retour affûteur)/.test(l.description)?`<span class="lc-com" title="${esc(l.description)}">💬</span>`:''}
       ${action}
+      ${canDel?`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:transparent;border:1px solid var(--border2);color:var(--muted)" data-mch="${esc(l.machine||'')}" data-num="${esc(l.num)}" onclick="lameRetirerDuSuivi(this.dataset.mch,this.dataset.num)" title="Retirer cette lame du suivi (toutes ses traces partent à la corbeille — récupérables 45 j)">🗑</button>`:''}
     </div>`;
   const mgrp=(m,arr,mkAction,dateLbl,emptyTxt)=>{
     const lbl=m==='hors'?'📦 Hors machine':getMachineLabel(m);
