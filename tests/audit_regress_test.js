@@ -135,5 +135,14 @@ has(/if\(lines\.some\(engagedOf\)\) return;/,'L221 : réf ENGAGÉE jamais signal
 has(/function _applyPlanDriftFix\(\)\{[\s\S]{0,400}?recalcEcartsFromFiche\(\{force:true\}\)/,'L221 : bouton bannière route vers recalcEcartsFromFiche({force:true}) — chemin éprouvé qui conserve les coupées');
 has(/_applyPlanDriftFix\(\)\{\n?\s*if\(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId\(\)\)/,'L221 : garde partage AVANT toute mutation (verrous cuts par position protégés)');
 
+console.log('── L246/L247 chantier ANALYSE — lots R1/R2 ──');
+has(/function _acSetHTML\(ac,html\)/,'R1 : re-render Analyse préservant saisies + details ouverts (_acSetHTML)');
+has(/let _dujSamplesMemo=null/,'R1 : échantillons débit mémoïsés (plus de triple recalcul par render)');
+has(/_ms\.indexOf\(analyseFilter\.mach\)>=0/,'R1 : filtre machine/op couvre les segments RELAIS (machine2/operateur2)');
+has(/const clientRank=\[\];/,'R1 : calculs morts purgés (clientRank/volSvg jamais affichés)');
+has(/if\(f\.manqueMatiere\)\{\n\s*const _cut=\(Array\.isArray\(f\.ficheDetail\)\?f\.ficheDetail\.filter\(fd=>fd&&fd\.coupee===true\)\.length:0\);\n\s*b=Math\.min\(b,_cut\); p=NaN;/,'R2.1 : KPI mensuel — fiche manque-matière comptée sur bobines COUPÉES, perte exclue (constat HAUTE L79)');
+has(/machMap\[m\]\.durW\+=t\.duree\*f; machMap\[m\]\.laiW\+=t\.totalLaizes\*f;/,'R2.2 : comparaison machines en sec/laize PONDÉRÉ (durW/laiW), plus de moyenne de ratios');
+has(/const _hasRelay=!isNaN\(_o2s\)&&_o2s>=1&&_o2s<=det\.length&&\(f\.ini2\|\|f\.machine2\)/,'R2.3 : NC écran ventilées PAR BOBINE au relais op.2/machine2 (bornées à op2Bob, comme le KPI figé)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

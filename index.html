@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L246';
+const APP_VERSION='2026.07.23-L247';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10372,17 +10372,24 @@ function buildFicheAnalytics(){
   const opStat={},machStat={};   // [L86 · simpl.1] clientPct/clientItems morts supprimés
   fiches.forEach(f=>{
     const det=f.ficheDetail||[];
-    let fNc=0;
-    det.forEach(d=>{
+    // [L247 · R2] VENTILATION relais op.2/machine2 PAR BOBINE (bornée à op2Bob, comme le KPI mensuel) :
+    // avant, TOUTES les bobines et NC d'un relais étaient attribuées à l'op.1/machine 1 — l'op.2 n'avait
+    // jamais de NC à son actif et l'écran contredisait le KPI figé.
+    const _o2s=parseInt(f.op2Bob,10);
+    const _hasRelay=!isNaN(_o2s)&&_o2s>=1&&_o2s<=det.length&&(f.ini2||f.machine2);
+    det.forEach((d,di)=>{
       totBob++;let isNc=false;
       if(d.ncLarg){ncLarg++;isNc=true;}
       if(d.ncQty){ncQty++;isNc=true;}
       if(d.ncCasse){ncCasse++;isNc=true;}
       if(d.ncAng){ncAng++;isNc=true;}
-      if(isNc){ncBob++;fNc++;}
+      if(isNc)ncBob++;
+      const _rel=_hasRelay&&(di+1)>=_o2s;
+      const op=(_rel?(f.ini2||f.ini):f.ini)||'?';
+      const m=(_rel?(f.machine2||f.machine):f.machine)||'?';
+      if(!opStat[op])opStat[op]={nc:0,tot:0}; opStat[op].tot++; if(isNc)opStat[op].nc++;
+      if(!machStat[m])machStat[m]={nc:0,tot:0}; machStat[m].tot++; if(isNc)machStat[m].nc++;
     });
-    const op=f.ini||'?';if(!opStat[op])opStat[op]={nc:0,tot:0};opStat[op].nc+=fNc;opStat[op].tot+=det.length;
-    const m=f.machine||'?';if(!machStat[m])machStat[m]={nc:0,tot:0};machStat[m].nc+=fNc;machStat[m].tot+=det.length;
   });
   const ncTotal=ncLarg+ncQty+ncCasse+ncAng;
   const ncSlices=[
@@ -10547,7 +10554,15 @@ function buildMonthlyKpi(ym,fiches,temps){
   let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0,soldeMm=0,chutesPieces=0;   // [L83 · Audit #44][L98 · #13]
   const cliVol={},refVol={};   // [L79·AN-3] volume (bobines) par client / par réf → top 5 stockés dans l'agrégat
   F.forEach(f=>{
-    const b=Number(f.totalBobines)||0,p=parseFloat(f.pct);
+    let b=Number(f.totalBobines)||0,p=parseFloat(f.pct);
+    // [L247 · R2 — constat HAUTE L79 resté ouvert] fiche MANQUE-MATIÈRE : elle archive le plan COMPLET
+    // (totalBobines/pct) alors que seule une partie a été coupée → bobines restreintes aux lignes réellement
+    // COUPÉES (ficheDetail[].coupee) et perte du plan complet EXCLUE de la moyenne pondérée (non applicable
+    // à un partiel — mieux vaut l'omettre que la mentir). Les mois FIGÉS ne changent que via « ♻ Recalculer ».
+    if(f.manqueMatiere){
+      const _cut=(Array.isArray(f.ficheDetail)?f.ficheDetail.filter(fd=>fd&&fd.coupee===true).length:0);
+      b=Math.min(b,_cut); p=NaN;
+    }
     totalBobines+=b;
     if(!isNaN(p)){wpNum+=p*b;wpDen+=b;}
     const m=String(f.machine||'').trim().toUpperCase();   // [L83 · Audit #44] trim : « FEBA  » ne disparaît plus
@@ -10575,6 +10590,8 @@ function buildMonthlyKpi(ym,fiches,temps){
     // Temps) — avant : 100 % sur machine1 → secLaize des DEUX machines faussé dans l'agrégat figé.
     if(dur>0&&laizes>0) tempsShareParts(t).forEach(g=>{ if(mach[g.mach]&&g.f>0){ mach[g.mach].dur+=dur*g.f; mach[g.mach].laizes+=laizes*g.f; } });
   });
+  // [L247 · R2 — choix ASSUMÉ] perte pondérée par NB DE BOBINES (pas par surface) : totalMat/perteMm ne sont
+  // PAS persistés sur les fiches — une pondération surface exigerait un rejeu par fiche (coût/risque > valeur).
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
   return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces};   // [L83 · Audit #44][L98 · #13]
@@ -13013,14 +13030,16 @@ function renderAnalyse(){
     tempsShareParts(t).forEach(g=>{ const m=g.mach||'?'; byM[m]=(byM[m]||0)+g.f; });
     if(!Object.keys(byM).length) byM[t.machine||'?']=1;
     Object.entries(byM).forEach(([m,f])=>{
-      if(!machMap[m]) machMap[m]={vals:[],totalSec:0,cmds:0};
-      machMap[m].vals.push(secL);
+      if(!machMap[m]) machMap[m]={durW:0,laiW:0,totalSec:0,cmds:0};
+      // [L247 · R2] sec/laize PONDÉRÉ par la part ventilée (Σdur/Σlaizes, comme le KPI figé) — avant, la
+      // valeur PLEINE de la commande était poussée dans les 2 machines d'un relais → l'écran contredisait le KPI.
+      machMap[m].durW+=t.duree*f; machMap[m].laiW+=t.totalLaizes*f;
       machMap[m].totalSec+=t.duree*f;
       machMap[m].cmds++;
     });
   });
   const machItems=Object.entries(machMap).map(([m,d])=>({
-    label:m,avg:avgArr(d.vals),cmds:d.cmds,
+    label:m,avg:d.laiW>0?d.durW/d.laiW:0,cmds:d.cmds,
     totalH:Math.round(d.totalSec/3600*10)/10,
     color:m==='FEBA'?'#60a5fa':m==='MAVEG'?'#4ade80':'#a78bfa'
   })).sort((a,b)=>b.avg-a.avg);
