@@ -181,5 +181,15 @@ has(/if\(hasNum\) return d\.label===newLabel;/,'L252 : comportement historique C
 has(/l'ancien porte un n° dans son état/,'L252 : concordance unifiée sans n° (même client + même réf + ancien sans n° caché) — reco sceptique v3');
 has(/function _openTempsBox\(/,'L252 : drill-down Débit → relevés de temps (tempsBox)');
 
+console.log('── L253 revue adversariale du chantier (3 confirmés ×2 + 2 corrigés par prudence) ──');
+has(/function dujSamplesInvalidate\(\)/,'L253 MAJEUR : invalidation EXPLICITE du mémo débit (soft-delete/correction machine invisibles à la clé nb+Σdurée)');
+has(/dujSamplesInvalidate\(\);   \/\/ \[L253 · revue\]/,'L253 : invalidation branchée au funnel commun refreshAnalyseIfPresent');
+has(/if\(typeof dujSamplesInvalidate==='function'\)dujSamplesInvalidate\(\);/,'L253 : invalidation aussi aux rechargements de cache (boot + historique complet)');
+has(/if\(_ks&&_ks\.value&&_ks\.value!==currentMonthYM\(\)\) renderKpiMois\(_ks\.value\);/,'L253 MAJEUR : kpiMoisSel restauré ⇒ contenu KPI resynchronisé (plus d\'étiquette « figé » sur chiffres live)');
+has(/const el2=document\.getElementById\('kpiFichesList'\)\|\|el;/,'L253 : drill-down fiches — re-lookup du nœud VIVANT après l\'await (plus d\'écriture dans un élément détaché)');
+has(/snap\.metadata&&snap\.metadata\.fromCache/,'L253 : hors-ligne dit HONNÊTEMENT que la liste vient du cache local (possiblement partielle)');
+has(/async function exportDashboardCsv\(\)\{/,'L253 : export tableau de bord passe par ensureFullHistory comme TOUS les autres exports');
+has(/typeof n==='number'\?\(n\+' ligne\(s\)'\):String\(n\)/,'L253 : méta CSV — unité correcte (« 12 mois », plus « 12 mois ligne(s) »)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

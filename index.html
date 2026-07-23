@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L252';
+const APP_VERSION='2026.07.23-L253';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2056,7 +2056,7 @@ function ensureFullHistory(){
       // [L73 · Lot 5 · B34] pagination complète par curseur (fini le plafond silencieux 1000/2000) ;
       // borne de sécurité 20 pages/collection (≈ 20 000 saves / 40 000 temps / 20 000 fiches).
       const r=await Promise.all([loadColAll('saves',1000,20),loadColAll('temps',2000,20),loadColAll('fiches',1000,20)]);
-      savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;
+      savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;if(typeof dujSamplesInvalidate==='function')dujSamplesInvalidate();
       if(r.some(x=>x.truncated)){   // [L73 · Lot 5 · B34] borne atteinte : on ne prétend plus que c'est complet
         _fullHistoryTruncatedCount=savesCache.length+tempsCache.length+fichesCache.length;
         showToast('⚠ Historique tronqué à '+_fullHistoryTruncatedCount+' enregistrements (plafond de sécurité atteint)','err');
@@ -2124,7 +2124,7 @@ async function loadFirestoreData(){
     // Boot allégé : le quotidien n'a besoin que du récent (perf 4G + quota lectures Firestore).
     // L'historique complet se charge à la demande via le bouton 📥 dans Données.
     const r=await Promise.all([loadCol('saves',200),loadCol('temps',500),loadCol('fiches',200)]);
-    savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;   // [L73 · Lot 5 · B34] loadCol retourne désormais {rows,truncated,last} (troncature normale au boot : bandeau partiel géré par fullHistoryLoaded)
+    savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;if(typeof dujSamplesInvalidate==='function')dujSamplesInvalidate();   // [L73 · Lot 5 · B34] loadCol retourne désormais {rows,truncated,last} (troncature normale au boot : bandeau partiel géré par fullHistoryLoaded)
     try{ hygieneAutoSweep(); }catch(e){}   // [L115] nettoyage AUTO des plans déjà coupés du récent (fenêtre boot) — le reste au chargement complet
     if(!migrated && canManageData()) backfillDeleted();   // migration unique (admins/pilotage)
     if(canManageData() && _oncePerDay('step_corbeille_daily')) loadCorbeille(true);   // purge auto en arrière-plan, au plus 1×/jour/poste (l'ouverture de l'onglet reste toujours à jour)
@@ -9458,6 +9458,7 @@ async function clearTemps(){
 // L34 — après suppression/correction d'un relevé, re-rend le tableau de bord
 // Analyse (débit m/h + KPI + graphiques) pour ne plus afficher un temps supprimé.
 function refreshAnalyseIfPresent(){
+  dujSamplesInvalidate();   // [L253 · revue] la donnée temps vient de changer (archivage / correction / restauration / archivage global) — voir dujSamplesInvalidate
   if(canViewAnalyse()&&document.getElementById('analyseContent')){ try{ renderAnalyse(); }catch(e){ console.warn('refresh Analyse:',e); } }   // [L131 · #24] analytics : admin uniquement
   if(document.getElementById('tempsList')){ try{ renderTemps(); }catch(e){} }   // [L120] Relevés de temps fusionnés dans Analyse
   try{ _applyAnalyseScope(); }catch(e){}
@@ -9467,7 +9468,7 @@ function refreshAnalyseIfPresent(){
 function csvMetaLine(quoi,n,extra){
   const par=currentUser?(currentUser.ini||currentUser.nom||'?'):'?';
   const perim=(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded)?'historique COMPLET':'⚠ données RÉCENTES uniquement (historique complet non chargé — export PARTIEL)';
-  return '# STEP · '+quoi+' · exporté le '+new Date().toLocaleString('fr-FR')+' · par '+par+' · périmètre : '+perim+' · '+n+' ligne(s)'+(extra?' · '+extra:'')+'\n';
+  return '# STEP · '+quoi+' · exporté le '+new Date().toLocaleString('fr-FR')+' · par '+par+' · périmètre : '+perim+' · '+(typeof n==='number'?(n+' ligne(s)'):String(n))+(extra?' · '+extra:'')+'\n';   // [L253] n déjà libellé (« 12 mois ») passé tel quel
 }
 async function exportTemps(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
@@ -10725,7 +10726,11 @@ function printKpiMois(ym){
 // [L251 · R6] EXPORT CSV « TABLEAU DE BORD » — la revue de direction en un fichier : KPI des mois
 // figés (+ mois courant live), débit par machine (n / médiane / quartiles), qualité, pilotage semaine.
 // Ligne de méta en tête (date, auteur, périmètre, filtre Analyse actif) : le fichier se suffit à lui-même.
-function exportDashboardCsv(){
+async function exportDashboardCsv(){
+  // [L253 · revue] MÊME garde que exportTemps/exportNc/exportFiches : les sections Débit et mois COURANT
+  // lisent les caches (tronqués au boot à 200/2000 récents) → sans historique complet, quartiles et mois
+  // live seraient partiels. La méta-ligne dit déjà COMPLET/PARTIEL ; on tente d'abord de compléter.
+  if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }
   try{
     const cur=currentMonthYM();
     const rows=[];
@@ -10895,6 +10900,10 @@ function buildTendancesBlock(){
     const cur=currentMonthYM();
     const months=prevMonthsYM(12).reverse();   // asc, finit sur le mois en cours
     const byM={}; agregatsCache.forEach(a=>{ if(a&&a.mois) byM[a.mois]=a; });
+    // [L253 · choix ASSUMÉ] buildMonthlyKpi(mois courant) est aussi calculé par le bloc KPI → 2 passes par
+    // rendu COMPLET (rare : entrée d'onglet / mutation de donnée ; les clics de filtre re-rendent par zones
+    // sans repasser ici). On n'ajoute PAS de mémo : la classe de bug « clé de mémo qui ne voit pas une
+    // mutation » vient d'être corrigée sur dujSamples — 2 passes sûres valent mieux qu'un cache faux.
     let liveKpi=null; try{ liveKpi=buildMonthlyKpi(cur,fichesCache,tempsCache); }catch(e){}
     const data=months.map(ym=>ym===cur?liveKpi:(byM[ym]||null));
     const _pct=(n,d)=>d?Math.round(n/d*1000)/10:null;
@@ -12533,6 +12542,11 @@ function dujPctile(arr,p){ if(!arr.length) return 0; const s=arr.slice().sort((a
 function dujSecToTxt(sec){ if(!isFinite(sec)||sec<=0) return '—'; const h=Math.floor(sec/3600), m=Math.round((sec%3600)/60); return h>0?(h+' h'+(m?' '+String(m).padStart(2,'0'):'')):(m+' min'); }
 // Échantillons de débit (m/h) exploitables
 let _dujSamplesMemo=null,_dujSamplesKey='';
+// [L253 · revue sceptique ×2 MAJEUR] la clé bon-marché (nb + Σdurée) NE voit NI un soft-delete (deleted:true
+// en place, durée conservée) NI une correction machine/opérateur/laizes sans changement de chrono → le Débit
+// m/h, l'estimateur et l'export CSV restaient sur les anciennes données jusqu'au rechargement de la page.
+// Invalidation EXPLICITE au funnel commun des mutations (refreshAnalyseIfPresent) + aux rechargements de cache.
+function dujSamplesInvalidate(){ _dujSamplesMemo=null; _dujSamplesKey=''; }
 function dujSamples(){
   // [L83 · Audit #7] relais op.2 : l'échantillon est SCINDÉ par segment (machine/opérateur réels,
   // au prorata des lignes coupées — même helper tempsShareParts que l'écran Temps et le KPI).
@@ -12966,8 +12980,16 @@ async function _kpiFichesToggle(ym){
     const _lo=new Date(new Date(ym+'-01T00:00:00Z').getTime()-2*86400000).toISOString();
     const _hi=new Date(new Date(next+'-01T00:00:00Z').getTime()+2*86400000).toISOString();
     const snap=await db.collection('fiches').where('date','>=',_lo).where('date','<',_hi).get();
-    _kpiFichesRender(el,ym,snap.docs.map(d=>d.data()));
-  }catch(e){ el.innerHTML='<div style="padding:12px;color:#f87171;font-size:13px">Erreur de chargement : '+esc(e.message||String(e))+'</div>'; }
+    // [L253 · revue sceptique ×2] un re-rendu complet (relevé corrigé, retour d'onglet) a pu RECRÉER
+    // kpiFichesList pendant l'await → on re-cherche le nœud VIVANT (sinon la liste s'écrivait dans un
+    // élément détaché : loader disparu, aucune liste, aucune erreur).
+    const el2=document.getElementById('kpiFichesList')||el;
+    el2.style.display='block';
+    _kpiFichesRender(el2,ym,snap.docs.map(d=>d.data()));
+    // [L253 · revue (constat hors-ligne, sceptiques non joués — corrigé par prudence)] persistance Firestore :
+    // hors-ligne, get() répond depuis le CACHE LOCAL sans erreur → liste possiblement partielle. On le DIT.
+    if(snap.metadata&&snap.metadata.fromCache) el2.insertAdjacentHTML('afterbegin','<div style="padding:8px 10px;margin-bottom:8px;font-size:12px;font-weight:700;color:#fbbf24;background:rgba(245,158,11,.08);border:1px solid #6b5416;border-radius:8px">⚠ Hors-ligne : liste servie par le cache local de ce poste — possiblement PARTIELLE pour un mois ancien.</div>');
+  }catch(e){ const el2=document.getElementById('kpiFichesList')||el; el2.innerHTML='<div style="padding:12px;color:#f87171;font-size:13px">Erreur de chargement : '+esc(e.message||String(e))+'</div>'; }
 }
 // [L249 · R4b] DRILL-DOWN NC : ouvre le Registre NC (bloc repliable ncBox, pilotage/admin).
 // [L252 · R4b reporté] DRILL-DOWN Débit : ouvre le bloc Relevés de temps (tempsBox, même modèle que ncBox).
@@ -13192,6 +13214,10 @@ function renderAnalyse(partial){
     <div id="zoneTendances" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildTendancesBlock()}</div>
     ${(typeof canViewAudit==='function'&&canViewAudit())?`<div style="margin-top:14px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('audit')">🔍 Ouvrir la piste d'audit ISO</button></div>`:''}
   </div>`);
+  // [L253 · revue sceptique ×2 MAJEUR] _acSetHTML vient de RESTAURER la valeur de kpiMoisSel (ex. « Mai —
+  // figé ») alors que kpiMoisContent est rendu sur le mois COURANT (live) → étiquette d'un mois figé sur des
+  // chiffres live, et 🖨 imprimerait un autre mois que l'écran. On resynchronise le contenu sur le mois restauré.
+  try{ const _ks=document.getElementById('kpiMoisSel'); if(_ks&&_ks.value&&_ks.value!==currentMonthYM()) renderKpiMois(_ks.value); }catch(e){}
 }
 // [L249 · R4a] Graphiques de productivité (zone re-rendue seule au filtre). La carte « Temps moyen par
 // largeur de bobineau » est RETIRÉE (rapport §c, validé) : redondante avec le modèle additif corrigé-laize
