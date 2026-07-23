@@ -228,9 +228,10 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 .lame-mdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .lame-mcount{margin-left:auto;font-size:11px;color:var(--muted);font-weight:700}
 .lame-card{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border2);border-radius:9px;padding:8px 11px;margin:6px 0}
+.lame-card .lc-actions{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:nowrap}/* [L240 · bug affichage Esteban] boutons GROUPÉS à droite, jamais séparés par un retour à la ligne (le 🗑 tombait seul en dessous) */
 .lame-card .lc-num{font-size:14px;font-variant-numeric:tabular-nums}
 .lame-card .lc-date{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.lame-card .lc-act{margin-left:auto;min-height:40px;font-weight:700;white-space:nowrap}
+.lame-card .lc-act{min-height:40px;font-weight:700;white-space:nowrap}
 body.atelier .lame-card .lc-num{font-size:17px} body.atelier .lame-card .lc-act{min-height:48px}
 /* [L219] pastille couleur PAR RÉFÉRENCE (distingue Profilé/VEKA d'un coup d'œil) — miroir de refColor de la fiche */
 .rb-name{font-size:15px;font-weight:800;flex:1;min-width:120px}
@@ -1780,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L239';
+const APP_VERSION='2026.07.23-L240';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11911,7 +11912,7 @@ function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${
   <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Suivi des lames de découpe — preuve ISO 9001, 100 % dématérialisé. Alerte de changement : FEBA 15 jours, MAVEG et CEVENINI 10 jours après la pose. Chaque machine a SES lames (le n° 20 CEVENINI n'est pas le n° 20 d'une autre machine).</div>
   <div id="lameEtat"></div>
   <div id="lameSections"></div><!-- [L233 · refonte Lames A3] 3 sections par statut × machine : À affûter / Stockées / En cours d'affûtage -->
-  ${canManageData()?`<div style="margin:2px 0 8px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="lameSeedInventaire(this)" title="Injecte l'inventaire réel du 23/07/2026 (idempotent : ne crée jamais de doublon, re-cliquable sans risque)">⚙ Injecter l'inventaire initial (23/07)</button></div>`:''}<!-- [L234 · A4] seed one-shot idempotent — à retirer une fois l'inventaire posé -->
+  <!-- [L240] bouton seed RETIRÉ (inventaire injecté et validé par Esteban le 23/07 — lameSeedInventaire reste en code, réactivable) -->
   <div id="lameStatsBlock" style="margin-top:18px"></div><!-- [L233 · A3] stats lames RAPATRIÉES d'Analyse (leur place est ici) -->
   <details id="maintHistBox" style="margin-top:18px;background:var(--section);border:1px solid var(--border2);border-radius:10px" ontoggle="const s=this.querySelector('.mh-lbl'); if(s) s.textContent=this.open?'Masquer l\\'historique des lames':'Afficher l\\'historique des lames';">
     <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:11px 13px;font-size:13px;font-weight:700;color:var(--muted);min-height:46px"><span class="dbx-chev">▸</span> 📜 <b class="mh-lbl" style="color:var(--blue);font-weight:800">Afficher l'historique des lames</b><span style="margin-left:auto;font-size:11px;color:var(--muted)">journal complet, à la demande</span></summary>
@@ -11970,7 +11971,7 @@ function lameClasseurEtat(traces,nowIso){
   const parMachine={feba:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},maveg:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},cevenini:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},hors:{montees:[],aAffuter:[],stockees:[],enAffutage:[]}};
   Object.values(lastMK).forEach(r=>{
     const m=(r.machine&&parMachine[r.machine])?r.machine:'hors';
-    const k2=nrm((r.machine&&parMachine[r.machine])?r.machine:'hors')+'|'+nrm(r.lameNum);
+    const k2=nrm((r.machine&&groupes[r.machine]!==undefined&&r.machine!=='hors')?r.machine:(r.machine||'hors'))+'|'+nrm(r.lameNum);   // [L240 · campagne #5] MÊME expression de clé que lastMK/datesMK — une machine legacy inconnue perdait ses dates ➜🏭/🏭➜
     const item={num:String(r.lameNum).trim(),machine:r.machine||'',date:String(r.dateInstall||r.date||r.createdAt||''),description:r.description||'',envoiDate:(datesMK[k2]||{}).envoi||'',retourDate:(datesMK[k2]||{}).retour||''};
     if(r.categorie==='installation'){
       if(r.machine&&activeMK[r.machine]===nrm(r.lameNum)) parMachine[m].montees.push(item);
@@ -12100,8 +12101,7 @@ function renderAffutageList(){
       ${l.envoiDate&&l.envoiDate!==l.date?`<span class="lc-date" title="partie à l'affûtage le ${dt(l.envoiDate)}"><b style="color:var(--orange)">➜🏭</b> ${dt(l.envoiDate)}</span>`:''}
       ${l.retourDate&&l.retourDate!==l.date?`<span class="lc-date" title="revenue de l'affûtage le ${dt(l.retourDate)}"><b style="color:#4ade80">🏭➜</b> ${dt(l.retourDate)}</span>`:''}
       ${l.description&&!/^(Pose lame|Seed inventaire|Envoi à l|Retour affûteur)/.test(l.description)?`<span class="lc-com" title="${esc(l.description)}">💬</span>`:''}
-      ${action}
-      ${canDel?`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:transparent;border:1px solid var(--border2);color:var(--muted)" data-mch="${esc(l.machine||'')}" data-num="${esc(l.num)}" onclick="lameRetirerDuSuivi(this.dataset.mch,this.dataset.num)" title="Retirer cette lame du suivi (toutes ses traces partent à la corbeille — récupérables 45 j)">🗑</button>`:''}
+      <span class="lc-actions">${action}${canDel?`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:transparent;border:1px solid var(--border2);color:var(--muted)" data-mch="${esc(l.machine||'')}" data-num="${esc(l.num)}" onclick="lameRetirerDuSuivi(this.dataset.mch,this.dataset.num)" title="Retirer cette lame du suivi (toutes ses traces partent à la corbeille — récupérables 45 j)">🗑</button>`:''}</span>
     </div>`;
   const mgrp=(m,arr,mkAction,dateLbl,emptyTxt)=>{
     const lbl=m==='hors'?'📦 Hors machine':getMachineLabel(m);

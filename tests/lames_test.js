@@ -40,6 +40,11 @@ const T4a=[{type:'lame',categorie:'affutage',machine:'maveg',lameNum:'7',dateIns
 const T4b=[T4a[1],T4a[0]];
 const ra=lameClasseurEtat(T4a,'2026-07-23T12:00:00.000Z'), rb=lameClasseurEtat(T4b,'2026-07-23T12:00:00.000Z');
 ok(ra.parMachine.maveg.stockees.some(x=>x.num==='7')&&rb.parMachine.maveg.stockees.some(x=>x.num==='7'),'[L237] date égale stock vs affutage → STOCKÉE quel que soit l\'ordre du cache (déterministe)');
+// [L240 · campagne #5] machine legacy INCONNUE : les dates ➜🏭/🏭➜ ne se perdent plus (k2 alignée sur lastMK)
+const T5=[{type:'lame',categorie:'affutage',machine:'vieille-machine',lameNum:'77',dateInstall:'2026-07-01'},{type:'lame',categorie:'stock',machine:'vieille-machine',lameNum:'77',dateInstall:'2026-07-10'}];
+const r5=lameClasseurEtat(T5,'2026-07-23T12:00:00.000Z');
+const i5=r5.parMachine.hors.stockees.find(x=>x.num==='77');
+ok(!!i5&&i5.envoiDate==='2026-07-01'&&i5.retourDate==='2026-07-10','[L240] machine inconnue (legacy) → envoiDate/retourDate présents (clé k2 = même expression que lastMK)');
 ok(!!r.groupes&&!!r.recentes,'rétro-compat : groupes/recentes toujours servis');
 // tri numérique
 const T2=[['2','stock'],['10','stock'],['1','stock']].map(([n,c])=>({type:'lame',categorie:c,machine:'maveg',lameNum:n,dateInstall:'2026-07-01'}));
