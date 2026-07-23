@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L250';
+const APP_VERSION='2026.07.23-L251';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9462,6 +9462,13 @@ function refreshAnalyseIfPresent(){
   if(document.getElementById('tempsList')){ try{ renderTemps(); }catch(e){} }   // [L120] Relevés de temps fusionnés dans Analyse
   try{ _applyAnalyseScope(); }catch(e){}
 }
+// [L251 · R6] Ligne de MÉTA en tête de CSV (ISO 9001 : le FICHIER dit LUI-MÊME son périmètre — plus
+// seulement la boîte de dialogue au moment de l'export). Préfixée « # » : lisible, ignorée à l'import.
+function csvMetaLine(quoi,n,extra){
+  const par=currentUser?(currentUser.ini||currentUser.nom||'?'):'?';
+  const perim=(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded)?'historique COMPLET':'⚠ données RÉCENTES uniquement (historique complet non chargé — export PARTIEL)';
+  return '# STEP · '+quoi+' · exporté le '+new Date().toLocaleString('fr-FR')+' · par '+par+' · périmètre : '+perim+' · '+n+' ligne(s)'+(extra?' · '+extra:'')+'\n';
+}
 async function exportTemps(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
   const temps=tempsCache.filter(t=>!t.deleted);
@@ -9480,7 +9487,7 @@ async function exportTemps(){
       (t.commentaire||'').replace(/;/g,',')
     ].map(csvCell).join(';');
   });
-  const csv='\ufeff'+headers+'\n'+rows.join('\n');
+  const csv='\ufeff'+csvMetaLine('Relevés de temps',temps.length)+headers+'\n'+rows.join('\n');   // [L251 · R6] périmètre DANS le fichier
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   downloadBlob(b,'step_temps_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
@@ -10715,6 +10722,60 @@ function printKpiMois(ym){
   </div>`;
   openPrintWindow(html,true);
 }
+// [L251 · R6] EXPORT CSV « TABLEAU DE BORD » — la revue de direction en un fichier : KPI des mois
+// figés (+ mois courant live), débit par machine (n / médiane / quartiles), qualité, pilotage semaine.
+// Ligne de méta en tête (date, auteur, périmètre, filtre Analyse actif) : le fichier se suffit à lui-même.
+function exportDashboardCsv(){
+  try{
+    const cur=currentMonthYM();
+    const rows=[];
+    const fLbl=_anaFiltered()?('filtre Analyse ACTIF : '+[analyseFilter.mach!=='ALL'?'machine '+analyseFilter.mach:'',analyseFilter.op!=='ALL'?'op '+analyseFilter.op:'',analyseFilter.month!=='ALL'?'mois '+analyseFilter.month:'',analyseFilter.client!=='ALL'?'client '+analyseFilter.client:''].filter(Boolean).join(' · ')+' (KPI/débit/pilotage ci-dessous = TOUT atelier, non filtrés)'):'aucun filtre actif';
+    // ── Section 1 : KPI mensuels (agrégats figés + mois courant) ──
+    rows.push('# --- KPI MENSUELS (mois figés + mois en cours) ---');
+    rows.push(['Mois','Statut','Fiches','Bobines','Perte %','Rendement %','Temps (h)','Bob. NC','Bob. contrôlées','NC %','NC ouvertes','Délai NC (j)','Liv. à temps','Fiches datées','À temps %','Fiches en écart','Chute réut. (m)','Bobineaux stock','FEBA bob','FEBA perte %','FEBA s/laize','MAVEG bob','MAVEG perte %','MAVEG s/laize','CEVENINI bob','CEVENINI perte %','CEVENINI s/laize'].join(';'));
+    const list=agregatsCache.slice().sort((a,b)=>a.mois<b.mois?-1:1);
+    let liveKpi=null; try{ liveKpi=buildMonthlyKpi(cur,fichesCache,tempsCache); }catch(e){}
+    const all=list.filter(a=>a.mois!==cur).concat(liveKpi?[liveKpi]:[]);
+    all.forEach(k=>{
+      const M=k.machines||{}, q=k.qual||null, lv=k.liv||null;
+      const mrow=n=>{const d=M[n]||{};return [d.bobines||0,d.pertePct!=null?d.pertePct:'',d.secLaize||0];};
+      rows.push([k.mois,(k.mois===cur?'EN COURS (live)':'figé'),k.nbFiches||0,k.totalBobines||0,k.pertePct!=null?k.pertePct:'',k.pertePct!=null?Math.round((100-k.pertePct)*10)/10:'',Math.round((k.tempsSec||0)/360)/10,
+        q?q.nc:'n/d',q?q.ctrl:'n/d',(q&&q.ctrl)?Math.round(q.nc/q.ctrl*1000)/10:'n/d',q?q.ouv:'n/d',(q&&q.delaiMoy!=null)?q.delaiMoy:'n/d',
+        lv?lv.ok:'n/d',lv?lv.tot:'n/d',(lv&&lv.tot)?Math.round(lv.ok/lv.tot*1000)/10:'n/d',
+        (typeof k.ecartsN==='number')?k.ecartsN:'n/d',
+        Math.round((k.soldeMm||0)/100)/10,k.chutesPieces||0]
+        .concat(mrow('FEBA')).concat(mrow('MAVEG')).concat(mrow('CEVENINI')).map(csvCell).join(';'));
+    });
+    rows.push('# n/d = mois figé AVANT la version qui calcule ce champ (« ♻ Recalculer ce mois » pour le compléter)');
+    // ── Section 2 : débit par machine ──
+    rows.push('');
+    rows.push('# --- DÉBIT (m/h) PAR MACHINE — relevés chronométrés, relais ventilé ---');
+    rows.push(['Machine','Relevés (n)','Q1 (m/h)','Médiane (m/h)','Q3 (m/h)'].join(';'));
+    const st=dujStatsByMachine();
+    DUJ_MACHINES.forEach(k2=>{ const m=st.byMachine[k2]||{}; rows.push([getMachineLabel(k2),m.n||0,Math.round(m.p25||0),Math.round(m.med||0),Math.round(m.p75||0)].map(csvCell).join(';')); });
+    // ── Section 3 : pilotage semaine ──
+    rows.push('');
+    rows.push('# --- PILOTAGE (instantané semaine en cours) ---');
+    try{
+      const now=new Date(); const todayIso=_plnIso(new Date(now.getFullYear(),now.getMonth(),now.getDate()));
+      const ctx=(typeof _plnSentKeys==='function')?_plnSentKeys():null;
+      const allS=(savesCache||[]).filter(x=>x&&!x.deleted);
+      const cut=x=>{ try{ return _plnDejaCoupe(x,ctx); }catch(e){ return false; } };
+      const late=allS.filter(x=>{ const l=_plnDateLivMin(x); return l&&l<todayIso&&!cut(x); });
+      const pool=allS.filter(x=>!x.plannedDate&&!cut(x));
+      rows.push(['Retards (livraison passée)','À planifier'].join(';'));
+      rows.push([late.length,pool.length].join(';'));
+      if(late.length){
+        rows.push(['# Retards :','Client','Référence','N° commande','Livraison promise','Posée le','Machine'].join(';'));
+        late.forEach(x=>rows.push(['',x.client||'',x.ref||'',x.numCmd||'',_plnDateLivMin(x)||'',x.plannedDate||'non posée',x.plannedMachine?(getMachineLabel(x.plannedMachine)||x.plannedMachine):''].map(csvCell).join(';')));
+      }
+    }catch(e){ rows.push('# pilotage indisponible : '+String(e&&e.message||e)); }
+    const meta=csvMetaLine('Tableau de bord Analyse',all.length+' mois',fLbl);
+    const csv='\ufeff'+meta+rows.join('\n');
+    downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),'step_tableau_de_bord_'+todayISO()+'.csv');
+    showToast('✓ Tableau de bord exporté','ok');
+  }catch(e){ showToast('Erreur export : '+(e&&e.message||e),'err'); }
+}
 function buildKpiMoisBlock(){
   const cur=currentMonthYM();
   const opts=prevMonthsYM(12).map(ym=>{
@@ -10727,6 +10788,7 @@ function buildKpiMoisBlock(){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="kpiMoisSel" onchange="renderKpiMois(this.value)" style="width:auto;max-width:200px">${opts}</select>
         <button onclick="printKpiMois(document.getElementById('kpiMoisSel').value)" class="btn btn-ghost btn-sm" title="Imprimer / PDF — revue de direction ISO 9001" aria-label="Imprimer les KPI du mois">🖨</button>
+        <button onclick="exportDashboardCsv()" class="btn btn-ghost btn-sm" title="Exporter le tableau de bord complet en CSV (KPI 24 mois + débit + pilotage)" aria-label="Exporter le tableau de bord en CSV">⬇ CSV</button><!-- [L251 · R6] -->
       </div>
     </div>
     <div id="kpiMoisContent">${kpiMoisInnerHTML(cur)}</div>
@@ -14535,7 +14597,7 @@ async function exportNc(){
     r.statut==='cloture'?'Clôturé':'Ouvert',(r.actionCorr||'').replace(/[\n;]/g,' '),r.resp||'',
     r.dateTraite?new Date(r.dateTraite).toLocaleDateString('fr-FR'):''
   ].map(csvCell).join(';'));
-  const csv='\uFEFF'+head.join(';')+'\n'+lines.join('\n');
+  const csv='\uFEFF'+csvMetaLine('Registre NC',rows.length)+head.join(';')+'\n'+lines.join('\n');   // [L251 · R6] périmètre DANS le fichier
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   downloadBlob(b,'registre_NC_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
@@ -15209,7 +15271,7 @@ async function exportFiches(){
     f.totalBobines,f.pct,f.tempsStr,
     (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'')
   ].map(csvCell).join(';')).join('\n');
-  const b=new Blob(['\ufeff'+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});
+  const b=new Blob(['\ufeff'+csvMetaLine('Fiches de découpe',fiches.length)+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});   // [L251 · R6] périmètre DANS le fichier
   downloadBlob(b,'step_fiches_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 

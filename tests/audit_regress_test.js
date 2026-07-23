@@ -166,5 +166,14 @@ has(/if\(!e\.target\.closest\('svg'\)\) _atipHide\(\)/,'R5 : tooltip refermable 
 has(/Quelle machine décroche \?/,'R5 : titres reformulés en QUESTIONS dirigeant');
 has(/min-width:430px;border-collapse:collapse/,'R5 : table Pilotage défile proprement sur petit écran');
 
+console.log('── L251 chantier ANALYSE — lot R6 ──');
+has(/function csvMetaLine\(/,'R6 : ligne de méta CSV (date · auteur · périmètre · nb lignes)');
+has(/csvMetaLine\('Relevés de temps',temps\.length\)/,'R6 : périmètre DANS le CSV temps');
+has(/csvMetaLine\('Registre NC',rows\.length\)/,'R6 : périmètre DANS le CSV NC');
+has(/csvMetaLine\('Fiches de découpe',fiches\.length\)/,'R6 : périmètre DANS le CSV fiches');
+has(/function exportDashboardCsv\(/,'R6 : export CSV tableau de bord (KPI 24 mois + débit quartiles + pilotage)');
+has(/step_tableau_de_bord_/,'R6 : nom de fichier daté du tableau de bord');
+has(/n\/d = mois figé AVANT la version/,'R6 : n/d expliqué DANS le fichier (jamais un faux 0 exporté)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
