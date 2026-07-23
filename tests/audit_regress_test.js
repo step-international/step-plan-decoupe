@@ -76,7 +76,7 @@ has(/pièces commandées non produites/,'CRIT#1 v2 : couverture PAR LARGEUR à l
 
 console.log('── L218 régressions revue (diff du jour) ──');
 has(/const _fromResume=_resumeAutoImportGuard; _resumeAutoImportGuard=false;/,'#1 MAJEUR : import auto capture le flag reprise (consommé une fois)');
-has(/if\(!_fromResume\)\{ _resumedForeignDraftId=null; _resumedDraftId=null; \}/,'#1 MAJEUR : reset passation SAUTÉ si import déclenché par la reprise (anti double découpe — régression fix L103)');
+has(/if\(!auto && !_fromResume\)\{ _resumedForeignDraftId=null; _resumedDraftId=null; \}/,'#1 MAJEUR + L245 : reset passation UNIQUEMENT sur régénération MANUELLE (l aller-retour Plan→Fiche ne désarme plus la passation — anti double découpe)');
 has(/_resumeAutoImportGuard=true;   \/\/ \[L218/,'#1 MAJEUR : resumeDraft arme le flag avant showPage(1)');
 has(/const _sibling=\(fichesCache\|\|\[\]\)\.some\(f=>f&&!f\.deleted&&f\._id!==id/,'#2 : cascade temps ne s\'exécute QUE si aucune fiche sœur vivante ne partage le triplet (anti sous-comptage KPI)');
 has(/if\(!show && \(fromClientChange\|\|!hasVal\) && sel\) sel\.value='';/,'#3 : VEKA→non-VEKA interactif VIDE le sous-type (anti-rétention — régression du garde L215)');

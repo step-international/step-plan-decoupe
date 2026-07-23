@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L244';
+const APP_VERSION='2026.07.23-L245';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4036,12 +4036,14 @@ function importPlanToFiche(opts){
     // écrasement confirmé au clic) : cette fiche n'est plus « la reprise du brouillon d'un autre
     // poste » → on DÉSARME la passation, sinon un envoi SANS RAPPORT consommait/écrasait le brouillon
     // AUTO de l'autre poste.
-    // [L218 · régression revue] SAUF si CET import est justement celui déclenché par la reprise (resumeDraft
-    // → showPage(1) → import auto). Une reprise NON coupée est isFicheUntouched()===true : elle ne sortait
-    // donc PAS tôt (L3889) → elle atteignait ce reset → la passation qu'on venait d'armer était effacée →
-    // le brouillon de l'AUTRE poste n'était jamais purgé à l'envoi → il restait proposé au redémarrage =
-    // DOUBLE DÉCOUPE (exactement la régression que L103 avait fermée). Le flag transitoire l'évite.
-    if(!_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }
+    // [L218 · régression revue] SAUF si CET import est celui déclenché par la reprise (resumeDraft →
+    // showPage(1) → import auto) — flag transitoire _fromResume.
+    // [L245 · campagne] ET SAUF pour TOUT import AUTO ultérieur : un simple aller-retour Plan→Fiche avant la
+    // 1re coupe re-passait ici (fiche vierge → pas de sortie tôt) et RE-désarmait la passation → le brouillon
+    // de l'autre poste re-proposé au redémarrage = retour du risque de double découpe. Un changement de
+    // commande passe TOUJOURS par doLoad/newCmd/resetAll qui désarment déjà les flags (L7177/L8829/L17xxx) :
+    // le reset ici n'est donc nécessaire QUE sur la régénération MANUELLE consciente (« TOUT EFFACER »).
+    if(!auto && !_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }
     // L32 — Contrôle de cohérence plan→fiche : le plan manuel couvre-t-il exactement
     // les quantités commandées (bobineaux produits + chutes stock) ? Avertissement
     // NON bloquant (l'opérateur peut continuer) : en auto un toast, au clic une
@@ -5569,6 +5571,13 @@ function _seqMinPalettes(pg,prefix){
   const maxW=g=>Math.max(0,..._pgW(g));
   const base=mid.slice().sort((a,b)=>maxW(b)-maxW(a));            // préférence grandes laizes (stable pour égalités : sort natif stable)
   let bestOrder=base.concat([solde]), bestPeak=_seqPeak(prefix.concat(bestOrder));
+  // [L245 · campagne MAJEUR — évolution MOTEUR délibérée, verdict sceptique SAIN (~9300 cas A/B : jamais pire,
+  // élagage DFS admissible, multiset/solde/déterminisme intacts, +2% perf max)] l'ORDRE MOTEUR D'ORIGINE est
+  // TOUJOURS évalué comme candidat (O(n), solde déjà dernier) : le tri grandes-laizes ou le DFS à budget
+  // pouvaient rendre un pic PIRE que l'ordre brut → repack phasé INUTILE (chute aggravée + solde de milieu
+  // créés) ou >4 palettes livrées avec chutes. L'ordre brut ne gagne que s'il fait STRICTEMENT mieux
+  // (à égalité, la préférence grandes-laizes est conservée).
+  { const rawPeak=_seqPeak(prefix.concat(pg)); if(rawPeak<bestPeak){ bestPeak=rawPeak; bestOrder=pg.slice(); } }
   const lb=Math.max(0,...prefix.concat(pg).map(g=>_pgW(g).length));   // borne : un motif à N largeurs impose N palettes
   if(bestPeak<=PALETTES_MAX||bestPeak<=lb||base.length>12) return {order:bestOrder,peak:bestPeak};
   let _budget=2000;   // [L92 · Audit #1] 9-12 motifs : DFS à BUDGET au lieu d'abandonner — [L103 · audit-max] 200000 nœuds GELAIT l'UI 11-12 s (mesuré, 7 laizes banales, à CHAQUE frappe via recalcPlan ; bien pire sur vieil iPad). Balayage mesuré 500→200000 : résultat STRICTEMENT identique (mêmes bobines/chute/pic — ≤4 se trouve dans les premiers nœuds grâce à l'ordre grandes-laizes, sinon le repack phasé reprend la main). 2000 nœuds ≈ 150 ms au pire, DÉTERMINISTE entre appareils (une borne en temps donnerait des plans différents PC/tablette — interdit règle « toutes les surfaces »)
@@ -8941,7 +8950,16 @@ async function saveCommandeFiche(rows,useful,blade,opts){
           const _victims=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>{
             if(!d||d.consumed||d.kind==='shared'||/^d_shared_/.test(String(d.id))) return false;
             if(/^d_autosave/.test(String(d.id))) return false;
-            if(d.id===_resumedDraftId) return true;
+            if(d.id===_resumedDraftId){
+              // [L245 · sceptique v3] reprise explicite consommée SEULEMENT si même commande — règle unifiée :
+              // n° NON vide et égal (la réf est ignorée : en multi-réf la réf envoyée est un join « A + B » qui
+              // ne matchait jamais → la protection anti-double-reprise était perdue en multi-réf), OU deux n°
+              // vides ET réf égale (sinon la clé dégénérait en client seul → brouillon sans rapport consommé).
+              const _p2=(d.state&&d.state.plan)||{};
+              const _dCmd2=nrm((_p2.numCmd&&_p2.numCmd!=='\u2014')?_p2.numCmd:'');
+              if(nrm(_p2.client||'')!==nrm(client)) return false;
+              return nrm(_ncSend)?(_dCmd2===nrm(_ncSend)):(!_dCmd2&&nrm(_p2.ref||'')===nrm(ref));
+            }
             if(d.fromFicheId) return false;
             if(!nrm(_ncSend)) return false;
             if(d.owner==='?'||_mineIni==='?') return false;   // [L156 · audit #9] identité inconnue (compte machine) : jamais de consommation croisée ('?'==='?' passait la garde)
@@ -17359,7 +17377,26 @@ async function clearCurrentDraft(ficheId){
   // attendant le résultat ; en cas d'échec on marque {consumed:true, ficheId} — ces
   // brouillons sont filtrés au rendu et refusés à la reprise.
   const ids=[autosaveId(), planAutosaveId()];
-  if(_resumedForeignDraftId){ ids.push(_resumedForeignDraftId); _resumedForeignDraftId=null; }   // [L103 · audit-max] passation : le brouillon auto du poste précédent est consommé par CET envoi
+  if(_resumedForeignDraftId){
+    // [L103 · audit-max] passation : le brouillon auto du poste précédent est consommé par CET envoi.
+    // [L245 · sceptique] GARDE DE CONCORDANCE : on ne le consomme QUE si sa commande correspond à celle
+    // réellement envoyée (client + n° cmd) — une commande retapée à la main par-dessus une reprise ne
+    // passe par aucun désarmement (doLoad/newCmd/resetAll) et aurait supprimé le brouillon d'une commande
+    // SANS RAPPORT (le trou originel L193 #8, rouvert par le skip auto). Pas de concordance → brouillon
+    // CONSERVÉ (il restera proposé — jamais de perte, l'inverse du risque).
+    const _fd=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(x=>x&&x.id===_resumedForeignDraftId);
+    const _fp=(_fd&&_fd.state&&_fd.state.plan)||{};
+    const _sCli=nrm(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'');
+    const _sCmd=nrm(((document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'').trim()==='—')?'':(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||''));
+    const _sRef=nrm(document.getElementById('fRef')?.value||'');
+    const _dCmd=nrm((_fp.numCmd&&_fp.numCmd!=='—')?_fp.numCmd:'');
+    // [L245 · sceptique v3] règle unifiée : n° non vide ET égal, OU deux n° vides ET réf égale — sans la réf,
+    // deux commandes SANS n° du même client (réfs différentes) se confondaient → brouillon sans rapport détruit.
+    const _concord=!_fd || (nrm(_fp.client||'')===_sCli && (_sCmd?(_dCmd===_sCmd):(!_dCmd&&nrm(_fp.ref||'')===_sRef)));
+    if(_concord) ids.push(_resumedForeignDraftId);
+    else { try{ logAudit('edit','brouillons',_resumedForeignDraftId,'Passation NON consommée — commande envoyée ('+_sCli+' / '+_sCmd+') sans rapport avec le brouillon repris ('+nrm(_fp.client||'')+' / '+_dCmd+')').catch(function(){}); }catch(_){} }
+    _resumedForeignDraftId=null;
+  }
   // 1) local : ne plus proposer ces brouillons immédiatement
   brouillonsCache=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>ids.indexOf(d.id)<0);
   try{ _planAutosaveLast=JSON.stringify(serializeFicheState().plan); }catch(e){ _planAutosaveLast=''; }   // [L97 · relecture #22] baseline = état COURANT : '' faisait l'INVERSE (le tick suivant recréait le brouillon de la commande qui vient d'être envoyée)
