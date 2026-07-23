@@ -81,7 +81,18 @@ has(/_resumeAutoImportGuard=true;   \/\/ \[L218/,'#1 MAJEUR : resumeDraft arme l
 has(/const _sibling=\(fichesCache\|\|\[\]\)\.some\(f=>f&&!f\.deleted&&f\._id!==id/,'#2 : cascade temps ne s\'exécute QUE si aucune fiche sœur vivante ne partage le triplet (anti sous-comptage KPI)');
 has(/if\(!show && \(fromClientChange\|\|!hasVal\) && sel\) sel\.value='';/,'#3 : VEKA→non-VEKA interactif VIDE le sous-type (anti-rétention — régression du garde L215)');
 has(/updateVekaVisibility\(true\);   \/\/ \[L218\]/,'#3 : onClientChange passe fromClientChange=true');
-has(/\.fiche-film-badge\{font-size:16\.5px\}/,'#4 : taille badge film en CSS (plus en inline) → override atelier 20px prend');
+absent(/class="fiche-film-badge"/,'L222 ergo #9 : bandeau violet Film SUPPRIMÉ (info portée par la carte compacte de réf L217)');
+
+console.log('── L222 ergonomie lot A ──');
+absent(/onclick="resetFicheBobines\(\)"/,'ergo #10 : bouton global « Reset bobines » retiré');
+absent(/Recalcule les écarts \(rattrapage \/ surplus\) sur toute la commande/,'ergo #10 : bouton global « Recalculer les écarts » retiré');
+has(/Recalcule les écarts de cette bobine/,'ergo #11/#12 : bouton « ♻ Recalculer les écarts » RÉTABLI sur chaque bobine');
+absent(/>⬆ Restaurer une sauvegarde<\/button>/,'ergo #2 : bouton « Restaurer une sauvegarde » retiré de l\'UI');
+absent(/>🧊 Archive froide<\/button>/,'ergo #2 : bouton « Archive froide » retiré de l\'UI');
+has(/importFullBackup/,'ergo #2 : importFullBackup conservé en code (réactivable)');
+has(/id="btnLoadFull"[\s\S]{0,120}?Charger l'historique complet/,'ergo #2 : « Charger l\'historique complet » sur la rangée d\'actions');
+absent(/class="fc-cmdline"/,'ergo #6 : bandeau bleu des laizes retiré de la carte fiche');
+has(/ab-confirm/,'ergo #15 : « Confirmer la commande » une seule fois (bouton pleine page masqué quand la barre le porte)');
 
 console.log('── L219/L220 plan de découpe ──');
 has(/class="rb-refchip"/,'L219 : pastille couleur PAR RÉFÉRENCE sur la bande écran du plan');
