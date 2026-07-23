@@ -46,6 +46,17 @@ console.log('── R3 qualité (NC) ──');
   ok(k.qual.ouv===1,'NC ouvertes = 1 (statut absent = ouvert ; clôturée non comptée)');
   ok(k.qual.delaiMoy===7,'délai moyen fiche→clôture = 7 j → '+k.qual.delaiMoy);
 }
+console.log('── L254 dénominateur NC manque-matière ──');
+{
+  const k=buildMonthlyKpi(YM,[
+    // plan de 5 bobines, 2 coupées (dont 1 NC), 3 jamais coupées (manque matière)
+    {date:D(6),totalBobines:5,pct:'3',machine:'FEBA',manqueMatiere:true,ficheDetail:[
+      {coupee:true,ncCasse:true},{coupee:true},{coupee:false},{coupee:false},{coupee:false}
+    ]}
+  ],[]);
+  ok(k.qual.ctrl===2,'contrôlées = 2 (bobines COUPÉES seules — pas les 5 du plan) → '+k.qual.ctrl);
+  ok(k.qual.nc===1&&k.totalBobines===2,'taux NC = 1/2 (50 %), cohérent avec « Bobines » = 2 (plus de contrôlées > bobines)');
+}
 console.log('── R3 ponctualité ──');
 {
   const k=buildMonthlyKpi(YM,[

@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L253';
+const APP_VERSION='2026.07.23-L254';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9466,9 +9466,15 @@ function refreshAnalyseIfPresent(){
 // [L251 · R6] Ligne de MÉTA en tête de CSV (ISO 9001 : le FICHIER dit LUI-MÊME son périmètre — plus
 // seulement la boîte de dialogue au moment de l'export). Préfixée « # » : lisible, ignorée à l'import.
 function csvMetaLine(quoi,n,extra){
-  const par=currentUser?(currentUser.ini||currentUser.nom||'?'):'?';
-  const perim=(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded)?'historique COMPLET':'⚠ données RÉCENTES uniquement (historique complet non chargé — export PARTIEL)';
-  return '# STEP · '+quoi+' · exporté le '+new Date().toLocaleString('fr-FR')+' · par '+par+' · périmètre : '+perim+' · '+(typeof n==='number'?(n+' ligne(s)'):String(n))+(extra?' · '+extra:'')+'\n';   // [L253] n déjà libellé (« 12 mois ») passé tel quel
+  // [L254 · revue ×2 MAJEUR] la ligne de méta n'était PAS passée par csvCell : `par` (initiales opérateur)
+  // et `extra` (nom de client sélectionné) sont attaquant-contrôlés (un compte machine peut saisir un
+  // client « Acme;=cmd|… » — textOk ne borne que la taille). Un « ; » injecté scindait la ligne en cellules
+  // dont une « =… » exécutable à l'ouverture Excel. On neutralise ici : plus de séparateur ni de saut de
+  // ligne dans les valeurs, et tout début de formule (=+-@) désamorcé. Même garde que csvCell (audit #18).
+  const _safe=v=>{ let x=String(v==null?'':v).replace(/[;\r\n\t]/g,' '); if(/^[=+\-@]/.test(x)) x="'"+x; return x; };
+  const par=_safe(currentUser?(currentUser.ini||currentUser.nom||'?'):'?');
+  const perim=(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded)?'historique COMPLET':'donnees RECENTES uniquement (historique complet non charge — export PARTIEL)';
+  return '# STEP · '+_safe(quoi)+' · exporte le '+new Date().toLocaleString('fr-FR')+' · par '+par+' · perimetre : '+perim+' · '+(typeof n==='number'?(n+' ligne(s)'):_safe(n))+(extra?' · '+_safe(extra):'')+'\n';   // [L253] n déjà libellé (« 12 mois »)) passé tel quel
 }
 async function exportTemps(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
@@ -10399,6 +10405,9 @@ function buildFicheAnalytics(){
     const _o2s=parseInt(f.op2Bob,10);
     const _hasRelay=!isNaN(_o2s)&&_o2s>=1&&_o2s<=det.length&&(f.ini2||f.machine2);
     det.forEach((d,di)=>{
+      // [L254 · revue ×2 MAJEUR] même correctif qu'au KPI : les bobines jamais coupées d'un manque-matière
+      // ne comptent pas au dénominateur des taux NC (sinon op.1/machine paraissent meilleurs qu'ils ne sont).
+      if(f.manqueMatiere && d && d.coupee!==true) return;
       const _rel=_hasRelay&&(di+1)>=_o2s;
       const op=(_rel?(f.ini2||f.ini):f.ini)||'?';
       const m=(_rel?(f.machine2||f.machine):f.machine)||'?';
@@ -10594,7 +10603,12 @@ function buildMonthlyKpi(ym,fiches,temps){
     // [L247 · R3] qualité par bobine (NC par type, ouvertes, délai de traitement fiche→clôture en jours)
     const _fin=_pDate(f.date);
     (Array.isArray(f.ficheDetail)?f.ficheDetail:[]).forEach(fd=>{
-      if(!fd) return; qCtrl++;
+      if(!fd) return;
+      // [L254 · revue ×2 MAJEUR] fiche manque-matière : le plan COMPLET est archivé (coupee:false sur les
+      // bobines jamais coupées) → les compter au dénominateur « contrôlées » sous-évaluait le taux NC (ex.
+      // 1/20 au lieu de 1/5) et rendait « contrôlées » > « bobines » dans la même ligne. Aligné sur R2.
+      if(f.manqueMatiere && fd.coupee!==true) return;
+      qCtrl++;
       let _is=false;
       if(fd.ncLarg){qLarg++;_is=true;}
       if(fd.ncQty){qQty++;_is=true;}
@@ -10923,6 +10937,7 @@ function buildTendancesBlock(){
       const pts=vals.map((v,i)=>({v,i})).filter(p=>p.v!=null);
       if(pts.length<2) return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block"><text x="50%" y="55%" text-anchor="middle" fill="#666" font-size="11">pas assez de mois renseignés</text></svg>`;
       let mn=Math.min(...pts.map(p=>p.v)),mx=Math.max(...pts.map(p=>p.v));
+      const mxReal=mx;   // [L254 · revue ×2] série plate (12 mois à 100 %) : l'étiquette « max » doit montrer 100, pas 101 après l'ajustement d'échelle ci-dessous
       if(mx===mn){mx+=1;mn-=1;}
       const X=i=>padX+i*(W-2*padX)/(vals.length-1);
       const Y=v=>padT+(mx-v)*(H-padT-padB)/(mx-mn);
@@ -10937,7 +10952,7 @@ function buildTendancesBlock(){
       const last=pts[pts.length-1];
       out+=`<circle cx="${X(last.i).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="3.5" fill="${color}"/>`;
       out+=`<text x="${padX}" y="${H-2}" fill="#8a8a86" font-size="9">${mLbl(months[0])}</text><text x="${W-padX}" y="${H-2}" text-anchor="end" fill="#8a8a86" font-size="9">${mLbl(months[months.length-1])}</text>`;
-      out+=`<text x="${W-padX}" y="${padT-1}" text-anchor="end" fill="#8a8a86" font-size="9">max ${mx.toLocaleString('fr-FR')}</text>`;
+      out+=`<text x="${W-padX}" y="${padT-1}" text-anchor="end" fill="#8a8a86" font-size="9">max ${mxReal.toLocaleString('fr-FR')}</text>`;
       return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
     };
     const cards=SERIES.map(sr=>{
@@ -10945,16 +10960,23 @@ function buildTendancesBlock(){
       const pts=vals.map((v,i)=>({v,i})).filter(p=>p.v!=null);
       const last=pts.length?pts[pts.length-1]:null;
       const prev=pts.length>1?pts[pts.length-2]:null;
+      // [L254 · revue ×2] la flèche « vs mois précédent » n'a de sens qu'entre deux mois CONSÉCUTIFS : avec
+      // des trous (mois figés avant L247), last et prev pouvaient être à plusieurs mois d'écart → « ▲ +2 »
+      // lu comme mois-sur-mois alors qu'il saute des mois. On n'affiche la flèche que si i diffère de 1.
       let trend='';
-      if(last&&prev){
+      if(last&&prev&&(last.i-prev.i)===1){
         const d=Math.round((last.v-prev.v)*10)/10;
         if(d!==0){ const up=d>0,good=sr.goodDown?!up:up;
-          trend=`<span style="font-size:12px;font-weight:700;color:${good?'#4ade80':'#f87171'}">${up?'▲':'▼'} ${up?'+':''}${d.toLocaleString('fr-FR')}</span>`; }
-        else trend='<span style="font-size:12px;color:#999">=</span>';
+          trend=`<span style="font-size:12px;font-weight:700;color:${good?'#4ade80':'#f87171'}">${up?'▲':'▼'} ${up?'+':''}${d.toLocaleString('fr-FR')} vs mois préc.</span>`; }
+        else trend='<span style="font-size:12px;color:#999">= mois préc.</span>';
       }
+      // [L254 · revue ×2] si le dernier point renseigné n'est PAS le mois en cours (dernière colonne), la
+      // grande valeur est DATÉE — un dirigeant ne lit plus un chiffre de 5 mois comme l'état actuel.
+      const _lastCur=last&&last.i===(vals.length-1);
+      const _headDate=(last&&!_lastCur)?` <span style="font-size:11px;font-weight:600;color:#999">(${mLbl(months[last.i])})</span>`:'';
       return `<div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px">
         <div style="font-size:12px;font-weight:700;color:#ccc;margin-bottom:6px">${sr.q}</div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><span style="font-size:20px;font-weight:800;color:${sr.color}">${last?last.v.toLocaleString('fr-FR')+sr.unit:'—'}</span>${trend}</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap"><span style="font-size:20px;font-weight:800;color:${sr.color}">${last?last.v.toLocaleString('fr-FR')+sr.unit:'—'}</span>${_headDate}${trend}</div>
         ${spark(vals,sr.color)}
       </div>`;
     }).join('');
@@ -13132,7 +13154,14 @@ function analyseFilterBar(allTemps){
   const MACHS=MACHINE_LABELS, C={FEBA:'#60a5fa',MAVEG:'#4ade80',CEVENINI:'#a78bfa'};
   const machs=MACHS.filter(m=>allTemps.some(t=>String(t.machine||'').toUpperCase()===m));
   const ops=[...new Set(allTemps.map(t=>String(t.operateur||'').trim()).filter(Boolean))].sort();
-  const months=[...new Set(allTemps.map(t=>String(t.date||'').slice(0,7)).filter(s=>s.length===7))].sort().reverse();
+  // [L254 · revue ×2] mois en LOCAL (le filtrage utilise _ymLoc/_ymL local) — sinon un relevé de nuit du
+  // 1er, rangé sous le mois UTC précédent, devient infiltrable. + on inclut les mois des FICHES (le filtre
+  // agit aussi sur les blocs NC) : un mois qui n'a que des fiches était absent de la liste.
+  const _ymL2=ds=>{ const d=new Date(ds); return isNaN(d)?String(ds||'').slice(0,7):d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+  const months=[...new Set([].concat(
+    allTemps.map(t=>_ymL2(t.date)),
+    (typeof fichesCache!=='undefined'?fichesCache:[]).filter(f=>f&&!f.deleted&&f.valide!==false).map(f=>_ymL2(f.date))
+  ).filter(s=>/^\d{4}-\d{2}$/.test(s)))].sort().reverse();
   const pill=(dim,val,txt,color,active)=>`<button onclick="setAnalyseFilter('${dim}','${val}')" style="border:1.5px solid ${active&&color?color:'var(--border2)'};background:${active?'rgba(255,255,255,.06)':'#1a1a18'};color:${active&&color?color:(active?'var(--text)':'var(--muted)')};font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:20px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">${color?`<span style="width:9px;height:9px;border-radius:50%;background:${color}"></span>`:''}${txt}</button>`;
   const grp=(lbl,html)=>`<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${lbl}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${html}</div></div>`;
   const monthLbl=m=>{const a=m.split('-');return (_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0];};
@@ -15248,7 +15277,7 @@ async function restoreItem(collection,id){
     // [L128 · audit #17] rafraîchir l'onglet cible + les badges (sinon l'utilisateur croit la restauration ratée).
     try{
       if(collection==='saves'){ if(document.getElementById('savesList')&&typeof renderSaves==='function') renderSaves(); if(document.getElementById('planningContent')&&typeof renderPlanning==='function') renderPlanning(); }
-      else if(collection==='temps'){ if(typeof renderTemps==='function') renderTemps(); }
+      else if(collection==='temps'){ if(typeof dujSamplesInvalidate==='function') dujSamplesInvalidate(); if(typeof renderTemps==='function') renderTemps(); }   // [L254 · revue ×2] la restauration déflague en place → clé mémo inchangée : invalider explicitement (sinon Débit/estimateur/Planning périmés)
       else if(collection==='fiches'){ if(typeof renderFiches==='function') renderFiches(); if(typeof renderNc==='function') renderNc(); }
       if(typeof updateTabBadges==='function') updateTabBadges();
     }catch(_){}
@@ -17789,18 +17818,15 @@ function _supersededManualDrafts(newId,newLabel,newDraft){
     if(d.fromSend) return false;
     if(d.owner==='?'||me==='?') return false;   // [L156 · audit #9] identité INCONNUE (compte machine sans initiales) : jamais de supersession croisée — '?'==='?' aurait fait consommer le brouillon d'un AUTRE poste
     if(d.owner&&me&&d.owner!==me) return false;   // [L113 · audit #7] JAMAIS le brouillon manuel d'un AUTRE poste (les legacy sans owner restent supersédables par leur créateur)
-    if(hasNum) return d.label===newLabel;   // n° NON vide : même « client / n° » (comportement historique)
-    // [L252 · reco sceptique v3 (L245)] règle de CONCORDANCE unifiée, même sémantique que la passation :
-    // deux « sans n° » ne se remplacent QUE si même client (label égal) ET même réf NON vide ET l'ancien
-    // n'a pas de n° caché dans son état. Avant : deux brouillons « sans n° » du même travail ne se
-    // remplaçaient JAMAIS → doublons accumulés dans Données > Brouillons.
-    if(d.label!==newLabel) return false;
-    const _np=(newDraft&&newDraft.state&&newDraft.state.plan)||{};
-    const _dp=(d.state&&d.state.plan)||{};
-    const _dCmd=nrm((_dp.numCmd&&_dp.numCmd!=='—')?_dp.numCmd:'');
-    if(_dCmd) return false;   // l'ancien porte un n° dans son état → travail différent, jamais consommé
-    const _r=nrm(_np.ref||'');
-    return _r!==''&&nrm(_dp.ref||'')===_r;
+    // [L254 · revue ×2 MAJEUR — REVERT de l'extension L252] deux brouillons « sans n° » du MÊME client+réf
+    // peuvent être DEUX commandes distinctes (n° pas encore attribués, laizes/quantités différentes).
+    // L'extension L252 les consommait sur la seule concordance client+réf → perte SILENCIEUSE du plan de
+    // l'autre (les brouillons « consumed » ne sont dans AUCUNE corbeille, purge à 45 j). Le seul « même
+    // travail » sûr sans n° est la reprise EXPLICITE, déjà traitée plus haut (_resumedDraftId). On revient
+    // donc au comportement d'avant L252 : sans n° et non repris → jamais supersédé (des doublons sûrs
+    // valent mieux qu'une perte de données). La reco sceptique v3 visait la concordance à l'ENVOI (acte
+    // conscient, cible unique) — pas la rafle au parcage.
+    return hasNum && d.label===newLabel;
   });
 }
 // Marque les anciens brouillons consumed (soft) : disparaissent de Données > Brouillons (renderDrafts

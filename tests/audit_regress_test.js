@@ -177,8 +177,8 @@ has(/n\/d = mois figé AVANT la version/,'R6 : n/d expliqué DANS le fichier (ja
 
 console.log('── L252 restes chantier ──');
 has(/function _supersededManualDrafts\(newId,newLabel,newDraft\)\{/,'L252 : anti-doublon brouillons reçoit l\'état du nouveau brouillon');
-has(/if\(hasNum\) return d\.label===newLabel;/,'L252 : comportement historique CONSERVÉ pour les brouillons avec n°');
-has(/l'ancien porte un n° dans son état/,'L252 : concordance unifiée sans n° (même client + même réf + ancien sans n° caché) — reco sceptique v3');
+has(/return hasNum && d\.label===newLabel;\n  \}\);/,'L252→L254 : brouillons avec n° = concordance client+n° (comportement historique) ; sans n° non repris = jamais supersédé (sûr)');
+absent(/l'ancien porte un n° dans son état/,'L254 : extension L252 « sans n° » RETIRÉE (annulée par le revert — perte de données confirmée ×2)');
 has(/function _openTempsBox\(/,'L252 : drill-down Débit → relevés de temps (tempsBox)');
 
 console.log('── L253 revue adversariale du chantier (3 confirmés ×2 + 2 corrigés par prudence) ──');
@@ -189,7 +189,19 @@ has(/if\(_ks&&_ks\.value&&_ks\.value!==currentMonthYM\(\)\) renderKpiMois\(_ks\.
 has(/const el2=document\.getElementById\('kpiFichesList'\)\|\|el;/,'L253 : drill-down fiches — re-lookup du nœud VIVANT après l\'await (plus d\'écriture dans un élément détaché)');
 has(/snap\.metadata&&snap\.metadata\.fromCache/,'L253 : hors-ligne dit HONNÊTEMENT que la liste vient du cache local (possiblement partielle)');
 has(/async function exportDashboardCsv\(\)\{/,'L253 : export tableau de bord passe par ensureFullHistory comme TOUS les autres exports');
-has(/typeof n==='number'\?\(n\+' ligne\(s\)'\):String\(n\)/,'L253 : méta CSV — unité correcte (« 12 mois », plus « 12 mois ligne(s) »)');
+has(/typeof n==='number'\?\(n\+' ligne\(s\)'\):_safe\(n\)/,'L253→L254 : méta CSV — unité correcte (« 12 mois ») + valeur neutralisée');
+
+console.log('── L254 revue adversariale passe 2 (7 confirmés ×2 : logique + sécurité) ──');
+has(/if\(f\.manqueMatiere && fd\.coupee!==true\) return;/,'L254 MAJEUR : dénominateur NC du KPI exclut les bobines jamais coupées d\'un manque-matière (taux juste)');
+has(/if\(f\.manqueMatiere && d && d\.coupee!==true\) return;/,'L254 MAJEUR : idem dans buildFicheAnalytics (taux NC op/machine non gonflés)');
+has(/REVERT de l'extension L252/,'L254 MAJEUR : brouillons « sans n° » ne se consomment plus sur client+réf seul (plus de perte silencieuse)');
+has(/return hasNum && d\.label===newLabel;\n  \}\);/,'L254 : _supersededManualDrafts revenu au comportement sûr d\'avant L252');
+has(/const _safe=v=>\{ let x=String\(v==null\?''.*replace\(\/\[;/,'L254 MAJEUR : csvMetaLine neutralise ; \\r \\n et les débuts de formule (=+-@) — anti-injection CSV');
+has(/else if\(collection==='temps'\)\{ if\(typeof dujSamplesInvalidate==='function'\) dujSamplesInvalidate\(\);/,'L254 : restauration d\'un relevé invalide le mémo débit (Débit/estimateur/Planning à jour)');
+has(/const mxReal=mx;/,'L254 : sparkline — étiquette « max » = vrai maximum (série plate ne montre plus max+1)');
+has(/if\(last&&prev&&\(last\.i-prev\.i\)===1\)\{/,'L254 : tendances — flèche « vs mois préc. » seulement entre mois CONSÉCUTIFS (trous respectés)');
+has(/const _lastCur=last&&last\.i===\(vals\.length-1\);/,'L254 : tendances — valeur en tête DATÉE si le dernier point n\'est pas le mois courant');
+has(/allTemps\.map\(t=>_ymL2\(t\.date\)\)/,'L254 : filtre « Mois » construit en LOCAL + inclut les mois des fiches');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
