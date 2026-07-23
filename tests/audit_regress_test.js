@@ -175,5 +175,11 @@ has(/function exportDashboardCsv\(/,'R6 : export CSV tableau de bord (KPI 24 moi
 has(/step_tableau_de_bord_/,'R6 : nom de fichier daté du tableau de bord');
 has(/n\/d = mois figé AVANT la version/,'R6 : n/d expliqué DANS le fichier (jamais un faux 0 exporté)');
 
+console.log('── L252 restes chantier ──');
+has(/function _supersededManualDrafts\(newId,newLabel,newDraft\)\{/,'L252 : anti-doublon brouillons reçoit l\'état du nouveau brouillon');
+has(/if\(hasNum\) return d\.label===newLabel;/,'L252 : comportement historique CONSERVÉ pour les brouillons avec n°');
+has(/l'ancien porte un n° dans son état/,'L252 : concordance unifiée sans n° (même client + même réf + ancien sans n° caché) — reco sceptique v3');
+has(/function _openTempsBox\(/,'L252 : drill-down Débit → relevés de temps (tempsBox)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

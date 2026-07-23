@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L251';
+const APP_VERSION='2026.07.23-L252';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12611,6 +12611,7 @@ function buildDebitToolbox(){
     <div style="padding:0 16px 16px">
     ${indicatif}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${machRows}</div>
+    <div style="text-align:right;margin:-4px 0 10px"><button class="btn btn-ghost btn-sm" onclick="_openTempsBox()">📜 Voir les relevés de temps</button></div><!-- [L252 · R4b reporté] drill-down débit → relevés -->
     ${laizeBlock}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
       ${tabBtn('est','⏱ Durée commande',true)}${tabBtn('cap','📊 Capacité')}
@@ -12969,6 +12970,12 @@ async function _kpiFichesToggle(ym){
   }catch(e){ el.innerHTML='<div style="padding:12px;color:#f87171;font-size:13px">Erreur de chargement : '+esc(e.message||String(e))+'</div>'; }
 }
 // [L249 · R4b] DRILL-DOWN NC : ouvre le Registre NC (bloc repliable ncBox, pilotage/admin).
+// [L252 · R4b reporté] DRILL-DOWN Débit : ouvre le bloc Relevés de temps (tempsBox, même modèle que ncBox).
+function _openTempsBox(){
+  const b=document.getElementById('tempsBox'); if(!b) return;
+  b.open=true;
+  try{ b.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ b.scrollIntoView(); }
+}
 function _openNcRegistre(){
   const b=document.getElementById('ncBox'); if(!b) return;
   b.open=true;
@@ -17732,7 +17739,7 @@ async function saveDraftManual(){
   // autosave / partagé / solde / brouillon d'un autre poste. Écritures BORNÉES (audit #5 : hors-ligne,
   // un set() non borné gelait le flux Parquer).
   if(local){
-    try{ const _old=_supersededManualDrafts(draft.id,label); if(_old.length){ await _consumeSupersededDrafts(_old,draft.id); if(document.getElementById('draftsList')) renderDrafts(); } }catch(e){ console.warn('Anti-doublon brouillon :',e&&e.message); }
+    try{ const _old=_supersededManualDrafts(draft.id,label,draft); if(_old.length){ await _consumeSupersededDrafts(_old,draft.id); if(document.getElementById('draftsList')) renderDrafts(); } }catch(e){ console.warn('Anti-doublon brouillon :',e&&e.message); }
   }
   if(firestore) showToast('💾 Brouillon enregistré — Données > Brouillons','ok');
   else if(local) showToast('💾 Brouillon gardé en LOCAL sur ce poste (base indisponible) — il partira au retour réseau.','ok');
@@ -17745,7 +17752,7 @@ async function saveDraftManual(){
 // libellé « client / n° » (n° NON vide → jamais deux « sans n° » confondus). Exclus : autosave
 // (id fixe, se gère seul), partagés, soldes (fromFicheId, gérés à la main), filets « non envoyé »
 // (fromSend) SAUF s'ils sont justement celui repris.
-function _supersededManualDrafts(newId,newLabel){
+function _supersededManualDrafts(newId,newLabel,newDraft){
   const hasNum=!/\/\s*sans n°\s*$/.test(String(newLabel||''));
   const me=(typeof _ini==='function')?_ini():'';
   return (Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(d){
@@ -17756,7 +17763,18 @@ function _supersededManualDrafts(newId,newLabel){
     if(d.fromSend) return false;
     if(d.owner==='?'||me==='?') return false;   // [L156 · audit #9] identité INCONNUE (compte machine sans initiales) : jamais de supersession croisée — '?'==='?' aurait fait consommer le brouillon d'un AUTRE poste
     if(d.owner&&me&&d.owner!==me) return false;   // [L113 · audit #7] JAMAIS le brouillon manuel d'un AUTRE poste (les legacy sans owner restent supersédables par leur créateur)
-    return hasNum && d.label===newLabel;
+    if(hasNum) return d.label===newLabel;   // n° NON vide : même « client / n° » (comportement historique)
+    // [L252 · reco sceptique v3 (L245)] règle de CONCORDANCE unifiée, même sémantique que la passation :
+    // deux « sans n° » ne se remplacent QUE si même client (label égal) ET même réf NON vide ET l'ancien
+    // n'a pas de n° caché dans son état. Avant : deux brouillons « sans n° » du même travail ne se
+    // remplaçaient JAMAIS → doublons accumulés dans Données > Brouillons.
+    if(d.label!==newLabel) return false;
+    const _np=(newDraft&&newDraft.state&&newDraft.state.plan)||{};
+    const _dp=(d.state&&d.state.plan)||{};
+    const _dCmd=nrm((_dp.numCmd&&_dp.numCmd!=='—')?_dp.numCmd:'');
+    if(_dCmd) return false;   // l'ancien porte un n° dans son état → travail différent, jamais consommé
+    const _r=nrm(_np.ref||'');
+    return _r!==''&&nrm(_dp.ref||'')===_r;
   });
 }
 // Marque les anciens brouillons consumed (soft) : disparaissent de Données > Brouillons (renderDrafts
