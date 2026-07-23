@@ -546,6 +546,7 @@ body.atelier .ini-btn{font-size:18px;padding:14px 18px;min-width:64px}
 body.atelier [id^="coupeeBtn_"]{font-size:18px !important;padding:16px !important;min-height:60px !important}
 body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
+body.atelier #planDriftBanner{font-size:17px;padding:15px}/* [L221] bannière dérive plan→fiche lisible avec gants */
 @media(max-width:1099px){ body.has-actionbar.ab-progress #coupeeBanner{display:none!important} }/* [L121·T4-A3] progression déjà portée par la barre d'action fixe en bas → pas de doublon · [L126·audit #23] seulement quand la barre porte la jauge · [L144] même point de rupture que la barre (≤1099px, iPad inclus) */
 /* [L142 · ergo #21] iOS zoome au focus de tout champ < 16px : sur TÉLÉPHONE on force 16px sur les contrôles de saisie (l'iPad ne zoome pas → inchangé ; desktop inchangé). Évite le pincer-dézoomer à chaque saisie (filtres, modales d'édition, notes). */
 @media(max-width:700px){ select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=range]){font-size:16px!important} body.atelier textarea{font-size:18px!important} }/* [L148 · revue #12] le 16px anti-zoom ne doit pas RABAISSER les champs volontairement plus grands du mode atelier (textarea 18px) — 18px prévient aussi le zoom iOS */
@@ -1437,6 +1438,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   </div>
 
   <div id="ficheProgress" style="display:none" aria-hidden="false"></div><!-- [L179 · maquette v2] barre d'avancement « X/N coupées » (segments : vert coupé · hachures NC · gris restant) — remplie par updateCoupeeStatus, présentation pure -->
+  <div id="planDriftBanner" style="display:none;margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#3a2a10;border:1.5px solid var(--orange);color:var(--text);font-size:14px;font-weight:600"></div><!-- [L221 · bug Dominique] dérive plan→fiche rendue VISIBLE (machine/chute modifiées au plan après début de découpe) -->
   <div id="ficheLines"></div>
 
   <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
@@ -1759,7 +1761,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.22-L220';
+const APP_VERSION='2026.07.23-L221';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3784,6 +3786,55 @@ function openFileOverlay(url){
 // ============================================================
 // NAVIGATION
 // ============================================================
+// [L221 · bug Dominique] DÉTECTEUR DE DÉRIVE plan→fiche. La fiche est un SNAPSHOT : dès qu'une bobine est
+// engagée, l'import auto Plan→Fiche sort EN SILENCE (isFicheUntouched est GLOBAL, pas par réf) — une modif
+// du PLAN (machine d'une réf, rouleau chute ajouté) faite par un 2ᵉ opérateur après le début de découpe
+// n'atteint donc jamais la fiche, sans aucun signal. Ici on rend la dérive VISIBLE : à chaque arrivée sur
+// l'onglet Fiche, on compare réf par réf (machine + rouleaux chute) le plan courant au snapshot fiche, pour
+// les réfs NON engagées uniquement (aucune ligne coupée/photo/NC/déchet/chute de CETTE réf → zéro risque de
+// faux positif sur le travail terrain). AUCUNE mutation automatique : bannière + bouton qui route vers le
+// chemin ÉPROUVÉ recalcEcartsFromFiche (conserve les coupées, régénère le reliquat avec machine + chutes).
+function _fichePlanDriftCheck(){
+  const el=document.getElementById('planDriftBanner'); if(!el) return;
+  const hide=()=>{ el.style.display='none'; el.innerHTML=''; };
+  try{
+    if(typeof isFicheUntouched==='function'&&isFicheUntouched()){ hide(); return; }   // fiche vierge : l'import auto vient de tourner, pas de dérive possible
+    if(!ficheLines.length){ hide(); return; }
+    const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+    if(!computed.length){ hide(); return; }
+    const data=getFicheLinesData();
+    const engagedOf=d=>d.coupee||!!d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||!!(d.ncDetail||'').trim();
+    const drifts=[];
+    computed.forEach(c=>{
+      const key=_refIdKey(c);
+      const lines=data.filter(d=>d.refIdKey===key);
+      if(!lines.length) return;                          // réf absente du snapshot (fiche pas encore générée pour elle) : flux normal
+      if(lines.some(engagedOf)) return;                  // réf ENGAGÉE : jamais de signal ici — le travail terrain prime
+      const msgs=[];
+      const mach=(c.machine||'').trim();
+      if(mach && !lines.some(d=>(d.machine||'')===mach)) msgs.push('machine → '+getMachineLabel(mach));
+      const planRec=(c.recutBobines||[]).length, ficheRec=lines.filter(d=>d.recut).length;
+      if(planRec!==ficheRec) msgs.push(planRec>ficheRec?('+'+(planRec-ficheRec)+' rouleau(x) chute à recouper'):((ficheRec-planRec)+' rouleau(x) chute retiré(s)'));
+      if(msgs.length) drifts.push('🎞 '+esc(c.ref||'?')+' — '+esc(msgs.join(' · ')));
+    });
+    if(!drifts.length){ hide(); return; }
+    const shared=(typeof _shareCurrentDocId==='function')&&_shareCurrentDocId();
+    el.innerHTML='⚠ <b>Le plan a changé</b> mais la fiche ne le reflète pas encore :<br>'+drifts.join('<br>')
+      +(shared
+        ?'<div style="margin-top:6px">🔒 Commande PARTAGÉE : arrête le partage, puis clique « 🔄 Changement plan » pour répercuter (les bobines coupées seront conservées).</div>'
+        :'<div style="margin-top:8px"><button class="btn btn-blue" onclick="_applyPlanDriftFix()">🔄 Appliquer le changement de plan — les bobines coupées sont conservées</button></div>');
+    el.style.display='';
+  }catch(e){ hide(); }
+}
+// Bouton de la bannière : route vers recalcEcartsFromFiche({force}) — le MÊME chemin que « 🔄 Changement
+// plan » (conserve les coupées, régénère machine + rouleaux chute du reliquat), avec confirmation.
+function _applyPlanDriftFix(){
+  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){ showToast('🔒 Partage actif — arrête le partage d\'abord.','err'); return; }
+  if(!confirm('Répercuter le plan modifié sur la fiche ?\n\nLes bobines déjà coupées seront CONSERVÉES ; seul le reste est régénéré depuis le plan (machine, rouleaux chute, reliquat).')) return;
+  const _res=recalcEcartsFromFiche({force:true});
+  if(!_res||!_res.started) showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err');
+  setTimeout(function(){ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); },900);
+}
 function showPage(i){
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
@@ -3791,7 +3842,8 @@ function showPage(i){
   // Au passage sur la Fiche : import auto depuis le Plan (silencieux, ne touche pas si déjà travaillé).
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
   if(i===1){ try{ clearTimeout(_recalcPlanTimer); recalcPlan(); }catch(e){}   /* [L140 · audit #20] purger le recalcul débouncé (comme printPlan L6320) : sinon adaptPlanManualToInputs n'a pas tourné → la fiche calcule solde/chute/cumul sur d'ANCIENNES dimensions (useful/blade périmés) */
-    importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }
+    importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn();
+    if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }   /* [L221 · bug Dominique] l'import auto sort en silence si la fiche est touchée → on signale la dérive plan→fiche au lieu de la taire */
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
   try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement

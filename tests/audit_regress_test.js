@@ -91,5 +91,13 @@ has(/if\(perte>optPerte\+1e-9\) return;/,'L220 : sélecteur DOMINANT — ne pren
 has(/const optPerte=opt\.waste-_reuse\(opt\.keys\)/,'L220 : DOMINANT en 2 passes (optimum rendement, puis min solde-milieu sous contrainte perte ≤ optimum)');
 has(/phaseEndSolde:Math\.max\(0,c\.useful-calcStats\(_lp,c\.blade\)\.total\)/,'L220 : solde de fin de phase calculé par tranche (même déf. que le marquage _phaseEnd)');
 
+console.log('── L221 dérive plan→fiche (bug Dominique) ──');
+has(/function _fichePlanDriftCheck\(\)/,'L221 : détecteur de dérive plan→fiche présent');
+has(/id="planDriftBanner"/,'L221 : bannière de dérive dans la page Fiche');
+has(/if\(typeof _fichePlanDriftCheck==='function'\) _fichePlanDriftCheck\(\);/,'L221 : check branché sur l\'arrivée onglet Fiche (showPage 1)');
+has(/if\(lines\.some\(engagedOf\)\) return;/,'L221 : réf ENGAGÉE jamais signalée (le travail terrain prime — zéro faux positif)');
+has(/function _applyPlanDriftFix\(\)\{[\s\S]{0,400}?recalcEcartsFromFiche\(\{force:true\}\)/,'L221 : bouton bannière route vers recalcEcartsFromFiche({force:true}) — chemin éprouvé qui conserve les coupées');
+has(/_applyPlanDriftFix\(\)\{\n?\s*if\(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId\(\)\)/,'L221 : garde partage AVANT toute mutation (verrous cuts par position protégés)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
