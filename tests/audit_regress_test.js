@@ -93,6 +93,11 @@ has(/importFullBackup/,'ergo #2 : importFullBackup conservé en code (réactivab
 has(/id="btnLoadFull"[\s\S]{0,120}?Charger l'historique complet/,'ergo #2 : « Charger l\'historique complet » sur la rangée d\'actions');
 absent(/class="fc-cmdline"/,'ergo #6 : bandeau bleu des laizes retiré de la carte fiche');
 has(/ab-confirm/,'ergo #15 : « Confirmer la commande » une seule fois (bouton pleine page masqué quand la barre le porte)');
+has(/id="etiqPhotoInput"/,'L226 ergo #14 : input caméra étiquettes présent');
+has(/name:'Étiquette '\+\(\+\+n\)/,'L226 ergo #14 : photos étiquettes poussées dans commandeFiles (archivées avec la fiche + PDF)');
+has(/if\(!bandHtml\) return;/,'L224 : bande verte de réf supprimée (séparateur rendu SEULEMENT au changement de machine)');
+has(/function plnResetAll/,'L223 ergo #3 : Reset du planning présent (via gardien plnSetPlan)');
+has(/id="ncBox"/,'L223 ergo #13 : Registre NC dans Analyse (repliable)');
 
 console.log('── L219/L220 plan de découpe ──');
 has(/class="rb-refchip"/,'L219 : pastille couleur PAR RÉFÉRENCE sur la bande écran du plan');

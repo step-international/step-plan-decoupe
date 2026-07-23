@@ -1444,6 +1444,10 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
     <div class="section-title">🏷️ Étiquette solde — bobine mère restante</div>
     <div id="etiquetteSoldeList"><div style="font-size:13px;color:var(--muted)">—</div></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border2)"><!-- [L226 · ergo #14] photos d'ÉTIQUETTES : capturées à la caméra, rattachées à la commande (commandeFiles) → archivées avec la fiche, visibles au détail + PDF -->
+      <button class="btn btn-blue" style="min-height:48px" onclick="document.getElementById('etiqPhotoInput').click()">📷 Photographier une étiquette</button>
+      <div id="etiqPhotoZone" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+    </div>
   </div>
 
   <!-- [L64 · Lot 6] Récap emballage PAR CLIENT (affiché uniquement en multi-clients) -->
@@ -1695,6 +1699,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 <input type="file" id="efPhotoFileInput" accept="image/*" capture="environment" style="display:none">
 <input type="file" id="blFileInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
 <input type="file" id="commandeFilesInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple style="display:none">
+<input type="file" id="etiqPhotoInput" accept="image/*" capture="environment" multiple style="display:none"><!-- [L226 · ergo #14] caméra étiquettes -->
 
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -1761,7 +1766,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L225';
+const APP_VERSION='2026.07.23-L226';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3706,6 +3711,32 @@ document.getElementById('commandeFilesInput').addEventListener('change',async fu
   }
   refreshCommandePhotoZone();
 });
+// [L226 · ergo #14] PHOTOS D'ÉTIQUETTES (demande Esteban) : capture caméra depuis la FICHE, poussées dans
+// commandeFiles (nom « Étiquette N ») → même cycle de vie que les fichiers commande : sauvegardées avec le
+// plan (L7019), ARCHIVÉES avec la fiche (saveCommandeFiche), visibles au détail + PDF (L14177), brouillons OK.
+document.getElementById('etiqPhotoInput').addEventListener('change',async function(){
+  const files=Array.from(this.files||[]); this.value='';
+  if(!files.length) return;
+  const z=document.getElementById('etiqPhotoZone');
+  if(z) z.insertAdjacentHTML('afterbegin','<span id="etiqUploadingMsg" style="color:var(--muted);font-size:13px">⏳ Upload en cours…</span>');
+  let n=(commandeFiles||[]).filter(f=>f&&/^Étiquette /.test(f.name||'')).length;
+  for(const file of files){
+    try{
+      const blob=storage?await compressImageBlob(file,1400,0.7):null;
+      const url=storage?await uploadCommandeFile(blob,'jpg','image/jpeg'):await compressImage(file,1400,0.7);
+      commandeFiles.push({url,type:'image',name:'Étiquette '+(++n)});
+    }catch(e){ showToast('Erreur photo étiquette : '+e.message,'err'); }
+  }
+  try{ refreshCommandePhotoZone(); }catch(e){}
+  refreshEtiqPhotoZone();
+  showToast('📷 Étiquette(s) enregistrée(s) — archivées avec la fiche','ok');
+});
+function refreshEtiqPhotoZone(){
+  const z=document.getElementById('etiqPhotoZone'); if(!z) return;
+  const m=document.getElementById('etiqUploadingMsg'); if(m) m.remove();
+  const items=[]; (commandeFiles||[]).forEach((f,i)=>{ if(f&&f.type==='image'&&/^Étiquette /.test(f.name||'')) items.push({f,i}); });
+  z.innerHTML=items.map(({f,i})=>`<img src="${esc(f.url)}" alt="${esc(f.name)}" title="${esc(f.name)} — toucher pour agrandir" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border2);cursor:pointer" onclick="openCommandeFile(${i})">`).join('');
+}
 async function uploadCommandeFile(blob,ext,contentType){
   const ts=Date.now();
   const path='commande/CMD_'+ts+'_'+Math.floor(Math.random()*9999)+'.'+ext;
@@ -3843,7 +3874,8 @@ function showPage(i){
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
   if(i===1){ try{ clearTimeout(_recalcPlanTimer); recalcPlan(); }catch(e){}   /* [L140 · audit #20] purger le recalcul débouncé (comme printPlan L6320) : sinon adaptPlanManualToInputs n'a pas tourné → la fiche calcule solde/chute/cumul sur d'ANCIENNES dimensions (useful/blade périmés) */
     importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn();
-    if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }   /* [L221 · bug Dominique] l'import auto sort en silence si la fiche est touchée → on signale la dérive plan→fiche au lieu de la taire */
+    if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck();   /* [L221 · bug Dominique] l'import auto sort en silence si la fiche est touchée → on signale la dérive plan→fiche au lieu de la taire */
+    if(typeof refreshEtiqPhotoZone==='function') refreshEtiqPhotoZone(); }   /* [L226 · ergo #14] vignettes étiquettes à jour en arrivant sur la Fiche (couvre doLoad/brouillon/reset) */
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
   try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement
