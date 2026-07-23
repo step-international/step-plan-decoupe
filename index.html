@@ -807,8 +807,10 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 @media(min-width:1100px){
   #page1.active{display:grid;grid-template-columns:minmax(400px,480px) 1fr;gap:0 18px;align-items:start;align-content:start}
   #page1.active>*{grid-column:1;min-width:0}
-  #page1.active>#ficheLines{grid-column:2;grid-row:1/span 40}
-  #page1.active>div:has(#sendPlanBtn){grid-column:2;grid-row:41}
+  #page1.active>#ficheProgress{grid-column:2;grid-row:1}/* [L234 · demande Esteban] le décompte « X/N coupées » vit AU-DESSUS de la 1re bobine (colonne des bobines), pas dans la colonne gauche */
+  #page1.active>#planDriftBanner{grid-column:2;grid-row:2}/* la bannière de dérive concerne la liste des bobines → même colonne */
+  #page1.active>#ficheLines{grid-column:2;grid-row:3/span 40}
+  #page1.active>div:has(#sendPlanBtn){grid-column:2;grid-row:43}
 }
 /* ===== [L117 · 📅 Planning — refonte design (skill redesign-existing-projects)] nav+calendrier
    en haut, liste en bas ; une seule couleur d'accent (--action), chiffres tabulaires, hover doux,
@@ -1778,7 +1780,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L233';
+const APP_VERSION='2026.07.23-L234';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11909,6 +11911,7 @@ function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${
   <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Suivi des lames de découpe — preuve ISO 9001, 100 % dématérialisé. Alerte de changement : FEBA 15 jours, MAVEG et CEVENINI 10 jours après la pose. Chaque machine a SES lames (le n° 20 CEVENINI n'est pas le n° 20 d'une autre machine).</div>
   <div id="lameEtat"></div>
   <div id="lameSections"></div><!-- [L233 · refonte Lames A3] 3 sections par statut × machine : À affûter / Stockées / En cours d'affûtage -->
+  ${canManageData()?`<div style="margin:2px 0 8px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="lameSeedInventaire(this)" title="Injecte l'inventaire réel du 23/07/2026 (idempotent : ne crée jamais de doublon, re-cliquable sans risque)">⚙ Injecter l'inventaire initial (23/07)</button></div>`:''}<!-- [L234 · A4] seed one-shot idempotent — à retirer une fois l'inventaire posé -->
   <div id="lameStatsBlock" style="margin-top:18px"></div><!-- [L233 · A3] stats lames RAPATRIÉES d'Analyse (leur place est ici) -->
   <details id="maintHistBox" style="margin-top:18px;background:var(--section);border:1px solid var(--border2);border-radius:10px" ontoggle="const s=this.querySelector('.mh-lbl'); if(s) s.textContent=this.open?'Masquer l\\'historique des lames':'Afficher l\\'historique des lames';">
     <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:11px 13px;font-size:13px;font-weight:700;color:var(--muted);min-height:46px"><span class="dbx-chev">▸</span> 📜 <b class="mh-lbl" style="color:var(--blue);font-weight:800">Afficher l'historique des lames</b><span style="margin-left:auto;font-size:11px;color:var(--muted)">journal complet, à la demande</span></summary>
@@ -11998,6 +12001,49 @@ async function lameRetourStock(machine,num,comment){
 }
 async function lameSeedStock(machine,num,dateIso){   // helper seed inventaire (console admin)
   return _lameEvent('stock',machine,num,'Seed inventaire — lame '+num+' '+getMachineLabel(machine)+' en stock',dateIso);
+}
+// [L234 · refonte Lames A4] SEED de l'inventaire RÉEL fourni par Esteban le 23/07/2026 — IDEMPOTENT :
+// pour chaque lame, on n'écrit un événement QUE si son état dérivé actuel diffère de l'état cible
+// (re-cliquer ne crée jamais de doublon). Bouton admin dans l'onglet Lame, à usage unique.
+const _LAME_INVENTAIRE_2607={
+  stockees:{cevenini:['20','23','25','26','27','28','29'],maveg:['1','3','5','6','7'],feba:['34','35','36']},
+  enAffutage:{cevenini:['21','22'],maveg:['2','4','9','10'],feba:[]},
+  aAffuter:{cevenini:[],maveg:['14'],feba:['32','33']}
+};
+async function lameSeedInventaire(btn){
+  if(!canManageData()){ showToast('🔒 Réservé pilotage/admin.','err'); return; }
+  const inv=_LAME_INVENTAIRE_2607;
+  const etat=lameClasseurEtat(maintenanceCache).parMachine;
+  const inState=(m,num,st)=>etat[m]&&etat[m][st]&&etat[m][st].some(x=>nrm(x.num)===nrm(num));
+  const plan=[];
+  ['cevenini','maveg','feba'].forEach(m=>{
+    (inv.stockees[m]||[]).forEach(n=>{ if(!inState(m,n,'stockees')) plan.push({m,n,cat:'stock',lbl:'stock'}); });
+    (inv.enAffutage[m]||[]).forEach(n=>{ if(!inState(m,n,'enAffutage')) plan.push({m,n,cat:'affutage',lbl:'en affûtage'}); });
+    // À AFFÛTER : état dérivé = « installation non active ». Une lame déjà à-affûter est laissée ;
+    // sinon on écrit une installation ANTIDATÉE (avant la pose de la lame montée actuelle) → démontée.
+    (inv.aAffuter[m]||[]).forEach(n=>{ if(!inState(m,n,'aAffuter')) plan.push({m,n,cat:'installation',lbl:'à affûter (pose antidatée)'}); });
+  });
+  if(!plan.length){ showToast('✓ Inventaire déjà à jour — rien à écrire.','ok'); return; }
+  if(!(await confirmDlg('Injecter l\'inventaire réel des lames ?\n\n'+plan.length+' événement(s) à écrire :\n'+plan.map(p=>'· '+getMachineLabel(p.m)+' lame '+p.n+' → '+p.lbl).join('\n')+'\n\nIdempotent : re-cliquer n\'écrira pas de doublon.',{ok:'Injecter'}))) return;
+  if(btn) btn.disabled=true;
+  let okN=0,koN=0;
+  try{
+    for(const p of plan){
+      try{
+        let d=undefined;
+        if(p.cat==='installation'){
+          // antidater AVANT la pose active de la machine (sinon la lame deviendrait « montée »)
+          const act=lameActiveForMachine(p.m);
+          const ref=act?new Date(String(act.dateInstall||act.date)).getTime():Date.now();
+          d=new Date(ref-14*86400000).toISOString();
+        }
+        await _lameEvent(p.cat,p.m,p.n,'Seed inventaire 23/07/2026 — lame '+p.n+' '+getMachineLabel(p.m)+' : '+p.lbl,d);
+        okN++;
+      }catch(e){ koN++; console.warn('seed lame',p,e); }
+    }
+  }finally{ if(btn) btn.disabled=false; }
+  showToast('✓ Inventaire injecté : '+okN+' événement(s)'+(koN?' · ⚠ '+koN+' échec(s)':''),koN?'err':'ok');
+  renderMaintenance();
 }
 // Affûtage d'une lame DÉMONTÉE : trace SEULE (pas de réinstallation — la lame n'est
 // plus sur la machine). La machine d'origine est conservée dans la trace (ISO).
@@ -12515,20 +12561,7 @@ function buildAnalyseDashboard(d){
 
     ${buildKpiMoisBlock()}
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
-        <div style="font-size:26px;font-weight:800;color:var(--blue)">${valid.length}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Commandes analysées</div>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
-        <div style="font-size:26px;font-weight:800;color:var(--green)">${(()=>{const s=dujSamples().map(x=>x.debit);return s.length?Math.round(dujMedian(s)).toLocaleString('fr-FR'):'—';})()} m/h</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Débit médian global · ${Math.round(avgArr(valid.map(t=>t.duree/t.totalLaizes)))} s/laize</div>
-      </div>
-      <div style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
-        <div style="font-size:26px;font-weight:800;color:var(--orange)">${Math.round(valid.reduce((s,t)=>s+(Number(t.duree)||0),0)/3600*10)/10}h</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Production totale</div>
-      </div>
-    </div>
+    <!-- [L234 · Analyse B1] 3 tuiles globales retirées : DOUBLON avec le bandeau KPI mensuel + statsSummary (3 totaux d'heures à périmètres ≠ sur le même écran) -->
 
     <div class="ana-card">
       <div class="ana-card-title">⬛ Temps moyen par largeur de bobineau</div>
@@ -12551,35 +12584,7 @@ function buildAnalyseDashboard(d){
       <div style="font-size:12px;color:var(--muted);margin-top:6px">Axe X = semaine de l'année · Axe Y = secondes par laize (moyenne hebdo)</div>
     </div>
 
-    <div class="ana-card">
-      <div class="ana-card-title">🏆 Classement clients — durée moyenne</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:1px solid #333">
-          <th style="text-align:left;padding:6px 10px;color:#888;font-size:12px;font-weight:700">#</th>
-          <th style="text-align:left;padding:6px 10px;color:#888;font-size:12px;font-weight:700">Client</th>
-          <th style="text-align:right;padding:6px 10px;color:#888;font-size:12px;font-weight:700">Moy. sec/laize</th>
-          <th style="text-align:right;padding:6px 10px;color:#888;font-size:12px;font-weight:700">Commandes</th>
-          <th style="padding:6px 10px;color:#888;font-size:12px;font-weight:700">Indice</th>
-        </tr></thead>
-        <tbody>${clientRank.map((c,i)=>{
-          const max=clientRank[0].avg||1;
-          const pct=Math.round(c.avg/max*100);
-          const col=pct>80?'#f87171':pct>50?'#f59e0b':'#4ade80';
-          return `<tr style="border-bottom:1px solid #222">
-            <td style="padding:8px 10px;color:#888">${i+1}</td>
-            <td style="padding:8px 10px;font-weight:600">${esc(c.client)}</td><!-- [L163 · sweep sécurité CRITIQUE] esc() : nom client = saisie LIBRE (#fClient) → XSS stocké exécuté en contexte admin à l'ouverture d'Analyse. Seule surface qui ne l'échappait pas. -->
-            <td style="padding:8px 10px;text-align:right;font-weight:700;color:${col}">${Math.round(c.avg)}s</td>
-            <td style="padding:8px 10px;text-align:right;color:#888">${c.cmds}</td>
-            <td style="padding:8px 10px;min-width:100px">
-              <div style="background:#222;border-radius:3px;height:8px;overflow:hidden">
-                <div style="background:${col};height:100%;width:${pct}%;border-radius:3px;transition:width .3s"></div>
-              </div>
-            </td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table>
-      <div style="font-size:12px;color:var(--muted);margin-top:8px">Rouge = commandes longues · Vert = commandes rapides (relatif au client le plus lent)</div>
-    </div>
+    <!-- [L234 · Analyse B1] « Classement clients — durée moyenne » RETIRÉ (classement par lenteur, lecture peu actionnable ; les Top clients du KPI mensuel couvrent le besoin) -->
 
     <div class="ana-card">
       <div class="ana-card-title">⚙️ Comparaison machines</div>
@@ -12617,15 +12622,11 @@ function buildAnalyseDashboard(d){
       </div>
     </div>
 
-    <div class="ana-card">
-      <div class="ana-card-title">📦 Volume de découpes par semaine</div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${volSvg}</svg>
-      </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:6px">Nombre de commandes coupées par semaine — base pour estimer la charge atelier (roadmap étape 4).</div>
-    </div>
+    <!-- [L234 · Analyse B1] « Volume de découpes par semaine » RETIRÉ (compte des commandes ≠ charge réelle ; le Planning porte la charge en HEURES par jour/machine) -->
 
     ${buildFicheAnalytics()}
+
+    ${(typeof canViewAudit==='function'&&canViewAudit())?`<div style="margin-top:14px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('audit')">🔍 Ouvrir la piste d'audit ISO</button></div>`:''}<!-- [L234 · Analyse B1] accès à la piste d'audit réintroduit (l'onglet dédié avait été retiré en L65, le contenu existe toujours) -->
 
   </div>`;
 }
