@@ -24,7 +24,7 @@ global._plnEstCache={};
 global._dujAddOverride=null; global._plnAddCalCache={}; global.dujCalibrateAdditive=()=>null;   // [L125] pas de calibration en test → repli m/h (comportement historique)
 global._plnDebitCache={};   // [L132] cache débit m/h mémoïsé (vidé par rendu dans l'appli)
 global._plnSpanCache={}; global._friesCache={};    // [L133] cache span jours ouvrés mémoïsé
-for(const n of ['_plnMonday','_plnIsoWeekNum','_plnIso','_plnSentKeys','_plnDejaCoupe','_plnDateLivMin','_plnPlanMeters','_plnHoursPart','_plnAddCal','_plnDebit','_plnHoursOn','_plnHoursAuto','_plnTouchedParts','_plnH','hygieneDryRun','_plnDays','_joursFeriesFR','_plnSpanIsos']){
+for(const n of ['_sanStoredRows','_plnMonday','_plnIsoWeekNum','_plnIso','_plnSentKeys','_plnDejaCoupe','_plnDateLivMin','_plnPlanMeters','_plnHoursPart','_plnAddCal','_plnDebit','_plnHoursOn','_plnHoursAuto','_plnTouchedParts','_plnH','hygieneDryRun','_plnDays','_joursFeriesFR','_plnSpanIsos']){
   global[n]=eval('('+fnOf(n)+')');
 }
 

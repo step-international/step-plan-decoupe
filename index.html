@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L240';
+const APP_VERSION='2026.07.23-L241';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3306,6 +3306,10 @@ function fmt(n){const x=Number(n); return Number.isFinite(x)?parseFloat(x.toFixe
 // Borne une quantité saisie : une saisie aberrante ne doit pas lancer des
 // dizaines de milliers d'itérations dans le moteur de découpe. Cf. AUDIT F7.
 function clampQ(n,max){return Math.max(0,Math.min(max||9999,Math.floor(n||0)));}
+// [L241 · campagne] FRONTIÈRE données STOCKÉES → moteur : qty décimale/invalide (donnée legacy/importée) est
+// FLOORÉE comme partout dans la saisie (clampQ) — sinon expandDemand (boucle for i<qty) produisait 1 bobineau
+// de TROP vs la commande affichée (2.7 → 3). Moteur intouché : garde à la frontière, comme MAX_USEFUL_MM.
+function _sanStoredRows(rows){ return (Array.isArray(rows)?rows:[]).map(r=>({...r,qty:Math.floor(Number(r&&r.qty)||0),width:Number(r&&r.width)||0})).filter(r=>r.qty>0&&r.width>0); }
 // Neutralise une URL stockée avant injection dans href/src : seuls http(s),
 // blob: et data:image sont autorisés (bloque javascript:, etc.). Cf. AUDIT F2/F5.
 function safeUrl(u){u=String(u==null?'':u);return /^(https?:|blob:|data:image\/|data:application\/pdf[;,])/i.test(u)?u:'#';}/* [L169 · audit #24] data:application/pdf autorisé aussi : en mode Storage dégradé les BL/PDF sont stockés en base64 → sinon lien mort (javascript: etc. toujours bloqués) */
@@ -3864,7 +3868,13 @@ function _fichePlanDriftCheck(){
       // du plan (orphelines) — jamais celles d'une autre réf encore valide (homonymes protégés).
       if(!lines.length){
         const nm=nrm(c.ref||'');
-        lines=data.filter(d=>!allKeys.has(d.refIdKey)&&nrm(d.ref||'')===nm);
+        // [L241 · campagne #1/#4/#5] repli par nom SEULEMENT si NON-AMBIGU : quand DEUX homonymes ont tous
+        // deux une clé divergée, la fusion de leurs lignes créait de fausses alertes (« rouleau retiré »)
+        // et l'engagement de l'un ÉTOUFFAIT la dérive réelle de l'autre. Cas ambigu → pas de repli (limite
+        // documentée : dérive non signalée si les 2 homonymes divergent EN MÊME temps — rare).
+        if(computed.filter(x=>nrm(x.ref||'')===nm).length===1){
+          lines=data.filter(d=>!allKeys.has(d.refIdKey)&&nrm(d.ref||'')===nm);
+        }
       }
       if(!lines.length) return;                          // réf absente du snapshot (fiche pas encore générée pour elle) : flux normal
       if(lines.some(engagedOf)) return;                  // réf ENGAGÉE : jamais de signal ici — le travail terrain prime
@@ -6805,7 +6815,7 @@ function printSavedPlan(id){
     : [{ref:s.ref,longueur:s.longueur,mother:parseNum(s.mother),edge:parseNum(s.edgeLoss),blade:parseNum(s.blade),rows:s.rows||[]}];
   const grpInput=arr.map(g=>{
     const mother=parseNum(g.mother), edge=parseNum(g.edge!=null?g.edge:s.edgeLoss);
-    return {ref:g.ref||'', longueur:g.longueur||'', film:g.film||'', veka:g.veka||'', mother, edge, useful:clampUseful(mother-edge), blade:clampBlade(parseNum(g.blade!=null?g.blade:s.blade)), machine:g.machine||'', rows:g.rows||[], chutes:g.chutes||[], recuts:g.recuts||[]};
+    return {ref:g.ref||'', longueur:g.longueur||'', film:g.film||'', veka:g.veka||'', mother, edge, useful:clampUseful(mother-edge), blade:clampBlade(parseNum(g.blade!=null?g.blade:s.blade)), machine:g.machine||'', rows:_sanStoredRows(g.rows), chutes:g.chutes||[], recuts:g.recuts||[]};   // [L241] rows stockées floorées (qty décimale legacy)
   });
   const autoGroups=packRefGroupsPal(grpInput).filter(c=>c.rows.length);
   // Plan manuel sauvegardé → on l'utilise tel quel ; sinon recalcul automatique.
@@ -9482,7 +9492,7 @@ function _plnPlanMeters(s){
     const gs=raw.map(g=>({ref:g.ref||'',longueur:g.longueur,machine:dujMachKey(g.machine||s.machine||''),
       useful:clampUseful(parseNum(g.mother)-parseNum(g.edge!=null?g.edge:10)),
       blade:clampBlade(parseNum(g.blade)),
-      rows:(g.rows||[]).map(r=>({qty:Number(r.qty)||0,width:Number(r.width)||0})).filter(r=>r.qty>0&&r.width>0),
+      rows:_sanStoredRows(g.rows),   // [L241] qty floorée comme la saisie (décimale legacy → plus de bobineau fantôme dans l'estimation)
       chutes:Array.isArray(g.chutes)?g.chutes:[],recuts:Array.isArray(g.recuts)?g.recuts:[]})).filter(g=>g.useful>0&&g.rows.length);   // [L119 · audit #18] chutes/recuts RÉELS → estimation moins majorée (moins de fausses alertes « surcharge »)
     if(gs.length){
       const packed=packRefGroups(gs);
