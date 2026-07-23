@@ -99,6 +99,17 @@ has(/if\(!bandHtml\) return;/,'L224 : bande verte de réf supprimée (séparateu
 has(/function plnResetAll/,'L223 ergo #3 : Reset du planning présent (via gardien plnSetPlan)');
 has(/id="ncBox"/,'L223 ergo #13 : Registre NC dans Analyse (repliable)');
 
+console.log('── L231 audit L217→L229 (7 bugs corrigés) ──');
+has(/const _logRefCheck=\(\)=>/,'MAJ-1 ISO : trace « ref-check » rétablie dans applyFicheRefPlanChange (2 branches de succès)');
+has(/Vérification bobine mère RÉOUVERTE/,'MAJ-1 ISO : la ré-ouverture (recorriger) est tracée aussi');
+absent(/function toggleRefValid/,'MAJ-1 : cluster mort toggleRefValid/_paintRefValid/_refCheckOk purgé');
+has(/const nm=nrm\(c\.ref\|\|''\);/,'MAJ-2 : drift check — repli par NOM quand refIdKey a divergé (chgt machine → défauts bords/lame)');
+has(/h3\.pp-ref\{color:#000!important/,'MAJ-3 : en-tête de réf NOIR sur papier (grayscale rendait les pastels illisibles)');
+has(/En mono-réf : petit chip discret|petit chip discret \(pas le gros bandeau\)/,'MAJ-4 : film visible en MONO-réf (chip discret — la carte compacte n\'existe qu\'en multi)');
+has(/onclick="openCommandeFileViewer\(\$\{i\}\)"/,'MIN-5 : vignettes étiquettes → openCommandeFileViewer (openCommandeFile n\'existait pas)');
+has(/#planDriftBanner\{margin-bottom:10px/,'MIN-6 : styles bannière dérive en CSS (l\'inline écrasait l\'override atelier)');
+has(/let _cPos=-1;/,'MIN-7 : index couleur écran = réfs AVEC lignes (aligné PDF, bloc vide n\'décale plus)');
+
 console.log('── L219/L220 plan de découpe ──');
 has(/class="rb-refchip"/,'L219 : pastille couleur PAR RÉFÉRENCE sur la bande écran du plan');
 has(/color:\$\{refColor\(ci\)\};border-left:5px solid \$\{refColor\(ci\)\}/,'L219 : en-tête PDF/aperçu coloré par réf (refColor)');

@@ -237,9 +237,7 @@ select.veka-veka{border-color:#e879f9;color:#e879f9;background:#2e0c30;font-weig
 .fiche-ref-sep.change{border-color:#f87171;border-left-color:#f87171;background:linear-gradient(#3d1414,var(--section))}
 .frs-change{flex-basis:100%;width:100%;font-size:12.5px;font-weight:800;letter-spacing:.04em;color:#f87171;margin-bottom:2px;font-family:var(--f-head)}
 /* validation mère & bords (demande Esteban) */
-.frs-valid{flex-basis:100%;width:100%;display:flex;align-items:center;gap:8px;margin-top:8px;padding:9px 12px;min-height:44px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid;transition:all .15s;font-family:var(--f-body)}
-.frs-valid.todo{background:var(--warn-dim);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 55%,transparent)}
-.frs-valid.ok{background:var(--ok-dim);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+/* [L231] CSS .frs-valid retirée (élément plus rendu depuis L217/L224) */
 /* BARRE STATS — chips colorées par état */
 .stats-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .stat-chip{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:8px 13px;font-size:13px;font-weight:600}
@@ -427,7 +425,7 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 .modal-overlay.open{display:flex}
 .modal{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);padding:22px;width:100%;max-width:420px;position:relative}
 .modal-x{position:absolute;top:10px;right:10px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;background:#3d1414;border:1.5px solid #f87171;color:#f87171;border-radius:10px;font-size:20px;font-weight:800;cursor:pointer;line-height:1;font-family:inherit}/* [L227 · ergo #1] croix ROUGE standard des modales : toujours visible, haut-droite, 46px (gants) — appelle la fermeture EXISTANTE de chaque modale */
-.modal h3{padding-right:54px}/* la croix ne chevauche pas le titre */
+#saveModal h3,#loadModal h3,#newCmdConflictModal h3,#lameInstallModal h3,#op2RefModal h3{padding-right:54px}/* la croix ne chevauche pas le titre — [L231 · audit] scopé aux 5 modales AVEC croix (plnCardModal n'en a pas) */
 .modal h3{font-size:16px;margin-bottom:16px}
 .modal-btns{display:flex;gap:10px;margin-top:18px;justify-content:flex-end}
 .flex{display:flex;align-items:center;gap:8px}
@@ -548,7 +546,8 @@ body.atelier .ini-btn{font-size:18px;padding:14px 18px;min-width:64px}
 body.atelier [id^="coupeeBtn_"]{font-size:18px !important;padding:16px !important;min-height:60px !important}
 body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
-body.atelier #planDriftBanner{font-size:17px;padding:15px}/* [L221] bannière dérive plan→fiche lisible avec gants */
+#planDriftBanner{margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#3a2a10;border:1.5px solid var(--orange);color:var(--text);font-size:14px;font-weight:600}/* [L231 · audit MIN-6] styles en CSS (l'inline écrasait l'override atelier — même piège que L218 #4) */
+body.atelier #planDriftBanner{font-size:17px;padding:15px}/* [L221] lisible avec gants */
 @media(max-width:1099px){ body.has-actionbar.ab-progress #coupeeBanner{display:none!important} }
 @media(max-width:1099px){ body.has-actionbar.ab-confirm #sendPlanBtn,body.has-actionbar.ab-confirm #sendPlanHint{display:none!important} }/* [L222 · ergo #15] « Confirmer la commande » n'apparaît qu'UNE fois : la barre d'action fixe porte le geste, le bouton pleine page (même libellé) est masqué *//* [L121·T4-A3] progression déjà portée par la barre d'action fixe en bas → pas de doublon · [L126·audit #23] seulement quand la barre porte la jauge · [L144] même point de rupture que la barre (≤1099px, iPad inclus) */
 /* [L142 · ergo #21] iOS zoome au focus de tout champ < 16px : sur TÉLÉPHONE on force 16px sur les contrôles de saisie (l'iPad ne zoome pas → inchangé ; desktop inchangé). Évite le pincer-dézoomer à chaque saisie (filtres, modales d'édition, notes). */
@@ -589,7 +588,6 @@ body.atelier #ficheProgress .fp-num{font-size:38px}
 body.atelier #ficheProgress .fp-pct{font-size:23px}
 body.atelier .frs-name{font-size:26px}
 body.atelier .frs-m,body.atelier .frs-mch{font-size:16px}
-body.atelier .frs-valid{font-size:17px;min-height:56px}
 body.atelier .stat-chip{font-size:17px}
 /* [L192] Planning ATELIER : texte nettement plus gros, cases plus serrées (demande Esteban) */
 body.atelier .pln-card{font-size:16px;padding:7px 9px;line-height:1.28}
@@ -924,7 +922,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 
 <!-- VISIONNEUSE PHOTO PLEIN ÉCRAN -->
 <div class="photo-overlay" id="photoOverlay" onclick="closePhotoViewer()">
-  <span class="close-x" aria-hidden="true">&times;</span><!-- [L159 · a11y #19] décoratif (fermeture réelle : tap overlay / Échap) -->
+  <span class="close-x" role="button" tabindex="0" aria-label="Fermer la photo" onclick="closePhotoViewer()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();closePhotoViewer();}">&times;</span><!-- [L231 · audit a11y] vrai bouton focusable (avant : décoratif, fermeture par bulle seulement) -->
   <img id="photoOverlayImg" src="" alt="Photo bobine">
 </div>
 
@@ -1440,7 +1438,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   </div>
 
   <div id="ficheProgress" style="display:none" aria-hidden="false"></div><!-- [L179 · maquette v2][L224 · demande Esteban] décompte « X/N coupées » JUSTE AU-DESSUS de la liste des bobines (au-dessus de la 1re réf) — rempli par updateCoupeeStatus, présentation pure -->
-  <div id="planDriftBanner" style="display:none;margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#3a2a10;border:1.5px solid var(--orange);color:var(--text);font-size:14px;font-weight:600"></div><!-- [L221 · bug Dominique] dérive plan→fiche rendue VISIBLE (machine/chute modifiées au plan après début de découpe) -->
+  <div id="planDriftBanner" style="display:none"></div><!-- [L221 · bug Dominique] dérive plan→fiche rendue VISIBLE (machine/chute modifiées au plan après début de découpe) -->
   <div id="ficheLines"></div>
 
   <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
@@ -1765,7 +1763,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L230';
+const APP_VERSION='2026.07.23-L231';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3736,7 +3734,7 @@ function refreshEtiqPhotoZone(){
   const z=document.getElementById('etiqPhotoZone'); if(!z) return;
   const m=document.getElementById('etiqUploadingMsg'); if(m) m.remove();
   const items=[]; (commandeFiles||[]).forEach((f,i)=>{ if(f&&f.type==='image'&&/^Étiquette /.test(f.name||'')) items.push({f,i}); });
-  z.innerHTML=items.map(({f,i})=>`<img src="${esc(f.url)}" alt="${esc(f.name)}" title="${esc(f.name)} — toucher pour agrandir" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border2);cursor:pointer" onclick="openCommandeFile(${i})">`).join('');
+  z.innerHTML=items.map(({f,i})=>`<img src="${esc(f.url)}" alt="${esc(f.name)}" title="${esc(f.name)} — toucher pour agrandir" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border2);cursor:pointer" onclick="openCommandeFileViewer(${i})" role="button" tabindex="0">`).join('');
 }
 async function uploadCommandeFile(blob,ext,contentType){
   const ts=Date.now();
@@ -3837,9 +3835,19 @@ function _fichePlanDriftCheck(){
     const data=getFicheLinesData();
     const engagedOf=d=>d.coupee||!!d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||!!(d.ncDetail||'').trim();
     const drifts=[];
+    const allKeys=new Set(computed.map(c=>_refIdKey(c)));
     computed.forEach(c=>{
       const key=_refIdKey(c);
-      const lines=data.filter(d=>d.refIdKey===key);
+      let lines=data.filter(d=>d.refIdKey===key);
+      // [L231 · audit MAJ-2] REPLI PAR NOM : un changement de machine (ex. →feba) applique aussi les défauts
+      // bords/lame → useful/blade changent → la refIdKey du PLAN diverge de celle du snapshot fiche → aucune
+      // ligne ne matchait et la dérive machine devenait INVISIBLE (le cas exact du bug Dominique). Si aucune
+      // ligne ne porte la clé courante, on rattache par NOM les lignes dont la clé ne matche PLUS AUCUNE réf
+      // du plan (orphelines) — jamais celles d'une autre réf encore valide (homonymes protégés).
+      if(!lines.length){
+        const nm=nrm(c.ref||'');
+        lines=data.filter(d=>!allKeys.has(d.refIdKey)&&nrm(d.ref||'')===nm);
+      }
       if(!lines.length) return;                          // réf absente du snapshot (fiche pas encore générée pour elle) : flux normal
       if(lines.some(engagedOf)) return;                  // réf ENGAGÉE : jamais de signal ici — le travail terrain prime
       const msgs=[];
@@ -4040,11 +4048,17 @@ function importPlanToFiche(opts){
         const a=filmAttrStr(c);
         return a?(multi&&computed.length>1?(c.ref?c.ref+' : ':'')+a:a):'';
       }).filter(Boolean);
-      // [L222 · ergo #9] bandeau violet « 🎞 Film : … » RETIRÉ (demande Esteban) : info redondante depuis la
-      // carte compacte de réf validée (L217, chips film/ml) — la zone reste dans le DOM, toujours masquée.
-      void attrs;
-      zone.style.display='none';
-      zone.innerHTML='';
+      // [L222 · ergo #9] gros bandeau violet « 🎞 Film : … » RETIRÉ (demande Esteban) : en MULTI-réf la carte
+      // compacte de réf (L217, chips film/ml) porte l'info. [L231 · audit MAJ-4] MAIS en MONO-réf cette carte
+      // n'existe pas (fMachineMono) → le film (Imprimé / sous-type VEKA) n'apparaissait plus NULLE PART sur la
+      // fiche. En mono-réf : petit chip discret (pas le gros bandeau).
+      if(!multi&&attrs.length){
+        zone.style.display='';
+        zone.innerHTML='<span style="display:inline-block;background:rgba(167,139,250,.10);border:1px solid #5b21b6;border-radius:7px;padding:5px 11px;font-size:13px;font-weight:700;color:#c4b5fd">🎞 '+attrs.map(a=>esc(a)).join(' · ')+'</span>';
+      }else{
+        zone.style.display='none';
+        zone.innerHTML='';
+      }
     })();
 
     // Bobines : reset complet du DOM + tableau + photos
@@ -4148,24 +4162,9 @@ function importPlanToFiche(opts){
 // Insère une bande de séparation de référence dans la liste des bobines de la fiche.
 // [L176 · demande Esteban] validation « bobine mère + pertes bords » par référence (état persistant en session,
 // réinitialisé à chaque nouvelle commande / chargement de plan). Verrou visuel de qualité, tracé à l'audit.
-let _refCheckOk={};
-function _paintRefValid(el){
-  const ok=el.classList.contains('ok');
-  const m=el.dataset.m||'?', e=el.dataset.e||'?';
-  el.innerHTML=ok
-    ?`✓ Bobine mère <b>${esc(m)} mm</b> · pertes bords <b>${esc(e)} mm</b> — VÉRIFIÉES`
-    :`⚠ Vérifie la bobine mère (<b>${esc(m)} mm</b>) et les pertes bords (<b>${esc(e)} mm</b>) — touche pour valider`;
-}
-function toggleRefValid(el){
-  const sep=el.closest('.fiche-ref-sep'); if(!sep) return;
-  // [L179 · audit restyle #3] la clé LIE les valeurs certifiées (mère+bords) au nom : changer la mère après
-  // validation invalide automatiquement la coche (l'ancienne clé nom-seul restait « vérifiée » à tort).
-  const rk=nrm(sep.dataset.ref||'')+'¦'+(el.dataset.m||'')+'¦'+(el.dataset.e||'');
-  const ok=!_refCheckOk[rk]; _refCheckOk[rk]=ok;
-  el.classList.toggle('ok',ok); el.classList.toggle('todo',!ok);
-  _paintRefValid(el);
-  if(ok){ try{ logAudit('edit','fiches','ref-check','Bobine mère & pertes bords vérifiées — '+(sep.dataset.ref||'?')+' (mère '+(el.dataset.m||'?')+' mm / bords '+(el.dataset.e||'?')+' mm)').catch(function(){}); }catch(_){} }
-}
+// [L231 · audit MAJ-1] cluster _refCheckOk/_paintRefValid/toggleRefValid SUPPRIMÉ (code mort depuis L217/L224 :
+// plus aucun élément .frs-valid rendu). La trace ISO « ref-check » vit désormais dans applyFicheRefPlanChange
+// (validation) + unvalidateFicheRef (ré-ouverture).
 function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,edge){
   const div=document.createElement('div');
   div.className='fiche-ref-sep'+machineCls(machine);
@@ -6083,8 +6082,10 @@ function recalcPlan(){
   // Rendu des cartes, réf par réf, avec bande de changement entre réfs.
   let html='';
   let bGlobal=1;       // numéro de bobine global (continu sur tout le plan)
+  let _cPos=-1;   // [L231 · audit MIN-7] index parmi les réfs AVEC lignes (même base que le PDF) : un bloc vide intercalé ne décale plus couleur/« Réf N » entre écran et PDF
   computed.forEach((c,ci)=>{
     if(!c.rows.length) return;
+    _cPos++;
     const useful=c.useful, blade=c.blade;
     const _pgDisp=_planGroupsByLaize(c.planGroups,c.ref);   // [L79] motifs triés grandes laizes d'abord (solde en dernier) — COPIE, c.planGroups intact
     const mc=machineCls(c.machine);            // classe couleur machine
@@ -6102,14 +6103,14 @@ function recalcPlan(){
       }catch(e){ console.warn('Attribution clients (plan) :',e); _cliAllocs=null; }
     }
     if(multi){
-      const refLbl=c.ref||('Référence '+(ci+1));
+      const refLbl=c.ref||('Référence '+(_cPos+1));
       const mlPart=(c.longueur!=null&&String(c.longueur).trim()!=='')?`<span class="rb-m">${esc(String(c.longueur))} ml</span>`:'';
       const filmOnly=(c.film||'').trim();
       const filmPart=filmOnly?`<span class="rb-m">${esc(filmOnly)}</span>`:'';
       const vk=(c.veka||'').trim();
       const vekaPart=vekaClass(vk)?`<span class="vbadge vbadge-${vk==='VEKA'?'veka':'profile'}">${esc(vk)}</span>`:'';
-      html+=`<div class="ref-band${mc}" style="border-left-color:${refColor(ci)}">
-        <span class="rb-refchip" style="background:${refColor(ci)}26;color:${refColor(ci)};border:1.5px solid ${refColor(ci)}">Réf ${ci+1}</span>
+      html+=`<div class="ref-band${mc}" style="border-left-color:${refColor(_cPos)}">
+        <span class="rb-refchip" style="background:${refColor(_cPos)}26;color:${refColor(_cPos)};border:1.5px solid ${refColor(_cPos)}">Réf ${_cPos+1}</span>
         ${mLbl?`<span class="rb-mch">⚙ ${esc(mLbl)}</span>`:''}
         <span class="rb-name">🎞 ${esc(refLbl)}</span>
         <span class="rb-meta">
@@ -6435,7 +6436,8 @@ function renderPlanManual(){
   planManual.forEach((r,ri)=>{
     if(multi){
       const mc=machineCls(r.machine);const mLbl=getMachineLabel(r.machine||'');
-      html+=`<div class="ref-band${mc}">
+      html+=`<div class="ref-band${mc}" style="border-left-color:${refColor(ri)}"><!-- [L231 · audit] couleur L219 aussi en plan MANUEL (l'aperçu PDF du même plan colorait déjà) -->
+        <span class="rb-refchip" style="background:${refColor(ri)}26;color:${refColor(ri)};border:1.5px solid ${refColor(ri)}">Réf ${ri+1}</span>
         ${mLbl?`<span class="rb-mch">⚙ ${esc(mLbl)}</span>`:''}
         <span class="rb-name">🎞 ${esc(r.ref||('Référence '+(ri+1)))}</span>
         <span class="rb-meta"><span class="rb-m">laize ${fmt(r.useful)} mm</span><span class="rb-m">lame ${fmt(r.blade)} mm</span>${r.longueur?`<span class="rb-m">${esc(String(r.longueur))} ml</span>`:''}</span>
@@ -6704,7 +6706,7 @@ function buildPlanPrintHTML(o){
     });
     if(multi){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
-      sections+=`<h3 style="font-size:14px;margin:18px 0 6px;color:${refColor(ci)};border-left:5px solid ${refColor(ci)};padding-left:9px">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;   /* [L219] couleur PAR RÉFÉRENCE (refColor) — écran/aperçu ; papier reste N&B via grayscale @media print (demande Esteban) */
+      sections+=`<h3 class="pp-ref" style="font-size:14px;margin:18px 0 6px;color:${refColor(ci)};border-left:5px solid ${refColor(ci)};padding-left:9px">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;   /* [L219] couleur PAR RÉFÉRENCE — écran/aperçu ; [L231 · audit MAJ-3] SUR PAPIER l'en-tête repasse NOIR (les pastels devenaient gris pâle illisible sous grayscale) */
     }
     const _cmd=_planGroupCmd(c);
     const _nbMeres=(c.planGroups||[]).reduce((s,g)=>s+Math.max(1,parseInt(g.count)||1),0);
@@ -6730,7 +6732,7 @@ function buildPlanPrintHTML(o){
   th{background:#f0f0f0;font-size:12px;text-transform:uppercase}
   .cmd-recap{margin:2px 0 14px;padding:9px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:6px;font-size:12.5px;color:#333}
   .cmd-recap.cmd-total{background:#eef2ff;border-left-color:#4338ca}
-  @media print{body{padding:8px}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>
+  @media print{body{padding:8px}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}h3.pp-ref{color:#000!important;border-left-color:#000!important}}/* [L231 · audit MAJ-3] en-tête de réf NOIR sur papier (les pastels refColor viraient au gris pâle) */</style></head><body>
   <h2>Plan de découpe — STEP International</h2>
   <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
   ${cliAll?`👥 Multi-clients : ${cliAll.map(c=>`[${esc(c.id)}] <b>${esc(c.nom||'—')}</b>${c.numCmd?' (n° '+esc(c.numCmd)+')':''}`).join(' · ')}<br>`:''}
@@ -7457,7 +7459,6 @@ async function doLoad(){
   // [L67 · Audit] purger le plan manuel de la commande PRÉCÉDENTE AVANT le recalc : sinon
   // recalcPlan « adaptait » le vieux ✏️ au nouveau plan chargé → bobines en trop (bug F).
   planManual=null;
-  _refCheckOk={};   // [L176] commande différente chargée → validation mère & bords repart à zéro
   { const peb=document.getElementById('planEditBtn'); if(peb) peb.textContent='✏️ Modifier à la main';
     const pmh=document.getElementById('planManualHint'); if(pmh) pmh.style.display='none'; }
   try{ recalcPlan(); }catch(e){ console.warn('doLoad recalc:',e); }
@@ -8950,7 +8951,6 @@ function resetSiteConfirm(){
   try{ showToast('↺ Site réinitialisé','ok'); }catch(e){}
 }
 function resetAll(){
-  _refCheckOk={};   // [L176] nouvelle commande → la validation mère & bords repart à zéro
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
   _resumedDraftId=null;          // [L108 · Phase 4C]
@@ -14961,6 +14961,7 @@ function onFmmMachineChange(sel){
 function unvalidateFicheRef(idx){
   if(typeof ficheRefValidated!=='undefined') ficheRefValidated.delete(idx);
   if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks({});
+  try{ const _r=String((fmmGetRefs().find(r=>r.idx===idx)||{}).ref||('réf '+(idx+1))); logAudit('edit','fiches','ref-check','Vérification bobine mère RÉOUVERTE (recorriger) — '+_r).catch(function(){}); }catch(_){}   // [L231 · audit MAJ-1] piste ISO complète : la ré-ouverture est tracée aussi
 }
 function renderFicheMachineBlocks(opts){
   opts=opts||{};
@@ -15123,12 +15124,17 @@ function applyFicheRefPlanChange(idx){
   ficheMachine=machine;
   if(typeof recalcPlan==='function') recalcPlan();
   const rlbl=String((fmmGetRefs().find(r=>r.idx===idx)||{}).ref||('réf '+(idx+1)));
+  // [L231 · audit MAJ-1] TRACE ISO rétablie : l'entrée « bobine mère & pertes bords vérifiées » était écrite par
+  // toggleRefValid (bande verte), supprimée en L217/L224 → la vérification n'était PLUS tracée du tout. Le nouveau
+  // chemin de validation (ce bouton) écrit désormais la preuve d'audit aux DEUX branches de succès.
+  const _logRefCheck=()=>{ try{ logAudit('edit','fiches','ref-check','Bobine mère & pertes bords vérifiées — '+rlbl+' (mère '+mother+' mm / bords '+edge+' mm / lame '+blade+' mm / '+getMachineLabel(machine)+')').catch(function(){}); }catch(_){} };
   if(isFicheUntouched()){
     // Rien de coupé : régénération complète (chaque bloc plan a sa propre mère).
     ficheRefValidated.add(idx);
     fichePlanValidated=true;
     importPlanToFiche({keepRefValidation:true});
     renderFicheMachineBlocks();
+    _logRefCheck();
     showToast('✓ Plan recalculé — '+rlbl,'ok');
   }else{
     if(!confirm('Des bobines sont déjà coupées.\n\nLes bobines coupées sont CONSERVÉES ; seul le reste des réfs non terminées est recalculé avec les nouvelles dimensions.\n\nContinuer ?')) return;
@@ -15138,6 +15144,7 @@ function applyFicheRefPlanChange(idx){
       ficheRefValidated.add(idx);
       fichePlanValidated=true;
       renderFicheMachineBlocks();
+      _logRefCheck();   // [L231 · audit MAJ-1] trace ISO sur la branche « bobines déjà coupées » aussi
       showToast('✓ Plan recalculé — '+rlbl,'ok');
     }});
     if(!_res||!_res.started){
@@ -17736,7 +17743,6 @@ function restoreFicheState(st){
   // [L164 · audit #4] purger le plan manuel de l'état PRÉCÉDENT AVANT le recalc (comme doLoad L7061) : sinon
   // un ✏️ resté actif « adaptait » le vieux plan au nouveau contenu restauré → bobines fausses.
   planManual=null;
-  _refCheckOk={};   // [L179 · audit restyle #4] contenu REMPLACÉ (brouillon/partage/reprise) → validation mère & bords repart à zéro (comme resetAll/doLoad)
   { const peb=document.getElementById('planEditBtn'); if(peb) peb.textContent='✏️ Modifier à la main';
     const pmh=document.getElementById('planManualHint'); if(pmh) pmh.style.display='none'; }
   recalcPlan();
