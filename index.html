@@ -1763,7 +1763,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L231';
+const APP_VERSION='2026.07.23-L232';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11584,7 +11584,7 @@ async function bkRunImport(btn){
 // Lecture/écriture ouvertes à tous les connectés ; delete réservé.
 // ============================================================
 var maintenanceCache=[]; var maintLoaded=false;
-const MAINT_CAT_LABEL={installation:'Installation', affutage:'Affûtage'};
+const MAINT_CAT_LABEL={installation:'Installation', affutage:'Envoi à l\'affûtage', stock:'Retour en stock'};   // [L232 · refonte Lames A1] 'affutage' = ENVOI chez l'affûteur (état « en cours ») ; 'stock' = entrée/retour en réserve (lame disponible)
 function maintCatLabel(type,cat){ return MAINT_CAT_LABEL[cat]||cat||''; }
 // ============================================================
 // SUIVI DES LAMES (catégorie 'installation' dans la collection maintenance)
@@ -11943,7 +11943,52 @@ function lameClasseurEtat(traces,nowIso){
   });
   Object.values(groupes).forEach(a=>a.sort((x,y)=>((y.montee?1:0)-(x.montee?1:0))||y.date.localeCompare(x.date)));
   recentes.sort((a,b)=>b.date.localeCompare(a.date));
-  return {groupes,recentes};
+  // [L232 · refonte Lames A1] NOUVEAU MODÈLE (additif — l'ancienne forme groupes/recentes reste servie pour
+  // l'UI actuelle) : états PAR MACHINE avec clé composite machine|num (le n° 20 de cevenini ≠ un n° 20 ailleurs,
+  // demande Esteban — l'ancienne clé n° seul faisait « dernier gagne » entre machines). 4 états dérivés du
+  // DERNIER événement de chaque lame : installation+active → MONTÉE ; installation non active → À AFFÛTER ;
+  // affutage → EN AFFÛTAGE (envoi chez l'affûteur, plus de fenêtre 30 j ni de disparition) ; stock → STOCKÉE.
+  // Catégorie inconnue : la lame reste visible dans son dernier état connu (plus de disparition silencieuse).
+  const lastMK={}, activeMK={};
+  evts.forEach(r=>{ const mk=(r.machine&&groupes[r.machine]!==undefined&&r.machine!=='hors')?r.machine:(r.machine||'hors'); const k=nrm(mk)+'|'+nrm(r.lameNum); lastMK[k]=r; if(r.categorie==='installation'&&r.machine) activeMK[r.machine]=nrm(r.lameNum); });
+  const parMachine={feba:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},maveg:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},cevenini:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},hors:{montees:[],aAffuter:[],stockees:[],enAffutage:[]}};
+  Object.values(lastMK).forEach(r=>{
+    const m=(r.machine&&parMachine[r.machine])?r.machine:'hors';
+    const item={num:String(r.lameNum).trim(),machine:r.machine||'',date:String(r.dateInstall||r.date||r.createdAt||''),description:r.description||''};
+    if(r.categorie==='installation'){
+      if(r.machine&&activeMK[r.machine]===nrm(r.lameNum)) parMachine[m].montees.push(item);
+      else parMachine[m].aAffuter.push(item);
+    }else if(r.categorie==='affutage') parMachine[m].enAffutage.push(item);
+    else if(r.categorie==='stock') parMachine[m].stockees.push(item);
+    else parMachine[m].aAffuter.push(item);   // catégorie inconnue : visible, jamais perdue
+  });
+  Object.values(parMachine).forEach(g=>Object.values(g).forEach(a=>a.sort((x,y)=>String(x.num).localeCompare(String(y.num),undefined,{numeric:true}))));
+  return {groupes,recentes,parMachine};
+}
+// [L232 · refonte Lames A2] ACTIONS du cycle stockée → montée → à affûter → en affûtage → stockée.
+// Événements APPEND-ONLY dans 'maintenance' (mêmes champs exacts que lameInstall : type/date/dateInstall/
+// deleted/createdBy — sinon exclusion par where('deleted','==',false)).
+async function _lameEvent(categorie,machine,num,description,dateIso){
+  const now=isoNow(); let d=dateIso||now;
+  if(new Date(d).getTime()>Date.now()) d=now;
+  const rec={ type:'lame', categorie, machine:machine||'', lameNum:String(num).trim(), dateInstall:d, date:d,
+    description:description||'', responsable:currentUser?currentUser.ini:'',
+    createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
+  const r=await boundedWrite(db.collection('maintenance').add(rec),10000);
+  rec.id=r.id; maintenanceCache.unshift(rec);
+  await logAudit('create','maintenance',r.id,(MAINT_CAT_LABEL[categorie]||categorie)+' — lame '+rec.lameNum+' ('+getMachineLabel(machine)+')');
+  return rec;
+}
+async function lameEnvoyerAffutage(machine,num,comment){
+  try{ await _lameEvent('affutage',machine,num,comment||('Envoi à l\'affûteur — lame '+num+' '+getMachineLabel(machine))); showToast('🛠 Lame '+num+' ('+getMachineLabel(machine)+') envoyée à l\'affûtage','ok'); renderMaintenance(); }
+  catch(e){ showToast('Erreur : '+e.message,'err'); }
+}
+async function lameRetourStock(machine,num,comment){
+  try{ await _lameEvent('stock',machine,num,comment||('Retour affûteur → stock — lame '+num+' '+getMachineLabel(machine))); showToast('📦 Lame '+num+' ('+getMachineLabel(machine)+') de retour en stock','ok'); renderMaintenance(); }
+  catch(e){ showToast('Erreur : '+e.message,'err'); }
+}
+async function lameSeedStock(machine,num,dateIso){   // helper seed inventaire (console admin)
+  return _lameEvent('stock',machine,num,'Seed inventaire — lame '+num+' '+getMachineLabel(machine)+' en stock',dateIso);
 }
 // Affûtage d'une lame DÉMONTÉE : trace SEULE (pas de réinstallation — la lame n'est
 // plus sur la machine). La machine d'origine est conservée dans la trace (ISO).
