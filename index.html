@@ -807,10 +807,8 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
 @media(min-width:1100px){
   #page1.active{display:grid;grid-template-columns:minmax(400px,480px) 1fr;gap:0 18px;align-items:start;align-content:start}
   #page1.active>*{grid-column:1;min-width:0}
-  #page1.active>#ficheProgress{grid-column:2;grid-row:1}/* [L234 · demande Esteban] le décompte « X/N coupées » vit AU-DESSUS de la 1re bobine (colonne des bobines), pas dans la colonne gauche */
-  #page1.active>#planDriftBanner{grid-column:2;grid-row:2}/* la bannière de dérive concerne la liste des bobines → même colonne */
-  #page1.active>#ficheLines{grid-column:2;grid-row:3/span 40}
-  #page1.active>div:has(#sendPlanBtn){grid-column:2;grid-row:43}
+  #page1.active>#ficheRight{grid-column:2;grid-row:1/span 40}/* [L236 · demande Esteban] colonne bobines = UN conteneur (suivi + Réf 1 + bobines en flux continu, plus de trou dû aux hauteurs de lignes partagées) */
+  #page1.active>div:has(#sendPlanBtn){grid-column:2;grid-row:41}
 }
 /* ===== [L117 · 📅 Planning — refonte design (skill redesign-existing-projects)] nav+calendrier
    en haut, liste en bas ; une seule couleur d'accent (--action), chiffres tabulaires, hover doux,
@@ -1454,9 +1452,11 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     <div id="changementsZone" class="hidden" style="margin-top:10px"></div>
   </div>
 
-  <div id="ficheProgress" style="display:none" aria-hidden="false"></div><!-- [L179 · maquette v2][L224 · demande Esteban] décompte « X/N coupées » JUSTE AU-DESSUS de la liste des bobines (au-dessus de la 1re réf) — rempli par updateCoupeeStatus, présentation pure -->
+  <div id="ficheRight"><!-- [L236 · demande Esteban] colonne bobines UNIFIÉE : suivi → carte Réf 1 (insérée ici par renderFicheMachineBlocks) → bobines, sans trou (les hauteurs de lignes de la grille ne se couplent plus avec la colonne gauche) -->
+  <div id="ficheProgress" style="display:none" aria-hidden="false"></div><!-- [L179 · maquette v2][L224 · demande Esteban] décompte « X/N coupées » JUSTE AU-DESSUS de la liste des bobines — rempli par updateCoupeeStatus, présentation pure -->
   <div id="planDriftBanner" style="display:none"></div><!-- [L221 · bug Dominique] dérive plan→fiche rendue VISIBLE (machine/chute modifiées au plan après début de découpe) -->
   <div id="ficheLines"></div>
+  </div>
 
   <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
     <div class="section-title">🏷️ Étiquette solde — bobine mère restante</div>
@@ -1780,7 +1780,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L235';
+const APP_VERSION='2026.07.23-L236';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -15200,13 +15200,15 @@ function renderFicheMachineBlocks(opts){
     block.style.borderLeft='6px solid '+rc;   // couleur par référence (miroir de l'ordre de coupe)
     const refChip='<span class="fmm-ref-chip" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">Réf '+(pos+1)+'</span>';
     block.innerHTML='<div class="fmm-head">'+refChip+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
-    // [L107 · Phase 1 · J] RÉF 1 : son bloc de validation vit JUSTE AU-DESSUS de la section
-    // « En-tête fiche » (demande Esteban) — l'opérateur la valide avant de remplir l'en-tête,
-    // sans descendre jusqu'à la 1re bobine. Réfs 2, 3, … : inchangées (bloc à leur 1re bobine).
+    // [L236 · demande Esteban] RÉF 1 : sa carte de validation vit ENTRE le suivi « X/N coupées » et la
+    // 1re bobine à couper (colonne des bobines) — l'opérateur voit suivi → réf à valider → bobines, d'un
+    // seul flux. Réfs 2, 3, … : inchangées (bloc à leur 1re bobine). (Avant L107/L236 : au-dessus de l'en-tête.)
     if(pos===0){
+      const fl=document.getElementById('ficheLines');
+      if(fl&&fl.parentNode){ fl.parentNode.insertBefore(block,fl); return; }
       const hdrSec=document.getElementById('fClient')?.closest('.section');
       if(hdrSec&&hdrSec.parentNode){ hdrSec.parentNode.insertBefore(block,hdrSec); return; }
-      // repli (en-tête introuvable) : ancienne ancre ci-dessous
+      // repli (ancres introuvables) : ancienne ancre ci-dessous
     }
     // Ancre : 1re ligne bobine de cette réf dans le DOM.
     // [L178 · demande Esteban] HOMONYMES (même nom, films ≠ — ex. TacFlex imprimé / non imprimé) : ancrer par
