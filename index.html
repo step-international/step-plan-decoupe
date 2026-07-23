@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L245';
+const APP_VERSION='2026.07.23-L246';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9304,7 +9304,7 @@ function renderTemps(){
     const secPerLaize=t.totalLaizes>0?Math.round(t.duree/t.totalLaizes):0;
     const op2=t.operateur2?` + <strong>${esc(t.operateur2)}</strong>${t.op2Bobine?` (dès bob.${esc(t.op2Bobine)})`:''}`:'';
     return `<div class="chrono-record">
-      <div class="cr-time">${fmtTime(t.duree)}</div>
+      <div class="cr-time">${fmtTime(Number(t.duree)||0)}</div><!-- [L246 · R1] relevé sans durée → 0, plus de NaN affiché -->
       <div class="cr-info">
         <div class="cr-title">${esc(t.client)} — ${esc(t.ref)}</div>
         <div class="cr-meta">${ds} · <strong>${esc(t.operateur)}</strong>${op2} · ${esc(t.machine)}${t.numCmd?` · <span style="color:var(--blue);font-weight:700">N° ${esc(t.numCmd)}</span>`:''}</div>
@@ -12335,10 +12335,15 @@ function dujMedian(arr){ if(!arr.length) return 0; const s=arr.slice().sort((a,b
 function dujPctile(arr,p){ if(!arr.length) return 0; const s=arr.slice().sort((a,b)=>a-b); const i=(s.length-1)*p; const lo=Math.floor(i),hi=Math.ceil(i); return lo===hi?s[lo]:s[lo]+(s[hi]-s[lo])*(i-lo); }
 function dujSecToTxt(sec){ if(!isFinite(sec)||sec<=0) return '—'; const h=Math.floor(sec/3600), m=Math.round((sec%3600)/60); return h>0?(h+' h'+(m?' '+String(m).padStart(2,'0'):'')):(m+' min'); }
 // Échantillons de débit (m/h) exploitables
+let _dujSamplesMemo=null,_dujSamplesKey='';
 function dujSamples(){
   // [L83 · Audit #7] relais op.2 : l'échantillon est SCINDÉ par segment (machine/opérateur réels,
   // au prorata des lignes coupées — même helper tempsShareParts que l'écran Temps et le KPI).
   // Avant : 100 % des mètres et du temps sur machine1/op.1 → débits m/h des deux machines faussés.
+  // [L246 · R1] MÉMOÏSÉ : reconstruit 4 à 7 fois par rendu de l'Analyse (toolbox + pilotage + graphes) sur
+  // tout tempsCache — clé bon marché (nb + somme des durées) invalidée à toute édition/ajout de relevé.
+  const _k=tempsCache.length+'|'+tempsCache.reduce((a,t)=>a+(Number(t&&t.duree)||0),0);
+  if(_dujSamplesMemo&&_dujSamplesKey===_k) return _dujSamplesMemo;
   const out=[];
   tempsCache.filter(t=>!t.deleted).forEach(t=>{
     const longueur=parseFloat(String(t.longueur).replace(',','.'))||0;
@@ -12350,7 +12355,7 @@ function dujSamples(){
       out.push({ machine:dujMachKey(g.mach), op:g.op||'', metres:metres*g.f, sec:sec*g.f, debit:metres*3600/sec });
     });
   });
-  return out;
+  _dujSamplesMemo=out; _dujSamplesKey=_k; return out;
 }
 // Débit médian (m/h) : opérateur sur machine > machine > global
 function dujDebit(machineKey,op){
@@ -12935,10 +12940,17 @@ function renderAnalyse(){
   // L36 — filtrage machine / opérateur / mois. Les graphiques ci-dessous lisent
   // `valid` (issu de fTemps) → ils réagissent tous automatiquement.
   const _fbar=analyseFilterBar(allTemps);
-  const fTemps=allTemps.filter(t=>
-    (analyseFilter.mach==='ALL'||String(t.machine||'').toUpperCase()===analyseFilter.mach) &&
-    (analyseFilter.op==='ALL'||String(t.operateur||'').trim()===analyseFilter.op) &&
-    (analyseFilter.month==='ALL'||String(t.date||'').slice(0,7)===analyseFilter.month));
+  // [L246 · R1] le filtre matche AUSSI le relais (machine2/opérateur2) — avant, filtrer sur l'op relayeur
+  // excluait la commande entière, en contradiction avec les graphes ventilés qu'il filtre ; et le mois est
+  // bucketisé en heure LOCALE (comme le KPI mensuel), plus en UTC.
+  const _ymLoc=ds=>{ const d=new Date(ds); return isNaN(d)?String(ds||'').slice(0,7):d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+  const fTemps=allTemps.filter(t=>{
+    const _ms=[String(t.machine||'').toUpperCase(),String(t.machine2||'').toUpperCase()].filter(Boolean);
+    const _os=[String(t.operateur||'').trim(),String(t.operateur2||'').trim()].filter(Boolean);
+    return (analyseFilter.mach==='ALL'||_ms.indexOf(analyseFilter.mach)>=0) &&
+           (analyseFilter.op==='ALL'||_os.indexOf(analyseFilter.op)>=0) &&
+           (analyseFilter.month==='ALL'||_ymLoc(t.date)===analyseFilter.month);
+  });
   const valid=fTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
   const _filtered=(analyseFilter.mach!=='ALL'||analyseFilter.op!=='ALL'||analyseFilter.month!=='ALL');
 
@@ -12988,16 +13000,8 @@ function renderAnalyse(){
     data:Object.fromEntries(allWeeks.map(wk=>[wk, weekOpMap[op+'__'+wk]?avgArr(weekOpMap[op+'__'+wk]):undefined]).filter(([,v])=>v!==undefined))
   }));
 
-  const clientMap={};
-  valid.forEach(t=>{
-    const secL=t.duree/t.totalLaizes;
-    if(!clientMap[t.client]) clientMap[t.client]={vals:[],cmds:0};
-    clientMap[t.client].vals.push(secL);
-    clientMap[t.client].cmds++;
-  });
-  const clientRank=Object.entries(clientMap)
-    .map(([c,d])=>({client:c,avg:avgArr(d.vals),cmds:d.cmds}))
-    .sort((a,b)=>b.avg-a.avg);
+  // [L246 · R1] calcul MORT supprimé (classement clients par lenteur — affiché nulle part depuis L234, payé à chaque clic de filtre)
+  const clientRank=[];
 
   const machMap={};
   valid.forEach(t=>{
@@ -13029,20 +13033,25 @@ function renderAnalyse(){
   const W2=780,H2=250;
 
   // Volume de découpes par semaine (charge atelier)
-  const volMap={};
-  valid.forEach(t=>{push(volMap,getWeekKey(t.date),1);});
-  const volItems=Object.keys(volMap).sort().map(wk=>({label:(wk.split('·')[1]||wk),value:volMap[wk].length}));
-  const maxVol=Math.max(...volItems.map(x=>x.value),1);
-  const volSvg=(()=>{
-    if(!volItems.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas de données</text>';
-    const n=volItems.length,gap=(W-padL-10)/n,barW=Math.max(14,gap*0.6),scaleY=(H-padB-16)/maxVol;
-    let out='';
-    for(let i=0;i<=4;i++){const y=H-padB-i*(H-padB-16)/4;out+=`<line x1="${padL}" x2="${W-4}" y1="${y}" y2="${y}" stroke="#2a2a28" stroke-width="1"/><text x="${padL-4}" y="${y+4}" text-anchor="end" fill="#666" font-size="10">${Math.round(maxVol*i/4)}</text>`;}
-    volItems.forEach((it,i)=>{const x=padL+i*gap+gap/2-barW/2,bh=Math.max(2,it.value*scaleY),y=H-padB-bh;out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#34d399" opacity="0.85"/><text x="${x+barW/2}" y="${y-4}" text-anchor="middle" fill="#e5e5e3" font-size="10" font-weight="600">${it.value}</text><text x="${x+barW/2}" y="${H-padB+13}" text-anchor="middle" fill="#888" font-size="9">${esc(String(it.label))}</text>`;});/* [L163 · sweep sécurité] esc défensif */
-    return out;
-  })();
+  // [L246 · R1] calcul MORT supprimé (volume/semaine — affiché nulle part depuis L234)
+  const volSvg='';
 
-  ac.innerHTML=buildAnalyseDashboard({valid,widthItems,maxW,allWeeks,series,clientRank,machItems,legendOps,W,H,padL,padB,W2,H2,volSvg,fbar:_fbar});
+  _acSetHTML(ac,buildAnalyseDashboard({valid,widthItems,maxW,allWeeks,series,clientRank,machItems,legendOps,W,H,padL,padB,W2,H2,volSvg,fbar:_fbar}));
+}
+// [L246 · R1] re-rendu SANS perte : un clic de filtre reconstruisait tout l'écran et EFFAÇAIT la saisie en
+// cours dans l'estimateur (+ repliait les sections ouvertes). On snapshotte valeurs et états ouverts par id,
+// on les restaure après le innerHTML — même bénéfice qu'un rendu partiel, sans refactorer les blocs (R4 le fera).
+function _acSetHTML(ac,html){
+  const keep={},open={};
+  try{
+    ac.querySelectorAll('input[id],select[id],textarea[id]').forEach(el=>{ keep[el.id]={v:el.value,c:el.checked}; });
+    ac.querySelectorAll('details[id]').forEach(d=>{ open[d.id]=d.open; });
+  }catch(e){}
+  ac.innerHTML=html;
+  try{
+    Object.entries(keep).forEach(([id,st])=>{ const el=document.getElementById(id); if(!el) return; if(el.type==='checkbox'||el.type==='radio') el.checked=st.c; else if(el.value!==st.v) el.value=st.v; });
+    Object.entries(open).forEach(([id,o])=>{ const d=document.getElementById(id); if(d&&d.tagName==='DETAILS') d.open=o; });
+  }catch(e){}
 }
 
 function toggleValidatedFiches(){
