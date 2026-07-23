@@ -1136,6 +1136,8 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
 <!-- ===== PAGE 2 : FICHE ===== -->
 <div class="page" id="page1" role="tabpanel" aria-labelledby="tabBtn1">
 
+  <div id="ficheProgress" style="display:none;max-width:440px;margin-left:auto" aria-hidden="false"></div><!-- [L179 · maquette v2][L223 · ergo #8] suivi « X/N coupées » TOUT EN HAUT de la fiche, à DROITE (au-dessus de « Réf 1 à couper ») — rempli par updateCoupeeStatus, présentation pure -->
+
   <!-- CHRONO -->
   <div class="section" style="padding:16px">
     <div class="section-title">⏱ Chronomètre commande</div>
@@ -1435,7 +1437,6 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     <div id="changementsZone" class="hidden" style="margin-top:10px"></div>
   </div>
 
-  <div id="ficheProgress" style="display:none" aria-hidden="false"></div><!-- [L179 · maquette v2] barre d'avancement « X/N coupées » (segments : vert coupé · hachures NC · gris restant) — remplie par updateCoupeeStatus, présentation pure -->
   <div id="planDriftBanner" style="display:none;margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#3a2a10;border:1.5px solid var(--orange);color:var(--text);font-size:14px;font-weight:600"></div><!-- [L221 · bug Dominique] dérive plan→fiche rendue VISIBLE (machine/chute modifiées au plan après début de découpe) -->
   <div id="ficheLines"></div>
 
@@ -1479,7 +1480,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
     <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] maquette admin/pilotage (applyRole) — ouverture à tous en ÉTAPE 2 -->
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
-    <button class="tab-btn" id="tabNc" onclick="switchTab('nc')">⚠ Registre NC</button>
+    <!-- [L223 · ergo #13] onglet « ⚠ Registre NC » fusionné dans 📈 Analyse (bloc repliable ncBox) -->
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
     <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
@@ -1572,6 +1573,33 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
         <div id="tempsEmpty" class="text-muted hidden" style="padding:8px 0">Aucune donnée de temps enregistrée.</div>
       </div>
     </details>
+    <details id="ncBox" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;margin-bottom:14px"><!-- [L223 · ergo #13] Registre NC déplacé DANS Analyse (repliable, même principe que Temps — demande Esteban) -->
+      <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--muted)"><span class="dbx-chev">▸</span> ⚠ <b style="color:var(--orange);font-weight:800">Registre non conforme</b> — filtres, synthèse &amp; liste <span style="margin-left:auto;font-size:11px;color:var(--muted)">toucher pour ouvrir / fermer</span></summary>
+      <div style="padding:4px 13px 12px">
+        <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Registre consolidé des non-conformités — toutes les fiches confondues. Exploitable pour les actions correctives ISO 9001.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+          <select id="ncFilterType" aria-label="Filtrer les NC par type" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+            <option value="">Tous types NC</option>
+            <option value="larg">Largeur</option>
+            <option value="qty">Quantité</option>
+            <option value="casse">Casse</option>
+            <option value="ang">Angle</option>
+          </select>
+          <select id="ncFilterClient" aria-label="Filtrer les NC par client" onchange="renderNc()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+            <option value="">Tous clients</option>
+          </select>
+          <select id="ncFilterStatut" aria-label="Filtrer les NC par statut" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+            <option value="">Tous statuts</option>
+            <option value="ouvert">Ouvertes</option>
+            <option value="cloture">Clôturées</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="exportNc()">⬇️ Exporter CSV</button>
+        </div>
+        <div id="ncSummary"></div>
+        <div id="ncList"></div>
+        <div id="ncEmpty" class="text-muted hidden" style="padding:8px 0">Aucune non-conformité enregistrée. 👍</div>
+      </div>
+    </details>
     <div id="analyseContent"></div>
     <div id="lameStatsBlock" style="margin-top:20px"></div>
   </div>
@@ -1586,30 +1614,7 @@ details[open] > .dbx-sum .dbx-chev{transform:rotate(90deg)}
   </div>
 
   <!-- ONGLET REGISTRE NC -->
-  <div id="tabContentNc" class="hidden">
-    <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Registre consolidé des non-conformités — toutes les fiches confondues. Exploitable pour les actions correctives ISO 9001.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
-      <select id="ncFilterType" aria-label="Filtrer les NC par type" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
-        <option value="">Tous types NC</option>
-        <option value="larg">Largeur</option>
-        <option value="qty">Quantité</option>
-        <option value="casse">Casse</option>
-        <option value="ang">Angle</option>
-      </select>
-      <select id="ncFilterClient" aria-label="Filtrer les NC par client" onchange="renderNc()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
-        <option value="">Tous clients</option>
-      </select>
-      <select id="ncFilterStatut" aria-label="Filtrer les NC par statut" onchange="renderNc()" style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
-        <option value="">Tous statuts</option>
-        <option value="ouvert">Ouvertes</option>
-        <option value="cloture">Clôturées</option>
-      </select>
-      <button class="btn btn-ghost btn-sm" onclick="exportNc()">⬇️ Exporter CSV</button>
-    </div>
-    <div id="ncSummary"></div>
-    <div id="ncList"></div>
-    <div id="ncEmpty" class="text-muted hidden" style="padding:8px 0">Aucune non-conformité enregistrée. 👍</div>
-  </div>
+  <!-- [L223 · ergo #13] tabContentNc SUPPRIMÉ : le Registre NC vit désormais dans Analyse (ncBox repliable) -->
 
   <!-- ONGLET CORBEILLE -->
   <div id="tabContentCorbeille" class="hidden">
@@ -2497,7 +2502,7 @@ function applyRole(){
     _tA.textContent=canViewAnalyse()?'📈 Analyse':'⏱ Temps'; }
   _applyAnalyseScope();
   document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
-  document.getElementById('tabNc').style.display=canManageData()?'':'none';
+  { const _ncb=document.getElementById('ncBox'); if(_ncb) _ncb.style.display=canManageData()?'':'none'; }   // [L223 · ergo #13] le Registre NC (bloc dans Analyse) reste réservé pilotage/admin
   { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
   { const _tp=document.getElementById('tabPlanning'); if(_tp) _tp.style.display=''; }   // [L112 · ÉTAPE 2] Planning visible par tous (atelier = lecture seule)
   document.getElementById('tabStock').style.display=canViewStock()?'':'none';
@@ -4150,6 +4155,7 @@ function switchTab(tab){
   if(tab!=='planning'){ try{ if(typeof plnDisarm==='function') plnDisarm(); }catch(e){} }   // [L118 · audit #6] désarmer le Planning + retirer le fantôme/#plnHint en quittant l'onglet
   if(typeof updateTabBadges==='function') updateTabBadges();
   if(tab==='temps') tab='analyse';   // [L120] onglet Temps fusionné dans Analyse (rétro-compat des anciens appels/liens)
+  if(tab==='nc') tab='analyse';      // [L223 · ergo #13] Registre NC fusionné dans Analyse (rétro-compat)
   if(tab==='analyse'&&!canViewAnalyse()&&!canManageData()) tab='saves';   // [L131 · #24] pilotage : accès conservé (Temps)
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
   if(tab==='stock'&&!canViewStock()) tab='saves';
@@ -4163,7 +4169,7 @@ function switchTab(tab){
   const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance'||(fullHistoryLoaded&&!_fullHistoryTruncatedCount))?'none':'';   // [L157 · simplify #20] historique déjà complet → bouton sans fonction, ne plus le ré-afficher au changement d'onglet
   if(tab==='saves') renderSaves();
   else if(tab==='brouillons') renderDrafts();
-  else if(tab==='analyse'){ refreshAnalyseIfPresent(); autoLoadHistoryThenRerender('analyse'); }   // [L120·L131·L157 simplify #1] trio analyse factorisé (renderAnalyse gaté admin + renderTemps + scope pilotage)
+  else if(tab==='analyse'){ refreshAnalyseIfPresent(); if(typeof canManageData==='function'&&canManageData()){ try{ renderNc(); }catch(e){} } autoLoadHistoryThenRerender('analyse'); }   // [L120·L131·L157 simplify #1] trio analyse factorisé — [L223 · ergo #13] + Registre NC (ncBox, pilotage/admin)
   else if(tab==='corbeille'){ loadCorbeille(); }
   else if(tab==='nc'){ renderNc(); autoLoadHistoryThenRerender('nc'); }
   else if(tab==='stock') renderStock();
@@ -4181,7 +4187,7 @@ function autoLoadHistoryThenRerender(tab){
     const active=document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1));
     if(!active||!active.classList.contains('active')) return;  // l'utilisateur a changé d'onglet entre-temps
     if(tab==='nc') renderNc();
-    else if(tab==='analyse'){ refreshAnalyseIfPresent(); }   // [L120·L131·L157 simplify #1] trio factorisé
+    else if(tab==='analyse'){ refreshAnalyseIfPresent(); if(typeof canManageData==='function'&&canManageData()){ try{ renderNc(); }catch(e){} } }   // [L120·L131·L157 simplify #1] trio factorisé — [L223 · ergo #13] + NC
   });
 }
 
@@ -9586,6 +9592,20 @@ const _plnWriteBusy=new Set();   // [L118 · audit #3] sids avec une écriture p
 //  · machine = celle de la commande (s.machine) ; sinon la machine la moins chargée ;
 //  · jour = jour OUVRÉ (fériés exclus) le moins chargé, si possible ≤ la livraison et ≤ PLN_OVER_H ;
 //  · pose 1 jour (l'étalement reste un geste manuel) via plnSetPlan (écritures normales, re-glissables).
+// [L223 · ergo #3] RESET DU PLANNING (demande Esteban) : retire TOUTES les commandes posées, après
+// confirmation explicite. Les commandes ne sont PAS supprimées de la base — elles retournent dans
+// « À planifier ». Passe par le GARDIEN plnSetPlan(sid,null) (seul point de pose/retrait autorisé).
+async function plnResetAll(){
+  if(!plnCanEdit()){ showToast('🔒 Lecture seule — la planification est réservée au pilotage/admin.','err'); return; }
+  const posed=(savesCache||[]).filter(s=>s&&!s.deleted&&s.plannedDate);
+  if(!posed.length){ showToast('Le planning est déjà vide.','ok'); return; }
+  if(!(await confirmDlg('Êtes-vous sûr de vouloir vider complètement le planning ?\n\nCette action retirera les '+posed.length+' commande(s) actuellement planifiée(s).\nLes commandes restent disponibles dans « À planifier » — rien n\'est supprimé de la base.',{danger:true,ok:'Vider le planning'}))) return;
+  let n=0,f=0;
+  for(const s of posed){ try{ const ok=await plnSetPlan(s._id,null,null,null,true); if(ok!==false)n++; else f++; }catch(e){ f++; } }
+  try{ renderPlanning(); }catch(e){}
+  showToast('🗑 Planning vidé — '+n+' commande(s) retirée(s)'+(f?' · ⚠ '+f+' échec(s)':'')+'.',f?'err':'ok');
+  logAudit('planning','saves','reset-all','Reset du planning — '+n+' commande(s) retirée(s), '+f+' échec(s)').catch(function(){});
+}
 async function plnAutoFill(){
   if(!plnCanEdit()){ showToast('Pose réservée au pilotage et aux admins.','err'); return; }
   const ctx=_plnSentKeys();
@@ -10116,6 +10136,7 @@ function renderPlanning(){
       </div>
       <span id="plnTitle">${titre}</span><!-- [L157 · simplify #18] bouton « ↩ revenir » retiré : doublon exact de « Cette semaine » (même plnNav(0)) dans la même barre -->
       ${canEdit?`<button class="btn btn-blue btn-sm" onclick="plnAutoFill()" title="Répartir automatiquement les commandes « À planifier » sur cette semaine, priorité aux livraisons les plus proches">⚡ Planning optimisé</button>`:''}
+      ${canEdit?`<button class="btn btn-sm" style="background:#3d1414;border:1px solid #f87171;color:#f87171" onclick="plnResetAll()" title="Retire TOUTES les commandes du planning (avec confirmation) — elles restent disponibles dans « À planifier »">🗑 Reset du planning</button>`:''}
       <span class="pln-weekload">${canEdit?'':'🔒 lecture seule · '}${placedCount} posé(s)${weekH>0?' · charge <b>'+_plnH(weekH).replace('≈ ','≈')+'</b>':''}${beyond>0?' · <span style="color:var(--orange)">'+beyond+' au-delà ▶</span>':''}</span>
     </div>
     <div class="pln-cols">
@@ -12761,7 +12782,7 @@ function updateTabBadges(){
     const all=(typeof fichesCache!=='undefined'?fichesCache:[]).filter(f=>!f.deleted);
     setTabBadge('tabFiches', all.filter(f=>f.valide==null).length, canValidate());
     const ncOuvertes=(typeof buildNcRows==='function')?buildNcRows().filter(r=>r.statut!=='cloture').length:0;
-    setTabBadge('tabNc', ncOuvertes, canManageData());
+    setTabBadge('tabAnalyse', ncOuvertes, canManageData());   // [L223 · ergo #13] le compteur NC ouvertes vit sur l'onglet Analyse (le Registre NC y est fusionné)
   }catch(e){}
 }
 
