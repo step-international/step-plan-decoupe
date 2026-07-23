@@ -1780,7 +1780,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L234';
+const APP_VERSION='2026.07.23-L235';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12548,12 +12548,67 @@ function dujCapacite(){
 // onglets « 🏆 Meilleure machine » et « 📅 File du jour » (demande Esteban) — plus aucun appelant.
 
 // Rendu du tableau de bord Analyse (séparé du calcul — S4). Sortie identique.
+// [L235 · Analyse B2] BLOC PILOTAGE DIRIGEANT — l'essentiel en un coup d'œil, en TÊTE d'Analyse :
+// retards, commandes à planifier, occupation du planning de la semaine, planifié vs réalisé, charge
+// par machine×jour. Sources : savesCache (planning), tempsCache (réalisé). Le calcul de charge est le
+// MÊME que celui de plnAutoFill (machine posée + parts fantômes, coupées exclues) — cohérent avec la grille.
+function buildPilotageBlock(){
+  try{
+    const now=new Date(); const todayIso=_plnIso(new Date(now.getFullYear(),now.getMonth(),now.getDate()));
+    const ctx=(typeof _plnSentKeys==='function')?_plnSentKeys():null;
+    const all=(savesCache||[]).filter(s=>s&&!s.deleted);
+    const cut=s=>{ try{ return _plnDejaCoupe(s,ctx); }catch(e){ return false; } };
+    // Retards : livraison passée, pas coupée
+    const late=all.filter(s=>{ const l=_plnDateLivMin(s); return l&&l<todayIso&&!cut(s); });
+    // À planifier : pas posée, pas coupée
+    const pool=all.filter(s=>!s.plannedDate&&!cut(s));
+    // Charge posée de la SEMAINE COURANTE (lun→ven) par machine×jour — même sémantique que plnAutoFill
+    const mon=_plnMonday(0), dayIsos=[]; for(let i=0;i<5;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i); dayIsos.push(_plnIso(d)); }
+    const load={}; DUJ_MACHINES.forEach(m=>{ load[m]={}; });
+    all.filter(s=>s.plannedDate&&!cut(s)).forEach(s=>{
+      const span=_plnSpanIsos(s);
+      const machs=new Set(); const pm=dujMachKey(s.plannedMachine||''); if(pm) machs.add(pm);
+      const e=_plnPlanMeters(s); if(e&&e.byMachDetail) Object.keys(e.byMachDetail).forEach(k=>{ if(k) machs.add(k); });
+      machs.forEach(m=>{ if(!load[m]) return; const h=_plnHoursOn(s,m); if(h==null||!(h>0)) return; span.forEach(iso=>{ if(dayIsos.indexOf(iso)>=0) load[m][iso]=(load[m][iso]||0)+h/_plnDays(s); }); });
+    });
+    const posedH=DUJ_MACHINES.reduce((a,m)=>a+dayIsos.reduce((b,iso)=>b+(load[m][iso]||0),0),0);
+    const capH=DUJ_MACHINES.length*dayIsos.length*PLN_OVER_H;
+    const occ=capH>0?Math.round(posedH/capH*100):0;
+    // Réalisé cette semaine (relevés de temps lun→dim)
+    const sun=new Date(mon); sun.setDate(mon.getDate()+6); const monIso=dayIsos[0], sunIso=_plnIso(sun);
+    const realH=(tempsCache||[]).filter(t=>t&&!t.deleted&&String(t.date||'').slice(0,10)>=monIso&&String(t.date||'').slice(0,10)<=sunIso)
+      .reduce((a,t)=>a+(Number(t.duree)||0),0)/3600;
+    const h1=v=>String(Math.round(v*10)/10).replace('.',',');
+    const tile=(val,lbl,col,sub)=>`<div style="flex:1;min-width:150px;background:var(--card);border:1px solid var(--border2);border-left:4px solid ${col};border-radius:10px;padding:12px 14px"><div style="font-size:26px;font-weight:800;color:${col};line-height:1;font-variant-numeric:tabular-nums">${val}</div><div style="font-size:12px;color:var(--muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.04em">${lbl}</div>${sub?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>`:''}</div>`;
+    const MCOL={feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'};
+    const dayLbl=['lun','mar','mer','jeu','ven'];
+    const rows=DUJ_MACHINES.map(m=>{
+      const cells=dayIsos.map((iso,i)=>{ const h=load[m][iso]||0; const pct=Math.min(100,Math.round(h/PLN_OVER_H*100));
+        const col=h>PLN_OVER_H+0.01?'var(--red)':(h>=6.5?'var(--ok,#4ade80)':(h>0?'var(--orange)':'var(--border2)'));
+        return `<td style="padding:3px 4px"><div title="${dayLbl[i]} : ${h1(h)} h / ${h1(PLN_OVER_H)} h" style="height:12px;border-radius:6px;background:#111110;border:1px solid var(--border2);overflow:hidden"><div style="height:100%;width:${pct}%;background:${col};border-radius:6px"></div></div></td>`; }).join('');
+      return `<tr><td style="padding:3px 8px 3px 0;font-size:11.5px;font-weight:800;color:${MCOL[m]};text-transform:uppercase;white-space:nowrap;font-family:var(--f-head)">${getMachineLabel(m)}</td>${cells}<td style="padding:3px 0 3px 8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap">${h1(dayIsos.reduce((a,iso)=>a+(load[m][iso]||0),0))} h</td></tr>`;
+    }).join('');
+    return `<div class="ana-card" style="border-left:4px solid var(--action)">
+      <div class="ana-card-title">🎯 Pilotage — semaine en cours</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        ${tile(late.length,'Retards (livraison passée)',late.length?'#f87171':'#4ade80',late.length?late.filter(s=>s.plannedDate).length+' posée(s) · '+late.filter(s=>!s.plannedDate).length+' non posée(s)':'rien en retard 👍')}
+        ${tile(pool.length,'À planifier',pool.length?'var(--orange)':'#4ade80','commandes sans jour posé')}
+        ${tile(occ+'%','Occupation planning',occ>=85?'#4ade80':occ>=50?'var(--orange)':'#f87171',h1(posedH)+' h posées / '+h1(capH)+' h capacité')}
+        ${tile(h1(realH)+' h','Réalisé cette semaine','var(--blue)','relevés de temps lun→dim')}
+      </div>
+      <table style="width:100%;border-collapse:collapse"><thead><tr><th></th>${dayLbl.map(d=>`<th style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;padding:0 4px 4px">${d}</th>`).join('')}<th></th></tr></thead><tbody>${rows}</tbody></table>
+      <div style="margin-top:10px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('planning')">📅 Ouvrir le planning</button></div>
+    </div>`;
+  }catch(e){ console.warn('buildPilotageBlock:',e); return ''; }
+}
 function buildAnalyseDashboard(d){
   const {valid,widthItems,maxW,allWeeks,series,clientRank,machItems,legendOps,W,H,padL,padB,W2,H2,volSvg,fbar}=d;
   return `
   <div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
 
     ${partialDataBanner()}
+
+    ${buildPilotageBlock()}<!-- [L235 · Analyse B2] l'essentiel dirigeant EN PREMIER : retards, à planifier, occupation, réalisé, charge machine×jour -->
 
     ${fbar||''}
 
