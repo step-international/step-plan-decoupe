@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L241';
+const APP_VERSION='2026.07.23-L243';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2130,6 +2130,10 @@ async function loadFirestoreData(){
     // jamais bloquer ni faire échouer le chargement des données.
     if(!canManageData()) purgeExpiredBrouillons().catch(e=>console.warn('Purge brouillons :',e&&e.message));
     if(document.getElementById('page2')&&document.getElementById('page2').classList.contains('active')) renderDataPage();
+    // [L243 · demande Esteban] données chargées → reprendre la navigation là où l'opérateur était (Plan/Fiche/Données),
+    // au lieu de rester sur le Plan. UNIQUEMENT si aucune commande n'est en cours à l'écran (ne pas déranger un travail
+    // terrain non enregistré) et si l'utilisateur n'a pas déjà navigué pendant le chargement.
+    try{ if((typeof isFicheUntouched!=='function'||isFicheUntouched()) && document.getElementById('page0')?.classList.contains('active')) restoreLastNav(); }catch(e){}
   }catch(e){
     console.error('Firestore chargement:',e);
     // [L155] permission-denied sur un compte NON listé dans les règles Firestore (ex. nouveau compte machine) :
@@ -3309,7 +3313,7 @@ function clampQ(n,max){return Math.max(0,Math.min(max||9999,Math.floor(n||0)));}
 // [L241 · campagne] FRONTIÈRE données STOCKÉES → moteur : qty décimale/invalide (donnée legacy/importée) est
 // FLOORÉE comme partout dans la saisie (clampQ) — sinon expandDemand (boucle for i<qty) produisait 1 bobineau
 // de TROP vs la commande affichée (2.7 → 3). Moteur intouché : garde à la frontière, comme MAX_USEFUL_MM.
-function _sanStoredRows(rows){ return (Array.isArray(rows)?rows:[]).map(r=>({...r,qty:Math.floor(Number(r&&r.qty)||0),width:Number(r&&r.width)||0})).filter(r=>r.qty>0&&r.width>0); }
+function _sanStoredRows(rows){ return (Array.isArray(rows)?rows:[]).map(r=>({...r,qty:Math.floor(Number(r&&r.qty)||0),width:Number(r&&r.width)||0})).filter(r=>r.qty>0&&r.width>=1); }   // [L243 · props P15] largeur <1 mm exclue (même règle que la saisie — une sub-mm disparaissait en silence dans bestPattern)
 // Neutralise une URL stockée avant injection dans href/src : seuls http(s),
 // blob: et data:image sont autorisés (bloque javascript:, etc.). Cf. AUDIT F2/F5.
 function safeUrl(u){u=String(u==null?'':u);return /^(https?:|blob:|data:image\/|data:application\/pdf[;,])/i.test(u)?u:'#';}/* [L169 · audit #24] data:application/pdf autorisé aussi : en mode Storage dégradé les BL/PDF sont stockés en base64 → sinon lien mort (javascript: etc. toujours bloqués) */
@@ -3916,6 +3920,18 @@ function showPage(i){
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
   try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement
+  try{ localStorage.setItem('step_lastPage',String(i)); }catch(e){}   // [L243 · demande Esteban] mémorise la page courante → reprise au même endroit au rechargement/réouverture (pas de retour forcé à l'accueil)
+}
+// [L243 · demande Esteban] REPRISE DE NAVIGATION : au boot, revenir sur la dernière page consultée (Plan/Fiche/Données)
+// et, pour Données, le dernier onglet — au lieu de repartir systématiquement sur le Plan. Robuste : appelée après
+// que showPage/switchTab/les gardes de rôle existent ; les gardes de rôle re-basculent proprement si l'accès a changé.
+function restoreLastNav(){
+  try{
+    const p=parseInt(localStorage.getItem('step_lastPage'),10);
+    if(!(p>=0&&p<=2)) return;
+    if(p!==0 && typeof showPage==='function') showPage(p);
+    if(p===2){ const t=localStorage.getItem('step_lastDataTab'); if(t&&typeof switchTab==='function') switchTab(t); }
+  }catch(e){}
 }
 
 // Mode atelier : gros boutons / police agrandie. Réglage mémorisé par appareil.
@@ -4231,6 +4247,7 @@ function switchTab(tab){
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
   const blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=(tab==='stock'||tab==='audit'||tab==='maintenance'||(fullHistoryLoaded&&!_fullHistoryTruncatedCount))?'none':'';   // [L157 · simplify #20] historique déjà complet → bouton sans fonction, ne plus le ré-afficher au changement d'onglet
+  try{ localStorage.setItem('step_lastDataTab',tab); }catch(e){}   // [L243 · demande Esteban] mémorise l'onglet Données courant (reprise au boot)
   if(tab==='saves') renderSaves();
   else if(tab==='brouillons') renderDrafts();
   else if(tab==='analyse'){ refreshAnalyseIfPresent(); if(typeof canManageData==='function'&&canManageData()){ try{ renderNc(); }catch(e){} } autoLoadHistoryThenRerender('analyse'); }   // [L120·L131·L157 simplify #1] trio analyse factorisé — [L223 · ergo #13] + Registre NC (ncBox, pilotage/admin)
@@ -5325,8 +5342,11 @@ function vekaClass(v){ return v==='Profilé'?'veka-profile':(v==='VEKA'?'veka-ve
 // obtiennent des clés distinctes → fini la fusion de commandes et les bobines écrites en
 // double lors du recalcul. Robuste au ré-ordonnancement (aucun index positionnel).
 function _refIdKey(g){
-  const n=v=>String(v==null?'':v).trim().toLowerCase();
-  return [n(g&&g.ref),n(g&&g.film),n(g&&g.veka),String(g&&g.longueur==null?'':g.longueur).trim(),
+  // [L243 · props P4a/P4b] : (1) longueur passée par n() comme les autres champs texte (« 6000ML » ≠ « 6000ml »
+  // scindait une même réf en deux identités) ; (2) séparateur ¦ ÉCHAPPÉ dans chaque champ (un ¦ saisi déplaçait
+  // la frontière des champs → deux réfs distinctes pouvaient fusionner).
+  const n=v=>String(v==null?'':v).trim().toLowerCase().split('¦').join('¦¦');
+  return [n(g&&g.ref),n(g&&g.film),n(g&&g.veka),n(g&&g.longueur),
           Number(g&&g.useful)||0,Number(g&&g.blade)||0].join('¦');
 }
 // Colore chaque <select> VEKA à la saisie selon son choix.
@@ -8032,6 +8052,15 @@ function confirmCommandeRecap(){
   // AUCUN temps ne sera enregistré (perdu pour l'Analyse/KPI/traçabilité ISO). On l'annonce dans le récap.
   if(total>0 && !(chronoSec>0)) msg+='• ⚠ CHRONO À ZÉRO → aucun temps ne sera enregistré pour cette commande.\n';
   msg+='\n⚠ L\'envoi enregistre la fiche définitivement et vide le plan. Action irréversible.';
+  // [L243 · demande Esteban] ALARME PHOTO ÉTIQUETTES à la validation : si aucune photo d'étiquette n'est jointe,
+  // on l'annonce EN ROUGE tout en haut du récap (le confirm() natif ne stylise pas → toast rouge + question dans le récap).
+  const _etiqCount=(commandeFiles||[]).filter(f=>f&&/^Étiquette /.test(f.name||'')).length;
+  if(!_etiqCount){
+    showToast('🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ? Aucune photo d\'étiquette jointe à cette commande.','err');
+    msg='🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?\n(Aucune photo d\'étiquette n\'est jointe — 📷 sur une bobine pour l\'ajouter, ou confirme quand même.)\n\n'+msg;
+  }else{
+    msg='✅ '+_etiqCount+' photo(s) d\'étiquette jointe(s).\n\n'+msg;
+  }
   if(!confirm(msg)) return;
   confirmCommande();
 }
@@ -9718,7 +9747,8 @@ async function plnAutoFill(){
   const EPS=0.01, wkLoad=mk=>dayIsos.reduce((a,iso)=>a+(load[mk][iso]||0),0);
   // comparaison lexicographique de clés [onTime, fillStarted, nat, whole, remStart, mkWk, startIdx, D] —
   // EPS sur les FLOATS : nat (i=2), remStart (i=4), mkWk (i=5). [L227 · ergo #5] indices décalés par fillStarted.
-  const _plnKeyLt=(a,b)=>{ for(let i=0;i<a.length;i++){ const e=(i===2||i===4||i===5)?EPS:0; if(a[i]<b[i]-e) return true; if(a[i]>b[i]+e) return false; } return false; };
+  const _q=(v,i)=>(i===2||i===4||i===5)?Math.round(v/EPS):v;   // [L243 · props P3b/P3c] floats QUANTIFIÉS avant comparaison : ordre lexicographique STRICT total (la tolérance ±EPS par comparaison n'était pas transitive → choix de candidat potentiellement incohérent)
+  const _plnKeyLt=(a,b)=>{ for(let i=0;i<a.length;i++){ const qa=_q(a[i],i), qb=_q(b[i],i); if(qa<qb) return true; if(qa>qb) return false; } return false; };
   // jours de DÉPART candidats : ouvrés de la semaine, pas déjà passés (semaine courante)
   let starts=dayIsos.filter(iso=>plnWeekOffset!==0||iso>=todayIso);
   if(!starts.length) starts=dayIsos.slice();
@@ -11950,7 +11980,7 @@ function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${
 // Fonction PURE (testée par harnais Node).
 function lameClasseurEtat(traces,nowIso){
   const evts=(traces||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&String(r.lameNum||'').trim())
-    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||''))||((({affutage:0,stock:1,demonte:2,installation:3})[a.categorie]||0)-(({affutage:0,stock:1,demonte:2,installation:3})[b.categorie]||0)));   // [L94 · vérif #2][L237 · revue #4] rang de catégorie COMPLET : à date égale stock vs affutage n'est plus tributaire de l'ordre du cache (non déterministe au rechargement Firestore) à date ÉGALE l'installation passe APRÈS l'affûtage — la lame qu'on venait d'affûter disparaissait du classeur (non déterministe au rechargement)
+    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||''))||((({affutage:0,stock:1,demonte:2,installation:3})[a.categorie]||0)-(({affutage:0,stock:1,demonte:2,installation:3})[b.categorie]||0))||String(a.machine||'').localeCompare(String(b.machine||''))||String(a.lameNum||'').localeCompare(String(b.lameNum||''))||String(a.id||'').localeCompare(String(b.id||'')));   // [L243 · props P3] départage FINAL machine/n°/id : ordre TOTAL — l'état ne dépend plus jamais de l'ordre du cache   // [L94 · vérif #2][L237 · revue #4] rang de catégorie COMPLET : à date égale stock vs affutage n'est plus tributaire de l'ordre du cache (non déterministe au rechargement Firestore) à date ÉGALE l'installation passe APRÈS l'affûtage — la lame qu'on venait d'affûter disparaissait du classeur (non déterministe au rechargement)
   const last={}, activeByMachine={};
   evts.forEach(r=>{ const n=nrm(r.lameNum); last[n]=r; if(r.categorie==='installation'&&r.machine) activeByMachine[r.machine]=n; });   // [L94 · vérif #4] clé insensible à la casse : reposer « l-2401 » ne crée plus une lame fantôme à côté de « L-2401 »
   const groupes={feba:[],maveg:[],cevenini:[],hors:[]}, recentes=[];
@@ -16282,7 +16312,7 @@ function parseConf(val){
     p=p.trim();
     const m=p.match(/(?:^|[^\d.])(\d+)\s*×\s*(\d+(?:\.\d+)?)/);   // [L97 · relecture #21] « 6.5×502 » ne se lit plus « 5×502 » en silence (quantité jamais précédée d'un chiffre ou d'un point)
     if(m){const q=parseInt(m[1]);if(q>0&&q<=99999) pieces.push({qty:q,width:parseFloat(m[2])});}
-    else{const m2=p.match(/^(\d+(?:\.\d+)?)(?:mm)?$/);if(m2) pieces.push({qty:1,width:parseFloat(m2[1])});}
+    else{const m2=p.match(/^(\d+(?:\.\d+)?)\s*(?:mm)?$/i);if(m2) pieces.push({qty:1,width:parseFloat(m2[1])});}
   });
   return pieces;
 }

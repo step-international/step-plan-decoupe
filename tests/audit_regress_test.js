@@ -110,6 +110,15 @@ has(/onclick="openCommandeFileViewer\(\$\{i\}\)"/,'MIN-5 : vignettes étiquettes
 has(/#planDriftBanner\{margin-bottom:10px/,'MIN-6 : styles bannière dérive en CSS (l\'inline écrasait l\'override atelier)');
 has(/let _cPos=-1;/,'MIN-7 : index couleur écran = réfs AVEC lignes (aligné PDF, bloc vide n\'décale plus)');
 
+console.log('── L243 audit propriétés + demandes Esteban ──');
+has(/AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES/,'demande Esteban : alarme rouge « photo des étiquettes ? » à la validation de commande');
+has(/function restoreLastNav/,'demande Esteban : reprise de navigation (dernière page/onglet) au rechargement');
+has(/localStorage\.setItem\('step_lastPage'/,'reprise nav : page courante mémorisée');
+has(/const n=v=>String\(v==null\?'':v\)\.trim\(\)\.toLowerCase\(\)\.split\('¦'\)\.join\('¦¦'\)/,'props P4 : _refIdKey longueur normalisée + séparateur ¦ échappé');
+has(/const _q=\(v,i\)=>\(i===2\|\|i===4\|\|i===5\)\?Math\.round\(v\/EPS\)/,'props P3b/P3c : _plnKeyLt quantifié = ordre strict TOTAL (transitif)');
+has(/String\(a\.machine\|\|''\)\.localeCompare\(String\(b\.machine\|\|''\)\)\|\|String\(a\.lameNum/,'props P3 : tri lames ordre TOTAL (machine/n°/id) — état déterministe');
+has(/filter\(r=>r\.qty>0&&r\.width>=1\)/,'props P15 : _sanStoredRows exclut largeur <1 mm (plus de perte silencieuse)');
+
 console.log('── L219/L220 plan de découpe ──');
 has(/class="rb-refchip"/,'L219 : pastille couleur PAR RÉFÉRENCE sur la bande écran du plan');
 has(/color:\$\{refColor\(ci\)\};border-left:5px solid \$\{refColor\(ci\)\}/,'L219 : en-tête PDF/aperçu coloré par réf (refColor)');
