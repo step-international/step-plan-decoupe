@@ -83,5 +83,13 @@ has(/if\(!show && \(fromClientChange\|\|!hasVal\) && sel\) sel\.value='';/,'#3 :
 has(/updateVekaVisibility\(true\);   \/\/ \[L218\]/,'#3 : onClientChange passe fromClientChange=true');
 has(/\.fiche-film-badge\{font-size:16\.5px\}/,'#4 : taille badge film en CSS (plus en inline) → override atelier 20px prend');
 
+console.log('── L219/L220 plan de découpe ──');
+has(/class="rb-refchip"/,'L219 : pastille couleur PAR RÉFÉRENCE sur la bande écran du plan');
+has(/color:\$\{refColor\(ci\)\};border-left:5px solid \$\{refColor\(ci\)\}/,'L219 : en-tête PDF/aperçu coloré par réf (refColor)');
+has(/if\(ci>0&&_prevMachLbl|grayscale\(1\)/,'L219 : impression papier reste N&B (grayscale @media print conservé)');
+has(/if\(perte>optPerte\+1e-9\) return;/,'L220 : sélecteur DOMINANT — ne prend JAMAIS une partition dont la perte réelle dépasse celle de l\'optimum de rendement (perte jamais aggravée)');
+has(/const optPerte=opt\.waste-_reuse\(opt\.keys\)/,'L220 : DOMINANT en 2 passes (optimum rendement, puis min solde-milieu sous contrainte perte ≤ optimum)');
+has(/phaseEndSolde:Math\.max\(0,c\.useful-calcStats\(_lp,c\.blade\)\.total\)/,'L220 : solde de fin de phase calculé par tranche (même déf. que le marquage _phaseEnd)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

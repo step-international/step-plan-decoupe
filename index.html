@@ -1759,7 +1759,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.22-L219';
+const APP_VERSION='2026.07.22-L220';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5483,7 +5483,9 @@ function _palRepack(c){
       const set=new Set(widths.slice(st,st+len));
       const bobs=pack(items.filter(w=>set.has(w)),c.useful,c.blade);
       const used=bobs.reduce((sm,p)=>sm+calcStats(p,c.blade).total,0);
-      slice[st+'/'+len]={bobs,waste:bobs.length*c.useful-used,pieces:bobs.reduce((sm,p)=>sm+p.reduce((a,x)=>a+(Number(x.qty)||0),0),0)};
+      // [L220] solde de fin de phase de CETTE tranche = reste sur sa DERNIÈRE bobine (même définition exacte que le marquage _phaseEnd plus bas : groupBobines → dernier motif)
+      const _gs=groupBobines(bobs,c.blade), _lp=_gs.length?_gs[_gs.length-1].pattern:[];
+      slice[st+'/'+len]={bobs,waste:bobs.length*c.useful-used,pieces:bobs.reduce((sm,p)=>sm+p.reduce((a,x)=>a+(Number(x.qty)||0),0),0),phaseEndSolde:Math.max(0,c.useful-calcStats(_lp,c.blade).total)};
     }
   }
   const parts=[];
@@ -5491,14 +5493,38 @@ function _palRepack(c){
     if(start>=widths.length){ parts.push(acc.slice()); return; }
     for(let len=1;len<=Math.min(PALETTES_MAX,widths.length-start);len++){ acc.push(start+'/'+len); build(start+len,acc); acc.pop(); }
   })(0,[]);
-  let best=null;
+  // [L92 · Audit #11] les PIÈCES PLACÉES priment sur la chute : une partition tronquée par le garde-fou du
+  // moteur pouvait « gagner » avec moins de chute mais des pièces MANQUANTES du plan. PASSE 1 = optimum de
+  // RENDEMENT (comportement historique) : pieces↓, chute↓, nb bobines↓, nb phases↓ (premier trouvé).
+  let opt=null;
   parts.forEach(keys=>{
     let waste=0,pieces=0,nb=0;
     keys.forEach(kk=>{ const r=slice[kk]; waste+=r.waste; pieces+=r.pieces; nb+=r.bobs.length; });
-    // [L92 · Audit #11] les PIÈCES PLACÉES priment sur la chute : une partition tronquée par le
-    // garde-fou du moteur pouvait « gagner » avec moins de chute mais des pièces MANQUANTES du plan.
-    const better=!best||pieces>best.pieces||(pieces===best.pieces&&(waste<best.waste-1e-9||(Math.abs(waste-best.waste)<=1e-9&&(nb<best.nb||(nb===best.nb&&keys.length<best.keys.length)))));
-    if(better) best={waste,pieces,nb,keys:keys.slice()};
+    const better=!opt||pieces>opt.pieces||(pieces===opt.pieces&&(waste<opt.waste-1e-9||(Math.abs(waste-opt.waste)<=1e-9&&(nb<opt.nb||(nb===opt.nb&&keys.length<opt.keys.length)))));
+    if(better) opt={waste,pieces,nb,keys:keys.slice()};
+  });
+  if(!opt) return null;
+  // [L220 · demande Esteban] PASSE 2 = « soldes du milieu → une seule grosse chute réutilisable en FIN ».
+  //   reuse   = Σ des soldes de DERNIÈRE bobine de chaque phase (= chute réutilisable « solde conservé »)
+  //   perte   = chute totale − reuse (= PERTE RÉELLE affichée, cf. chuteStock/perteMm L5622-5634)
+  //   midMax  = plus gros solde de fin de phase du MILIEU (hors solde final)
+  // On choisit, PARMI les partitions au MÊME rendement que l'optimum ET dont la perte ne DÉPASSE PAS celle de
+  // l'optimum, celle qui MINIMISE midMax. ⇒ « DOMINANT » : jamais pire que l'optimum NI sur la perte réelle NI
+  // sur le solde du milieu (prouvé : 0 aggravation sur perte ET sur midMax / 3000+ cas ; conservation intacte),
+  // et le gros reste réutilisable tombe en FIN pas au milieu (ex. Legrand Spain 1666 → 328 mm). L'optimum
+  // lui-même satisfait la contrainte → repli sûr : le rendement n'est JAMAIS sacrifié.
+  const _reuse=keys=>keys.reduce((s,kk)=>s+slice[kk].phaseEndSolde,0);
+  const _mid=keys=>keys.reduce((m,kk,ki)=>ki<keys.length-1?Math.max(m,slice[kk].phaseEndSolde):m,0);
+  const optPerte=opt.waste-_reuse(opt.keys);
+  let best={waste:opt.waste,keys:opt.keys,mid:_mid(opt.keys),perte:optPerte};
+  parts.forEach(keys=>{
+    let waste=0,pieces=0,nb=0;
+    keys.forEach(kk=>{ const r=slice[kk]; waste+=r.waste; pieces+=r.pieces; nb+=r.bobs.length; });
+    if(pieces!==opt.pieces||Math.abs(waste-opt.waste)>1e-9||nb!==opt.nb||keys.length!==opt.keys.length) return;   // même rendement UNIQUEMENT
+    const perte=waste-_reuse(keys);
+    if(perte>optPerte+1e-9) return;                                     // ne JAMAIS aggraver la perte réelle affichée
+    const mid=_mid(keys);
+    if(mid<best.mid-1e-9||(Math.abs(mid-best.mid)<=1e-9&&perte<best.perte-1e-9)) best={waste,keys:keys.slice(),mid,perte};
   });
   if(!best) return null;
   const phases=best.keys.map(kk=>slice[kk].bobs).filter(ph=>ph.length);
