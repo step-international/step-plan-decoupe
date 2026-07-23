@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L243';
+const APP_VERSION='2026.07.23-L244';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5782,6 +5782,7 @@ function computePlanAggregate(computed){
   const resteRouleauxMm=computed.reduce((s,c)=>
     (c.recutBobines||[]).reduce((ss,r)=>ss+Math.max(0,r.rollW-calcStats(r.pattern,c.blade).total),s),0);
   // 4) Perte : non-utilisé hors chute stock, puis perte mère = perte − reste rouleaux.
+  if(totalMat-totalUsed-chuteStockMm < -0.5) console.warn('[G-COMPTABILITÉ] chute stock surévaluée :',{totalMat,totalUsed,chuteStockMm});   // [L244 · audit PBT — G-COMPTABILITÉ] le clamp ci-dessous masquerait sinon une chute stock > chute totale (bug silencieux)
   const perteMm    =Math.max(0,totalMat-totalUsed-chuteStockMm);
   const perteMereMm=Math.max(0,perteMm-resteRouleauxMm);
   const pertePct   =totalMat>0?(perteMereMm/totalMat*100):0;
@@ -6058,8 +6059,26 @@ function recalcPlan(){
         +'⛔ L\'envoi est bloqué tant que ce n\'est pas résolu — sinon les deux seraient coupés ENSEMBLE sur les mêmes bobines mères.</span></div>';
     });
   }
+  // [L244 · audit PBT — G-CONSERVATION, garde runtime] LA propriété n°1 (aucune pièce perdue) surveillée EN PROD :
+  // pour chaque réf, le multiset produit (bobines mères + rouleaux recut + chutes stock) doit = la demande valide
+  // (largeur ≤ useful). Un écart hors troncature = pièce avalée en silence (ex. sub-mm P15) → bannière rouge +
+  // console.error. Coût O(pièces), n'altère RIEN si tout va bien (le moteur n'est pas touché — pure vérification).
+  if(!packTruncated){ try{
+    let _miss=0, _detail=[];
+    computed.forEach(c=>{
+      const want={}; (c.rows||[]).forEach(r=>{ const w=Number(r.width)||0, q=Math.floor(Number(r.qty)||0); if(w>0&&w<=c.useful&&q>0) want[w]=(want[w]||0)+q; });
+      const got={}; const add=b=>b&&b.forEach(x=>{ const w=Number(x.width)||0, q=Number(x.qty)||0; if(w>0) got[w]=(got[w]||0)+q; });
+      (c.bobines||[]).forEach(add); (c.recutBobines||[]).forEach(r=>add(r.pattern));
+      Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ got[w]=(got[w]||0)+(Number(q)||0); });
+      Object.keys(want).forEach(w=>{ const d=(want[w]||0)-(got[w]||0); if(d>0){ _miss+=d; _detail.push(d+'×'+w+'mm ('+(c.ref||'?')+')'); } });
+    });
+    if(_miss>0){ console.error('[G-CONSERVATION] '+_miss+' pièce(s) NON placée(s) sans troncature :',_detail); heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ANOMALIE PLAN : '+_miss+' pièce(s) commandée(s) NON présente(s) dans le plan ('+esc(_detail.slice(0,4).join(', '))+'). Vérifie les largeurs/quantités avant toute découpe.</div>'; }
+  }catch(e){ console.warn('[G-CONSERVATION]',e); } }
   if(packTruncated){
-    heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ PLAN TRONQUÉ : trop de bobines demandées, des pièces ne sont PAS dans le plan. Corrige les quantités avant toute découpe.</div>';
+    const _placed=[].concat(...computed.map(c=>c.bobines)).reduce((s,b)=>s+b.reduce((a,x)=>a+(Number(x.qty)||0),0),0);
+    const _asked=groups.reduce((s,g)=>s+(g.rows||[]).reduce((a,r)=>a+Math.max(0,Math.floor(Number(r.qty)||0)),0),0);
+    const _manque=Math.max(0,_asked-_placed);   // [L244 · amélioration #4] la bannière annonce le NOMBRE de pièces manquantes
+    heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ PLAN TRONQUÉ : trop de bobines demandées'+(_manque?' — <b>'+_manque+' pièce(s)</b> ne sont PAS dans le plan':', des pièces ne sont PAS dans le plan')+'. Corrige les quantités avant toute découpe.</div>';
   }else if(totalBobChk>150){
     heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+totalBobChk+' bobines mères — on ne dépasse jamais 150 en production. Vérifie les quantités saisies.</div>';
   }
@@ -16312,7 +16331,7 @@ function parseConf(val){
     p=p.trim();
     const m=p.match(/(?:^|[^\d.])(\d+)\s*×\s*(\d+(?:\.\d+)?)/);   // [L97 · relecture #21] « 6.5×502 » ne se lit plus « 5×502 » en silence (quantité jamais précédée d'un chiffre ou d'un point)
     if(m){const q=parseInt(m[1]);if(q>0&&q<=99999) pieces.push({qty:q,width:parseFloat(m[2])});}
-    else{const m2=p.match(/^(\d+(?:\.\d+)?)\s*(?:mm)?$/i);if(m2) pieces.push({qty:1,width:parseFloat(m2[1])});}
+    else{const m2=p.match(/^(\d+(?:\.\d+)?)\s*(?:mm)?$/i);if(m2) pieces.push({qty:1,width:parseFloat(m2[1])}); else if(p&&/\d/.test(p)) console.warn('[G-PARSECONF] segment de conf ignoré (aucune pièce) :',JSON.stringify(p));}   // [L244 · audit PBT — G-PARSECONF] un token contenant un chiffre mais non reconnu ne doit pas être avalé en silence (sous-comptage cumul/reste)
   });
   return pieces;
 }
