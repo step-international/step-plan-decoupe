@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L247';
+const APP_VERSION='2026.07.23-L248';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10552,6 +10552,14 @@ function buildMonthlyKpi(ym,fiches,temps){
   const MACH=MACHINE_LABELS;
   const mach={};MACH.forEach(m=>mach[m]={bobines:0,wpNum:0,wpDen:0,dur:0,laizes:0});
   let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0,soldeMm=0,chutesPieces=0;   // [L83 · Audit #44][L98 · #13]
+  // [L247 · R3] QUALITÉ + PONCTUALITÉ + ÉCARTS — nouveaux champs DANS l'agrégat (collection 'agregats'
+  // inchangée, rules isManage sans whitelist → zéro impact règles). Mois FIGÉS avant cette version :
+  // champs absents → l'écran affiche « — » (JAMAIS 0) ; complétés uniquement via « ♻ Recalculer ».
+  const _pDate=v=>{ v=String(v==null?'':v).trim(); if(!v||v==='—') return null;
+    let m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m){ const d=new Date(v); return isNaN(d)?new Date(+m[1],+m[2]-1,+m[3],12).getTime():new Date(d.getFullYear(),d.getMonth(),d.getDate(),12).getTime(); }
+    m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return new Date(+m[3],+m[2]-1,+m[1],12).getTime();   // repli fr-FR (dateLiv historique jj/mm/aaaa)
+    return null; };
+  let qCtrl=0,qNc=0,qLarg=0,qQty=0,qCasse=0,qAng=0,qOuv=0,qDelaiSum=0,qDelaiN=0,ecartsN=0,livTot=0,livOk=0;
   const cliVol={},refVol={};   // [L79·AN-3] volume (bobines) par client / par réf → top 5 stockés dans l'agrégat
   F.forEach(f=>{
     let b=Number(f.totalBobines)||0,p=parseFloat(f.pct);
@@ -10580,6 +10588,29 @@ function buildMonthlyKpi(ym,fiches,temps){
     const rf=String(f.ref||'—').trim()||'—'; refVol[rf]=(refVol[rf]||0)+b;
     const gs=f.groups||[]; if(gs.length) soldeMm+=parseNum(gs[gs.length-1].waste)||0;   // [L98 · #13] chute RÉUTILISABLE (solde conservé)
     chutesPieces+=Object.values(f.chutesStock||{}).reduce((a2,b2)=>a2+(Number(b2)||0),0);   // [L98 · #13] bobineaux pris en stock
+    // [L247 · R3] qualité par bobine (NC par type, ouvertes, délai de traitement fiche→clôture en jours)
+    const _fin=_pDate(f.date);
+    (Array.isArray(f.ficheDetail)?f.ficheDetail:[]).forEach(fd=>{
+      if(!fd) return; qCtrl++;
+      let _is=false;
+      if(fd.ncLarg){qLarg++;_is=true;}
+      if(fd.ncQty){qQty++;_is=true;}
+      if(fd.ncCasse){qCasse++;_is=true;}
+      if(fd.ncAng){qAng++;_is=true;}
+      if(_is){ qNc++;
+        if((fd.ncStatut||'ouvert')!=='cloture') qOuv++;
+        const _tr=_pDate(fd.ncDateTraite);
+        if(_tr!=null&&_fin!=null&&_tr>=_fin){ qDelaiSum+=(_tr-_fin)/86400000; qDelaiN++; }
+      }
+    });
+    if(f.hasEcart===true) ecartsN++;
+    // [L247 · R3] ponctualité v1 : promesse la plus EXIGEANTE (min des dates de livraison fiche +
+    // clients) vs FIN DE DÉCOUPE (date de la fiche — proxy assumé, pas de date d'expédition en v1).
+    // Fiches sans promesse datée (« — », vide, non parsable) EXCLUES du ratio — jamais comptées « à temps ».
+    const _ps=[_pDate(f.dateLivIso),_pDate(f.dateLiv)];
+    if(Array.isArray(f.clients)) f.clients.forEach(c=>{ if(c) _ps.push(_pDate(c.dateLiv)); });
+    const _pr=_ps.filter(x=>x!=null).sort((a,b)=>a-b)[0];
+    if(_pr!=null&&_fin!=null){ livTot++; if(_fin<=_pr) livOk++; }
   });
   const topClients=Object.entries(cliVol).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:e[1]}));
   const topRefs=Object.entries(refVol).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:e[1]}));
@@ -10594,7 +10625,9 @@ function buildMonthlyKpi(ym,fiches,temps){
   // PAS persistés sur les fiches — une pondération surface exigerait un rejeu par fiche (coût/risque > valeur).
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
-  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces};   // [L83 · Audit #44][L98 · #13]
+  return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13]
+    qual:{ctrl:qCtrl,nc:qNc,larg:qLarg,qty:qQty,casse:qCasse,ang:qAng,ouv:qOuv,delaiMoy:qDelaiN?+(qDelaiSum/qDelaiN).toFixed(1):null},   // [L247 · R3]
+    liv:{tot:livTot,ok:livOk},ecartsN};   // [L247 · R3]
 }
 
 // Fige un mois : requête datée DIRECTE (indépendante du cache boot allégé), filtre deleted client.
@@ -10672,7 +10705,9 @@ function printKpiMois(ym){
       <tr><td style="${td}">Fiches</td><td style="${td};text-align:right;font-weight:700">${kpi.nbFiches||0}</td><td style="${td}">Bobines</td><td style="${td};text-align:right;font-weight:700">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</td></tr>
       <tr><td style="${td}">Rendement matière</td><td style="${td};text-align:right;font-weight:700">${rendement} %</td><td style="${td}">Perte moyenne (pondérée)</td><td style="${td};text-align:right;font-weight:700">${kpi.pertePct||0} %</td></tr>
       <tr><td style="${td}">Temps total production</td><td style="${td};text-align:right;font-weight:700" colspan="3">${fmtHm(kpi.tempsSec||0)}</td></tr>
-    </table>
+      ${kpi.qual?`<tr><td style="${td}">Bobines NC</td><td style="${td};text-align:right;font-weight:700">${kpi.qual.nc} / ${kpi.qual.ctrl}${kpi.qual.ctrl?' ('+(Math.round(kpi.qual.nc/kpi.qual.ctrl*1000)/10).toLocaleString('fr-FR')+' %)':''}</td><td style="${td}">NC ouvertes · délai clôture</td><td style="${td};text-align:right;font-weight:700">${kpi.qual.ouv}${kpi.qual.delaiMoy!=null?' · '+kpi.qual.delaiMoy.toLocaleString('fr-FR')+' j':''}</td></tr>`:''}
+      ${kpi.liv?`<tr><td style="${td}">Livraisons à temps</td><td style="${td};text-align:right;font-weight:700">${kpi.liv.tot?(Math.round(kpi.liv.ok/kpi.liv.tot*1000)/10).toLocaleString('fr-FR')+' % ('+kpi.liv.ok+'/'+kpi.liv.tot+')':'n/d'}</td><td style="${td}">Fiches en écart</td><td style="${td};text-align:right;font-weight:700">${typeof kpi.ecartsN==='number'?kpi.ecartsN+' / '+(kpi.nbFiches||0):'—'}</td></tr>`:''}
+    </table><!-- [L247 · R3] lignes qualité/ponctualité/écarts sur le PDF (règle « toutes les surfaces ») — absentes si mois figé avant cette version -->
     <h2 style="font-size:15px;margin:0 0 6px">Par machine</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
       <thead><tr><th style="text-align:left;padding:5px 8px;border:1px solid #ccc;background:#f2f2f2">Machine</th><th style="${th}">Bobines</th><th style="${th}">Perte</th><th style="${th}">Temps/laize</th></tr></thead>
@@ -10750,6 +10785,21 @@ function kpiMoisInnerHTML(ym){
       <div style="height:6px;background:#222;border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round(Number(x.v)/max*100)}%;background:${col}"></div></div>
     </div>`).join('');
   };
+  // [L247 · R3] tuiles QUALITÉ / PONCTUALITÉ / ÉCARTS — mois figés AVANT cette version : champs absents
+  // → « — » + invitation ♻ Recalculer (jamais un faux 0). Le mois en cours a toujours les champs (calcul live).
+  const _q=kpi.qual||null,_lv=kpi.liv||null;
+  const _pctOf=(n,d)=>d?Math.round(n/d*1000)/10:null;
+  const ncPct=_q?_pctOf(_q.nc,_q.ctrl):null;
+  const livPct=_lv?_pctOf(_lv.ok,_lv.tot):null;
+  const ecPct=(typeof kpi.ecartsN==='number')?_pctOf(kpi.ecartsN,kpi.nbFiches):null;
+  const _pNcPct=prevKpi&&prevKpi.qual?_pctOf(prevKpi.qual.nc,prevKpi.qual.ctrl):null;
+  const _pLivPct=prevKpi&&prevKpi.liv?_pctOf(prevKpi.liv.ok,prevKpi.liv.tot):null;
+  const _naTile='<div style="font-size:24px;font-weight:800;color:#666">—</div><div style="font-size:11px;color:#777;margin-top:3px">figé avant cette version — ♻ Recalculer</div>';
+  const r3Tiles=`
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobines NC</div>${_q?`<div style="font-size:24px;font-weight:800;color:${(_q.nc?'#f87171':'var(--green)')}">${ncPct==null?'—':ncPct.toLocaleString('fr-FR')+' %'}</div><div style="font-size:11px;color:#999;margin-top:3px">${_q.nc} / ${_q.ctrl} contrôlée(s)${_q.ouv?` · <span style="color:#fbbf24;font-weight:700">${_q.ouv} ouverte(s)</span>`:''}</div>${ncPct!=null?_delta(ncPct,_pNcPct,'%',true):''}`:_naTile}</div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Livraisons à temps</div>${_lv?(_lv.tot?`<div style="font-size:24px;font-weight:800;color:${livPct>=90?'var(--green)':(livPct>=70?'#fbbf24':'#f87171')}">${livPct.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#999;margin-top:3px">${_lv.ok} / ${_lv.tot} fiche(s) datée(s) · fin découpe ≤ promesse</div>${_delta(livPct,_pLivPct,'%',false)}`:`<div style="font-size:24px;font-weight:800;color:#666">n/d</div><div style="font-size:11px;color:#777;margin-top:3px">aucune fiche avec date de livraison</div>`):_naTile}</div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Fiches en écart</div>${ecPct!=null?`<div style="font-size:24px;font-weight:800;color:${kpi.ecartsN?'#fbbf24':'var(--green)'}">${ecPct.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#999;margin-top:3px">${kpi.ecartsN} / ${kpi.nbFiches||0} fiche(s) plan ≠ terrain</div>`:_naTile}</div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Délai traitement NC</div>${_q?(_q.delaiMoy!=null?`<div style="font-size:24px;font-weight:800;color:${_q.delaiMoy<=7?'var(--green)':'#fbbf24'}">${_q.delaiMoy.toLocaleString('fr-FR')} j</div><div style="font-size:11px;color:#999;margin-top:3px">moyenne fiche → clôture NC</div>`:`<div style="font-size:24px;font-weight:800;color:#666">n/d</div><div style="font-size:11px;color:#777;margin-top:3px">${_q.nc?'aucune NC clôturée':'aucune NC'}</div>`):_naTile}</div>`;
   const topBlock=((kpi.topClients&&kpi.topClients.length)||(kpi.topRefs&&kpi.topRefs.length))?`
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Top volumes du mois</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px">
@@ -10764,7 +10814,7 @@ function kpiMoisInnerHTML(ym){
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#999">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chute réutilisable</div><div style="font-size:24px;font-weight:800;color:#5eead4">${((kpi.soldeMm||0)/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} m</div><div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>${r3Tiles}
     </div>
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#60a5fa')}${machCard('MAVEG','#4ade80')}${machCard('CEVENINI','#a78bfa')}</div>
@@ -10775,6 +10825,78 @@ function kpiMoisInnerHTML(ym){
       <thead><tr style="color:#888;font-size:12px;text-transform:uppercase"><th style="text-align:left;padding:5px 8px;border-bottom:1px solid #333">Mois</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Bobines</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Fiches</th><th style="text-align:right;padding:5px 8px;border-bottom:1px solid #333">Perte %</th></tr></thead>
       <tbody>${evoRows}</tbody></table>`:''}
     <div style="font-size:12px;color:var(--muted);padding-top:8px;border-top:1px solid #2a2a28">${statusNote}</div><!-- [L83 · Audit #34] contraste -->`;
+}
+
+
+// [L247 · R3] TENDANCES 12 MOIS — sparklines depuis les agrégats FIGÉS (déjà chargés, limit 24) + mois
+// en cours calculé live. AUCUN recalcul rétroactif : un mois figé avant cette version n'a pas qual/liv
+// → TROU dans la courbe (jamais un faux 0) ; « ♻ Recalculer ce mois » le complète explicitement.
+// Blocs titrés en QUESTIONS dirigeant (rapport Phase 0, section e).
+function buildTendancesBlock(){
+  try{
+    const cur=currentMonthYM();
+    const months=prevMonthsYM(12).reverse();   // asc, finit sur le mois en cours
+    const byM={}; agregatsCache.forEach(a=>{ if(a&&a.mois) byM[a.mois]=a; });
+    let liveKpi=null; try{ liveKpi=buildMonthlyKpi(cur,fichesCache,tempsCache); }catch(e){}
+    const data=months.map(ym=>ym===cur?liveKpi:(byM[ym]||null));
+    const _pct=(n,d)=>d?Math.round(n/d*1000)/10:null;
+    const SERIES=[
+      {q:'La perte matière baisse-t-elle ?',unit:' %',color:'#fb923c',goodDown:true,
+       get:k=>(k&&typeof k.pertePct==='number')?k.pertePct:null},
+      {q:'La qualité s\'améliore-t-elle ?',unit:' % NC',color:'#f87171',goodDown:true,
+       get:k=>(k&&k.qual&&k.qual.ctrl)?_pct(k.qual.nc,k.qual.ctrl):null},
+      {q:'Livrons-nous à l\'heure ?',unit:' %',color:'#4ade80',goodDown:false,
+       get:k=>(k&&k.liv&&k.liv.tot)?_pct(k.liv.ok,k.liv.tot):null},
+      {q:'Le volume progresse-t-il ?',unit:' bob.',color:'#60a5fa',goodDown:false,
+       get:k=>(k&&typeof k.totalBobines==='number')?k.totalBobines:null}
+    ];
+    const W=280,H=64,padX=8,padT=10,padB=14;
+    const mLbl=ym=>ym.slice(5,7)+'/'+ym.slice(2,4);
+    const spark=(vals,color)=>{
+      const pts=vals.map((v,i)=>({v,i})).filter(p=>p.v!=null);
+      if(pts.length<2) return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block"><text x="50%" y="55%" text-anchor="middle" fill="#666" font-size="11">pas assez de mois renseignés</text></svg>`;
+      let mn=Math.min(...pts.map(p=>p.v)),mx=Math.max(...pts.map(p=>p.v));
+      if(mx===mn){mx+=1;mn-=1;}
+      const X=i=>padX+i*(W-2*padX)/(vals.length-1);
+      const Y=v=>padT+(mx-v)*(H-padT-padB)/(mx-mn);
+      let segs=[],seg=[];
+      vals.forEach((v,i)=>{ if(v==null){ if(seg.length)segs.push(seg); seg=[]; } else seg.push({v,i}); });
+      if(seg.length)segs.push(seg);
+      let out='';
+      segs.forEach(sg=>{
+        if(sg.length===1){ out+=`<circle cx="${X(sg[0].i).toFixed(1)}" cy="${Y(sg[0].v).toFixed(1)}" r="2.5" fill="${color}"/>`; return; }
+        out+=`<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${sg.map(pp=>X(pp.i).toFixed(1)+','+Y(pp.v).toFixed(1)).join(' ')}"/>`;
+      });
+      const last=pts[pts.length-1];
+      out+=`<circle cx="${X(last.i).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="3.5" fill="${color}"/>`;
+      out+=`<text x="${padX}" y="${H-2}" fill="#666" font-size="9">${mLbl(months[0])}</text><text x="${W-padX}" y="${H-2}" text-anchor="end" fill="#666" font-size="9">${mLbl(months[months.length-1])}</text>`;
+      out+=`<text x="${W-padX}" y="${padT-1}" text-anchor="end" fill="#555" font-size="9">max ${mx.toLocaleString('fr-FR')}</text>`;
+      return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
+    };
+    const cards=SERIES.map(sr=>{
+      const vals=data.map(sr.get);
+      const pts=vals.map((v,i)=>({v,i})).filter(p=>p.v!=null);
+      const last=pts.length?pts[pts.length-1]:null;
+      const prev=pts.length>1?pts[pts.length-2]:null;
+      let trend='';
+      if(last&&prev){
+        const d=Math.round((last.v-prev.v)*10)/10;
+        if(d!==0){ const up=d>0,good=sr.goodDown?!up:up;
+          trend=`<span style="font-size:12px;font-weight:700;color:${good?'#4ade80':'#f87171'}">${up?'▲':'▼'} ${up?'+':''}${d.toLocaleString('fr-FR')}</span>`; }
+        else trend='<span style="font-size:12px;color:#999">=</span>';
+      }
+      return `<div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px">
+        <div style="font-size:12px;font-weight:700;color:#ccc;margin-bottom:6px">${sr.q}</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><span style="font-size:20px;font-weight:800;color:${sr.color}">${last?last.v.toLocaleString('fr-FR')+sr.unit:'—'}</span>${trend}</div>
+        ${spark(vals,sr.color)}
+      </div>`;
+    }).join('');
+    return `<div class="ana-card">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">📈 Tendances 12 mois</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">${cards}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px">Mois figés avant cette version : NC / ponctualité absents (trou dans la courbe) — « ♻ Recalculer ce mois » pour compléter. Mois non figés = trous. Dernier point = mois en cours (calcul live).</div>
+    </div>`;
+  }catch(e){ console.warn('buildTendancesBlock:',e); return ''; }
 }
 
 // ============================================================
@@ -12744,6 +12866,8 @@ function buildAnalyseDashboard(d){
 
     ${buildKpiMoisBlock()}
 
+    ${buildTendancesBlock()}<!-- [L247 · R3] tendances 12 mois depuis agrégats figés + mois courant live -->
+
     <!-- [L234 · Analyse B1] 3 tuiles globales retirées : DOUBLON avec le bandeau KPI mensuel + statsSummary (3 totaux d'heures à périmètres ≠ sur le même écran) -->
 
     <div class="ana-card">
@@ -12978,6 +13102,7 @@ function renderAnalyse(){
       ${_fbar}
       ${buildDebitToolbox()}
       ${buildKpiMoisBlock()}
+      ${buildTendancesBlock()}
       <div style="text-align:center;padding:30px 20px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">
       <div style="font-size:40px;margin-bottom:12px">📈</div>
       <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">${_filtered?'Pas assez de données pour ce filtre':'Graphiques de productivité en attente'}</div>
