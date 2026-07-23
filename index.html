@@ -1781,7 +1781,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L248';
+const APP_VERSION='2026.07.23-L249';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10366,8 +10366,14 @@ function svgHBars(items,unit,W,padL){
   return `<svg viewBox="0 0 ${W} ${padT+n*gap}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">${out}</svg>`;
 }
 function buildFicheAnalytics(){
-  const fiches=fichesCache.filter(f=>!f.deleted&&f.valide!==false);   // [L83 · Audit #42] fiches REFUSÉES exclues — même règle que le KPI mensuel (le taux NC vs cible 3% était calculé sur un périmètre différent selon l'écran)
-  if(!fiches.length) return '';
+  // [L249 · R4a] filtre GLOBAL : mois (local) + client au niveau FICHE ; opérateur + machine au niveau
+  // BOBINE (plus bas) — filtrer sur l'op relayeur montre SA part, pas la commande entière ni rien.
+  const _ymL=d=>{ const x=new Date(d); return isNaN(x)?String(d||'').slice(0,7):x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'); };
+  const fiches=fichesCache.filter(f=>!f.deleted&&f.valide!==false
+    &&(analyseFilter.month==='ALL'||_ymL(f.date)===analyseFilter.month)
+    &&(analyseFilter.client==='ALL'||nrm(f.client||'')===nrm(analyseFilter.client)));   // [L83 · Audit #42] fiches REFUSÉES exclues — même règle que le KPI mensuel
+  const _faEmpty=`<div class="ana-card" style="text-align:center;color:var(--muted);padding:24px">🎛 Aucune bobine de fiche dans ce périmètre — élargis le filtre.</div>`;
+  if(!fiches.length) return _anaFiltered()?_faEmpty:'';
   let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,totBob=0,ncBob=0;
   const opStat={},machStat={};   // [L86 · simpl.1] clientPct/clientItems morts supprimés
   fiches.forEach(f=>{
@@ -10378,19 +10384,23 @@ function buildFicheAnalytics(){
     const _o2s=parseInt(f.op2Bob,10);
     const _hasRelay=!isNaN(_o2s)&&_o2s>=1&&_o2s<=det.length&&(f.ini2||f.machine2);
     det.forEach((d,di)=>{
+      const _rel=_hasRelay&&(di+1)>=_o2s;
+      const op=(_rel?(f.ini2||f.ini):f.ini)||'?';
+      const m=(_rel?(f.machine2||f.machine):f.machine)||'?';
+      // [L249 · R4a] filtre op/machine au niveau BOBINE : la part de l'op.2 d'un relais est isolable
+      if(analyseFilter.op!=='ALL'&&String(op).trim()!==analyseFilter.op) return;
+      if(analyseFilter.mach!=='ALL'&&String(m).trim().toUpperCase()!==analyseFilter.mach) return;
       totBob++;let isNc=false;
       if(d.ncLarg){ncLarg++;isNc=true;}
       if(d.ncQty){ncQty++;isNc=true;}
       if(d.ncCasse){ncCasse++;isNc=true;}
       if(d.ncAng){ncAng++;isNc=true;}
       if(isNc)ncBob++;
-      const _rel=_hasRelay&&(di+1)>=_o2s;
-      const op=(_rel?(f.ini2||f.ini):f.ini)||'?';
-      const m=(_rel?(f.machine2||f.machine):f.machine)||'?';
       if(!opStat[op])opStat[op]={nc:0,tot:0}; opStat[op].tot++; if(isNc)opStat[op].nc++;
       if(!machStat[m])machStat[m]={nc:0,tot:0}; machStat[m].tot++; if(isNc)machStat[m].nc++;
     });
   });
+  if(!totBob&&_anaFiltered()) return _faEmpty;   // [L249 · R4a] périmètre vide APRÈS filtre bobine → message honnête
   const ncTotal=ncLarg+ncQty+ncCasse+ncAng;
   const ncSlices=[
     {label:'Largeur',value:ncLarg,color:'#f87171'},
@@ -10431,8 +10441,12 @@ function buildFicheAnalytics(){
   return `
     <div class="ana-card">
       <div class="ana-card-title">🥧 Répartition des non-conformités par type</div>
+      ${_anaFiltered()?`<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:10px">🎛 Périmètre filtré : ${esc([analyseFilter.mach!=='ALL'?analyseFilter.mach:'',analyseFilter.op!=='ALL'?analyseFilter.op:'',analyseFilter.month!=='ALL'?analyseFilter.month:'',analyseFilter.client!=='ALL'?analyseFilter.client:''].filter(Boolean).join(' · '))}</div>`:''}
       ${ncBlock}
-      <div style="font-size:12px;color:var(--muted);margin-top:8px">Source : fiches de découpe (hors corbeille). Identifie le défaut récurrent à traiter en priorité (ISO 9001).</div>
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+        <div style="font-size:12px;color:var(--muted)">Source : fiches de découpe (hors corbeille). Identifie le défaut récurrent à traiter en priorité (ISO 9001).</div>
+        ${(typeof canManageData==='function'&&canManageData())?`<button class="btn btn-ghost btn-sm" onclick="_openNcRegistre()" style="flex-shrink:0">📋 Ouvrir le registre NC</button>`:''}<!-- [L249 · R4b] drill-down NC → registre -->
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
@@ -10465,36 +10479,9 @@ function _atipMove(ev){ const e=_atipEl(); const p=(ev&&ev.touches&&ev.touches[0
 function _atipHide(){ const e=document.getElementById('analyseTip'); if(e&&e.style.opacity!=='0') e.style.opacity='0'; }   // [L163 · sweep perf #16] idempotent : ne touche le DOM que si nécessaire (écoute TOUS les scrolls en capture, ~60 Hz)
 document.addEventListener('scroll',_atipHide,{capture:true,passive:true});   // [L163] passive : ne bloque jamais le scroll
 
-function svgBarChart(items,color,maxVal,W,H,padL,padB){
-  if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
-  const n=items.length;
-  const gap=(W-padL-10)/n;
-  const barW=Math.max(6,Math.min(28,gap*0.66));
-  const scaleY=(H-padB-16)/maxVal;
-  let out='';
-  for(let i=0;i<=4;i++){
-    const y=H-padB-i*(H-padB-16)/4;
-    const val=Math.round(maxVal*i/4);
-    out+=`<line x1="${padL}" x2="${W-4}" y1="${y}" y2="${y}" stroke="#3a3a37" stroke-width="1" stroke-dasharray="2 3"/>`;
-    out+=`<text x="${padL-4}" y="${y+4}" text-anchor="end" fill="#888" font-size="11">${val}s</text>`;
-  }
-  // L35 — n'étiqueter qu'une barre sur k (calé pour ~14 labels max) + rotation −40°
-  // pour supprimer le chevauchement (« on ne voit rien »). Valeur exacte au clic.
-  const step=Math.max(1,Math.ceil(n/14));
-  items.forEach((it,i)=>{
-    const cx=padL+i*gap+gap/2;
-    const x=cx-barW/2;
-    const bh=Math.max(2,it.value*scaleY);
-    const y=H-padB-bh;
-    const tip=`${it.label} mm · ${Math.round(it.value)} s/laize`;
-    out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="2" fill="${color}" opacity="0.9" style="cursor:pointer" onmouseenter="_atipShow(event,'${tip}')" onmousemove="_atipMove(event)" onmouseleave="_atipHide()" onclick="_atipShow(event,'${tip}')"/>`;
-    if(i%step===0){
-      out+=`<text x="${cx}" y="${H-padB+15}" text-anchor="end" fill="#999" font-size="10.5" transform="rotate(-40 ${cx} ${H-padB+15})">${esc(String(it.label))}</text>`;/* [L163 · sweep sécurité] esc défensif (label d'axe) */
-    }
-  });
-  out+=`<text x="${W-4}" y="${H-2}" text-anchor="end" fill="#666" font-size="10">largeur (mm) →</text>`;
-  return out;
-}
+// [L249 · R4a — retrait VALIDÉ, rapport §c] svgBarChart SUPPRIMÉ avec la carte « Temps moyen par largeur »
+// (redondante : le modèle additif corrigé-laize du Débit porte la même info, normalisée par le nombre de laizes).
+
 
 function svgLineChart(series,weeks,W,H,padL,padB){
   if(!series.length||!weeks.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
@@ -10808,7 +10795,7 @@ function kpiMoisInnerHTML(ym){
     </div>`:'';
   return `${recalcBtn}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px">
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Fiches</div><div style="font-size:24px;font-weight:800">${kpi.nbFiches||0}</div></div>
+      <div onclick="_kpiFichesToggle('${ym}')" style="background:var(--section);border-radius:9px;padding:12px;cursor:pointer" title="Voir la liste des fiches du mois"><div style="font-size:12px;color:#999;margin-bottom:5px">Fiches ▾</div><div style="font-size:24px;font-weight:800">${kpi.nbFiches||0}</div><div style="font-size:11px;color:#777;margin-top:3px">toucher pour la liste</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobines</div><div style="font-size:24px;font-weight:800">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</div>${_delta(kpi.totalBobines,prevKpi&&prevKpi.totalBobines,'',false)}</div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Rendement matière</div><div style="font-size:24px;font-weight:800;color:var(--green)">${rendement.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#999;margin-top:3px">utile ÷ mère</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#999">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
@@ -10816,6 +10803,7 @@ function kpiMoisInnerHTML(ym){
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chute réutilisable</div><div style="font-size:24px;font-weight:800;color:#5eead4">${((kpi.soldeMm||0)/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} m</div><div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>${r3Tiles}
     </div>
+    <div id="kpiFichesList" style="display:none"></div><!-- [L249 · R4b] drill-down fiches du mois -->
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#60a5fa')}${machCard('MAVEG','#4ade80')}${machCard('CEVENINI','#a78bfa')}</div>
     ${(kpi.autresBobines>0)?`<div style="font-size:12px;color:var(--orange);margin:-8px 0 14px">⚠ ${Number(kpi.autresBobines).toLocaleString('fr-FR')} bobine(s) sur machine hors FEBA/MAVEG/CEVENINI — comptées dans le total, non ventilées ci-dessus.</div>`:''}
@@ -12807,6 +12795,17 @@ function buildPilotageBlock(){
     const late=all.filter(s=>{ const l=_plnDateLivMin(s); return l&&l<todayIso&&!cut(s); });
     // À planifier : pas posée, pas coupée
     const pool=all.filter(s=>!s.plannedDate&&!cut(s));
+    // [L249 · R4b] DRILL-DOWN : les listes ne sont plus JETÉES après comptage — tuiles cliquables.
+    const _rowOf=s2=>{ const liv=_plnDateLivMin(s2); const livTxt=liv?new Date(liv+'T12:00').toLocaleDateString('fr-FR'):'—';
+      return `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border-bottom:1px solid var(--border2);font-size:12.5px;flex-wrap:wrap">
+        <span style="font-weight:700;color:var(--text)">${esc(s2.client||'—')}</span>
+        <span style="color:var(--muted)">${esc(s2.ref||'—')}${(s2.numCmd&&s2.numCmd!=='—')?' · n° '+esc(s2.numCmd):''}</span>
+        <span style="color:${liv&&liv<todayIso?'#f87171':'var(--muted)'};font-weight:700">📅 ${livTxt}</span>
+        <span style="color:${s2.plannedDate?'var(--green)':'var(--orange)'};font-weight:600">${s2.plannedDate?('posée '+new Date(String(s2.plannedDate)+'T12:00').toLocaleDateString('fr-FR')+(s2.plannedMachine?' · '+esc(getMachineLabel(s2.plannedMachine)||String(s2.plannedMachine)):'')):'non posée'}</span>
+      </div>`; };
+    const lateList=late.slice().sort((a,b)=>String(_plnDateLivMin(a)||'').localeCompare(String(_plnDateLivMin(b)||''))).map(_rowOf).join('');
+    const poolList=pool.slice().sort((a,b)=>String(_plnDateLivMin(a)||'9999').localeCompare(String(_plnDateLivMin(b)||'9999'))).map(_rowOf).join('');
+    const _dd=(id,title,inner)=>`<div id="pilotList_${id}" style="display:none;background:#111;border:1px solid var(--border2);border-radius:10px;margin-bottom:12px;overflow:hidden"><div style="padding:8px 10px;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border2)">${title}</div><div style="max-height:320px;overflow-y:auto">${inner||'<div style="padding:10px;color:var(--muted);font-size:12px">—</div>'}</div></div>`;
     // Charge posée de la SEMAINE COURANTE par machine×jour — [L237 · revue #5] via _plnTouchedParts (la MÊME
     // logique anti-double-comptage que la grille : une commande déplacée ne compte plus 2×) ; [L237 · #7]
     // caches débit/calibration REMIS À ZÉRO (sinon heures calculées sur des débits périmés hors planning) ;
@@ -12829,7 +12828,7 @@ function buildPilotageBlock(){
     const realH=(tempsCache||[]).filter(t=>t&&!t.deleted&&String(t.date||'').slice(0,10)>=monIso&&String(t.date||'').slice(0,10)<=sunIso)
       .reduce((a,t)=>a+(Number(t.duree)||0),0)/3600;
     const h1=v=>String(Math.round(v*10)/10).replace('.',',');
-    const tile=(val,lbl,col,sub)=>`<div style="flex:1;min-width:150px;background:var(--card);border:1px solid var(--border2);border-left:4px solid ${col};border-radius:10px;padding:12px 14px"><div style="font-size:26px;font-weight:800;color:${col};line-height:1;font-variant-numeric:tabular-nums">${val}</div><div style="font-size:12px;color:var(--muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.04em">${lbl}</div>${sub?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>`:''}</div>`;
+    const tile=(val,lbl,col,sub)=>`<div style="flex:1;min-width:100%;height:100%;background:var(--card);border:1px solid var(--border2);border-left:4px solid ${col};border-radius:10px;padding:12px 14px"><div style="font-size:26px;font-weight:800;color:${col};line-height:1;font-variant-numeric:tabular-nums">${val}</div><div style="font-size:12px;color:var(--muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.04em">${lbl}</div>${sub?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>`:''}</div>`;
     const MCOL={feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'};
     const dayLbl=dayLbls;   // [L237 · #8] libellés alignés sur les jours OUVRÉS retenus
     const rows=DUJ_MACHINES.map(m=>{
@@ -12841,102 +12840,73 @@ function buildPilotageBlock(){
     return `<div class="ana-card" style="border-left:4px solid var(--action)">
       <div class="ana-card-title">🎯 Pilotage — semaine en cours</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-        ${tile(late.length,'Retards (livraison passée)',late.length?'#f87171':'#4ade80',late.length?late.filter(s=>s.plannedDate).length+' posée(s) · '+late.filter(s=>!s.plannedDate).length+' non posée(s)':'rien en retard 👍')}
-        ${tile(pool.length,'À planifier',pool.length?'var(--orange)':'#4ade80','commandes sans jour posé')}
-        ${tile(occ+'%','Occupation planning',occ>=85?'#4ade80':occ>=50?'var(--orange)':'#f87171',h1(posedH)+' h posées / '+h1(capH)+' h capacité')}
-        ${tile(h1(realH)+' h','Réalisé cette semaine','var(--blue)','relevés de temps lun→dim')}
+        <div onclick="_pilotToggle('late')" style="flex:1;min-width:150px;cursor:pointer" title="Voir la liste des retards">${tile(late.length,'Retards (livraison passée) ▾',late.length?'#f87171':'#4ade80',late.length?late.filter(s=>s.plannedDate).length+' posée(s) · '+late.filter(s=>!s.plannedDate).length+' non posée(s)':'rien en retard 👍')}</div>
+        <div onclick="_pilotToggle('pool')" style="flex:1;min-width:150px;cursor:pointer" title="Voir les commandes à planifier">${tile(pool.length,'À planifier ▾',pool.length?'var(--orange)':'#4ade80','commandes sans jour posé')}</div>
+        <div style="flex:1;min-width:150px">${tile(occ+'%','Occupation planning',occ>=85?'#4ade80':occ>=50?'var(--orange)':'#f87171',h1(posedH)+' h posées / '+h1(capH)+' h capacité')}</div>
+        <div style="flex:1;min-width:150px">${tile(h1(realH)+' h','Réalisé cette semaine','var(--blue)','relevés de temps lun→dim')}</div>
       </div>
+      ${_dd('late','⏰ Commandes en retard ('+late.length+')',lateList)}
+      ${_dd('pool','🗂 À planifier ('+pool.length+')',poolList)}
       <table style="width:100%;border-collapse:collapse"><thead><tr><th></th>${dayLbl.map(d=>`<th style="font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;padding:0 4px 4px">${d}</th>`).join('')}<th></th></tr></thead><tbody>${rows}</tbody></table>
       <div style="margin-top:10px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('planning')">📅 Ouvrir le planning</button></div>
     </div>`;
   }catch(e){ console.warn('buildPilotageBlock:',e); return ''; }
 }
-function buildAnalyseDashboard(d){
-  const {valid,widthItems,maxW,allWeeks,series,clientRank,machItems,legendOps,W,H,padL,padB,W2,H2,volSvg,fbar}=d;
-  return `
-  <div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
-
-    ${partialDataBanner()}
-
-    ${buildPilotageBlock()}<!-- [L235 · Analyse B2] l'essentiel dirigeant EN PREMIER : retards, à planifier, occupation, réalisé, charge machine×jour -->
-
-    ${fbar||''}
-
-    ${buildDebitToolbox()}
-
-    ${buildKpiMoisBlock()}
-
-    ${buildTendancesBlock()}<!-- [L247 · R3] tendances 12 mois depuis agrégats figés + mois courant live -->
-
-    <!-- [L234 · Analyse B1] 3 tuiles globales retirées : DOUBLON avec le bandeau KPI mensuel + statsSummary (3 totaux d'heures à périmètres ≠ sur le même écran) -->
-
-    <div class="ana-card">
-      <div class="ana-card-title">⬛ Temps moyen par largeur de bobineau</div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">
-          ${svgBarChart(widthItems,'#60a5fa',maxW,W,H,padL,padB)}
-        </svg>
-      </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:6px">Axe X = largeur en mm · Axe Y = secondes par laize (moyenne)</div>
-    </div>
-
-    <div class="ana-card">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📈 Évolution sec/laize par opérateur (par semaine)</div>
-      <div style="margin-bottom:10px">${legendOps}</div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W2} ${H2}" style="width:100%;max-width:${W2}px;display:block" xmlns="http://www.w3.org/2000/svg">
-          ${svgLineChart(series,allWeeks,W2,H2,padL,padB)}
-        </svg>
-      </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:6px">Axe X = semaine de l'année · Axe Y = secondes par laize (moyenne hebdo)</div>
-    </div>
-
-    <!-- [L234 · Analyse B1] « Classement clients — durée moyenne » RETIRÉ (classement par lenteur, lecture peu actionnable ; les Top clients du KPI mensuel couvrent le besoin) -->
-
-    <div class="ana-card">
-      <div class="ana-card-title">⚙️ Comparaison machines</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-        ${machItems.map(m=>`
-        <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px;text-align:center">
-          <div style="font-size:18px;font-weight:800;color:${m.color}">${Math.round(m.avg)}s</div>
-          <div style="font-size:12px;font-weight:700;margin:4px 0">${esc(String(m.label))}</div><!-- [L163 · sweep sécurité MAJEUR] esc : m.label = nom machine issu d'un doc temps (inter-postes) -->
-          <div style="font-size:12px;color:#888">${m.cmds} cmd · ${m.totalH}h prod.</div>
-        </div>`).join('')}
-      </div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} 140" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">
-          ${(()=>{
-            const items=machItems.map(m=>({label:m.label,value:m.avg,color:m.color}));
-            if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
-            const n=items.length,barH=22,gap=34,padT=10;
-            const maxV=Math.max(...items.map(x=>x.value),1);
-            let out='';
-            for(let i=0;i<=4;i++){
-              const x=padL+i*(W-padL-10)/4;
-              out+=`<line x1="${x}" x2="${x}" y1="${padT}" y2="${padT+n*gap+10}" stroke="#2a2a28" stroke-width="1"/>`;
-              out+=`<text x="${x}" y="${padT+n*gap+22}" text-anchor="middle" fill="#666" font-size="10">${Math.round(maxV*i/4)}s</text>`;
-            }
-            items.forEach((it,i)=>{
-              const y=padT+i*gap;
-              const bw=Math.max(4,(it.value/maxV)*(W-padL-10));
-              out+=`<rect x="${padL}" y="${y}" width="${bw}" height="${barH}" rx="3" fill="${it.color}" opacity="0.85"/>`;
-              out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#888" font-size="11" font-weight="600">${esc(String(it.label))}</text>`;/* [L163 · sweep sécurité MAJEUR] esc : nom machine dans le SVG */
-              out+=`<text x="${padL+bw+6}" y="${y+barH/2+4}" fill="#e5e5e3" font-size="11" font-weight="700">${Math.round(it.value)}s/laize</text>`;
-            });
-            return out;
-          })()}
-        </svg>
-      </div>
-    </div>
-
-    <!-- [L234 · Analyse B1] « Volume de découpes par semaine » RETIRÉ (compte des commandes ≠ charge réelle ; le Planning porte la charge en HEURES par jour/machine) -->
-
-    ${buildFicheAnalytics()}
-
-    ${(typeof canViewAudit==='function'&&canViewAudit())?`<div style="margin-top:14px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('audit')">🔍 Ouvrir la piste d'audit ISO</button></div>`:''}<!-- [L234 · Analyse B1] accès à la piste d'audit réintroduit (l'onglet dédié avait été retiré en L65, le contenu existe toujours) -->
-
+// [L249 · R4b] DRILL-DOWN Pilotage : déplie une liste à la fois (retards / à planifier).
+function _pilotToggle(which){
+  ['late','pool'].forEach(k=>{ const el=document.getElementById('pilotList_'+k); if(!el) return;
+    el.style.display=(k===which&&el.style.display==='none')?'block':'none'; });
+}
+// [L249 · R4b] DRILL-DOWN KPI mensuel : tuile « Fiches » → liste des fiches du mois.
+// Mois COURANT : depuis le cache (déjà complet pour le mois). Mois FIGÉ : le cache boot est TRONQUÉ
+// (200 fiches récentes) → requête Firestore DATÉE à la demande, LECTURE SEULE (mêmes bornes ±2 j que
+// computeMonthAggregate, filtre précis mois local côté client) — jamais un listing partiel silencieux.
+function _kpiFicheRowHTML(f){
+  const d=new Date(f.date); const dTxt=isNaN(d)?'—':d.toLocaleDateString('fr-FR');
+  const badges=(f.manqueMatiere?' <span style="color:#f87171;font-weight:700">⚠ manque</span>':'')+(f.hasEcart?' <span style="color:#fbbf24;font-weight:700">⚠ écart</span>':'');
+  return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-bottom:1px solid #2a2a28;font-size:12.5px;flex-wrap:wrap">
+    <span style="color:var(--muted);font-variant-numeric:tabular-nums">${dTxt}</span>
+    <span style="font-weight:700;color:var(--text)">${esc(f.client||'—')}</span>
+    <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap">${esc(f.ref||'—')}</span>
+    <span style="font-variant-numeric:tabular-nums">${Number(f.totalBobines)||0} bob · ${esc(String(f.pct!=null?f.pct:'—'))} %${badges}</span>
   </div>`;
 }
+function _kpiFichesRender(el,ym,list){
+  const _ymL=d=>{ const x=new Date(d); return isNaN(x)?String(d||'').slice(0,7):x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'); };
+  const F=(list||[]).filter(f=>f&&!f.deleted&&f.valide!==false&&_ymL(f.date)===ym)
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const CAP=250;
+  const rows=F.slice(0,CAP).map(_kpiFicheRowHTML).join('');
+  const capNote=F.length>CAP?`<div style="padding:8px 10px;font-size:12px;color:var(--orange)">⚠ ${F.length-CAP} fiche(s) non affichée(s) (liste limitée à ${CAP}) — l'export CSV donne tout.</div>`:'';
+  el.innerHTML=`<div style="background:#111;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:14px">
+    <div style="padding:8px 10px;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border2)">📄 Fiches de ${monthLabelFr(ym)} — ${F.length}</div>
+    <div style="max-height:340px;overflow-y:auto">${rows||'<div style="padding:10px;color:var(--muted);font-size:12px">Aucune fiche validée ce mois.</div>'}</div>${capNote}
+  </div>`;
+}
+async function _kpiFichesToggle(ym){
+  const el=document.getElementById('kpiFichesList'); if(!el) return;
+  if(el.style.display!=='none'){ el.style.display='none'; return; }
+  el.style.display='block';
+  if(ym===currentMonthYM()){ _kpiFichesRender(el,ym,fichesCache); return; }
+  el.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">⏳ Chargement des fiches de '+monthLabelFr(ym)+'…</div>';
+  if(!db){ el.innerHTML='<div style="padding:12px;color:#f87171;font-size:13px">Base indisponible — impossible de charger un mois ancien hors ligne.</div>'; return; }
+  try{
+    const next=nextYM(ym);
+    const _lo=new Date(new Date(ym+'-01T00:00:00Z').getTime()-2*86400000).toISOString();
+    const _hi=new Date(new Date(next+'-01T00:00:00Z').getTime()+2*86400000).toISOString();
+    const snap=await db.collection('fiches').where('date','>=',_lo).where('date','<',_hi).get();
+    _kpiFichesRender(el,ym,snap.docs.map(d=>d.data()));
+  }catch(e){ el.innerHTML='<div style="padding:12px;color:#f87171;font-size:13px">Erreur de chargement : '+esc(e.message||String(e))+'</div>'; }
+}
+// [L249 · R4b] DRILL-DOWN NC : ouvre le Registre NC (bloc repliable ncBox, pilotage/admin).
+function _openNcRegistre(){
+  const b=document.getElementById('ncBox'); if(!b) return;
+  b.open=true;
+  try{ b.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ b.scrollIntoView(); }
+}
+// [L249 · R4a] buildAnalyseDashboard SUPPRIMÉ : l'assemblage vit dans renderAnalyse, découpé en ZONES
+// (zoneFbar/zoneCharts/zoneFa re-rendues seules au clic de filtre — Débit/KPI/Tendances/Pilotage intacts).
+
 // ============================================================
 // LOT F — SUIVI DES LAMES (ISO) : graphiques, lecture seule.
 // Sources : maintenance (poses), fiches (NC + lame), temps (bobineaux).
@@ -12946,7 +12916,7 @@ const _MOIS_FR=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sep
 function _mcol(lbl){return _LAME_MCOL[lbl]||'#a78bfa';}
 function _inPeriod(dateIso,period){ if(period==='all'||!period) return true; return String(dateIso||'').slice(0,7)===period; }
 function _periodLabel(p){ if(p==='all'||!p) return 'Tout l\'historique'; const a=String(p).split('-'); return (_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0]; }
-// Graphique à barres générique (l'existant svgBarChart est figé en secondes/mm).
+// Graphique à barres générique (suivi des lames).
 function svgBars(items,opts){
   opts=opts||{}; const W=opts.W||560,H=opts.H||210,padL=opts.padL||38,padB=opts.padB||26,padT=22;
   if(!items||!items.length) return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg"><text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas de données sur la période</text></svg>`;
@@ -13052,10 +13022,13 @@ function renderLameStats(){
   </div>`;
 }
 
-// L36 — Filtres Analyse (machine / opérateur / mois) sur les graphiques de
-// productivité. Débit médian et KPI mensuels gardent leurs propres réglages.
-var analyseFilter={mach:'ALL',op:'ALL',month:'ALL'};
-function setAnalyseFilter(dim,val){ if(analyseFilter[dim]===val) return; analyseFilter[dim]=val; try{ renderAnalyse(); }catch(e){ console.warn('renderAnalyse:',e); } }
+// L36/[L249 · R4a] — Filtre GLOBAL Analyse {machine · opérateur · mois · client} : graphiques de
+// productivité + blocs NC (fiches). Débit médian, KPI mensuels, Tendances et Pilotage restent TOUT
+// atelier (bandeau « périmètre » quand un filtre est actif — jamais un chiffre faussement filtré).
+var analyseFilter={mach:'ALL',op:'ALL',month:'ALL',client:'ALL'};
+function _anaFiltered(){ return analyseFilter.mach!=='ALL'||analyseFilter.op!=='ALL'||analyseFilter.month!=='ALL'||analyseFilter.client!=='ALL'; }
+function setAnalyseFilter(dim,val){ if(analyseFilter[dim]===val) return; analyseFilter[dim]=val; try{ renderAnalyse(true); }catch(e){ console.warn('renderAnalyse:',e); } }
+function resetAnalyseFilter(){ analyseFilter={mach:'ALL',op:'ALL',month:'ALL',client:'ALL'}; try{ renderAnalyse(true); }catch(e){ console.warn('renderAnalyse:',e); } }
 function analyseFilterBar(allTemps){
   const MACHS=MACHINE_LABELS, C={FEBA:'#60a5fa',MAVEG:'#4ade80',CEVENINI:'#a78bfa'};
   const machs=MACHS.filter(m=>allTemps.some(t=>String(t.machine||'').toUpperCase()===m));
@@ -13065,66 +13038,83 @@ function analyseFilterBar(allTemps){
   const grp=(lbl,html)=>`<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${lbl}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${html}</div></div>`;
   const monthLbl=m=>{const a=m.split('-');return (_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0];};
   const monthOpts='<option value="ALL">Tous les mois</option>'+months.map(m=>`<option value="${m}"${analyseFilter.month===m?' selected':''}>${monthLbl(m)}</option>`).join('');
+  // [L249 · R4a] dimension CLIENT (union temps + fiches — un client sans chrono reste filtrable côté NC)
+  const clients=[...new Set([].concat(
+    allTemps.map(t=>String(t.client||'').trim()),
+    (typeof fichesCache!=='undefined'?fichesCache:[]).filter(f=>f&&!f.deleted).map(f=>String(f.client||'').trim())
+  ).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
+  const clientOpts='<option value="ALL">Tous les clients</option>'+clients.map(c=>`<option value="${esc(c)}"${analyseFilter.client===c?' selected':''}>${esc(c)}</option>`).join('');
+  const selSt='background:#1a1a18;border:1.5px solid var(--border2);color:var(--text);font-size:13px;font-weight:700;padding:7px 10px;border-radius:9px;max-width:210px';
   return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">
     <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
       ${grp('🎛 Machine', pill('mach','ALL','Toutes','',analyseFilter.mach==='ALL')+machs.map(m=>pill('mach',m,m,C[m],analyseFilter.mach===m)).join(''))}
       ${ops.length?grp('Opérateur', pill('op','ALL','Tous','',analyseFilter.op==='ALL')+ops.map(o=>pill('op',o,o,(typeof OP_COLORS!=='undefined'&&OP_COLORS[o])||'',analyseFilter.op===o)).join('')):''}
-      ${months.length?grp('Mois', `<select onchange="setAnalyseFilter('month',this.value)" style="background:#1a1a18;border:1.5px solid var(--border2);color:var(--text);font-size:13px;font-weight:700;padding:7px 10px;border-radius:9px">${monthOpts}</select>`):''}
+      ${months.length?grp('Mois', `<select onchange="setAnalyseFilter('month',this.value)" style="${selSt}">${monthOpts}</select>`):''}
+      ${clients.length?grp('Client', `<select onchange="setAnalyseFilter('client',this.value)" style="${selSt}">${clientOpts}</select>`):''}
+      ${_anaFiltered()?`<button onclick="resetAnalyseFilter()" style="border:1.5px solid #6b5416;background:rgba(245,158,11,.08);color:#fbbf24;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;min-height:38px">✕ Réinitialiser</button>`:''}
     </div>
-    <div style="font-size:12px;color:var(--muted);margin-top:8px">S'applique aux graphiques de productivité ci-dessous. Débit médian et KPI mensuels ont leurs propres réglages.</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px">S'applique aux graphiques de productivité ET aux blocs NC (fiches). Débit médian, KPI mensuels, Tendances et Pilotage restent « tout atelier » (bandeau jaune quand un filtre est actif).</div>
   </div>`;
 }
-function renderAnalyse(){
+function renderAnalyse(partial){
   // [L233 · A3] renderLameStats parti dans renderMaintenance (onglet Lame)
   const allTemps=tempsCache.filter(t=>!t.deleted);
-  const ac=document.getElementById('analyseContent');
-  // L36 — filtrage machine / opérateur / mois. Les graphiques ci-dessous lisent
-  // `valid` (issu de fTemps) → ils réagissent tous automatiquement.
+  const ac=document.getElementById('analyseContent'); if(!ac) return;
   const _fbar=analyseFilterBar(allTemps);
   // [L246 · R1] le filtre matche AUSSI le relais (machine2/opérateur2) — avant, filtrer sur l'op relayeur
-  // excluait la commande entière, en contradiction avec les graphes ventilés qu'il filtre ; et le mois est
-  // bucketisé en heure LOCALE (comme le KPI mensuel), plus en UTC.
+  // excluait la commande entière ; mois bucketisé en heure LOCALE (comme le KPI mensuel), plus en UTC.
+  // [L249 · R4a] + dimension CLIENT.
   const _ymLoc=ds=>{ const d=new Date(ds); return isNaN(d)?String(ds||'').slice(0,7):d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
   const fTemps=allTemps.filter(t=>{
     const _ms=[String(t.machine||'').toUpperCase(),String(t.machine2||'').toUpperCase()].filter(Boolean);
     const _os=[String(t.operateur||'').trim(),String(t.operateur2||'').trim()].filter(Boolean);
     return (analyseFilter.mach==='ALL'||_ms.indexOf(analyseFilter.mach)>=0) &&
            (analyseFilter.op==='ALL'||_os.indexOf(analyseFilter.op)>=0) &&
-           (analyseFilter.month==='ALL'||_ymLoc(t.date)===analyseFilter.month);
+           (analyseFilter.month==='ALL'||_ymLoc(t.date)===analyseFilter.month) &&
+           (analyseFilter.client==='ALL'||nrm(t.client||'')===nrm(analyseFilter.client));
   });
   const valid=fTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
-  const _filtered=(analyseFilter.mach!=='ALL'||analyseFilter.op!=='ALL'||analyseFilter.month!=='ALL');
-
+  const _filtered=_anaFiltered();
+  const chartsHTML=_anaChartsHTML(valid,_filtered);
+  const faHTML=buildFicheAnalytics();
+  // [L249 · R4a] RENDU PARTIEL PAR ZONES : un clic de filtre ne reconstruit que la barre, les graphiques
+  // et les blocs NC. Débit (saisies estimateur), KPI mensuels, Tendances et Pilotage ne bougent PAS —
+  // plus aucune perte d'état, et l'écran ne « clignote » plus en entier.
+  if(partial===true){
+    const zF=document.getElementById('zoneFbar'),zC=document.getElementById('zoneCharts'),zA=document.getElementById('zoneFa');
+    if(zF&&zC&&zA){
+      zF.innerHTML=_fbar; zC.innerHTML=chartsHTML; zA.innerHTML=faHTML;
+      ac.querySelectorAll('.ana-scope-note').forEach(n=>{ n.style.display=_filtered?'block':'none'; });
+      return;
+    }
+  }
+  // [L249 · R4a] bandeau « périmètre » : ces blocs NE SONT PAS filtrables — on le DIT plutôt que de
+  // laisser croire qu'ils suivent le filtre (mois figé + filtre client = chiffre faux sinon).
+  const scopeNote='<div class="ana-scope-note" style="display:'+(_filtered?'block':'none')+';font-size:12px;font-weight:600;color:#fbbf24;background:rgba(245,158,11,.08);border:1px solid #6b5416;border-radius:8px;padding:7px 11px">🎛 Filtre actif — ce bloc n\'est pas filtrable : il montre TOUT l\'atelier.</div>';
+  _acSetHTML(ac,`
+  <div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
+    ${partialDataBanner()}
+    <div id="zonePilotage" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildPilotageBlock()}</div>
+    <div id="zoneFbar">${_fbar}</div>
+    <div id="zoneCharts" style="display:flex;flex-direction:column;gap:20px">${chartsHTML}</div>
+    <div id="zoneFa" style="display:flex;flex-direction:column;gap:20px">${faHTML}</div>
+    <div id="zoneDebit" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildDebitToolbox()}</div>
+    <div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildKpiMoisBlock()}</div>
+    <div id="zoneTendances" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildTendancesBlock()}</div>
+    ${(typeof canViewAudit==='function'&&canViewAudit())?`<div style="margin-top:14px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('audit')">🔍 Ouvrir la piste d'audit ISO</button></div>`:''}
+  </div>`);
+}
+// [L249 · R4a] Graphiques de productivité (zone re-rendue seule au filtre). La carte « Temps moyen par
+// largeur de bobineau » est RETIRÉE (rapport §c, validé) : redondante avec le modèle additif corrigé-laize
+// du Débit — un temps moyen par tranche de 10 mm sans normalisation par le nb de laizes se lisait mal.
+function _anaChartsHTML(valid,_filtered){
   if(valid.length<2){
-    const fa=buildFicheAnalytics();
-    ac.innerHTML=`<div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
-      ${partialDataBanner()}
-      ${_fbar}
-      ${buildDebitToolbox()}
-      ${buildKpiMoisBlock()}
-      ${buildTendancesBlock()}
-      <div style="text-align:center;padding:30px 20px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">
+    return `<div style="text-align:center;padding:30px 20px;color:var(--muted);background:var(--card);border:1px solid var(--border2);border-radius:10px">
       <div style="font-size:40px;margin-bottom:12px">📈</div>
       <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">${_filtered?'Pas assez de données pour ce filtre':'Graphiques de productivité en attente'}</div>
-      <div style="font-size:13px">${_filtered?'Élargis le filtre (machine / opérateur / mois).':'Les courbes temps/laize apparaîtront dès plusieurs commandes chronométrées.'}<br>Actuellement : <strong>${valid.length}</strong> entrée(s) valide(s).</div>
-    </div>${fa}</div>`;
-    return;
+      <div style="font-size:13px">${_filtered?'Élargis le filtre (machine / opérateur / mois / client).':'Les courbes temps/laize apparaîtront dès plusieurs commandes chronométrées.'}<br>Actuellement : <strong>${valid.length}</strong> entrée(s) valide(s).</div>
+    </div>`;
   }
-
-  const widthMap={};
-  valid.forEach(t=>{
-    const secL=t.duree/t.totalLaizes;
-    const widths=parseWidthsFromEntry(t);
-    const uniq=[...new Set(widths)];
-    uniq.forEach(w=>{
-      const tranche=Math.round(w/10)*10;
-      push(widthMap,tranche,secL);
-    });
-  });
-  const widthItems=Object.keys(widthMap).map(w=>({label:w,value:avgArr(widthMap[w])}))
-    .sort((a,b)=>a.label-b.label);
-  const maxW=Math.max(...widthItems.map(x=>x.value),1);
-
   // [L141 · audit #13] ventiler le relais op.2 via tempsShareParts (comme buildMonthlyKpi/renderTemps) : sinon
   // op.1 était crédité de TOUTE la productivité et op.2 (JF) n'apparaissait JAMAIS — l'écran contredisait le KPI figé.
   const _opsOf=t=>{ const o=[...new Set(tempsShareParts(t).map(g=>g.op).filter(Boolean))]; return o.length?o:[t.operateur||'?']; };
@@ -13141,13 +13131,8 @@ function renderAnalyse(){
     label:op,color:opColors[op]||'#60a5fa',
     data:Object.fromEntries(allWeeks.map(wk=>[wk, weekOpMap[op+'__'+wk]?avgArr(weekOpMap[op+'__'+wk]):undefined]).filter(([,v])=>v!==undefined))
   }));
-
-  // [L246 · R1] calcul MORT supprimé (classement clients par lenteur — affiché nulle part depuis L234, payé à chaque clic de filtre)
-  const clientRank=[];
-
   const machMap={};
   valid.forEach(t=>{
-    const secL=t.duree/t.totalLaizes;
     // [L141 · audit #13] heures & sec/laize ventilées par SEGMENT machine (relais inter-machines) : la machine
     // op.2 (MAVEG) reçoit sa part au lieu de 0. On agrège les fractions par machine → une commande mono-machine
     // (ou relais même machine) compte UNE fois ; un relais 2 machines compte une fois par machine (sa part d'heures).
@@ -13168,19 +13153,57 @@ function renderAnalyse(){
     totalH:Math.round(d.totalSec/3600*10)/10,
     color:m==='FEBA'?'#60a5fa':m==='MAVEG'?'#4ade80':'#a78bfa'
   })).sort((a,b)=>b.avg-a.avg);
-
   const legendOps=allOps.map(op=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12px">
     <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${opColors[op]||'#888'}"></span>${esc(String(op))}<!-- [L163 · sweep sécurité] esc : initiale opérateur (données inter-postes) -->
   </span>`).join('');
-
   const W=780,H=250,padL=42,padB=46;   // L35 — plus large + marge basse pour labels X tournés
   const W2=780,H2=250;
-
-  // Volume de découpes par semaine (charge atelier)
-  // [L246 · R1] calcul MORT supprimé (volume/semaine — affiché nulle part depuis L234)
-  const volSvg='';
-
-  _acSetHTML(ac,buildAnalyseDashboard({valid,widthItems,maxW,allWeeks,series,clientRank,machItems,legendOps,W,H,padL,padB,W2,H2,volSvg,fbar:_fbar}));
+  return `
+    <div class="ana-card">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">📈 Évolution sec/laize par opérateur (par semaine)</div>
+      <div style="margin-bottom:10px">${legendOps}</div>
+      <div style="overflow-x:auto">
+        <svg viewBox="0 0 ${W2} ${H2}" style="width:100%;max-width:${W2}px;display:block" xmlns="http://www.w3.org/2000/svg">
+          ${svgLineChart(series,allWeeks,W2,H2,padL,padB)}
+        </svg>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">Axe X = semaine de l'année · Axe Y = secondes par laize (moyenne hebdo)</div>
+    </div>
+    <div class="ana-card">
+      <div class="ana-card-title">⚙️ Comparaison machines</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+        ${machItems.map(m=>`
+        <div style="background:#111;border:1px solid #2a2a28;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:18px;font-weight:800;color:${m.color}">${Math.round(m.avg)}s</div>
+          <div style="font-size:12px;font-weight:700;margin:4px 0">${esc(String(m.label))}</div><!-- [L163 · sweep sécurité MAJEUR] esc : m.label = nom machine issu d'un doc temps (inter-postes) -->
+          <div style="font-size:12px;color:#888">${m.cmds} cmd · ${m.totalH}h prod.</div>
+        </div>`).join('')}
+      </div>
+      <div style="overflow-x:auto">
+        <svg viewBox="0 0 ${W} 140" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">
+          ${(()=>{
+            const items=machItems.map(m=>({label:m.label,value:m.avg,color:m.color}));
+            if(!items.length) return '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas assez de données</text>';
+            const n=items.length,barH=22,gap=34,padT=10;
+            const maxV=Math.max(...items.map(x=>x.value),1);
+            let out='';
+            for(let i=0;i<=4;i++){
+              const x=padL+i*(W-padL-10)/4;
+              out+=`<line x1="${x}" x2="${x}" y1="${padT}" y2="${padT+n*gap+10}" stroke="#2a2a28" stroke-width="1"/>`;
+              out+=`<text x="${x}" y="${padT+n*gap+22}" text-anchor="middle" fill="#666" font-size="10">${Math.round(maxV*i/4)}s</text>`;
+            }
+            items.forEach((it,i)=>{
+              const y=padT+i*gap;
+              const bw=Math.max(4,(it.value/maxV)*(W-padL-10));
+              out+=`<rect x="${padL}" y="${y}" width="${bw}" height="${barH}" rx="3" fill="${it.color}" opacity="0.85"/>`;
+              out+=`<text x="${padL-4}" y="${y+barH/2+4}" text-anchor="end" fill="#888" font-size="11" font-weight="600">${esc(String(it.label))}</text>`;/* [L163 · sweep sécurité MAJEUR] esc : nom machine dans le SVG */
+              out+=`<text x="${padL+bw+6}" y="${y+barH/2+4}" fill="#e5e5e3" font-size="11" font-weight="700">${Math.round(it.value)}s/laize</text>`;
+            });
+            return out;
+          })()}
+        </svg>
+      </div>
+    </div>`;
 }
 // [L246 · R1] re-rendu SANS perte : un clic de filtre reconstruisait tout l'écran et EFFAÇAIT la saisie en
 // cours dans l'estimateur (+ repliait les sections ouvertes). On snapshotte valeurs et états ouverts par id,
