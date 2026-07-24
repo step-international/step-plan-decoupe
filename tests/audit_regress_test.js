@@ -277,5 +277,8 @@ has(/const batch=db\.batch\(\); batch\.set\(iRef,rec\); if\(dRef\) batch\.set\(d
 has(/aAffuter\.push\(\{\.\.\.item,viaPose:true\}\)/,'L269 : à-affûter sans trace demonte marquée viaPose (classeur)');
 has(/'posée le ⚠':dateLbl/,'L269 : carte lame honnête — « posée le ⚠ » quand le démontage n\'a pas été tracé (plus de « démontée le » mensonger)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L269 présents dans index.html + sw.js');
+console.log('── L270 : étiquette solde — case N° de référence à compléter ──');
+has(/case N° de référence À COMPLÉTER À LA MAIN/,'L270 : étiquette solde porte une case vide « N° de référence » (l\'atelier note la réf réelle au feutre)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L270 présents dans index.html + sw.js');
 process.exit(fail?1:0);
