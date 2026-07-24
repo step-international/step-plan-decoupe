@@ -250,5 +250,9 @@ has(/if\(_reason\.indexOf\('trop large'\)===0\) _tooLarge\.push\(_entry\); else 
 has(/ont une découpe PLUS LARGE que la laize utile enregistrée/,'L262 : « trop large » = alerte modale + le recalcul CONTINUE (demande Esteban)');
 has(/if\(_unreadable\.length\)\{\n\s*updateCoupeeStatus\(\);/,'L262 : config vide/aucune largeur reconnue reste BLOQUANTE (anti re-production silencieuse)');
 
+console.log('── L263 : récap recalcul honnête (plus de « couverte » mensongère) ──');
+has(/const _ovc=\(c\.oversize\|\|\[\]\)\.filter\(r=>r&&Number\(r\.qty\)>0\);/,'L263 : le récap récupère les laizes oversize NON produites de chaque réf');
+has(/reste des pièces NON produites \(voir ci-dessous\)/,'L263 : plus de « commande couverte » quand des laizes sont trop larges (sous-livraison rendue VISIBLE)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

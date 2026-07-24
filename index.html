@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L262';
+const APP_VERSION='2026.07.24-L263';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8265,9 +8265,11 @@ function recalcEcartsFromFiche(opts){
   // pas touché : `computed` est déjà calculé, l'oversize est hors `rows`, on poursuit sur le reste.
   const over=[].concat(...computed.map(c=>c.oversize.map(r=>({ref:c.ref,width:r.width,useful:c.useful}))));
   if(over.length){
-    // [L261 · demande Esteban + revue ×2] ALERTE PERSISTANTE (modale native) au lieu d'un toast éphémère
-    // ÉCRASÉ ~1 s plus tard par le message de succès (→ l'opérateur ne le voyait pas, perte silencieuse). On
-    // prévient clairement, PUIS on laisse TOUJOURS passer le recalcul (« dans tous les cas me laisser faire »).
+    // [L261 · demande Esteban + revue] ALERTE PERSISTANTE (modale native) au lieu d'un toast éphémère
+    // ÉCRASÉ ~1 s plus tard par le message de succès. On prévient clairement, PUIS on laisse TOUJOURS passer
+    // le recalcul. [L263 · revue] NB : ces laizes oversize RESTENT dans c.rows (packRefGroups sépare oversize
+    // par copie) → elles retombent dans le reliquat mais le moteur ne peut pas les placer ; le récap de chaque
+    // réf (plus bas) les liste désormais « NON produite(s) » pour ne JAMAIS afficher « couverte » à tort.
     alert('⚠ '+over.length+' laize(s) plus large(s) que la laize utile de leur référence :\n\n'+
       over.map(o=>fmt(o.width)+' mm'+(o.ref?' (réf '+o.ref+')':'')+'  >  utile '+fmt(o.useful)+' mm').join('\n')+
       '\n\nCes laizes ne peuvent pas être coupées de cette bobine mère → elles ne seront PAS incluses dans le plan.\nLe recalcul continue sur le reste.');
@@ -8579,9 +8581,14 @@ function recalcEcartsFromFiche(opts){
 
       // 3c) Récap de la réf.
       const sur=surplusByRef[k]||{};
+      // [L263 · revue L261] laizes TROP LARGES de cette réf (largeur > laize utile) : le moteur ne peut PAS
+      // les placer → elles ne sont NI coupées NI ajoutées au reste. Sans les nommer, le récap disait
+      // « commande couverte » alors que ces pièces manquent (sous-livraison silencieuse). On les affiche.
+      const _ovc=(c.oversize||[]).filter(r=>r&&Number(r.qty)>0);
+      const _ovStr=_ovc.length?(' · ⚠ NON produite(s) — trop large(s) pour la bobine : '+_ovc.map(r=>r.qty+'×'+r.width+'mm').join(', ')):'';
       let line=(multi?`Réf ${c.ref||('#'+(ci+1))} : `:'')+((added+recutAdded)>0
         ? `${added+recutAdded} bobine(s) à recouper${recutAdded?` (dont ${recutAdded} rouleau${recutAdded>1?'x':''} chute)`:''} (perte restante ${fmt(Math.round(waste))} mm)`
-        : 'commande couverte');
+        : (_ovc.length?'reste des pièces NON produites (voir ci-dessous)':'commande couverte'))+_ovStr;
       if(Object.keys(sur).length) line+=' · surplus tracé '+Object.entries(sur).map(([w,q])=>`${q}×${w}mm`).join(', ');
       recap.push(line);
     });
