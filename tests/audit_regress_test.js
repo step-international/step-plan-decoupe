@@ -231,7 +231,7 @@ has(/function onFmmMachineBtn\(btn,m\)/,'L260 #2 : machine multi-réf en BOUTONS
 has(/<input type="hidden" data-fmm="machine"/,'L260 #2 : input caché data-fmm="machine" → validation applyFicheRefPlanChange INCHANGÉE');
 has(/couleur PAR RÉF \(même palette que l'ordre de coupe\)/,'L260 #3 : étiquette solde colorée par réf (distingue 2 réfs identiques)');
 has(/\$\{d\.color\?`border-left:6px solid \$\{d\.color\};`:''\}/,'L260 #3 : bordure gauche couleur réf sur la carte étiquette solde');
-has(/if\(_prevLame\)\{ try\{ await _lameEvent\('demonte',machine,_prevLame/,'L260 #4 : lame remplacée → événement DÉMONTAGE daté du jour (plus « démontée le » = date de pose)');
+has(/dRec=\{ type:'lame', categorie:'demonte', machine, lameNum:_prevLame/,'L260 #4 (durci L269) : lame remplacée → événement DÉMONTAGE daté du jour (désormais dans le MÊME batch que la pose)');
 has(/laize\(s\) plus large\(s\) que la laize utile de leur référence/,'L260→L261 #5 : recalcul écarts — plus de REFUS SEC (alerte persistante, opérateur informé, ça passe)');
 absent(/⛔ Recalcul bloqué/,'L260 #5 : ancien refus sec du recalcul retiré');
 
@@ -248,7 +248,7 @@ console.log('── L262 : recalcul « bobine mère trop petite » ne bloque plu
 has(/const _unreadable=\[\], _tooLarge=\[\];/,'L262 : recalcul sépare « trop large » (sûr) des configs vraiment illisibles (danger)');
 has(/if\(_reason\.indexOf\('trop large'\)===0\) _tooLarge\.push\(_entry\); else _unreadable\.push\(_entry\);/,'L262 : « trop large » routé vers avertissement, le reste reste bloquant');
 has(/ont une découpe PLUS LARGE que la laize utile enregistrée/,'L262 : « trop large » = alerte modale + le recalcul CONTINUE (demande Esteban)');
-has(/if\(_unreadable\.length\)\{\n\s*updateCoupeeStatus\(\);/,'L262 : config vide/aucune largeur reconnue reste BLOQUANTE (anti re-production silencieuse)');
+has(/ressortiront dans le RESTE À PRODUIRE/,'L262→L269 : config illisible au recalcul = ALERTE persistante explicite (plus de blocage — demande Esteban 24/07), conséquence re-production DITE à l\'opérateur');
 
 console.log('── L263 : récap recalcul honnête (plus de « couverte » mensongère) ──');
 has(/const _ovc=\(c\.oversize\|\|\[\]\)\.filter\(r=>r&&Number\(r\.qty\)>0\);/,'L263 : le récap récupère les laizes oversize NON produites de chaque réf');
@@ -270,5 +270,12 @@ has(/delete _pendingLocalPhotos\[lineId\];/,'L268 : suppression d\'une photo pur
 has(/machCard\('FEBA','#4f9df2'\)/,'L268 : bloc KPI « Par machine » utilise les tokens couleur machine (harmonisé)');
 has(/if\(mk==='feba'\)return'#4f9df2'/,'L268 : _opColor utilise les tokens couleur machine (harmonisé)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L268 présents dans index.html + sw.js');
+console.log('── L269 : fin des interdictions opérateur + lames robustes (demandes Esteban 24/07) ──');
+absent(/Recalcul BLOQUÉ — config illisible/,'L269 : plus AUCUN blocage au recalcul des écarts (alerte + continue)');
+has(/Arrêt manque matière.*confirmDlg|confirmDlg\('⚠ Config illisible sur/,'L269 : arrêt manque matière = CONFIRMATION explicite au lieu d\'un blocage (solde reprenable → l\'opérateur décide)');
+has(/const batch=db\.batch\(\); batch\.set\(iRef,rec\); if\(dRef\) batch\.set\(dRef,dRec\);/,'L269 : pose + démontage lame en UN batch ATOMIQUE (la trace demonte ne peut plus se perdre seule → plus de « démontée le » à la date de pose)');
+has(/aAffuter\.push\(\{\.\.\.item,viaPose:true\}\)/,'L269 : à-affûter sans trace demonte marquée viaPose (classeur)');
+has(/'posée le ⚠':dateLbl/,'L269 : carte lame honnête — « posée le ⚠ » quand le démontage n\'a pas été tracé (plus de « démontée le » mensonger)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L269 présents dans index.html + sw.js');
 process.exit(fail?1:0);

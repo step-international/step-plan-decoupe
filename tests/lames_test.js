@@ -54,6 +54,17 @@ const T6=[
 const r6=lameClasseurEtat(T6,'2026-07-24T12:00:00.000Z');
 const i6=r6.parMachine.feba.aAffuter.find(x=>x.num==='36');
 ok(!!i6&&String(i6.date).slice(0,10)==='2026-07-24','[L260] lame démontée le 24 (posée le 23) → « à affûter » daté du DÉMONTAGE (2026-07-24), pas de la pose');
+ok(!!i6&&!i6.viaPose,'[L269] avec trace demonte → PAS de drapeau viaPose (la date affichée est un vrai démontage)');
+// [L269 · re-signalement Esteban] REMPLACEMENT SANS trace demonte (vieille version / écriture perdue) :
+// 36 posée le 23, 35 posée le 24 par-dessus → 36 à affûter via sa POSE → drapeau viaPose (l'UI dit « posée le ⚠ »)
+const T7=[
+ {type:'lame',categorie:'installation',machine:'feba',lameNum:'36',dateInstall:'2026-07-23'},
+ {type:'lame',categorie:'installation',machine:'feba',lameNum:'35',dateInstall:'2026-07-24'}
+];
+const r7=lameClasseurEtat(T7,'2026-07-24T12:00:00.000Z');
+const i7=r7.parMachine.feba.aAffuter.find(x=>x.num==='36');
+ok(!!i7&&i7.viaPose===true&&String(i7.date).slice(0,10)==='2026-07-23','[L269] remplacement SANS trace demonte → viaPose=true (l\'UI affiche « posée le ⚠ » au lieu du mensonger « démontée le »)');
+ok(!!r7.parMachine.feba.montees.find(x=>x.num==='35')&&!r7.parMachine.feba.montees.find(x=>x.num==='36'),'[L269] la 35 est bien MONTÉE, la 36 ne l\'est plus');
 ok(!!r.groupes&&!!r.recentes,'rétro-compat : groupes/recentes toujours servis');
 // tri numérique
 const T2=[['2','stock'],['10','stock'],['1','stock']].map(([n,c])=>({type:'lame',categorie:c,machine:'maveg',lameNum:n,dateInstall:'2026-07-01'}));

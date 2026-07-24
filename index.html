@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L268';
+const APP_VERSION='2026.07.24-L269';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7890,7 +7890,10 @@ async function stopManqueMatiere(){
       const r=_confIllisible(raw, l.recut?l.rollW:l.useful, l.blade);
       if(r) _bad.push((document.getElementById('flLabel_'+l.id)?.value||l.label||l.id)+' (« '+raw+' » — '+r+')');
     });
-    if(_bad.length){ showToast('⛔ Arrêt manque matière BLOQUÉ — config illisible sur :\n\n'+_bad.join('\n')+'\n\nCorrige puis recommence. Rien n\'a été modifié.','err'); return; }
+    // [L269 · demande Esteban 24/07] plus de blocage : CONFIRMATION explicite (l'arrêt parque un SOLDE
+    // reprenable — avec une config illisible ce solde contiendrait ces largeurs en entier → double découpe
+    // possible ; l'opérateur décide en connaissance de cause, rien ne lui est interdit).
+    if(_bad.length){ if(!(await confirmDlg('⚠ Config illisible sur :\n\n'+_bad.join('\n')+'\n\nCes découpes compteront 0 pièce : le solde parqué contiendra ces largeurs EN ENTIER (double découpe possible si elles ont déjà été coupées).\n\nContinuer quand même ?',{ok:'Continuer'}))) return; }
   }
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
@@ -8426,8 +8429,8 @@ function recalcEcartsFromFiche(opts){
     //    utile ENREGISTRÉE — souvent la bobine mère est en réalité plus grande que la donnée. Comme les
     //    pièces sont correctement comptées, on AVERTIT (alerte modale) mais on LAISSE PASSER le recalcul.
     //  · les AUTRES raisons (vide / aucune largeur reconnue / décimale / < 1 mm) : parseConf n'y lit AUCUNE
-    //    pièce → 0 comptée → re-production SILENCIEUSE au recalcul (le vrai danger, bug atelier 09/07) →
-    //    on continue de BLOQUER avant toute étape destructive.
+    //    pièce → 0 comptée → leurs largeurs ressortent dans le reste (bug atelier 09/07). [L269] Esteban a
+    //    demandé la fin des interdictions : ALERTE persistante qui l'explique, puis le recalcul CONTINUE.
     const _unreadable=[], _tooLarge=[];
     ficheLines.forEach(l=>{
       if(!frozenSet.has(l.id)) return;
@@ -8441,9 +8444,10 @@ function recalcEcartsFromFiche(opts){
       }
     });
     if(_unreadable.length){
-      updateCoupeeStatus();
-      showToast('⛔ Recalcul BLOQUÉ — config illisible sur '+_unreadable.length+' bobine(s) coupée(s) :\n\n'+_unreadable.join('\n')+'\n\nÉcris chaque découpe en « quantité×largeur » (ex. 6×502 + 2×300) puis reclique ♻. Rien n\'a été modifié.','err');
-      return;
+      // [L269 · demande Esteban 24/07 : « enlève-moi ces interdictions »] plus AUCUN blocage au recalcul.
+      // Conséquence dite à l'opérateur : une config illisible compte 0 pièce → ses largeurs ressortent dans
+      // le reste à produire. Corriger la config puis recliquer ♻ redonne un écart juste (recalcul re-jouable).
+      alert('⚠ '+_unreadable.length+' bobine(s) coupée(s) ont une config illisible :\n\n'+_unreadable.join('\n')+'\n\nCes découpes comptent 0 pièce dans ce recalcul : leurs largeurs ressortiront dans le RESTE À PRODUIRE (double découpe possible si elles ont déjà été coupées).\nPour un écart juste : écris chaque découpe en « quantité×largeur » (ex. 6×502 + 2×300) puis reclique ♻.\nLe recalcul continue quand même.');
     }
     if(_tooLarge.length){
       alert('⚠ '+_tooLarge.length+' bobine(s) coupée(s) ont une découpe PLUS LARGE que la laize utile enregistrée :\n\n'+_tooLarge.join('\n')+'\n\nSi la bobine mère est en réalité plus grande, corrige sa laize (bobine mère / perte bords) dans la fiche.\nLe recalcul continue quand même sur ce qui est enregistré.');
@@ -12064,11 +12068,24 @@ async function lameInstall(machine,lameNum,opts){
     responsable:opts.responsable||(currentUser?currentUser.ini:''),
     createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
   try{
-    const r=await boundedWrite(db.collection('maintenance').add(rec),10000);   // [L83 · Audit #37] borné
-    rec.id=r.id; maintenanceCache.unshift(rec);
-    await logAudit('create','maintenance',r.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${String(pose).slice(0,10)})`);
-    // [L260 · bug Esteban] trace le démontage de l'ancienne lame, daté d'AUJOURD'HUI (→ « démontée le » juste)
-    if(_prevLame){ try{ await _lameEvent('demonte',machine,_prevLame,'Démontée — remplacée par la lame '+num+' sur '+getMachineLabel(machine)); }catch(e){ console.warn('trace démontage lame précédente:',e); } }
+    // [L269 · re-signalement Esteban 24/07] pose + démontage en UN SEUL batch ATOMIQUE : avant, la trace de
+    // démontage partait dans un 2ᵉ await avec catch silencieux (console.warn) — un timeout/hors-ligne la
+    // PERDAIT seule, et la lame remplacée réapparaissait « démontée le » avec sa date de POSE.
+    const iRef=db.collection('maintenance').doc();
+    let dRec=null,dRef=null;
+    if(_prevLame){
+      const dNow=new Date(Date.now()+1).toISOString();   // 1 ms après la pose : ordre stable au tri (pattern L94)
+      dRec={ type:'lame', categorie:'demonte', machine, lameNum:_prevLame, dateInstall:dNow, date:dNow,
+        description:'Démontée — remplacée par la lame '+num+' sur '+getMachineLabel(machine),
+        responsable:currentUser?currentUser.ini:'', createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
+      dRef=db.collection('maintenance').doc();
+    }
+    const batch=db.batch(); batch.set(iRef,rec); if(dRef) batch.set(dRef,dRec);
+    await boundedWrite(batch.commit(),10000);   // [L83 · Audit #37] borné
+    rec.id=iRef.id; maintenanceCache.unshift(rec);
+    if(dRec){ dRec.id=dRef.id; maintenanceCache.unshift(dRec); }
+    await logAudit('create','maintenance',iRef.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${String(pose).slice(0,10)})`);
+    if(dRef) logAudit('create','maintenance',dRef.id,`Démontage — lame ${_prevLame} remplacée par ${num} (${getMachineLabel(machine)})`).catch(function(){});
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
     return true;
@@ -12380,7 +12397,7 @@ function lameClasseurEtat(traces,nowIso){
     const item={num:String(r.lameNum).trim(),machine:r.machine||'',date:String(r.dateInstall||r.date||r.createdAt||''),description:r.description||'',envoiDate:(datesMK[k2]||{}).envoi||'',retourDate:(datesMK[k2]||{}).retour||''};
     if(r.categorie==='installation'){
       if(r.machine&&activeMK[r.machine]===nrm(r.lameNum)) parMachine[m].montees.push(item);
-      else parMachine[m].aAffuter.push(item);
+      else parMachine[m].aAffuter.push({...item,viaPose:true});   // [L269] démontage NON tracé : la date est celle de la POSE — l'UI doit le dire (plus de « démontée le » mensonger)
     }else if(r.categorie==='affutage') parMachine[m].enAffutage.push(item);
     else if(r.categorie==='stock') parMachine[m].stockees.push(item);
     else if(r.categorie==='demonte') parMachine[m].aAffuter.push(item);   // [L237] à-affûter explicite (seed + futurs démontages manuels)
@@ -12502,7 +12519,7 @@ function renderAffutageList(){
   const canDel=canManageData();
   const card=(m,l,action,dateLbl)=>`<div class="lame-card" style="border-left:4px solid ${MCOL[m]||'#888'}">
       <span class="lc-num">🔪 <b>${esc(l.num)}</b></span>
-      <span class="lc-date">${esc(dateLbl)} ${dt(l.date)}</span>
+      <span class="lc-date"${l.viaPose?' title="Le démontage n\'a pas été tracé (changement fait sur une ancienne version ou hors app) : la date affichée est celle de la POSE de cette lame."':''}>${esc(l.viaPose?'posée le ⚠':dateLbl)} ${dt(l.date)}</span>
       ${l.envoiDate&&l.envoiDate!==l.date?`<span class="lc-date" title="partie à l'affûtage le ${dt(l.envoiDate)}"><b style="color:var(--orange)">➜🏭</b> ${dt(l.envoiDate)}</span>`:''}
       ${l.retourDate&&l.retourDate!==l.date?`<span class="lc-date" title="revenue de l'affûtage le ${dt(l.retourDate)}"><b style="color:#4ade80">🏭➜</b> ${dt(l.retourDate)}</span>`:''}
       ${l.description&&!/^(Pose lame|Seed inventaire|Envoi à l|Retour affûteur)/.test(l.description)?`<span class="lc-com" title="${esc(l.description)}">💬</span>`:''}
