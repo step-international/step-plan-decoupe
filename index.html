@@ -1571,6 +1571,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
 
   <!-- ONGLET ANALYSE (+ Relevés de temps fusionnés ici en L120 : bloc repliable + liste défilable) -->
   <div id="tabContentAnalyse" class="hidden">
+    <div id="pilotageScope" style="display:none;margin-bottom:14px"></div><!-- [L255 · R7 arbitrage Esteban] le rôle pilotage (DC) voit le bloc 🎯 Pilotage ICI (analyseContent complet reste admin) -->
     <details id="tempsBox" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;margin-bottom:14px"><!-- [L120] onglet ⏱ Temps fusionné dans Analyse : petit, repliable, liste défilable -->
       <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--muted)"><span class="dbx-chev">▸</span> ⏱ <b style="color:var(--blue);font-weight:800">Relevés de temps</b> — filtres, totaux &amp; liste <span style="margin-left:auto;font-size:11px;color:var(--muted)">toucher pour ouvrir / fermer</span></summary>
       <div style="padding:4px 13px 12px">
@@ -1788,7 +1789,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.23-L254';
+const APP_VERSION='2026.07.24-L255';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3142,6 +3143,13 @@ function canPermanentDelete(){
 function canViewAnalyse(){
   return currentRole==='admin';
 }
+// [L255 · R7 arbitrage Esteban 24/07] Le bloc 🎯 Pilotage (retards / à planifier / charge semaine) est
+// ouvert au rôle pilotage (DC) EN PLUS de l'admin. Aucune donnée nouvelle : il dérive de saves + temps,
+// déjà lisibles par le pilotage (canManageData) → AUCUNE règle Firestore modifiée. Les analytics
+// dirigeant (KPI mensuels, tendances, débit, taux NC) restent admin (canViewAnalyse).
+function canViewPilotage(){
+  return currentRole==='admin' || currentRole==='pilotage';
+}
 // [L131 · audit #24/A5] L'onglet « Analyse » héberge aussi les Relevés de temps (fusion L120). Un
 // pilotage y accède MAIS ne doit voir QUE le bloc Temps : on masque les analytics (#analyseContent,
 // #lameStatsBlock) et on déplie le bloc Temps. Admin : tout visible. Idempotent (appelé à chaque bascule).
@@ -3149,6 +3157,15 @@ let _tempsBoxAutoOpened=false;   // [L132 · revue] n'auto-déplier le bloc Temp
 function _applyAnalyseScope(){
   const full=canViewAnalyse();
   const ac=document.getElementById('analyseContent'); if(ac) ac.style.display=full?'':'none';
+  // [L255 · R7] rôle pilotage (DC, PAS admin) : rendre le bloc 🎯 Pilotage seul dans son conteneur dédié.
+  // L'admin le voit déjà DANS analyseContent → on garde #pilotageScope vide/masqué pour lui (pas de doublon).
+  const ps=document.getElementById('pilotageScope');
+  if(ps){
+    if(!full && canViewPilotage()){
+      try{ ps.innerHTML=(typeof buildPilotageBlock==='function')?buildPilotageBlock():''; }catch(e){ ps.innerHTML=''; console.warn('pilotageScope:',e); }
+      ps.style.display=ps.innerHTML?'':'none';
+    }else{ ps.innerHTML=''; ps.style.display='none'; }
+  }
   // [L233 · A3] lameStatsBlock vit dans l'onglet Lame désormais (garde: canAccessMaintenance)
   // pilotage : Temps est le seul contenu → on l'ouvre à la 1re arrivée sur l'onglet, mais on NE le
   // ré-ouvre PAS de force ensuite (sinon un repli manuel se rouvre à chaque re-render / chargement d'historique).

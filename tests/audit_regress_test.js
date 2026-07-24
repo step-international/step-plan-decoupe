@@ -203,5 +203,11 @@ has(/if\(last&&prev&&\(last\.i-prev\.i\)===1\)\{/,'L254 : tendances — flèche 
 has(/const _lastCur=last&&last\.i===\(vals\.length-1\);/,'L254 : tendances — valeur en tête DATÉE si le dernier point n\'est pas le mois courant');
 has(/allTemps\.map\(t=>_ymL2\(t\.date\)\)/,'L254 : filtre « Mois » construit en LOCAL + inclut les mois des fiches');
 
+console.log('── L255 R7 (arbitrage Esteban 24/07) — pilotage voit le bloc Pilotage ──');
+has(/function canViewPilotage\(\)/,'L255 : rôle pilotage habilité au bloc Pilotage (canViewPilotage = admin || pilotage)');
+has(/id="pilotageScope"/,'L255 : conteneur dédié du bloc Pilotage pour le rôle pilotage');
+has(/if\(!full && canViewPilotage\(\)\)\{/,'L255 : _applyAnalyseScope rend le Pilotage au pilotage SEUL (admin l\'a déjà dans analyseContent — pas de doublon)');
+has(/AUCUNE règle Firestore modifiée/,'L255 : dérive de saves+temps déjà lisibles par le pilotage → zéro impact règles');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
