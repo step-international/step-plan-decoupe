@@ -244,5 +244,11 @@ has(/ALERTE PERSISTANTE \(modale native\) au lieu d'un toast éphémère/,'L261 
 has(/Le recalcul continue sur le reste\.'\);\n  \}/,'L261 : après l\'alerte, le recalcul PASSE TOUJOURS (plus de blocage)');
 has(/focus\/scroll vers les BOUTONS machine/,'L261 : « Valider la bobine mère » défile vers les boutons machine (fix focus input caché)');
 
+console.log('── L262 : recalcul « bobine mère trop petite » ne bloque plus ──');
+has(/const _unreadable=\[\], _tooLarge=\[\];/,'L262 : recalcul sépare « trop large » (sûr) des configs vraiment illisibles (danger)');
+has(/if\(_reason\.indexOf\('trop large'\)===0\) _tooLarge\.push\(_entry\); else _unreadable\.push\(_entry\);/,'L262 : « trop large » routé vers avertissement, le reste reste bloquant');
+has(/ont une découpe PLUS LARGE que la laize utile enregistrée/,'L262 : « trop large » = alerte modale + le recalcul CONTINUE (demande Esteban)');
+has(/if\(_unreadable\.length\)\{\n\s*updateCoupeeStatus\(\);/,'L262 : config vide/aucune largeur reconnue reste BLOQUANTE (anti re-production silencieuse)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

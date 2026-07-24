@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L261';
+const APP_VERSION='2026.07.24-L262';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8368,7 +8368,14 @@ function recalcEcartsFromFiche(opts){
     // 0 pièce produite → reliquat gonflé → le recalcul régénérait la commande « comme si
     // rien n'était coupé » (bug atelier signalé par Esteban 09/07). Désormais : BLOCAGE
     // AVANT toute étape destructive (pattern B30), en nommant la bobine et le texte fautif.
-    const _illisibles=[];
+    // [L262 · demande Esteban] on SÉPARE deux cas très différents que _confIllisible regroupait :
+    //  · « trop large » : les largeurs sont BIEN lues (ex. 13×85 + 17×65) mais leur total dépasse la laize
+    //    utile ENREGISTRÉE — souvent la bobine mère est en réalité plus grande que la donnée. Comme les
+    //    pièces sont correctement comptées, on AVERTIT (alerte modale) mais on LAISSE PASSER le recalcul.
+    //  · les AUTRES raisons (vide / aucune largeur reconnue / décimale / < 1 mm) : parseConf n'y lit AUCUNE
+    //    pièce → 0 comptée → re-production SILENCIEUSE au recalcul (le vrai danger, bug atelier 09/07) →
+    //    on continue de BLOQUER avant toute étape destructive.
+    const _unreadable=[], _tooLarge=[];
     ficheLines.forEach(l=>{
       if(!frozenSet.has(l.id)) return;
       if(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')) return;
@@ -8376,13 +8383,17 @@ function recalcEcartsFromFiche(opts){
       const _reason=_confIllisible(raw, l.recut?l.rollW:l.useful, l.blade);   // [L97 · relecture #9][L100 #3] + capacité (utile/rouleau + lame de la ligne)
       if(_reason){
         const lbl=(document.getElementById('flLabel_'+l.id)?.value||l.label||l.id);
-        _illisibles.push(lbl+' (« '+raw+' » — '+_reason+')');
+        const _entry=lbl+' (« '+raw+' » — '+_reason+')';
+        if(_reason.indexOf('trop large')===0) _tooLarge.push(_entry); else _unreadable.push(_entry);
       }
     });
-    if(_illisibles.length){
+    if(_unreadable.length){
       updateCoupeeStatus();
-      showToast('⛔ Recalcul BLOQUÉ — config illisible sur '+_illisibles.length+' bobine(s) coupée(s) :\n\n'+_illisibles.join('\n')+'\n\nÉcris chaque découpe en « quantité×largeur » (ex. 6×502 + 2×300) puis reclique ♻. Rien n\'a été modifié.','err');
+      showToast('⛔ Recalcul BLOQUÉ — config illisible sur '+_unreadable.length+' bobine(s) coupée(s) :\n\n'+_unreadable.join('\n')+'\n\nÉcris chaque découpe en « quantité×largeur » (ex. 6×502 + 2×300) puis reclique ♻. Rien n\'a été modifié.','err');
       return;
+    }
+    if(_tooLarge.length){
+      alert('⚠ '+_tooLarge.length+' bobine(s) coupée(s) ont une découpe PLUS LARGE que la laize utile enregistrée :\n\n'+_tooLarge.join('\n')+'\n\nSi la bobine mère est en réalité plus grande, corrige sa laize (bobine mère / perte bords) dans la fiche.\nLe recalcul continue quand même sur ce qui est enregistré.');
     }
     residualByRef={}; surplusByRef={};
     Object.keys(cmdByRef).forEach(k=>{
