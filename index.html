@@ -316,6 +316,7 @@ body.atelier .lame-card .lc-num{font-size:17px} body.atelier .lame-card .lc-act{
 #ficheLines.hide-coupees .fiche-line.coupee:not(.flash-cut){display:none}   /* [L102 · M2-D] la carte reste visible le temps du flash de confirmation (~0,9 s) avant d'être masquée */
 /* [L105 · Phase 1 · E] chrono arrêté : indice rouge sur chaque ✂ non coupé (prévient avant le tap) */
 #ficheLines.chrono-off .fiche-line:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⏱ arrêté";color:var(--red);font-weight:800;font-size:.85em}
+#ficheLines:not(.chrono-off) .fiche-line.t2-todo:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⚠ test 2ᵉ à cocher";color:var(--red);font-weight:800;font-size:.85em}   /* [L267 · audit/choix Esteban] le ✂ dit « test 2ᵉ à cocher » tant qu'il refuserait le tap (chrono tournant) */
 /* [L107 · Phase 1 · K] fiche : plus de largeur utile sur téléphone (marges réduites) */
 @media(max-width:700px){#page1{padding-left:8px;padding-right:8px}.fiche-line{padding:12px 10px}}
 .fiche-line-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}/* [L113 · audit #2/#18] wrap : sur téléphone ≤360px la case photo passe en 2e ligne au lieu de pousser le ✕ hors de la carte (défilement horizontal) */
@@ -1789,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L266';
+const APP_VERSION='2026.07.24-L267';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3282,6 +3283,7 @@ let _bulkRestore = false;       // [L72 · Audit B50] restauration en masse : ad
 let photoTargetId = null; // pour savoir quelle bobine reçoit la photo
 let _photoUploadsPending = 0; // [L72 · Audit B36] uploads photo en cours — l'envoi de fiche attend qu'ils soient finis
 let ficholinePhotos = {}; // id -> Storage URL (ou ancien base64)
+let _pendingLocalPhotos = {}; // [L267 · audit/choix Esteban] id de ligne (ou __commande__) -> Blob compressé d'une photo dont l'upload a EXPIRÉ (repli base64) : à RE-TÉLÉVERSER au retour du réseau (sinon la photo, en base64, est retirée à la sauvegarde du brouillon et perdue).
 let efPhotos = {};        // édition fiche : index bobine -> URL/base64
 let efPhotoTargetOrig = null; // index bobine ciblé pour upload photo en édition
 let commandePhoto = ''; // [LEGACY] ancienne photo unique de commande (rétro-compat)
@@ -3420,6 +3422,35 @@ async function deletePhotoFromStorage(url){
   if(!url||url.startsWith('data:')) return; // ancien base64, rien à supprimer
   try{const ref=storage.refFromURL(url);await ref.delete();}catch(e){console.warn('Photo delete:',e);}
 }
+// [L267 · audit/choix Esteban] Re-téléverse les photos gardées en base64 après un upload expiré (réseau
+// absent). Déclenché au retour du réseau ('online'). Chaque succès remplace le base64 par l'URL Storage
+// dans ficholinePhotos/commandePhoto puis persiste (autosaveDraftTick) → la photo n'est plus perdue à la
+// sauvegarde. Un échec (réseau encore coupé) laisse la file intacte pour le prochain 'online'.
+let _flushingPhotos=false;
+async function flushPendingLocalPhotos(){
+  if(_flushingPhotos||!storage) return;
+  const ids=Object.keys(_pendingLocalPhotos); if(!ids.length) return;
+  _flushingPhotos=true; let ok=0;
+  try{
+    for(const lid of ids){
+      const blob=_pendingLocalPhotos[lid];
+      if(!blob){ delete _pendingLocalPhotos[lid]; continue; }
+      try{
+        const url=await Promise.race([uploadPhotoToStorage(blob,lid),new Promise((_,rej)=>setTimeout(()=>rej(new Error('__to__')),10000))]);
+        if(typeof url==='string' && /^https?:/.test(url)){
+          if(lid==='__commande__'){ if(!commandePhoto||String(commandePhoto).startsWith('data:')){ commandePhoto=url; try{refreshCommandePhotoZone();}catch(e){} } }
+          else if(!ficholinePhotos[lid]||String(ficholinePhotos[lid]).startsWith('data:')){ ficholinePhotos[lid]=url; try{refreshPhotoZone(lid);}catch(e){} }
+          delete _pendingLocalPhotos[lid]; ok++;
+        }
+      }catch(e){ /* réseau encore absent → on garde dans la file, prochain 'online' */ }
+    }
+  }finally{ _flushingPhotos=false; }
+  if(ok>0){
+    try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) autosaveDraftTick(true); }catch(e){}
+    try{ showToast('✅ '+ok+' photo(s) en attente re-téléversée(s) au stockage central.','ok'); }catch(e){}
+  }
+}
+if(typeof window!=='undefined' && window.addEventListener) window.addEventListener('online',function(){ setTimeout(flushPendingLocalPhotos,1500); });   // petit délai : laisser la connexion se stabiliser
 function triggerPhoto(lineId){
   photoTargetId=lineId;
   const input=document.getElementById('photoFileInput');
@@ -3450,7 +3481,8 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
         new Promise((_,rej)=>setTimeout(()=>rej(new Error('__PHOTO_TIMEOUT__')),10000))
       ]).catch(async e=>{
         if(e&&e.message==='__PHOTO_TIMEOUT__'){
-          try{ showToast('📡 Réseau lent/absent : la photo est gardée en LOCAL sur la fiche (pas dans le stockage central).','err'); }catch(_){}
+          try{ _pendingLocalPhotos[lid]=blob; }catch(_){}   // [L267] garder le Blob pour re-téléverser au retour réseau
+          try{ showToast('📡 Réseau lent/absent : photo gardée en LOCAL — elle repartira au stockage central dès le réseau revenu.','err'); }catch(_){}
           return await compressImage(file,800,0.6);
         }
         throw e;
@@ -4135,7 +4167,7 @@ function importPlanToFiche(opts){
     const ficheLinesDiv=document.getElementById('ficheLines');
     if(ficheLinesDiv) ficheLinesDiv.innerHTML='';
     ficheLines=[];
-    ficholinePhotos={};
+    ficholinePhotos={}; _pendingLocalPhotos={};   // [L267] idem _pendingLocalPhotos={};   // [L267] file photos en attente réinitialisée avec la fiche
 
     // Cumuls de commande : globales (rétro-compat + historisation) ET par réf
     // (affichage exact en multi-réf même laize).
@@ -16643,7 +16675,8 @@ function updateTest2Subs(id){
   { const rasL=document.getElementById('nc_ras_'+id);
     if(rasL){ const both=feba?elDevi.checked:(elDevi.checked&&elDroit.checked); rasL.classList.toggle('t2ok',both&&!ncMode); } }
   const line=document.getElementById(id);
-  if(line) line.classList.toggle('test2-nc-flag',ncMode);
+  if(line){ line.classList.toggle('test2-nc-flag',ncMode);
+    line.classList.toggle('t2-todo',!test2Resolved(id)); }   // [L267 · audit/choix Esteban] marque la bobine dont le test 2ᵉ n'est pas tranché → indice sur le ✂ AVANT le tap (évite un tap refusé)
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] statut du volet « ⋯ Contrôles »
   updateCoupeeStatus();
 }

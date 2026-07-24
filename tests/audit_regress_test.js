@@ -254,5 +254,12 @@ console.log('── L263 : récap recalcul honnête (plus de « couverte » mens
 has(/const _ovc=\(c\.oversize\|\|\[\]\)\.filter\(r=>r&&Number\(r\.qty\)>0\);/,'L263 : le récap récupère les laizes oversize NON produites de chaque réf');
 has(/reste des pièces NON produites \(voir ci-dessous\)/,'L263 : plus de « commande couverte » quand des laizes sont trop larges (sous-livraison rendue VISIBLE)');
 
+console.log('── L267 : audit (choix Esteban) — indicateur test 2ᵉ + photos hors-ligne ──');
+has(/line\.classList\.toggle\('t2-todo',!test2Resolved\(id\)\)/,'L267 : carte marquée t2-todo quand le test 2ᵉ n\'est pas tranché');
+has(/\.fiche-line\.t2-todo:not\(\.coupee\) \[id\^="coupeeBtn_"\]::after\{content:" · ⚠ test 2ᵉ à cocher"/,'L267 : le ✂ affiche « test 2ᵉ à cocher » (chrono tournant)');
+has(/function flushPendingLocalPhotos\(\)/,'L267 : re-téléversement des photos gardées en base64 au retour réseau');
+has(/window\.addEventListener\('online',function\(\)\{ setTimeout\(flushPendingLocalPhotos/,'L267 : déclenché sur l\'événement online');
+has(/_pendingLocalPhotos\[lid\]=blob;/,'L267 : le Blob compressé est mis en file au timeout d\'upload');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
