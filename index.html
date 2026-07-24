@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L259';
+const APP_VERSION='2026.07.24-L260';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6965,7 +6965,7 @@ function getEtiquetteSoldeList(){
     // [L103 · audit-max] FINS DE PHASE (plan phasé ≤4 palettes) : leur reste est une chute à
     // CONSERVER — écran plan et PDF l'annonçaient (« solde conservé ») mais aucune étiquette
     // solde n'était proposée. Une étiquette par bobine fin-de-phase, en plus du solde final.
-    const _phaseEtiq=(lines)=>{
+    const _phaseEtiq=(lines,color)=>{
       const out=[];
       lines.forEach((l)=>{
         if(!l.phaseEnd) return;
@@ -6973,7 +6973,7 @@ function getEtiquetteSoldeList(){
         if(u<=0) return;
         const pp=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
         if(!pp.length) return;
-        out.push({key:'p_'+l.id,mn,ref:(l.ref||'—')+' ⟲ fin de phase',solde:fmt(u-calcStats(pp,b).total),date:today()});
+        out.push({key:'p_'+l.id,mn,ref:(l.ref||'—')+' ⟲ fin de phase',solde:fmt(u-calcStats(pp,b).total),date:today(),color:color||''});
       });
       return out;
     };
@@ -6986,12 +6986,13 @@ function getEtiquetteSoldeList(){
         const last=lines[lines.length-1];
         const useful=last.useful>0?last.useful:getUseful();
         const blade=last.blade>0?last.blade:getBlade();
-        out.push(..._phaseEtiq(lines.filter(l=>l!==last)));
+        const _rc=(typeof refColor==='function')?refColor(idx):'';   // [L260 · demande Esteban] couleur PAR RÉF (même palette que l'ordre de coupe) pour distinguer 2 réfs identiques à l'œil (ex. DQ1009 vert vs bleu)
+        out.push(..._phaseEtiq(lines.filter(l=>l!==last),_rc));
         if(useful<=0) return;
         const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
         if(!p.length) return;
         const solde=useful-calcStats(p,blade).total;
-        out.push({key:'r'+idx,mn,ref:r||'—',solde:fmt(solde),date:today()});
+        out.push({key:'r'+idx,mn,ref:r||'—',solde:fmt(solde),date:today(),color:_rc});
       });
       return out;
     }
@@ -7033,8 +7034,8 @@ function refreshEtiquetteSolde(){
   }
   const multi=list.length>1;
   wrap.innerHTML=list.map(d=>`
-    <div class="solde-card" data-key="${d.key}" style="border:1px solid #7a6010;background:#221c06;border-radius:10px;padding:12px 14px;margin-bottom:10px">
-      ${multi?`<div style="font-size:12px;font-weight:800;color:var(--ref-accent);margin-bottom:6px">▸ ${esc(d.ref||'—')}</div>`:''}
+    <div class="solde-card" data-key="${d.key}" style="border:1px solid #7a6010;${d.color?`border-left:6px solid ${d.color};`:''}background:#221c06;border-radius:10px;padding:12px 14px;margin-bottom:10px"><!-- [L260 · demande Esteban] bordure gauche à la couleur de la réf : distingue 2 réfs identiques à l'œil -->
+      ${multi?`<div style="font-size:13px;font-weight:800;color:${d.color||'var(--ref-accent)'};margin-bottom:6px">▸ ${esc(d.ref||'—')}</div>`:''}
       <div class="field" style="margin-bottom:8px">
         <label>Laize restante (mm) <span style="color:var(--muted);font-weight:400">— modifiable si la bobine a changé</span></label>
         <input type="text" id="etiqSolde_${d.key}" value="${esc(String(d.solde))}" inputmode="decimal" placeholder="ex : 120">
@@ -8258,12 +8259,14 @@ function recalcEcartsFromFiche(opts){
   const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
   if(!computed.length){showToast('Aucune commande à recalculer.','err');return {started:false};}
 
-  // Garde-fou laize : une largeur ne doit pas dépasser la laize utile de SA réf.
+  // [L260 · demande Esteban] largeur > laize utile de sa réf : AVERTISSEMENT au lieu de REFUS SEC. Ces laizes
+  // ne peuvent physiquement pas se couper de cette bobine mère → elles ne sont pas placées ; on le DIT (pas de
+  // perte silencieuse), mais on NE bloque PLUS le recalcul (l'opérateur n'est plus coincé). Le moteur n'est
+  // pas touché : `computed` est déjà calculé, l'oversize est hors `rows`, on poursuit sur le reste.
   const over=[].concat(...computed.map(c=>c.oversize.map(r=>({ref:c.ref,width:r.width,useful:c.useful}))));
   if(over.length){
-    showToast(`⛔ Recalcul bloqué.\n\n${over.length} laize(s) dépassent la largeur utile de leur référence : `+
-      over.map(o=>`${fmt(o.width)} mm${o.ref?` (réf ${o.ref})`:''}`).join(', ')+'.','err');
-    return {started:false};
+    showToast(`⚠ ${over.length} laize(s) plus large(s) que la laize utile de leur réf — NON incluse(s) dans le plan : `+
+      over.map(o=>`${fmt(o.width)} mm${o.ref?` (réf ${o.ref})`:''}`).join(', ')+'.\nLe recalcul continue sur le reste.','err');
   }
 
   const multi=computed.length>1;
@@ -11976,6 +11979,12 @@ async function lameInstall(machine,lameNum,opts){
   // Garde-fou : une pose ne peut pas être datée dans le futur (sinon âge négatif
   // et alerte jamais déclenchée). On replie sur maintenant.
   if(new Date(pose).getTime()>Date.now()){ pose=now; }
+  // [L260 · bug Esteban] lame ACTIVE sur cette machine AVANT la pose (capturée AVANT d'ajouter le nouvel
+  // événement) : elle est démontée par ce changement. Sans trace explicite, elle apparaissait « à affûter »
+  // avec sa DATE DE POSE (ex. « démontée le 23 » = jour où ELLE avait été montée) au lieu du jour du
+  // changement. On trace donc son démontage daté d'aujourd'hui.
+  let _prevLame=null;
+  try{ const _p=(typeof lameActiveForMachine==='function')?lameActiveForMachine(machine):null; if(_p&&String(_p.lameNum||'').trim()&&nrm(_p.lameNum)!==nrm(num)) _prevLame=String(_p.lameNum).trim(); }catch(e){}
   const rec={ type:'lame', categorie:'installation', machine,
     lameNum:num, dateInstall:pose, date:pose,
     description:opts.description||('Pose lame '+num+' sur '+getMachineLabel(machine)),
@@ -11985,6 +11994,8 @@ async function lameInstall(machine,lameNum,opts){
     const r=await boundedWrite(db.collection('maintenance').add(rec),10000);   // [L83 · Audit #37] borné
     rec.id=r.id; maintenanceCache.unshift(rec);
     await logAudit('create','maintenance',r.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${String(pose).slice(0,10)})`);
+    // [L260 · bug Esteban] trace le démontage de l'ancienne lame, daté d'AUJOURD'HUI (→ « démontée le » juste)
+    if(_prevLame){ try{ await _lameEvent('demonte',machine,_prevLame,'Démontée — remplacée par la lame '+num+' sur '+getMachineLabel(machine)); }catch(e){ console.warn('trace démontage lame précédente:',e); } }
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
     return true;
@@ -15537,6 +15548,20 @@ function onFmmMachineChange(sel){
     const b=blk.querySelector('[data-fmm="blade"]'); if(b) b.value=def.blade;
   }
 }
+// [L260 · demande Esteban] clic sur un bouton machine (multi-réf) : renseigne l'input caché
+// data-fmm="machine" (lu tel quel par applyFicheRefPlanChange → validation inchangée), colore le bouton
+// choisi (sel-<machine>, comme le bloc mono) et applique les pertes bords/lame par défaut de la machine.
+function onFmmMachineBtn(btn,m){
+  const blk=btn.closest('.fmm-block'); if(!blk) return;
+  const hid=blk.querySelector('input[data-fmm="machine"]'); if(hid) hid.value=m;
+  blk.querySelectorAll('.machine-btns .machine-btn-fiche').forEach(b=>b.classList.remove('sel-feba','sel-maveg','sel-cevenini'));
+  btn.classList.add('sel-'+m);
+  const def=(typeof MACHINE_DEFAULTS!=='undefined')?MACHINE_DEFAULTS[m]:null;
+  if(def){
+    const e=blk.querySelector('[data-fmm="edge"]'); if(e) e.value=def.edge;
+    const b=blk.querySelector('[data-fmm="blade"]'); if(b) b.value=def.blade;
+  }
+}
 // Construit / met à jour les blocs machine par référence.
 // opts.fresh       : import neuf depuis le plan -> repart de zéro (gating actif)
 // opts.allValidated: reprise d'un brouillon -> toutes les réfs déjà validées
@@ -15630,10 +15655,13 @@ function renderFicheMachineBlocks(opts){
       hint='';
     }else{
       badge='<span class="fmm-badge act">à couper maintenant</span>';
-      const mopt=m=>`<option value="${m}"${r.machine===m?' selected':''}>${getMachineLabel(m)}</option>`;
+      // [L260 · demande Esteban] machine en BOUTONS COLORÉS (identiques au bloc mono FEBA/MAVEG/CEVENINI)
+      // au lieu d'un <select> peu lisible. Un input caché data-fmm="machine" conserve EXACTEMENT la lecture
+      // de applyFicheRefPlanChange (validation inchangée) ; les boutons le renseignent via onFmmMachineBtn.
+      const mbtn=m=>`<button type="button" class="machine-btn-fiche${r.machine===m?' sel-'+m:''}" onclick="onFmmMachineBtn(this,'${m}')">${getMachineLabel(m)}</button>`;
       body='<div class="field" style="margin-bottom:10px"><label>Machine de cette référence</label>'
-        +'<select data-fmm="machine" onchange="onFmmMachineChange(this)"><option value="">— choisir —</option>'
-        +MACHINE_KEYS.map(mopt).join('')+'</select></div>'
+        +'<input type="hidden" data-fmm="machine" value="'+V(r.machine)+'">'
+        +'<div class="machine-btns" style="margin-bottom:0">'+MACHINE_KEYS.map(mbtn).join('')+'</div></div>'
         +'<div class="row3">'
         +'<div class="field"><label>Bobine mère (mm)</label><input type="text" data-fmm="mother" inputmode="decimal" value="'+V(r.mother)+'"></div>'
         +'<div class="field"><label>Perte bords (mm)</label><input type="text" data-fmm="edge" inputmode="decimal" value="'+V(r.edge)+'"></div>'
@@ -16413,7 +16441,9 @@ function updateCoupeeStatus(){
   try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B/E] AVANT l'early-return : fiche vidée → barre du bas et bouton « vif » retirés aussi
   // [L259 · demande Esteban] barre d'avancement #ficheProgress RETIRÉE (doublon du suivi #coupeeBanner
   // sticky, désormais unique et en tête de colonne). La progression détaillée reste portée par coupeeBanner.
-  if(!ficheLines.length) return;
+  // [L260 · bug Esteban] fiche VIDE (commande finie / app réinitialisée / reset) → MASQUER + VIDER la
+  // bannière : sinon l'avancement de l'ANCIENNE commande (« 9/14 coupées ») restait affiché en tête.
+  if(!ficheLines.length){ const _b=document.getElementById('coupeeBanner'); if(_b){ _b.style.display='none'; _b.innerHTML=''; } return; }
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
   const allDone=done===total;

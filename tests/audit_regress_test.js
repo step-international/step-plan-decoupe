@@ -225,5 +225,15 @@ absent(/printOverlayClose'\)\.onclick=function\(\)\{ ov\.style\.display='none'; 
 has(/NOM DE MACHINE affiché dans la liste « Ordre de coupe »/,'L258 BUG2 : nom machine dans l\'ordre de coupe (colonne gauche)');
 has(/const _hmChip=\(!validated&&_hml\)/,'L258 BUG2 : nom machine dans l\'en-tête du bloc de chaque réf (états à couper/verrouillé)');
 
+console.log('── L260 lot retours terrain Esteban ──');
+has(/const _b=document\.getElementById\('coupeeBanner'\); if\(_b\)\{ _b\.style\.display='none'; _b\.innerHTML=''; \} return;/,'L260 #1 : fiche vide → bannière progression MASQUÉE + vidée (plus d\'ancien avancement affiché après reset)');
+has(/function onFmmMachineBtn\(btn,m\)/,'L260 #2 : machine multi-réf en BOUTONS colorés (handler dédié)');
+has(/<input type="hidden" data-fmm="machine"/,'L260 #2 : input caché data-fmm="machine" → validation applyFicheRefPlanChange INCHANGÉE');
+has(/couleur PAR RÉF \(même palette que l'ordre de coupe\)/,'L260 #3 : étiquette solde colorée par réf (distingue 2 réfs identiques)');
+has(/\$\{d\.color\?`border-left:6px solid \$\{d\.color\};`:''\}/,'L260 #3 : bordure gauche couleur réf sur la carte étiquette solde');
+has(/if\(_prevLame\)\{ try\{ await _lameEvent\('demonte',machine,_prevLame/,'L260 #4 : lame remplacée → événement DÉMONTAGE daté du jour (plus « démontée le » = date de pose)');
+has(/laize\(s\) plus large\(s\) que la laize utile de leur réf — NON incluse/,'L260 #5 : recalcul écarts — AVERTISSEMENT au lieu de REFUS SEC (opérateur plus bloqué, informé)');
+absent(/⛔ Recalcul bloqué/,'L260 #5 : ancien refus sec du recalcul retiré');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

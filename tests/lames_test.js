@@ -45,6 +45,15 @@ const T5=[{type:'lame',categorie:'affutage',machine:'vieille-machine',lameNum:'7
 const r5=lameClasseurEtat(T5,'2026-07-23T12:00:00.000Z');
 const i5=r5.parMachine.hors.stockees.find(x=>x.num==='77');
 ok(!!i5&&i5.envoiDate==='2026-07-01'&&i5.retourDate==='2026-07-10','[L240] machine inconnue (legacy) → envoiDate/retourDate présents (clé k2 = même expression que lastMK)');
+// [L260 · bug Esteban] lame posée le 23, DÉMONTÉE (remplacée) le 24 → l'état « à affûter » doit porter la
+// date du DÉMONTAGE (24), pas celle de la pose (23). lameInstall trace désormais un event 'demonte' daté du jour.
+const T6=[
+ {type:'lame',categorie:'installation',machine:'feba',lameNum:'36',dateInstall:'2026-07-23'},
+ {type:'lame',categorie:'demonte',machine:'feba',lameNum:'36',dateInstall:'2026-07-24'}
+];
+const r6=lameClasseurEtat(T6,'2026-07-24T12:00:00.000Z');
+const i6=r6.parMachine.feba.aAffuter.find(x=>x.num==='36');
+ok(!!i6&&String(i6.date).slice(0,10)==='2026-07-24','[L260] lame démontée le 24 (posée le 23) → « à affûter » daté du DÉMONTAGE (2026-07-24), pas de la pose');
 ok(!!r.groupes&&!!r.recentes,'rétro-compat : groupes/recentes toujours servis');
 // tri numérique
 const T2=[['2','stock'],['10','stock'],['1','stock']].map(([n,c])=>({type:'lame',categorie:c,machine:'maveg',lameNum:n,dateInstall:'2026-07-01'}));
