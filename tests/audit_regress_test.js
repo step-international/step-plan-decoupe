@@ -213,5 +213,9 @@ console.log('── L256 bug Esteban : bouton « Revenir à la fiche » de l\'é
 absent(/<button class="back" onclick="window\.close\(\)">/,'L256 : plus de window.close() nu (no-op dans l\'iframe srcdoc)');
 has(/getElementById\('printOverlayClose'\);\}catch\(e\)\{\}if\(b\)\{b\.click\(\);\}else\{window\.close\(\)/,'L256 : « Revenir à la fiche » ferme l\'overlay (révèle la fiche) + repli window.close desktop');
 
+console.log('── L257 demande Esteban : « Confirmer la commande » remonte en haut quand tout est coupé ──');
+has(/id="sendPlanBtnTop" onclick="confirmCommandeRecap\(\)"/,'L257 : bouton Confirmer DANS la bannière verte sticky du haut (même action que le bouton du bas)');
+has(/« Confirmer la commande » REMONTE ICI/,'L257 : n\'apparaît que quand toutes les bobines sont coupées (branche allDone) — masqué avant');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);
