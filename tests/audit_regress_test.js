@@ -217,5 +217,11 @@ console.log('── L257 demande Esteban : « Confirmer la commande » remonte e
 has(/id="sendPlanBtnTop" onclick="confirmCommandeRecap\(\)"/,'L257 : bouton Confirmer DANS la bannière verte sticky du haut (même action que le bouton du bas)');
 has(/« Confirmer la commande » REMONTE ICI/,'L257 : n\'apparaît que quand toutes les bobines sont coupées (branche allDone) — masqué avant');
 
+console.log('── L258 bugs Esteban : impression fantôme + nom machine multi-réf ──');
+has(/_f\.onload=null;/,'L258 BUG1 : fr.onload nullifié à la fermeture → plus d\'impression fantôme (la croix ramène à la fiche)');
+absent(/printOverlayClose'\)\.onclick=function\(\)\{ ov\.style\.display='none'; try\{ document\.getElementById\('printOverlayFrame'\)\.srcdoc/,'L258 BUG1 : ancien handler bugué (vide srcdoc AVANT de couper l\'auto-print) retiré');
+has(/NOM DE MACHINE affiché dans la liste « Ordre de coupe »/,'L258 BUG2 : nom machine dans l\'ordre de coupe (colonne gauche)');
+has(/const _hmChip=\(!validated&&_hml\)/,'L258 BUG2 : nom machine dans l\'en-tête du bloc de chaque réf (états à couper/verrouillé)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

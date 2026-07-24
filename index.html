@@ -1789,7 +1789,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L257';
+const APP_VERSION='2026.07.24-L258';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6623,7 +6623,7 @@ function openPrintWindow(html,autoPrint){
         +'<button id="printOverlayClose" style="margin-left:auto;background:#3d1414;border:1.5px solid #f87171;color:#f87171;font-weight:800;font-size:16px;padding:10px 20px;min-height:44px;border-radius:10px;cursor:pointer;font-family:inherit">✕ Fermer</button></div>'
         +'<iframe id="printOverlayFrame" title="Aperçu impression" style="flex:1 1 auto;width:100%;border:0;background:#fff"></iframe>';
       document.body.appendChild(ov);
-      document.getElementById('printOverlayClose').onclick=function(){ ov.style.display='none'; try{ document.getElementById('printOverlayFrame').srcdoc='<!doctype html><meta charset=utf-8>'; }catch(e){} };
+      document.getElementById('printOverlayClose').onclick=function(){ const _f=document.getElementById('printOverlayFrame'); if(_f){ _f.onload=null; try{ _f.srcdoc='<!doctype html><meta charset=utf-8>'; }catch(e){} } ov.style.display='none'; };   // [L258 · bug Esteban CERTAIN, revue ×2] fr.onload NULLIFIÉ AVANT de vider le srcdoc : sinon vider le srcdoc RECHARGE l'iframe → l'onload d'auto-impression se re-déclenche → print() FANTÔME sur page blanche 350 ms après la fermeture (feuille AirPrint qui resurgit → « la croix ne ramène pas à la fiche »). Vaut pour TOUTES les fermetures (étiquette + plan).
       document.getElementById('printOverlayPrint').onclick=function(){ try{ const w=document.getElementById('printOverlayFrame').contentWindow; w.focus(); w.print(); }catch(e){} };
     }
     ov.style.display='flex';
@@ -15576,9 +15576,16 @@ function renderFicheMachineBlocks(opts){
     refs.forEach((r,pos)=>{
       const tags=fmmRefTags(r);
       const rc=refColor(pos);
+      // [L258 · bug Esteban] NOM DE MACHINE affiché dans la liste « Ordre de coupe » (colonne gauche, là où
+      // les gros boutons machine étaient en mono) : en multi-réf le nom n'était visible que dans le <select>
+      // du bloc de droite. Chip par réf (couleur machine) — présentation pure, aucune logique changée.
+      const _oml=getMachineLabel(r.machine||'');
+      const _omc=({feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'})[r.machine]||'#888';
+      const _omChip=_oml?'<span class="frs-mch" style="--mc:'+_omc+'">⚙ '+esc(_oml)+'</span>':'';
       oh+='<div class="fmm-order-row" style="border-left:5px solid '+rc+'">'
         +'<span class="fmm-order-num" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">'+(pos+1)+'</span>'
         +'<span class="fmm-order-id"><span class="fmm-order-name">'+esc(String(r.ref))+'</span>'
+        +_omChip
         +(tags.length?'<span class="fmm-order-tags">'+tags.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'')
         +'</span>'
         +'<span class="fmm-order-btns">'
@@ -15642,7 +15649,12 @@ function renderFicheMachineBlocks(opts){
     const rc=refColor(pos);
     block.style.borderLeft='6px solid '+rc;   // couleur par référence (miroir de l'ordre de coupe)
     const refChip='<span class="fmm-ref-chip" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">Réf '+(pos+1)+'</span>';
-    block.innerHTML='<div class="fmm-head">'+refChip+badge+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
+    // [L258 · bug Esteban] nom de machine dans l'en-tête du bloc (états à couper / verrouillé) : l'état validé
+    // l'affiche déjà dans son résumé. Sans ça, le nom n'était que dans le <select> → « pas indiqué ».
+    const _hml=getMachineLabel(r.machine||'');
+    const _hmc=({feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'})[r.machine]||'#888';
+    const _hmChip=(!validated&&_hml)?'<span class="frs-mch" style="--mc:'+_hmc+'">⚙ '+esc(_hml)+'</span>':'';
+    block.innerHTML='<div class="fmm-head">'+refChip+badge+_hmChip+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
     // [L236 · demande Esteban] RÉF 1 : sa carte de validation vit ENTRE le suivi « X/N coupées » et la
     // 1re bobine à couper (colonne des bobines) — l'opérateur voit suivi → réf à valider → bobines, d'un
     // seul flux. Réfs 2, 3, … : inchangées (bloc à leur 1re bobine). (Avant L107/L236 : au-dessus de l'en-tête.)
