@@ -232,8 +232,17 @@ has(/<input type="hidden" data-fmm="machine"/,'L260 #2 : input caché data-fmm="
 has(/couleur PAR RÉF \(même palette que l'ordre de coupe\)/,'L260 #3 : étiquette solde colorée par réf (distingue 2 réfs identiques)');
 has(/\$\{d\.color\?`border-left:6px solid \$\{d\.color\};`:''\}/,'L260 #3 : bordure gauche couleur réf sur la carte étiquette solde');
 has(/if\(_prevLame\)\{ try\{ await _lameEvent\('demonte',machine,_prevLame/,'L260 #4 : lame remplacée → événement DÉMONTAGE daté du jour (plus « démontée le » = date de pose)');
-has(/laize\(s\) plus large\(s\) que la laize utile de leur réf — NON incluse/,'L260 #5 : recalcul écarts — AVERTISSEMENT au lieu de REFUS SEC (opérateur plus bloqué, informé)');
+has(/laize\(s\) plus large\(s\) que la laize utile de leur référence/,'L260→L261 #5 : recalcul écarts — plus de REFUS SEC (alerte persistante, opérateur informé, ça passe)');
 absent(/⛔ Recalcul bloqué/,'L260 #5 : ancien refus sec du recalcul retiré');
+
+console.log('── L261 : ancien visuel progression + recalcul alerte persistante ──');
+has(/ANCIEN VISUEL remis : nombre « X \/ N coupées » \+ barre COLORÉE/,'L261 : progression = nombre + barre colorée ok/nc/reste + % (ancien visuel #ficheProgress restauré dans la bannière)');
+has(/_pct=total\?Math\.round\(done\/total\*100\):0/,'L261 : pourcentage recalculé dans la bannière');
+has(/\.fp-bar\{/,'L261 : classes .fp-* rendues globales (réutilisées par la bannière)');
+absent(/#ficheProgress \.fp-/,'L261 : plus aucune règle .fp-* scopée sur #ficheProgress (élément retiré en L259)');
+has(/ALERTE PERSISTANTE \(modale native\) au lieu d'un toast éphémère/,'L261 : recalcul oversize → alerte MODALE persistante (plus écrasée par le toast succès)');
+has(/Le recalcul continue sur le reste\.'\);\n  \}/,'L261 : après l\'alerte, le recalcul PASSE TOUJOURS (plus de blocage)');
+has(/focus\/scroll vers les BOUTONS machine/,'L261 : « Valider la bobine mère » défile vers les boutons machine (fix focus input caché)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
 process.exit(fail?1:0);

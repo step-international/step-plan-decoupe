@@ -341,15 +341,15 @@ body.atelier .fl-badge{font-size:17px;padding:3px 10px}
 .nc-check input{display:none}
 /* [L179 · maquette v2] BARRE D'AVANCEMENT de coupe (au-dessus de la liste des bobines) */
 #ficheProgress{display:flex;align-items:center;gap:14px;padding:12px 16px;margin-bottom:12px;background:var(--s0);border:1px solid var(--line);border-radius:var(--r-card)}
-#ficheProgress .fp-num{font-family:var(--f-head);font-weight:700;font-size:24px;font-variant-numeric:tabular-nums;white-space:nowrap}
-#ficheProgress .fp-num b{color:var(--ok)}
-#ficheProgress .fp-num small{color:var(--text3);font-size:15px;font-weight:600}
-#ficheProgress .fp-bar{flex:1;height:14px;border-radius:7px;background:var(--s2);border:1px solid var(--line);overflow:hidden;display:flex}
-#ficheProgress .fp-bar i{display:block;height:100%}
-#ficheProgress .fp-bar .f-ok{background:var(--ok)}
-#ficheProgress .fp-bar .f-nc{background:#f65157;background:repeating-linear-gradient(-45deg,var(--alert) 0 6px,color-mix(in srgb,var(--alert) 70%,#000) 6px 12px)}
-#ficheProgress .fp-pct{font-family:var(--f-head);font-weight:700;font-size:17px;color:var(--text3);font-variant-numeric:tabular-nums;white-space:nowrap}
-body.atelier #ficheProgress .fp-num{font-size:28px}
+.fp-num{font-family:var(--f-head);font-weight:700;font-size:24px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fp-num b{color:var(--ok)}
+.fp-num small{color:var(--text3);font-size:15px;font-weight:600}
+.fp-bar{flex:1;height:14px;border-radius:7px;background:var(--s2);border:1px solid var(--line);overflow:hidden;display:flex}
+.fp-bar i{display:block;height:100%}
+.fp-bar .f-ok{background:var(--ok)}
+.fp-bar .f-nc{background:#f65157;background:repeating-linear-gradient(-45deg,var(--alert) 0 6px,color-mix(in srgb,var(--alert) 70%,#000) 6px 12px)}
+.fp-pct{font-family:var(--f-head);font-weight:700;font-size:17px;color:var(--text3);font-variant-numeric:tabular-nums;white-space:nowrap}
+body.atelier .fp-num{font-size:28px}
 /* [L177 · demande Esteban] R.A.S. GRIS tant que le test 2ᵉ n'est pas conforme, VERT quand il l'est
    (classe .t2ok posée par updateTest2Subs : Dévidage + Droit cochés ; FEBA : Dévidage seul).
    L'input reste coché par défaut (logique NC/badge/gardes STRICTEMENT inchangée — c'est un signal visuel). */
@@ -604,8 +604,8 @@ body.atelier .cumul-row{font-size:20px}
 body.atelier .cumul-box{font-size:19px}
 body.atelier .machine-btn-fiche{min-height:64px;font-size:20px;padding:17px 12px}
 body.atelier .chrono-display{font-size:76px}
-body.atelier #ficheProgress .fp-num{font-size:38px}
-body.atelier #ficheProgress .fp-pct{font-size:23px}
+body.atelier .fp-num{font-size:38px}
+body.atelier .fp-pct{font-size:23px}
 body.atelier .frs-name{font-size:26px}
 body.atelier .frs-m,body.atelier .frs-mch{font-size:16px}
 body.atelier .stat-chip{font-size:17px}
@@ -1788,7 +1788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L260';
+const APP_VERSION='2026.07.24-L261';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8265,8 +8265,12 @@ function recalcEcartsFromFiche(opts){
   // pas touché : `computed` est déjà calculé, l'oversize est hors `rows`, on poursuit sur le reste.
   const over=[].concat(...computed.map(c=>c.oversize.map(r=>({ref:c.ref,width:r.width,useful:c.useful}))));
   if(over.length){
-    showToast(`⚠ ${over.length} laize(s) plus large(s) que la laize utile de leur réf — NON incluse(s) dans le plan : `+
-      over.map(o=>`${fmt(o.width)} mm${o.ref?` (réf ${o.ref})`:''}`).join(', ')+'.\nLe recalcul continue sur le reste.','err');
+    // [L261 · demande Esteban + revue ×2] ALERTE PERSISTANTE (modale native) au lieu d'un toast éphémère
+    // ÉCRASÉ ~1 s plus tard par le message de succès (→ l'opérateur ne le voyait pas, perte silencieuse). On
+    // prévient clairement, PUIS on laisse TOUJOURS passer le recalcul (« dans tous les cas me laisser faire »).
+    alert('⚠ '+over.length+' laize(s) plus large(s) que la laize utile de leur référence :\n\n'+
+      over.map(o=>fmt(o.width)+' mm'+(o.ref?' (réf '+o.ref+')':'')+'  >  utile '+fmt(o.useful)+' mm').join('\n')+
+      '\n\nCes laizes ne peuvent pas être coupées de cette bobine mère → elles ne seront PAS incluses dans le plan.\nLe recalcul continue sur le reste.');
   }
 
   const multi=computed.length>1;
@@ -15733,7 +15737,7 @@ function applyFicheRefPlanChange(idx){
   const edge=(gv('edge')?.value||'').trim();
   const blade=(gv('blade')?.value||'').trim();
   const machine=(gv('machine')?.value||'').trim();
-  if(!machine){ showToast('⚠ Choisis la machine de cette référence.','err'); gv('machine')?.focus(); return; }
+  if(!machine){ showToast('⚠ Choisis la machine de cette référence.','err'); const _mb=blk.querySelector('.machine-btns .machine-btn-fiche'); if(_mb){ try{ _mb.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} try{ _mb.focus(); }catch(e){} } return; }   // [L261 · revue] focus/scroll vers les BOUTONS machine (l'input est caché → focus() était un no-op)
   if(!mother){ showToast('⚠ Renseigne la bobine mère de cette référence.','err'); gv('mother')?.focus(); return; }
   if(!edge){ showToast('⚠ Renseigne la perte bords de cette référence.','err'); gv('edge')?.focus(); return; }
   if(blade===''){ showToast('⚠ Renseigne la perte lame de cette référence.','err'); gv('blade')?.focus(); return; }
@@ -16468,19 +16472,20 @@ function updateCoupeeStatus(){
   const banner=document.getElementById('coupeeBanner');
   const sendBtn=document.getElementById('sendPlanBtn');
   const hint=document.getElementById('sendPlanHint');
-  // [L102 · M2-D] barre de progression qui se remplit — redondance chiffre + forme (H)
-  const _pbar=`<div class="cut-progress"><div style="width:${total?Math.round(done/total*100):0}%"></div></div>`;
+  // [L261 · demande Esteban] ANCIEN VISUEL remis : nombre « X / N coupées » + barre COLORÉE (coupé vert ·
+  // NC hachures rouges · reste gris) + POURCENTAGE, dans la bannière sticky unique en tête. (Réutilise les
+  // classes .fp-* de l'ancien #ficheProgress, désormais globales.)
+  const _nc=ficheLines.filter(({id})=>{const el=document.getElementById(id);const b=document.getElementById('badge_'+id);return el&&el.classList.contains('coupee')&&b&&b.classList.contains('badge-red');}).length;
+  const _okN=Math.max(0,done-_nc), _pct=total?Math.round(done/total*100):0;
+  const _fpRow='<span class="fp-num tabnum"><b>'+done+'</b><small> / '+total+' coupées</small></span>'
+    +'<span class="fp-bar"><i class="f-ok" style="flex:'+_okN+'"></i><i class="f-nc" style="flex:'+_nc+'"></i><i style="flex:'+Math.max(0,total-_okN-_nc)+'"></i></span>'
+    +'<span class="fp-pct tabnum">'+_pct+'%</span>'
+    +(perRefStr?'<div style="flex-basis:100%;font-size:12px;font-weight:600;margin-top:4px;text-align:left">'+perRefStr+'</div>':'');
   if(banner){
-    banner.style.display='block';
-    if(allDone){
-      banner.style.background='#14371f';banner.style.borderColor='var(--green)';banner.style.color='var(--green)';
-      // [L259 · demande Esteban] la bannière sticky ne porte PLUS de bouton (le bouton « Confirmer » vit
-      // désormais juste sous les bobines, #sendPlanWrap, et remonte tout seul quand elles se masquent).
-      banner.innerHTML=`✅ Toutes les bobines sont coupées (${total}/${total}) — confirme ci-dessous`+_pbar+(perRefStr?`<div style="font-size:12px;font-weight:600;margin-top:6px">${perRefStr}</div>`:'');
-    } else {
-      banner.style.background='#1a1a18';banner.style.borderColor='var(--border2)';banner.style.color='var(--text)';
-      banner.innerHTML=`✂ Progression : <strong style="color:var(--text)">${done}/${total}</strong> bobines coupées`+_pbar+(perRefStr?`<div style="font-size:12px;font-weight:600;margin-top:6px">${perRefStr}</div>`:'');
-    }
+    banner.style.display='flex';banner.style.alignItems='center';banner.style.gap='14px';banner.style.flexWrap='wrap';banner.style.textAlign='left';banner.style.color='var(--text)';
+    banner.style.background=allDone?'#14371f':'#1a1a18';
+    banner.style.borderColor=allDone?'var(--green)':'var(--border2)';
+    banner.innerHTML=_fpRow;
   }
   if(sendBtn){
     sendBtn.disabled=!allDone;
