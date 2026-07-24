@@ -213,9 +213,11 @@ console.log('── L256 bug Esteban : bouton « Revenir à la fiche » de l\'é
 absent(/<button class="back" onclick="window\.close\(\)">/,'L256 : plus de window.close() nu (no-op dans l\'iframe srcdoc)');
 has(/getElementById\('printOverlayClose'\);\}catch\(e\)\{\}if\(b\)\{b\.click\(\);\}else\{window\.close\(\)/,'L256 : « Revenir à la fiche » ferme l\'overlay (révèle la fiche) + repli window.close desktop');
 
-console.log('── L257 demande Esteban : « Confirmer la commande » remonte en haut quand tout est coupé ──');
-has(/id="sendPlanBtnTop" onclick="confirmCommandeRecap\(\)"/,'L257 : bouton Confirmer DANS la bannière verte sticky du haut (même action que le bouton du bas)');
-has(/« Confirmer la commande » REMONTE ICI/,'L257 : n\'apparaît que quand toutes les bobines sont coupées (branche allDone) — masqué avant');
+console.log('── L259 demande Esteban : Confirmer sans trou + progression unique ──');
+has(/id="sendPlanWrap"/,'L259 : « Confirmer » déplacé DANS #ficheRight, juste après les bobines (remonte quand les coupées se masquent, aucun trou)');
+absent(/id="sendPlanBtnTop"/,'L259 : ancien bouton dupliqué dans la bannière (L257) retiré');
+absent(/<div id="ficheProgress"/,'L259 : suivi #ficheProgress dupliqué RETIRÉ (progression unique = coupeeBanner sticky en tête)');
+absent(/:has\(#sendPlanBtn\)/,'L259 : montage grid-row:41 retiré (source du trou visuel)');
 
 console.log('── L258 bugs Esteban : impression fantôme + nom machine multi-réf ──');
 has(/_f\.onload=null;/,'L258 BUG1 : fr.onload nullifié à la fermeture → plus d\'impression fantôme (la croix ramène à la fiche)');
