@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L267';
+const APP_VERSION='2026.07.24-L268';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3431,16 +3431,27 @@ async function flushPendingLocalPhotos(){
   if(_flushingPhotos||!storage) return;
   const ids=Object.keys(_pendingLocalPhotos); if(!ids.length) return;
   _flushingPhotos=true; let ok=0;
+  // [L268 · revue L267] AUTO-VALIDATION : on ne re-téléverse QUE si la photo en attente est TOUJOURS la
+  // photo ACTIVE (base64) de sa cible. Si elle a été SUPPRIMÉE (deletePhoto), la fiche RÉINITIALISÉE, ou la
+  // bobine RETIRÉE → on abandonne (purge la file), sinon une preuve supprimée « ressuscitait » et des Blobs
+  // orphelins partaient vers Storage. On vérifie AVANT (pas d'upload orphelin) ET APRÈS l'await (course avec
+  // une suppression pendant l'upload).
+  const _stillPending=lid=>{ const cur=(lid==='__commande__')?commandePhoto:ficholinePhotos[lid];
+    if(!cur||!String(cur).startsWith('data:')) return false;
+    return lid==='__commande__' || (typeof ficheLines!=='undefined'&&ficheLines.some(l=>l&&l.id===lid)); };
   try{
     for(const lid of ids){
       const blob=_pendingLocalPhotos[lid];
-      if(!blob){ delete _pendingLocalPhotos[lid]; continue; }
+      if(!blob||!_stillPending(lid)){ delete _pendingLocalPhotos[lid]; continue; }   // supprimée / réinitialisée / bobine retirée → on abandonne
       try{
         const url=await Promise.race([uploadPhotoToStorage(blob,lid),new Promise((_,rej)=>setTimeout(()=>rej(new Error('__to__')),10000))]);
         if(typeof url==='string' && /^https?:/.test(url)){
-          if(lid==='__commande__'){ if(!commandePhoto||String(commandePhoto).startsWith('data:')){ commandePhoto=url; try{refreshCommandePhotoZone();}catch(e){} } }
-          else if(!ficholinePhotos[lid]||String(ficholinePhotos[lid]).startsWith('data:')){ ficholinePhotos[lid]=url; try{refreshPhotoZone(lid);}catch(e){} }
-          delete _pendingLocalPhotos[lid]; ok++;
+          if(_stillPending(lid)){   // re-vérifie APRÈS l'await (suppression pendant l'upload)
+            if(lid==='__commande__'){ commandePhoto=url; try{refreshCommandePhotoZone();}catch(e){} }
+            else { ficholinePhotos[lid]=url; try{refreshPhotoZone(lid);}catch(e){} }
+            ok++;
+          }
+          delete _pendingLocalPhotos[lid];
         }
       }catch(e){ /* réseau encore absent → on garde dans la file, prochain 'online' */ }
     }
@@ -3554,6 +3565,7 @@ async function deletePhoto(lineId){
   if(!await confirmDlg('Supprimer la photo de cette bobine ?\n\n⚠ Définitif — elle sert de preuve qualité (NC).',{danger:true,ok:'Supprimer'})) return;   // [L121 · T1] modale stylée uniforme
   if(ficholinePhotos[lineId]) await deletePhotoFromStorage(ficholinePhotos[lineId]);
   delete ficholinePhotos[lineId];
+  delete _pendingLocalPhotos[lineId];   // [L268 · revue L267] purge la file d'attente : une photo supprimée ne doit JAMAIS être re-téléversée au retour réseau
   refreshPhotoZone(lineId);
 }
 function openPhotoViewer(lineId){
@@ -5627,13 +5639,6 @@ function _seqMinPalettes(pg,prefix){
   const maxW=g=>Math.max(0,..._pgW(g));
   const base=mid.slice().sort((a,b)=>maxW(b)-maxW(a));            // préférence grandes laizes (stable pour égalités : sort natif stable)
   let bestOrder=base.concat([solde]), bestPeak=_seqPeak(prefix.concat(bestOrder));
-  // [L245 · campagne MAJEUR — évolution MOTEUR délibérée, verdict sceptique SAIN (~9300 cas A/B : jamais pire,
-  // élagage DFS admissible, multiset/solde/déterminisme intacts, +2% perf max)] l'ORDRE MOTEUR D'ORIGINE est
-  // TOUJOURS évalué comme candidat (O(n), solde déjà dernier) : le tri grandes-laizes ou le DFS à budget
-  // pouvaient rendre un pic PIRE que l'ordre brut → repack phasé INUTILE (chute aggravée + solde de milieu
-  // créés) ou >4 palettes livrées avec chutes. L'ordre brut ne gagne que s'il fait STRICTEMENT mieux
-  // (à égalité, la préférence grandes-laizes est conservée).
-  { const rawPeak=_seqPeak(prefix.concat(pg)); if(rawPeak<bestPeak){ bestPeak=rawPeak; bestOrder=pg.slice(); } }
   const lb=Math.max(0,...prefix.concat(pg).map(g=>_pgW(g).length));   // borne : un motif à N largeurs impose N palettes
   if(bestPeak<=PALETTES_MAX||bestPeak<=lb||base.length>12) return {order:bestOrder,peak:bestPeak};
   let _budget=2000;   // [L92 · Audit #1] 9-12 motifs : DFS à BUDGET au lieu d'abandonner — [L103 · audit-max] 200000 nœuds GELAIT l'UI 11-12 s (mesuré, 7 laizes banales, à CHAQUE frappe via recalcPlan ; bien pire sur vieil iPad). Balayage mesuré 500→200000 : résultat STRICTEMENT identique (mêmes bobines/chute/pic — ≤4 se trouve dans les premiers nœuds grâce à l'ordre grandes-laizes, sinon le repack phasé reprend la main). 2000 nœuds ≈ 150 ms au pire, DÉTERMINISTE entre appareils (une borne en temps donnerait des plans différents PC/tablette — interdit règle « toutes les surfaces »)
@@ -5723,6 +5728,14 @@ function _palRepack(c){
     if(mid<best.mid-1e-9||(Math.abs(mid-best.mid)<=1e-9&&perte<best.perte-1e-9)) best={waste,keys:keys.slice(),mid,perte};
   });
   if(!best) return null;
+  // [L268 · bug Prima « solde au milieu »] les phases ont des ENSEMBLES de largeurs DISJOINTS : les réordonner ne
+  // change NI les bobines, NI la chute totale, NI la perte, NI le pic (aucune laize ne chevauche 2 phases). On émet
+  // la phase au plus GROS solde de fin EN DERNIER (tri stable croissant par phaseEndSolde, départage index d'origine
+  // = déterministe) → la grosse chute réutilisable finit le plan au lieu de tomber au milieu. Choix atelier « solde
+  // à la fin » (Esteban, 24/07/2026). Prouvé A/B (multiset/rendement/perte/pic strictement inchangés, midMax jamais
+  // aggravé). NB : sur un plan à 2 phases un solde plus PETIT reste à la frontière — irréductible sans changer les
+  // bobines (largeurs de phases disjointes), assumé et expliqué au patron.
+  best.keys=best.keys.map((k,i)=>[k,i]).sort((a,b)=>(slice[a[0]].phaseEndSolde-slice[b[0]].phaseEndSolde)||(a[1]-b[1])).map(x=>x[0]);
   const phases=best.keys.map(kk=>slice[kk].bobs).filter(ph=>ph.length);
   const bobs=[].concat(...phases);
   if(!bobs.length) return null;
@@ -6638,6 +6651,11 @@ async function removeManualBobine(ri,bi){   // [L74 · Design Lot E] async (appe
 // PRINT / DOWNLOAD
 // ============================================================
 function openPrintWindow(html,autoPrint){
+  // [L268 · revue L266] les documents imprimés sont AUTONOMES (iframe srcdoc / fenêtre séparée) : le :root
+  // du document principal n'y cascade PAS. L'harmonisation L266 (color:#f87171 → var(--red)) y laissait
+  // donc des rouges NON résolus → indicateurs (perte ≥8%, NC, changement machine) affichés en GRIS à
+  // l'impression. On injecte les tokens sémantiques dans le 1er <style> pour qu'ils résolvent partout.
+  try{ if(typeof html==='string' && html.indexOf('<style>')>=0 && html.indexOf('--red:')<0) html=html.replace('<style>','<style>:root{--red:#f65157;--alert:#f65157;--green:#45c97b;--orange:#f0742a;--action:#f5a623;--blue:#4f9df2}'); }catch(e){}
   // [L79] Impression/aperçu DANS la PWA via un overlay plein écran + iframe same-origin (srcdoc),
   // au lieu de window.open('_blank') qui, sur PWA iOS standalone, ÉJECTAIT l'opérateur dans Safari →
   // au retour l'app rechargeait à froid sur la PAGE 0 (Fiche perdue = bug signalé). Ici la croix
@@ -10968,7 +10986,7 @@ function kpiMoisInnerHTML(ym){
     </div>
     <div id="kpiFichesList" style="display:none"></div><!-- [L249 · R4b] drill-down fiches du mois -->
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#60a5fa')}${machCard('MAVEG','#4ade80')}${machCard('CEVENINI','#a78bfa')}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#4f9df2')}${machCard('MAVEG','#2fb85f')}${machCard('CEVENINI','#9b7cf0')}</div>
     ${(kpi.autresBobines>0)?`<div style="font-size:12px;color:var(--orange);margin:-8px 0 14px">⚠ ${Number(kpi.autresBobines).toLocaleString('fr-FR')} bobine(s) sur machine hors FEBA/MAVEG/CEVENINI — comptées dans le total, non ventilées ci-dessus.</div>`:''}
     ${topBlock}
     ${evo.length?`<div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Évolution</div>`+`
@@ -16972,7 +16990,7 @@ function _loadMachineUids(){
 }
 function _iniOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].ini)||_machineUids[uid]||'?'; }
 function _nomOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].nom)||(_machineUids[uid]?('Poste '+_machineUids[uid]):_iniOf(uid)); }
-function _opColor(uid){ if(_machineUids[uid]&&!USER_PROFILES[uid]){ const mk=String(_machineUids[uid]).toLowerCase(); if(mk==='feba')return'#60a5fa'; if(mk==='maveg')return'#4ade80'; if(mk==='cevenini')return'#a78bfa'; } return OP_COLORS[_iniOf(uid)]||OP_COLORS['?']; }
+function _opColor(uid){ if(_machineUids[uid]&&!USER_PROFILES[uid]){ const mk=String(_machineUids[uid]).toLowerCase(); if(mk==='feba')return'#4f9df2'; if(mk==='maveg')return'#2fb85f'; if(mk==='cevenini')return'#9b7cf0'; } return OP_COLORS[_iniOf(uid)]||OP_COLORS['?']; }
 function _shareOtherUids(){ const me=_uid(); return Object.keys(USER_PROFILES).concat(Object.keys(_machineUids).filter(function(u){return !USER_PROFILES[u];})).filter(function(u){return u!==me;}); }
 function toggleSharePanel(show){
   const p=document.getElementById('sharePanel'); if(!p) return;

@@ -261,5 +261,14 @@ has(/function flushPendingLocalPhotos\(\)/,'L267 : re-téléversement des photos
 has(/window\.addEventListener\('online',function\(\)\{ setTimeout\(flushPendingLocalPhotos/,'L267 : déclenché sur l\'événement online');
 has(/_pendingLocalPhotos\[lid\]=blob;/,'L267 : le Blob compressé est mis en file au timeout d\'upload');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L146 présents dans index.html + sw.js');
+console.log('── L268 : MOTEUR plan (revert L245 grosses-laizes + solde à la fin) + revue photos/impression ──');
+absent(/rawPeak=_seqPeak\(prefix\.concat\(pg\)\)/,'L268 : L245 ANNULÉ — plus de candidat « ordre brut » dans _seqMinPalettes (grosses laizes d\'abord + solde en dernier, byte-identique pré-L245)');
+has(/best\.keys=best\.keys\.map\(\(k,i\)=>\[k,i\]\)\.sort\(\(a,b\)=>\(slice\[a\[0\]\]\.phaseEndSolde-slice\[b\[0\]\]\.phaseEndSolde\)/,'L268 : _palRepack réordonne les phases → plus gros solde EN FIN (bug Prima « solde au milieu » corrigé, choix atelier « solde à la fin »)');
+has(/<style>:root\{--red:#f65157;--alert:#f65157;--green:#45c97b;--orange:#f0742a/,'L268 : documents imprimés (autonomes) reçoivent les tokens sémantiques → rouge NC/perte plus jamais GRIS à l\'impression');
+has(/const _stillPending=/,'L268 : re-téléversement photo AUTO-VALIDÉ (base64 encore présent + ligne existante, avant ET après await) → plus de photo supprimée ressuscitée ni d\'upload orphelin');
+has(/delete _pendingLocalPhotos\[lineId\];/,'L268 : suppression d\'une photo purge aussi la file de re-téléversement');
+has(/machCard\('FEBA','#4f9df2'\)/,'L268 : bloc KPI « Par machine » utilise les tokens couleur machine (harmonisé)');
+has(/if\(mk==='feba'\)return'#4f9df2'/,'L268 : _opColor utilise les tokens couleur machine (harmonisé)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L268 présents dans index.html + sw.js');
 process.exit(fail?1:0);
