@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.27-L275';
+const APP_VERSION='2026.07.27-L276';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16015,8 +16015,16 @@ function _buildFichePlanPrintHTML(){
     });
     pg.forEach(g=>{ delete g._key; });
     const p=paramOf(ref), l0=lines[0]||{};
-    return {ref, refIdKey:p.refIdKey||l0.refIdKey||null, useful:l0.useful||p.useful||0, blade:l0.blade||p.blade||0,
-      longueur:p.longueur||'', mother:p.mother||0, edge:p.edge||0, film:p.film||'', veka:p.veka||'', machine:l0.machine||p.machine||'',
+    const _blade=Number(l0.blade)||Number(p.blade)||0;
+    // [L276 · bug Esteban : chutes NÉGATIVES à l'impression] l'utile lu dans l'onglet Plan (getRefGroups)
+    // pouvait être PÉRIMÉ/faux (ex. bords 340 mm → utile 1800 mm) alors que les configs de la FICHE ont été
+    // calculées avec le VRAI utile (~2130 mm) → chute = utile − découpe passait NÉGATIVE. On prend l'utile de la
+    // FICHE (max des `useful` des lignes) et JAMAIS moins que la plus grande découpe du groupe → chute ≥ 0.
+    const _usedOf=l=>{ try{ return calcStats(parseConf(document.getElementById('flConf_'+l.id)?.value||''), Number(l.blade)||_blade).total; }catch(e){ return 0; } };
+    const _useful=Math.max(0, ...lines.map(l=>Number(l.useful)||0), ...lines.map(_usedOf));
+    const _mother=Number(p.mother)||_useful;
+    return {ref, refIdKey:p.refIdKey||l0.refIdKey||null, useful:_useful, blade:_blade,
+      longueur:p.longueur||'', mother:_mother, edge:Math.max(0,_mother-_useful), film:p.film||'', veka:p.veka||'', machine:l0.machine||p.machine||'',
       planGroups:pg};
   });
   const numCmd=document.getElementById('planNumCmd')?.value||document.getElementById('fNumCmd')?.value||'';

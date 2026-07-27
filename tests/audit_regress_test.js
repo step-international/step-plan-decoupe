@@ -318,5 +318,7 @@ has(/NOURRI PAR LES BOBINES DE LA FICHE/,'L275 : « Imprimer le plan » = ANCIEN
 has(/openPrintWindow\(_buildFichePlanPrintHTML\(\)\)/,'L275 : impression depuis la fiche via _buildFichePlanPrintHTML (ancien modèle, données fiche)');
 has(/Le chrono tourne depuis '\+mins\+' min sans nouvelle bobine/,'L275 : rappel « pense à ⏸ » si le chrono tourne 30 min sans bobine coupée (ne fige rien)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L275 présents dans index.html + sw.js');
+has(/chutes NÉGATIVES à l'impression/,'L276 : impression depuis fiche = utile de la FICHE, jamais < plus grande découpe → plus de chute négative');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L276 présents dans index.html + sw.js');
 process.exit(fail?1:0);
