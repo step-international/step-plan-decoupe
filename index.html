@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.27-L276';
+const APP_VERSION='2026.07.27-L277';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16004,28 +16004,24 @@ function _buildFichePlanPrintHTML(){
   const refsSeen=[]; ficheLines.forEach(l=>{ const r=l.ref||''; if(!refsSeen.includes(r)) refsSeen.push(r); });
   const groups=refsSeen.map(ref=>{
     const lines=ficheLines.filter(l=>(l.ref||'')===ref);
-    // planGroups : regrouper les motifs IDENTIQUES consécutifs (comme l'écran plan) → « N bobines : config ».
-    const pg=[];
-    lines.forEach(l=>{
-      const pat=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
-      const key=JSON.stringify(pat);
-      const last=pg[pg.length-1];
-      if(last && last._key===key) last.count++;
-      else pg.push({count:1, pattern:pat, _key:key});
-    });
-    pg.forEach(g=>{ delete g._key; });
-    const p=paramOf(ref), l0=lines[0]||{};
+    // [L277 · bug Esteban] SÉPARER les rouleaux CHUTE recoupés (l.recut) des bobines MÈRES : les recut vont dans
+    // recutGroups → imprimés « ♻ rouleau chute — À RECOUPER EN 1ER » (fond vert), avec leur PROPRE laize (rollW).
+    // Avant (L275), tout était en planGroups → les 3 premières (des chutes) apparaissaient comme des bobines mères.
+    const normalLines=lines.filter(l=>!l.recut), recutLines=lines.filter(l=>l.recut);
+    // regroupe des motifs IDENTIQUES consécutifs → « N bobines : config » (recut : aussi par rollW).
+    const _grp=(arr,withRoll)=>{ const out=[]; arr.forEach(l=>{ const pat=parseConf(document.getElementById('flConf_'+l.id)?.value||''); const key=JSON.stringify(pat)+'|'+(withRoll?(Number(l.rollW)||0):''); const last=out[out.length-1]; if(last&&last._key===key) last.count++; else out.push(withRoll?{count:1,pattern:pat,rollW:Number(l.rollW)||0,_key:key}:{count:1,pattern:pat,_key:key}); }); out.forEach(g=>delete g._key); return out; };
+    const pg=_grp(normalLines,false), rg=_grp(recutLines,true);
+    const p=paramOf(ref), l0=normalLines[0]||lines[0]||{};
     const _blade=Number(l0.blade)||Number(p.blade)||0;
-    // [L276 · bug Esteban : chutes NÉGATIVES à l'impression] l'utile lu dans l'onglet Plan (getRefGroups)
-    // pouvait être PÉRIMÉ/faux (ex. bords 340 mm → utile 1800 mm) alors que les configs de la FICHE ont été
-    // calculées avec le VRAI utile (~2130 mm) → chute = utile − découpe passait NÉGATIVE. On prend l'utile de la
-    // FICHE (max des `useful` des lignes) et JAMAIS moins que la plus grande découpe du groupe → chute ≥ 0.
+    // [L276] utile des bobines MÈRES = utile de la FICHE, jamais < plus grande découpe → chute ≥ 0 (les recut ont
+    // leur propre rollW). L'utile de l'onglet Plan pouvait être périmé (bords faux → chute négative).
     const _usedOf=l=>{ try{ return calcStats(parseConf(document.getElementById('flConf_'+l.id)?.value||''), Number(l.blade)||_blade).total; }catch(e){ return 0; } };
-    const _useful=Math.max(0, ...lines.map(l=>Number(l.useful)||0), ...lines.map(_usedOf));
+    const _src=normalLines.length?normalLines:lines;
+    const _useful=Math.max(0, ..._src.map(l=>Number(l.useful)||0), ..._src.map(_usedOf));
     const _mother=Number(p.mother)||_useful;
     return {ref, refIdKey:p.refIdKey||l0.refIdKey||null, useful:_useful, blade:_blade,
       longueur:p.longueur||'', mother:_mother, edge:Math.max(0,_mother-_useful), film:p.film||'', veka:p.veka||'', machine:l0.machine||p.machine||'',
-      planGroups:pg};
+      planGroups:pg, recutGroups:rg};
   });
   const numCmd=document.getElementById('planNumCmd')?.value||document.getElementById('fNumCmd')?.value||'';
   return buildPlanPrintHTML({
