@@ -280,5 +280,15 @@ has(/'posée le ⚠':dateLbl/,'L269 : carte lame honnête — « posée le ⚠ �
 console.log('── L270 : étiquette solde — case N° de référence à compléter ──');
 has(/case N° de référence À COMPLÉTER À LA MAIN/,'L270 : étiquette solde porte une case vide « N° de référence » (l\'atelier note la réf réelle au feutre)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L270 présents dans index.html + sw.js');
+console.log('── L271 : anti-perte de référence (audit 27/07, lot 1) ──');
+has(/confirmDlg\('Retirer la référence '/,'L271 #1 CRITIQUE : suppression d\'une réf entière exige une confirmation DANGER + trace (cause probable perte Tacflex/Prima)');
+has(/logAudit\('delete','plan-ref'/,'L271 #1 : retrait de réf tracé dans l\'audit');
+has(/rawRows\.push\(\{q:_rq,w:_rw\}\)/,'L271 #2 : texte brut des lignes mal saisies capturé (getRefGroups)');
+has(/rawRows:g\.rawRows\|\|\[\]/,'L271 #2 : rawRows persistées (serializeRefGroups) → plus de perte de réf au ré-enregistrement/reprise');
+has(/\(g0\.rawRows\|\|\[\]\)\.forEach\(r=>cont0\.appendChild\(makeOrderRow\(r\.q,r\.w\)\)\)/,'L271 #2 : rawRows restaurées → la bannière « config illisible » re-signale');
+has(/else applySavedRef\(sel,prev,client\)/,'L271 #7 : réf hors-catalogue conservée au changement de client (plus vidée en silence)');
+has(/\.replace\(\/\[Oo\]\/g,'0'\)/,'L271 #8 : parseNum normalise la lettre O→0 (anti quantité ÷100 silencieuse)');
+has(/Promise\.race\(\[loadMaintenance\(\)/,'L271 #3 CRITIQUE : registre lames RAFRAÎCHI avant de tracer le démontage (fin du bug « démonté le 23 » sur tablette ouverte depuis des jours)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L271 présents dans index.html + sw.js');
 process.exit(fail?1:0);

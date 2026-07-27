@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.24-L270';
+const APP_VERSION='2026.07.27-L271';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3330,7 +3330,9 @@ function parseNum(v){
   if(v===undefined||v===null||v==='') return 0;
   // [L72 · Audit B42] espaces retirés (clavier tablette : « 92 ,5 » / « 92, 5 ») —
   // la décimale n'est plus tronquée à 92 en silence.
-  return parseFloat(String(v).replace(/\s+/g,'').replace(',','.')) || 0;
+  // [L271 · audit #8] « O »/« o » (lettre) tapé au lieu de « 0 » dans un champ NUMÉRIQUE : avant, parseFloat
+  // s'arrêtait à la lettre (« 4OO » → 4, quantité ÷100 en silence, aucune bannière). On normalise O→0.
+  return parseFloat(String(v).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.')) || 0;
 }
 function fmt(n){const x=Number(n); return Number.isFinite(x)?parseFloat(x.toFixed(2)).toString():'0';}
 // Borne une quantité saisie : une saisie aberrante ne doit pas lancer des
@@ -4451,7 +4453,9 @@ function onClientChange(){
   document.querySelectorAll('.ref-block [data-rb="ref"]').forEach(sel=>{
     const prev=sel.value;
     sel.innerHTML=opts;
-    if(refs.some(r=>r.ref===prev)) sel.value=prev; else sel.value='';
+    // [L271 · audit #7] réf hors du catalogue du nouveau client : ne plus la VIDER en silence (elle ne
+    // revenait pas si on rechangeait de client). applySavedRef la ré-ajoute comme option → saisie conservée.
+    if(refs.some(r=>r.ref===prev)) sel.value=prev; else applySavedRef(sel,prev,client);
   });
   const lg=document.getElementById('planLongueur'); if(lg) lg.value='';
   const lr=document.getElementById('planLargeur'); if(lr) lr.value='';
@@ -4950,9 +4954,18 @@ function addRefBlock(){
   renumberRefBlocks();
   recalcPlan();
 }
-function removeRefBlock(btn){
+async function removeRefBlock(btn){
   const block=btn.closest('.ref-block');
   if(!block) return;
+  // [L271 · audit #1 CRITIQUE — cause probable de la perte Tacflex/Prima] une RÉFÉRENCE entière ne disparaît
+  // plus sur un simple appui ganté : si le bloc contient au moins une ligne saisie, confirmation DANGER
+  // (nommant la réf + le nombre de lignes) + trace logAudit. Symétrique du ✕ d'une bobine et de l'archivage.
+  const _refLbl=(block.querySelector('[data-rb="ref"]')?.value||'').trim();
+  const _rowsTxt=Array.from(block.querySelectorAll('.order-row')).filter(r=>((r.querySelector('[data-type="qty"]')?.value||'').trim()||(r.querySelector('[data-type="width"]')?.value||'').trim()));
+  if(_rowsTxt.length){
+    if(!(await confirmDlg('Retirer la référence '+(_refLbl?('« '+_refLbl+' »'):'de ce bloc')+' et ses '+_rowsTxt.length+' ligne(s) du plan ?\n\nCette référence et ses bobines seront ENLEVÉES de la commande. Action non annulable.',{danger:true,ok:'Retirer la référence'}))) return;
+    try{ if(typeof logAudit==='function') logAudit('delete','plan-ref',_refLbl||'(sans réf)','Bloc référence retiré du plan — '+_rowsTxt.length+' ligne(s) saisie(s)').catch(function(){}); }catch(e){}
+  }
   block.remove();
   renumberRefBlocks();
   debouncedRecalcPlan();   // [L73 · Lot 5 · B51] même correctif anti-gel que les ✕ de ligne (suppression DOM instantanée, calcul lourd après debounce, bandeau ⏳)
@@ -5349,7 +5362,7 @@ function getRefGroups(){
       const blade=clampBlade(parseNum(bl.querySelector('[data-rb="blade"]')?.value));
       const machine=(bl.querySelector('[data-rb="machine"]')?.value||currentMachine||'').trim();
       const useful=clampUseful(mother-edge);
-      const rows=[];
+      const rows=[], rawRows=[];
       bl.querySelectorAll('.order-row').forEach(row=>{
         const qty=clampQ(parseNum(row.querySelector('[data-type="qty"]')?.value),9999);
         const w=parseNum(row.querySelector('[data-type="width"]')?.value);
@@ -5358,6 +5371,7 @@ function getRefGroups(){
         const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
         const cli=(row.querySelector('[data-type="cli"]')?.value||'A').trim();   // [L64 · Lot 6]
         if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
+        else { const _rq=(row.querySelector('[data-type="qty"]')?.value||'').trim(), _rw=(row.querySelector('[data-type="width"]')?.value||'').trim(); if(_rq||_rw) rawRows.push({q:_rq,w:_rw}); }   // [L271 · audit #2] ligne à moitié/mal saisie NON parsée : on garde son TEXTE BRUT pour ne pas la perdre au ré-enregistrement (la réf disparaissait après reprise/reload)
       });
       // Chutes en stock saisies pour cette réf : bobineaux déjà à la bonne largeur.
       const chutes=[];
@@ -5373,7 +5387,7 @@ function getRefGroups(){
         const rq=clampQ(parseNum(rr.querySelector('[data-ct="rq"]')?.value),999);
         if(rw>0&&rq>0) recuts.push({width:rw, qty:rq});
       });
-      groups.push({ref,longueur,film,veka,mother,edge,useful,blade,machine,rows,chutes,recuts});
+      groups.push({ref,longueur,film,veka,mother,edge,useful,blade,machine,rows,chutes,recuts,rawRows});
     });
     return groups;
   }
@@ -5390,14 +5404,15 @@ function getRefGroups(){
     machine:currentMachine||'',
     rows:getOrderRows(),
     chutes:[],
-    recuts:[]
+    recuts:[],
+    rawRows:[]
   }];
 }
 
 // Sérialise les blocs réf pour la sauvegarde (structure persistée).
 function serializeRefGroups(){
   return getRefGroups().map(g=>({
-    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine||'', rows:g.rows, chutes:g.chutes||[], recuts:g.recuts||[]
+    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine||'', rows:g.rows, chutes:g.chutes||[], recuts:g.recuts||[], rawRows:g.rawRows||[]   // [L271 · audit #2] rawRows persistées pour ne pas perdre une ligne mal saisie (réf disparue) au ré-enregistrement
   }));
 }
 // Chaîne lisible des attributs film d'une réf (ex. "Imprimé · VEKA"). Vide si rien.
@@ -5505,6 +5520,7 @@ function _restoreRefGroupsBody(arr){
   const refSel=document.querySelector('.ref-block [data-rb="ref"]'); applySavedRef(refSel,g0.ref,client);
   const cont0=document.querySelector('.ref-block .rb-rows');
   (g0.rows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
+  (g0.rawRows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.q,r.w)));   // [L271 · audit #2] restaure le texte brut des lignes non parsées → la bannière « config illisible » les re-signale au lieu de les perdre
   const chutes0=document.querySelector('.ref-block .rb-chutes');
   if(chutes0){ chutes0.innerHTML=''; (g0.chutes||[]).forEach(ch=>chutes0.appendChild(makePlanChuteRow(ch.width,ch.qty))); }
   const recuts0=document.querySelector('.ref-block .rb-recuts');
@@ -5522,6 +5538,7 @@ function _restoreRefGroupsBody(arr){
     const cont=bl.querySelector('.rb-rows');
     cont.querySelectorAll('.order-row').forEach(r=>r.remove()); // addRefBlock met 2 lignes vides
     (gi.rows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
+    (gi.rawRows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.q,r.w)));   // [L271 · audit #2] idem blocs suivants
     const chutesC=bl.querySelector('.rb-chutes');
     if(chutesC){ chutesC.innerHTML=''; (gi.chutes||[]).forEach(ch=>chutesC.appendChild(makePlanChuteRow(ch.width,ch.qty))); }
     const recutsC=bl.querySelector('.rb-recuts');
@@ -12066,6 +12083,12 @@ async function lameInstall(machine,lameNum,opts){
   // événement) : elle est démontée par ce changement. Sans trace explicite, elle apparaissait « à affûter »
   // avec sa DATE DE POSE (ex. « démontée le 23 » = jour où ELLE avait été montée) au lieu du jour du
   // changement. On trace donc son démontage daté d'aujourd'hui.
+  // [L271 · audit #3 CRITIQUE] la lame précédente est lue dans maintenanceCache, chargé UNE fois par session
+  // (pas d'onSnapshot). Sur une tablette ouverte depuis des jours, une pose faite depuis un AUTRE poste n'y est
+  // pas → _prevLame FAUX → la vraie lame remplacée ne reçoit jamais son démontage et reste « démontée le »
+  // à sa date de pose (le signalement d'Esteban). On RAFRAÎCHIT le registre juste avant (borné 4 s : hors-ligne,
+  // la persistance rend le cache local instantanément ; en ligne lent, on n'attend pas indéfiniment).
+  try{ await Promise.race([loadMaintenance(), new Promise(r=>setTimeout(r,4000))]); }catch(e){}
   let _prevLame=null;
   try{ const _p=(typeof lameActiveForMachine==='function')?lameActiveForMachine(machine):null; if(_p&&String(_p.lameNum||'').trim()&&nrm(_p.lameNum)!==nrm(num)) _prevLame=String(_p.lameNum).trim(); }catch(e){}
   const rec={ type:'lame', categorie:'installation', machine,
