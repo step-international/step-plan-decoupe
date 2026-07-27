@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.27-L274';
+const APP_VERSION='2026.07.27-L275';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7711,6 +7711,25 @@ function chronoTick(){
   if(!chronoRunning) return;            // l'arrêt auto vient de prendre la main
   chronoSec=Math.max(0,Math.floor((Date.now()-chronoRunStart)/1000));
   document.getElementById('chronoDisplay').textContent=fmtTime(chronoSec);
+  try{ _chronoPauseReminderCheck(); }catch(e){}   // [L275 · demande Esteban] rappel « pense à ⏸ » si le chrono tourne sans découpe
+}
+// [L275 · demande Esteban] Rappel « pense à ⏸ Pause » : si le chrono TOURNE depuis 30 min SANS qu'une nouvelle
+// bobine soit cochée coupée, on avertit (le temps mort est compté sinon — cf. bug des 5h18). Ne FIGE rien
+// (Esteban refuse le gel auto) : simple toast, répété au plus toutes les 30 min. Aucun faux positif en découpe
+// active (une bobine est cochée toutes les quelques minutes).
+let _chronoLastCoupeeCount=-1, _chronoLastActivityTs=0, _chronoLastReminderTs=0;
+const _CHRONO_IDLE_MS=30*60*1000;
+function _chronoPauseReminderCheck(){
+  if(!chronoRunning){ return; }
+  const now=Date.now();
+  const n=(typeof countCoupees==='function')?countCoupees():0;
+  if(n!==_chronoLastCoupeeCount){ _chronoLastCoupeeCount=n; _chronoLastActivityTs=now; return; }   // activité (bobine coupée) → on réarme
+  if(!_chronoLastActivityTs) _chronoLastActivityTs=now;
+  if((now-_chronoLastActivityTs)>=_CHRONO_IDLE_MS && (now-_chronoLastReminderTs)>=_CHRONO_IDLE_MS){
+    _chronoLastReminderTs=now;
+    const mins=Math.round((now-_chronoLastActivityTs)/60000);
+    try{ showToast('⏱ Le chrono tourne depuis '+mins+' min sans nouvelle bobine coupée — pense à ⏸ Pause si tu as arrêté de couper (sinon ce temps mort est compté dans la durée).','err'); }catch(e){}
+  }
 }
 function chronoStart(){
   if(chronoRunning) return;
@@ -15976,17 +15995,57 @@ function applyFichePlanChange(){
     if(!_res||!_res.started) showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis reclique « 🔄 Changement plan ».','err');   // [L70 · Audit B30]
   }
 }
+// [L275 · bug Esteban] Construit l'ANCIEN modèle de plan imprimable (buildPlanPrintHTML, lisible) à partir des
+// BOBINES RÉELLES DE LA FICHE (ficheLines) au lieu d'un recalcul frais. Même forme que le plan MANUEL passé par
+// getPlanHTML (planGroups sans rows/chutes → géré par buildPlanPrintHTML) → le papier reflète toujours la fiche.
+function _buildFichePlanPrintHTML(){
+  const refG=(typeof getRefGroups==='function')?getRefGroups():[];
+  const paramOf=ref=>refG.find(g=>(g.ref||'')===ref)||{};
+  const refsSeen=[]; ficheLines.forEach(l=>{ const r=l.ref||''; if(!refsSeen.includes(r)) refsSeen.push(r); });
+  const groups=refsSeen.map(ref=>{
+    const lines=ficheLines.filter(l=>(l.ref||'')===ref);
+    // planGroups : regrouper les motifs IDENTIQUES consécutifs (comme l'écran plan) → « N bobines : config ».
+    const pg=[];
+    lines.forEach(l=>{
+      const pat=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
+      const key=JSON.stringify(pat);
+      const last=pg[pg.length-1];
+      if(last && last._key===key) last.count++;
+      else pg.push({count:1, pattern:pat, _key:key});
+    });
+    pg.forEach(g=>{ delete g._key; });
+    const p=paramOf(ref), l0=lines[0]||{};
+    return {ref, refIdKey:p.refIdKey||l0.refIdKey||null, useful:l0.useful||p.useful||0, blade:l0.blade||p.blade||0,
+      longueur:p.longueur||'', mother:p.mother||0, edge:p.edge||0, film:p.film||'', veka:p.veka||'', machine:l0.machine||p.machine||'',
+      planGroups:pg};
+  });
+  const numCmd=document.getElementById('planNumCmd')?.value||document.getElementById('fNumCmd')?.value||'';
+  return buildPlanPrintHTML({
+    groups,
+    mandrinGroups:(typeof packRefGroupsPal==='function')?packRefGroupsPal(refG).filter(c=>c.rows.length):[],   // mandrins depuis la saisie
+    mn:getMachineLabel((typeof _planHeadMachine==='function')?_planHeadMachine():(ficheMachine||currentMachine)),
+    client:document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'—',
+    refLabelFallback:document.getElementById('fRef')?.value||document.getElementById('planRef')?.value||'—',
+    motherFallback:parseNum(document.getElementById('fMother')?.value||document.getElementById('motherWidth')?.value),
+    typeCond:document.getElementById('planType')?.value||'—',
+    palette:document.getElementById('planPalette')?.value||'—',
+    etiquetage:document.getElementById('planEtiquetage')?.value||'—',
+    cerclage:document.getElementById('planCerclage')?.value||'—',
+    notesEmb:document.getElementById('planNotesEmballage')?.value||'',
+    cmdInfoHtml:(numCmd&&numCmd!=='—')?` · N° Cmd : <b>${esc(numCmd)}</b>`:'',
+    cmdClients:(typeof cliMulti==='function'&&cliMulti())?JSON.parse(JSON.stringify(cmdClients)):null
+  });
+}
 // Bouton « Imprimer le plan » : imprime le plan complet recalculé avec les
 // valeurs machine réelles de la fiche (n'affecte ni les bobines ni le verrou chrono).
 function printFichePlan(){
-  // [L274 · bug Esteban — le papier DOIT correspondre à la fiche] dès qu'une fiche est EN COURS, on imprime la
-  // FICHE elle-même (mêmes bobines, mêmes n° BOB-xxx, même ordre, même config, bobines coupées incluses) au lieu
-  // d'un plan RECALCULÉ à neuf. Après un changement en cours de découpe (ex. quantité réduite sur la 1re bobine),
-  // le plan recalculé renumérotait des bobines qui ne correspondaient plus à celles déjà coupées → papier faux.
-  // La fiche, elle, EST la source de vérité affichée à l'écran → « toujours la même chose que la fiche ».
+  // [L275 · bug Esteban] dès qu'une fiche est EN COURS, on imprime l'ANCIEN modèle de plan (lisible), mais
+  // NOURRI PAR LES BOBINES DE LA FICHE (source de vérité) au lieu d'un plan recalculé à neuf. Après un changement
+  // en cours de découpe (ex. quantité réduite sur la 1re bobine), le plan recalculé renumérotait des bobines ne
+  // correspondant plus à celles déjà coupées → papier faux. Ici le papier reflète TOUJOURS la fiche affichée.
   if(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length){
     if(typeof _recalcPending!=='undefined' && _recalcPending){ showToast('♻ Recalcul en cours — réessaie dans une seconde (la fiche se reconstruit).','err'); return; }
-    printFiche(); return;
+    try{ openPrintWindow(_buildFichePlanPrintHTML()); return; }catch(e){ console.warn('impression plan depuis fiche:',e); /* repli : plan recalculé */ }
   }
   // En mono-réf, recopier la mère/bords/lame de la fiche vers le bloc plan #1.
   // En multi-réf, chaque bloc plan porte déjà ses propres valeurs (écrites à

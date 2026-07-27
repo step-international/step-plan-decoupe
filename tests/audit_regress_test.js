@@ -314,8 +314,9 @@ has(/class="btn btn-red" id="planDriftApplyBtn"/,'L273 : bouton « Appliquer le 
 has(/_b\.className='btn btn-green'; _b\.textContent='✓ Plan appliqué/,'L273 : bouton passe au VERT au clic (retour visuel « plan appliqué »)');
 
 console.log('── L274 : impression = fiche (bug Esteban « le papier doit correspondre à la fiche ») ──');
-has(/le papier DOIT correspondre à la fiche/,'L274 : « Imprimer le plan » imprime la FICHE quand une fiche est en cours (mêmes n° BOB que l\'écran, plus de plan recalculé renuméroté)');
-has(/if\(typeof ficheLines!=='undefined' && ficheLines && ficheLines\.length\)\{\n\s*if\(typeof _recalcPending/,'L274 : route vers printFiche() si ficheLines, sinon plan recalculé (planification pure)');
+has(/NOURRI PAR LES BOBINES DE LA FICHE/,'L275 : « Imprimer le plan » = ANCIEN modèle lisible NOURRI par les bobines de la fiche (papier = fiche, plus de plan recalculé renuméroté)');
+has(/openPrintWindow\(_buildFichePlanPrintHTML\(\)\)/,'L275 : impression depuis la fiche via _buildFichePlanPrintHTML (ancien modèle, données fiche)');
+has(/Le chrono tourne depuis '\+mins\+' min sans nouvelle bobine/,'L275 : rappel « pense à ⏸ » si le chrono tourne 30 min sans bobine coupée (ne fige rien)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L274 présents dans index.html + sw.js');
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L275 présents dans index.html + sw.js');
 process.exit(fail?1:0);
