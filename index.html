@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.27-L272';
+const APP_VERSION='2026.07.27-L273';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3986,7 +3986,7 @@ function _fichePlanDriftCheck(){
     el.innerHTML='⚠ <b>Le plan a changé</b> mais la fiche ne le reflète pas encore :<br>'+drifts.join('<br>')
       +(shared
         ?'<div style="margin-top:6px">🔒 Commande PARTAGÉE : arrête le partage, puis clique « 🔄 Changement plan » pour répercuter (les bobines coupées seront conservées).</div>'
-        :'<div style="margin-top:8px"><button class="btn btn-blue" onclick="_applyPlanDriftFix()">🔄 Appliquer le changement de plan — les bobines coupées sont conservées</button></div>');
+        :'<div style="margin-top:8px"><button class="btn btn-red" id="planDriftApplyBtn" onclick="_applyPlanDriftFix()">🔄 Appliquer le changement de plan — les bobines coupées sont conservées</button></div>');   // [L273 · demande Esteban] ROUGE tant que non appliqué → VERT au clic (voir _applyPlanDriftFix)
     el.style.display='';
   }catch(e){ hide(); }
 }
@@ -3996,7 +3996,12 @@ function _applyPlanDriftFix(){
   if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){ showToast('🔒 Partage actif — arrête le partage d\'abord.','err'); return; }
   if(!confirm('Répercuter le plan modifié sur la fiche ?\n\nLes bobines déjà coupées seront CONSERVÉES ; seul le reste est régénéré depuis le plan (machine, rouleaux chute, reliquat).')) return;
   const _res=recalcEcartsFromFiche({force:true});
-  if(!_res||!_res.started) showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err');
+  if(!_res||!_res.started){ showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err'); }
+  else {
+    // [L273 · demande Esteban] retour VERT immédiat au clic (le bandeau se referme ~900 ms après, quand la dérive est résorbée).
+    const _b=document.getElementById('planDriftApplyBtn'); if(_b){ _b.className='btn btn-green'; _b.textContent='✓ Plan appliqué — bobines coupées conservées'; }
+    showToast('✓ Plan appliqué à la fiche (bobines coupées conservées).','ok');
+  }
   setTimeout(function(){ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); },900);
 }
 function showPage(i){
@@ -18024,11 +18029,27 @@ async function saveDraftManual(){
 function _supersededManualDrafts(newId,newLabel,newDraft){
   const hasNum=!/\/\s*sans n°\s*$/.test(String(newLabel||''));
   const me=(typeof _ini==='function')?_ini():'';
+  // [L273 · audit #6 — demande Esteban « je ne veux pas de doublon »] commande PARQUÉE (client / n° / réf),
+  // pour la même règle de concordance qu'à l'ENVOI (L245) : on ne consomme le brouillon repris que si le
+  // travail parqué est bien LE MÊME. Sinon (commande retapée par-dessus une reprise) on perdait en silence le
+  // plan repris (brouillons « consumed » dans aucune corbeille) → risque de double découpe de l'autre commande.
+  const _nf=(newDraft&&newDraft.state&&newDraft.state.fiche)||{}, _np=(newDraft&&newDraft.state&&newDraft.state.plan)||{};
+  const _idOf=o=>({cli:nrm((o&&o.client)||''),num:nrm((o&&o.numCmd&&o.numCmd!=='—')?o.numCmd:''),ref:nrm((o&&o.ref)||'')});
+  const _newPlan=_idOf(_np), _newFiche=_idOf(_nf), _ficheEmpty=!_newFiche.cli&&!_newFiche.num&&!_newFiche.ref;
   return (Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(d){
     if(!d||d.id===newId||d.consumed||d.deleted) return false;
     if(d.auto||(typeof d.id==='string'&&d.id.indexOf('d_autosave_')===0)) return false;
     if(_isSharedDoc(d)||d.fromFicheId) return false;
-    if(d.id===_resumedDraftId) return true;   // repris explicitement (choix conscient) — doLoad/resetAll/newCmd annulent _resumedDraftId au changement de commande
+    if(d.id===_resumedDraftId){
+      // [L273 · audit #6 + revue sceptique #1] repris explicitement, MAIS consommé UNIQUEMENT si la commande
+      // parquée est LE MÊME travail. Identité de A lue depuis le PLAN (parité avec l'ENVOI L245). Au parcage la
+      // FICHE peut être PÉRIMÉE (💾 autorisé sur des bobines stale : on retape B dans le Plan sans toucher la
+      // fiche → fiche=A, plan=B) : on exige donc la concordance sur le PLAN (vérité) ET sur la FICHE si elle est
+      // renseignée. Tout désaccord plan/fiche → on NE consomme PAS (doublon visible > perte silencieuse, L254).
+      const _A=_idOf((d.state&&d.state.plan)||{});
+      const _same=id=> id.cli===_A.cli && (id.num?(id.num===_A.num):(!_A.num && id.ref===_A.ref));
+      return _same(_newPlan) && (_ficheEmpty || _same(_newFiche));
+    }
     if(d.fromSend) return false;
     if(d.owner==='?'||me==='?') return false;   // [L156 · audit #9] identité INCONNUE (compte machine sans initiales) : jamais de supersession croisée — '?'==='?' aurait fait consommer le brouillon d'un AUTRE poste
     if(d.owner&&me&&d.owner!==me) return false;   // [L113 · audit #7] JAMAIS le brouillon manuel d'un AUTRE poste (les legacy sans owner restent supersédables par leur créateur)

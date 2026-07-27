@@ -308,5 +308,10 @@ has(/const cur=_activeLameIn\(cache,m\); if\(!cur\) return;/,'revue MAJEUR : lam
 has(/rawRows\.push\(\{q:_rq,w:_rw,carton:_rc/,'revue : rawRows garde carton/mandrin/client (plus de bobineau réattribué au mauvais client au restore)');
 has(/const _hasChute=Array\.from\(block\.querySelectorAll\('\.rb-chute-row,\.rb-recut-row'\)\)/,'revue : removeRefBlock confirme aussi si le bloc n\'a que des chutes/recuts ou une réf (même classe de perte)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L272 présents dans index.html + sw.js');
+console.log('── L273 : anti-doublon parcage (#6) + bouton plan rouge/vert (demandes Esteban) ──');
+has(/return _same\(_newPlan\) && \(_ficheEmpty \|\| _same\(_newFiche\)\);/,'L273 #6 (+ revue sceptique) : parcage 💾 ne consomme le brouillon repris que si concordance sur le PLAN ET la FICHE — ferme le trou « fiche périmée » (plus de perte silencieuse / double découpe)');
+has(/class="btn btn-red" id="planDriftApplyBtn"/,'L273 : bouton « Appliquer le changement de plan » en ROUGE tant que non appliqué');
+has(/_b\.className='btn btn-green'; _b\.textContent='✓ Plan appliqué/,'L273 : bouton passe au VERT au clic (retour visuel « plan appliqué »)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L273 présents dans index.html + sw.js');
 process.exit(fail?1:0);
