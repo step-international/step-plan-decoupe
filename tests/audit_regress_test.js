@@ -313,5 +313,9 @@ has(/return _same\(_newPlan\) && \(_ficheEmpty \|\| _same\(_newFiche\)\);/,'L273
 has(/class="btn btn-red" id="planDriftApplyBtn"/,'L273 : bouton « Appliquer le changement de plan » en ROUGE tant que non appliqué');
 has(/_b\.className='btn btn-green'; _b\.textContent='✓ Plan appliqué/,'L273 : bouton passe au VERT au clic (retour visuel « plan appliqué »)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L273 présents dans index.html + sw.js');
+console.log('── L274 : impression = fiche (bug Esteban « le papier doit correspondre à la fiche ») ──');
+has(/le papier DOIT correspondre à la fiche/,'L274 : « Imprimer le plan » imprime la FICHE quand une fiche est en cours (mêmes n° BOB que l\'écran, plus de plan recalculé renuméroté)');
+has(/if\(typeof ficheLines!=='undefined' && ficheLines && ficheLines\.length\)\{\n\s*if\(typeof _recalcPending/,'L274 : route vers printFiche() si ficheLines, sinon plan recalculé (planification pure)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L274 présents dans index.html + sw.js');
 process.exit(fail?1:0);

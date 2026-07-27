@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.27-L273';
+const APP_VERSION='2026.07.27-L274';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -15979,6 +15979,15 @@ function applyFichePlanChange(){
 // Bouton « Imprimer le plan » : imprime le plan complet recalculé avec les
 // valeurs machine réelles de la fiche (n'affecte ni les bobines ni le verrou chrono).
 function printFichePlan(){
+  // [L274 · bug Esteban — le papier DOIT correspondre à la fiche] dès qu'une fiche est EN COURS, on imprime la
+  // FICHE elle-même (mêmes bobines, mêmes n° BOB-xxx, même ordre, même config, bobines coupées incluses) au lieu
+  // d'un plan RECALCULÉ à neuf. Après un changement en cours de découpe (ex. quantité réduite sur la 1re bobine),
+  // le plan recalculé renumérotait des bobines qui ne correspondaient plus à celles déjà coupées → papier faux.
+  // La fiche, elle, EST la source de vérité affichée à l'écran → « toujours la même chose que la fiche ».
+  if(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length){
+    if(typeof _recalcPending!=='undefined' && _recalcPending){ showToast('♻ Recalcul en cours — réessaie dans une seconde (la fiche se reconstruit).','err'); return; }
+    printFiche(); return;
+  }
   // En mono-réf, recopier la mère/bords/lame de la fiche vers le bloc plan #1.
   // En multi-réf, chaque bloc plan porte déjà ses propres valeurs (écrites à
   // chaque « Changement plan » de réf) : ne rien recopier pour ne pas écraser
