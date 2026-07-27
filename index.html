@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.27-L271';
+const APP_VERSION='2026.07.27-L272';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -1872,12 +1872,21 @@ try{
   console.warn('App Check non activé :',e.message);
 }
 // Persistance offline : file d'attente des écritures + sync auto au retour réseau
+var _persistenceOK=true;   // [L272 · audit #9/#11] devient false si la file offline n'a pas pu être activée
+function _warnPersistenceFailed(reason){
+  _persistenceOK=false;
+  // Avertissement VISIBLE (différé : showToast et le DOM ne sont pas prêts à l'init). « unimplemented » =
+  // navigateur non supporté ; « failed-precondition » = un AUTRE onglet a déjà la persistance (bénin, mais
+  // l'opérateur doit savoir que CE poste ne conservera pas ses écritures hors-ligne au rechargement).
+  try{ setTimeout(function(){ try{ if(typeof showToast==='function') showToast('⚠ Mode HORS-LIGNE indisponible sur ce poste ('+reason+'). Tes actions ne seront PAS conservées si le réseau coupe puis que tu recharges. Reste près d\'une bonne connexion.','err'); }catch(e){} }, 6000); }catch(e){}
+}
 if(db){
   try{
     db.enablePersistence({synchronizeTabs:true}).catch(function(err){
       console.warn('Persistance offline indisponible ('+err.code+') — l\'app reste fonctionnelle en ligne.');
+      _warnPersistenceFailed(err&&err.code||'inconnu');
     });
-  }catch(e){console.warn('Persistance offline :',e.message);}
+  }catch(e){console.warn('Persistance offline :',e.message); _warnPersistenceFailed(e&&e.message||'erreur');}
 }
 
 // Toast léger + capture des exceptions non gérées (sinon échec silencieux)
@@ -3207,7 +3216,16 @@ function boundedWrite(p,ms){
   // un vrai rejet (permission, quota…) n'a pas ce drapeau et doit, lui, déclencher le retour arrière.
   return Promise.race([p,new Promise((_,rej)=>{ setTimeout(()=>{ const e=new Error('⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.'); e.queued=true; rej(e); }, ms||10000); })]);
 }
+// [L272 · audit #5 CRITIQUE] Pour une TRANSACTION (db.runTransaction) : contrairement à un add/set, Firestore ne
+// la met PAS en file hors-ligne (elle exige un aller-retour serveur pour relire l'état) et ne la rejouera JAMAIS
+// seule. Son timeout ne doit donc NI être marqué `queued` NI dire « ne re-saisis pas » (mensonge qui faisait
+// perdre en silence validations de fiche, clôtures NC, annulations stock, retraits BL). Message HONNÊTE + erreur
+// classique (les 4 appelants posent leur mise à jour optimiste APRÈS le await → un timeout ne laisse aucun état).
+function boundedTx(p,ms){
+  return Promise.race([p,new Promise((_,rej)=>{ setTimeout(()=>{ const e=new Error('⏳ Réseau lent/coupé — action NON enregistrée (une validation exige le serveur). À REFAIRE au retour du réseau.'); e.txTimeout=true; rej(e); }, ms||10000); })]);
+}
 // [L139] vrai « écriture en file offline » (à conserver optimiste) : soit le drapeau boundedWrite, soit __TIMEOUT__ (raceTimeout inline).
+// [L272] un txTimeout n'est PAS une écriture en file (voir boundedTx) → _isQueuedWrite reste false, l'appelant traite en vraie erreur.
 function _isQueuedWrite(e){ return !!(e&&(e.queued||String(e.message)==='__TIMEOUT__')); }
 // [L85 · Audit #27] Comptage des bobines cochées ✂ Coupée — était copié-collé 7 fois.
 function countCoupees(){ return ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length; }
@@ -3464,6 +3482,10 @@ async function flushPendingLocalPhotos(){
   }
 }
 if(typeof window!=='undefined' && window.addEventListener) window.addEventListener('online',function(){ setTimeout(flushPendingLocalPhotos,1500); });   // petit délai : laisser la connexion se stabiliser
+// [L272 · audit #13] la file ne se vidait QUE sur l'événement 'online' : sur un réseau LENT mais jamais coupé,
+// une photo dont l'upload a expiré n'était jamais re-téléversée (puis retirée en base64 à la sauvegarde → perdue).
+// On RÉESSAIE aussi périodiquement (toutes les 45 s) tant que la file n'est pas vide.
+if(typeof window!=='undefined') setInterval(function(){ try{ if(_pendingLocalPhotos && Object.keys(_pendingLocalPhotos).length) flushPendingLocalPhotos(); }catch(e){} }, 45000);
 function triggerPhoto(lineId){
   photoTargetId=lineId;
   const input=document.getElementById('photoFileInput');
@@ -3687,7 +3709,7 @@ async function deleteBLFiche(ficheId,idx){
   const FV=firebase.firestore.FieldValue;
   let newBls=null;
   try{
-    await boundedWrite(db.runTransaction(async(tx)=>{
+    await boundedTx(db.runTransaction(async(tx)=>{
       const snap=await tx.get(ref);
       if(!snap.exists) throw new Error('Fiche introuvable.');
       const data=snap.data()||{};
@@ -4962,9 +4984,13 @@ async function removeRefBlock(btn){
   // (nommant la réf + le nombre de lignes) + trace logAudit. Symétrique du ✕ d'une bobine et de l'archivage.
   const _refLbl=(block.querySelector('[data-rb="ref"]')?.value||'').trim();
   const _rowsTxt=Array.from(block.querySelectorAll('.order-row')).filter(r=>((r.querySelector('[data-type="qty"]')?.value||'').trim()||(r.querySelector('[data-type="width"]')?.value||'').trim()));
-  if(_rowsTxt.length){
-    if(!(await confirmDlg('Retirer la référence '+(_refLbl?('« '+_refLbl+' »'):'de ce bloc')+' et ses '+_rowsTxt.length+' ligne(s) du plan ?\n\nCette référence et ses bobines seront ENLEVÉES de la commande. Action non annulable.',{danger:true,ok:'Retirer la référence'}))) return;
-    try{ if(typeof logAudit==='function') logAudit('delete','plan-ref',_refLbl||'(sans réf)','Bloc référence retiré du plan — '+_rowsTxt.length+' ligne(s) saisie(s)').catch(function(){}); }catch(e){}
+  // [revue L272] même classe de perte : un bloc dont le contenu est dans les bobineaux ✂ stock / ♻ à recouper,
+  // ou simplement une RÉF choisie, doit AUSSI demander confirmation (l'ancien garde ne comptait que les order-row).
+  const _hasChute=Array.from(block.querySelectorAll('.rb-chute-row,.rb-recut-row')).some(r=>Array.from(r.querySelectorAll('input')).some(i=>(i.value||'').trim()));
+  if(_rowsTxt.length || _hasChute || _refLbl){
+    const _desc=_rowsTxt.length?(' et ses '+_rowsTxt.length+' ligne(s)'):(_hasChute?' et ses bobineaux en stock / à recouper':'');
+    if(!(await confirmDlg('Retirer la référence '+(_refLbl?('« '+_refLbl+' »'):'de ce bloc')+_desc+' du plan ?\n\nCette référence et ses bobines seront ENLEVÉES de la commande. Action non annulable.',{danger:true,ok:'Retirer la référence'}))) return;
+    try{ if(typeof logAudit==='function') logAudit('delete','plan-ref',_refLbl||'(sans réf)','Bloc référence retiré du plan — '+_rowsTxt.length+' ligne(s)'+(_hasChute?' + chutes/recuts':'')).catch(function(){}); }catch(e){}
   }
   block.remove();
   renumberRefBlocks();
@@ -5371,7 +5397,7 @@ function getRefGroups(){
         const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
         const cli=(row.querySelector('[data-type="cli"]')?.value||'A').trim();   // [L64 · Lot 6]
         if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
-        else { const _rq=(row.querySelector('[data-type="qty"]')?.value||'').trim(), _rw=(row.querySelector('[data-type="width"]')?.value||'').trim(); if(_rq||_rw) rawRows.push({q:_rq,w:_rw}); }   // [L271 · audit #2] ligne à moitié/mal saisie NON parsée : on garde son TEXTE BRUT pour ne pas la perdre au ré-enregistrement (la réf disparaissait après reprise/reload)
+        else { const _rq=(row.querySelector('[data-type="qty"]')?.value||'').trim(), _rw=(row.querySelector('[data-type="width"]')?.value||'').trim(); if(_rq||_rw){ const _rc=(row.querySelector('[data-type="carton"]')?.value||'').trim(), _rm=(row.querySelector('[data-type="mandrin"]')?.value||'').trim(), _rcli=(row.querySelector('[data-type="cli"]')?.value||'A').trim(); rawRows.push({q:_rq,w:_rw,carton:_rc,mandrin:_rm,cli:_rcli}); } }   // [L271 · audit #2 + revue L272] ligne mal saisie NON parsée : on garde son TEXTE BRUT + carton/mandrin/client (sinon le client B/mandrin était perdu au restore → bobineau réattribué au mauvais client)
       });
       // Chutes en stock saisies pour cette réf : bobineaux déjà à la bonne largeur.
       const chutes=[];
@@ -5520,7 +5546,7 @@ function _restoreRefGroupsBody(arr){
   const refSel=document.querySelector('.ref-block [data-rb="ref"]'); applySavedRef(refSel,g0.ref,client);
   const cont0=document.querySelector('.ref-block .rb-rows');
   (g0.rows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
-  (g0.rawRows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.q,r.w)));   // [L271 · audit #2] restaure le texte brut des lignes non parsées → la bannière « config illisible » les re-signale au lieu de les perdre
+  (g0.rawRows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A')));   // [L271 · audit #2 + revue L272] restaure texte brut + carton/mandrin/client → la bannière re-signale ET aucun attribut perdu
   const chutes0=document.querySelector('.ref-block .rb-chutes');
   if(chutes0){ chutes0.innerHTML=''; (g0.chutes||[]).forEach(ch=>chutes0.appendChild(makePlanChuteRow(ch.width,ch.qty))); }
   const recuts0=document.querySelector('.ref-block .rb-recuts');
@@ -5538,7 +5564,7 @@ function _restoreRefGroupsBody(arr){
     const cont=bl.querySelector('.rb-rows');
     cont.querySelectorAll('.order-row').forEach(r=>r.remove()); // addRefBlock met 2 lignes vides
     (gi.rows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
-    (gi.rawRows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.q,r.w)));   // [L271 · audit #2] idem blocs suivants
+    (gi.rawRows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A')));   // [L271 · audit #2 + revue L272] idem blocs suivants (texte brut + carton/mandrin/client)
     const chutesC=bl.querySelector('.rb-chutes');
     if(chutesC){ chutesC.innerHTML=''; (gi.chutes||[]).forEach(ch=>chutesC.appendChild(makePlanChuteRow(ch.width,ch.qty))); }
     const recutsC=bl.querySelector('.rb-recuts');
@@ -5858,6 +5884,15 @@ function debouncedRecalcPlan(){
 // Agrégat de plan : fonction PURE (testable hors DOM) extraite de recalcPlan.
 // Consomme la sortie de packRefGroups (computed) et renvoie tous les scalaires
 // d'affichage. Aucune logique d'optimisation ici (le moteur reste packRefGroups).
+// [L272 · audit — CATALOGUE des définitions « chute / perte / solde » (à trancher par Esteban pour l'ISO,
+// aucune n'est modifiée ici)]. Trois surfaces mesurent différemment :
+//  · ÉCRAN PLAN (ici, pertePct) : PERTE = matière − utilisé − (solde final par réf + tous les restes de fin de
+//    phase + restes de rouleaux recoupés). Le SOLDE final et les fins de phase sont des chutes RÉUTILISABLES.
+//  · FICHE Données (computePerteChute) : PERTE (déchet) = bords rognés + résidus de rouleaux ; CHUTE STOCK =
+//    dernière bobine par réf + bobines cochées ✂ Chutes (SANS les fins de phase).
+//  · KPI mensuel : « chute réutilisable » = dernier groupe de la fiche entière seulement.
+// Terme ambigu « chute stock » : sortant (solde qui PART en stock) vs entrant (bobineaux PRIS du stock).
+// Décision en attente : laquelle fait foi ISO + unifier le vocabulaire opérateur (cf. rapport d'audit).
 function computePlanAggregate(computed){
   // 1) Totaux matière/utilisé (déjà calculés par réf dans packRefGroups).
   const totalBobines=computed.reduce((s,c)=>s+c.stats.totalBobines,0);
@@ -6037,10 +6072,12 @@ function mergeDupRefNow(di){
   }
 }
 // [L86 · simpl.24] (docstring L79 périmée supprimée — l'ordre est fixé à la source par packRefGroupsPal, cf. [L82] dans _planGroupsByLaize)
-// [L80 · TEMPORAIRE — à retirer après le 16/07/2026] Deux commandes EN COURS d'exécution atelier
-// gardent leur ordre d'origine (demande Esteban : Deceuninck KX1047 liv. 11/07 · Prima KX1046 liv. 16/07) :
-// re-trier en plein milieu changerait la numérotation BOB-xxx que les opérateurs suivent déjà.
-function _laizeSortExcluded(ref){ return /KX\s*-?\s*104[67]/i.test(String(ref||'')); }
+// [L80 · TEMPORAIRE — RETIRÉE L272 le 27/07/2026, choix Esteban / audit] Deux commandes (Deceuninck KX1047
+// liv. 11/07 · Prima KX1046 liv. 16/07) gardaient leur ordre d'origine pour ne pas changer la numérotation
+// BOB-xxx en cours de découpe. Échéance passée + commandes livrées → l'exception est LEVÉE : ces réfs
+// re-suivent l'ordre normal « grosses laizes d'abord ». Fonction gardée inerte (return false) au cas où un plan
+// legacy la référencerait ; à supprimer complètement quand plus aucun plan KX1046/47 ne circule.
+function _laizeSortExcluded(ref){ return false; }
 // [L85 · Audit #11] Tri UNIQUE des bobines d'un plan manuel au chargement d'un plan sauvegardé :
 // grandes laizes d'abord (stable, clé = plus grande largeur du motif via parseConf, repli = plus
 // grand nombre saisi), dernier motif = solde naturel. Jamais appelé pendant l'édition en cours.
@@ -8884,6 +8921,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     }catch(e){ console.warn('Couverture archive :',e); }
   }
   const ficheEntry={
+    appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''),   // [L272 · audit #12] version qui a produit la fiche (traçabilité ISO sur parc hétérogène)
     name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,machine2,mother2,edge2,blade2,useful2,lame,lameChg,lameNew,lameChgBob,machineChg:machChg,numJour,longueur,mother,rows,
     refGroups:multi?serializeRefGroups():null,
     film:multi?'':(getRefGroups()[0]?.film||''), veka:multi?'':(getRefGroups()[0]?.veka||''),
@@ -11624,7 +11662,7 @@ async function annulStockMouvement(id){
     // contre-écriture qui doublerait l'inversion du stock.
     const origRef=db.collection('stockMouvements').doc(id);
     const corrRef=db.collection('stockMouvements').doc();   // id auto, pas encore écrit
-    await boundedWrite(db.runTransaction(async(tx)=>{
+    await boundedTx(db.runTransaction(async(tx)=>{
       const snap=await tx.get(origRef);
       if(!snap.exists) throw new Error('mouvement introuvable en base (supprimé ?)');
       const cur=snap.data()||{};
@@ -12038,12 +12076,22 @@ function maintCatLabel(type,cat){ return MAINT_CAT_LABEL[cat]||cat||''; }
 // ============================================================
 const LAME_MACHINES=MACHINE_KEYS;
 // Dernier event d'installation par machine (lame courante). null si aucune.
-function lameActiveForMachine(machine){
-  const evts=(maintenanceCache||[])
-    .filter(r=>r.type==='lame'&&r.categorie==='installation'&&r.machine===machine&&!r.deleted)
-    .sort((a,b)=>String(b.dateInstall||b.date||'').localeCompare(String(a.dateInstall||a.date||'')));
-  return evts[0]||null;
+// [L272 · audit #15 + revue] UNE seule vérité lame, PARTAGÉE par l'encart, les alertes d'âge ET le classeur :
+// la lame active = la dernière POSÉE, SAUF si un événement postérieur (démontage / départ affûtage / retour
+// stock) l'a retirée. Avant, encart et bandeau « À CHANGER » ne regardaient QUE les installations → ils
+// montraient une lame démontée comme montée (contradiction avec lameClasseurEtat). À date ÉGALE l'installation
+// gagne (elle réactive). Prend le cache en paramètre (lameAlerts passe le sien).
+function _activeLameIn(cache,machine){
+  const key=r=>String(r.dateInstall||r.date||r.createdAt||'');
+  const rank={affutage:0,stock:1,demonte:2,installation:3};
+  const evts=(cache||[]).filter(r=>r&&r.type==='lame'&&r.machine===machine&&!r.deleted&&String(r.lameNum||'').trim())
+    .slice().sort((a,b)=>key(b).localeCompare(key(a))||((rank[b.categorie]||0)-(rank[a.categorie]||0)));   // date DÉCROISSANTE (index 0 = plus récent)
+  const lastInstall=evts.find(r=>r.categorie==='installation');
+  if(!lastInstall) return null;
+  const removed=evts.some(r=>['demonte','affutage','stock'].indexOf(r.categorie)>=0 && nrm(r.lameNum)===nrm(lastInstall.lameNum) && evts.indexOf(r)<evts.indexOf(lastInstall));
+  return removed?null:lastInstall;
 }
+function lameActiveForMachine(machine){ return _activeLameIn(maintenanceCache,machine); }
 // Nb de bobineaux (somme des qty) coupés sur une machine depuis une date ISO.
 // Source : fichesCache (déjà chargé). On somme les qty des rows dont la
 // machine de la fiche correspond. Une fiche multi-réf garde sa machine au
@@ -12095,7 +12143,7 @@ async function lameInstall(machine,lameNum,opts){
     lameNum:num, dateInstall:pose, date:pose,
     description:opts.description||('Pose lame '+num+' sur '+getMachineLabel(machine)),
     responsable:opts.responsable||(currentUser?currentUser.ini:''),
-    createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
+    createdAt:now, createdBy:currentUser?currentUser.ini:'?', appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''), deleted:false };   // [L272 · audit #12] version estampillée : diagnostiquer un état lame faux sur un parc en versions hétérogènes
   try{
     // [L269 · re-signalement Esteban 24/07] pose + démontage en UN SEUL batch ATOMIQUE : avant, la trace de
     // démontage partait dans un 2ᵉ await avec catch silencieux (console.warn) — un timeout/hors-ligne la
@@ -12106,14 +12154,14 @@ async function lameInstall(machine,lameNum,opts){
       const dNow=new Date(Date.now()+1).toISOString();   // 1 ms après la pose : ordre stable au tri (pattern L94)
       dRec={ type:'lame', categorie:'demonte', machine, lameNum:_prevLame, dateInstall:dNow, date:dNow,
         description:'Démontée — remplacée par la lame '+num+' sur '+getMachineLabel(machine),
-        responsable:currentUser?currentUser.ini:'', createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
+        responsable:currentUser?currentUser.ini:'', createdAt:now, createdBy:currentUser?currentUser.ini:'?', appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''), deleted:false };   // [L272 · audit #12] démontage estampillé aussi
       dRef=db.collection('maintenance').doc();
     }
     const batch=db.batch(); batch.set(iRef,rec); if(dRef) batch.set(dRef,dRec);
     await boundedWrite(batch.commit(),10000);   // [L83 · Audit #37] borné
     rec.id=iRef.id; maintenanceCache.unshift(rec);
     if(dRec){ dRec.id=dRef.id; maintenanceCache.unshift(dRec); }
-    await logAudit('create','maintenance',iRef.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${String(pose).slice(0,10)})`);
+    await logAudit('create','maintenance',iRef.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${(function(){try{return new Date(pose).toLocaleDateString('fr-FR');}catch(e){return String(pose).slice(0,10);}})()})`);   // [L272 · audit #17] date en heure LOCALE (slice UTC reculait d'un jour entre minuit et 2 h à Paris)
     if(dRef) logAudit('create','maintenance',dRef.id,`Démontage — lame ${_prevLame} remplacée par ${num} (${getMachineLabel(machine)})`).catch(function(){});
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
@@ -12212,10 +12260,9 @@ function lameDaysSince(sinceIso,nowMs){
 function lameAlerts(cache,nowMs){
   const out=[];
   LAME_MACHINES.forEach(m=>{
-    const evts=(cache||[])
-      .filter(r=>r.type==='lame'&&r.categorie==='installation'&&r.machine===m&&!r.deleted)
-      .sort((a,b)=>String(b.dateInstall||b.date||'').localeCompare(String(a.dateInstall||a.date||'')));
-    const cur=evts[0]; if(!cur) return;
+    // [L272 · revue] MÊME vérité que l'encart : ne PAS alerter sur une lame démontée / partie à l'affûtage
+    // (avant, le bandeau « À CHANGER » criait pour une machine que l'encart disait « aucune lame »).
+    const cur=_activeLameIn(cache,m); if(!cur) return;
     const since=cur.dateInstall||cur.date;
     const days=lameDaysSince(since,nowMs);
     const state=lameAgeState(days,m);
@@ -12443,7 +12490,7 @@ async function _lameEvent(categorie,machine,num,description,dateIso){
   if(new Date(d).getTime()>Date.now()) d=now;
   const rec={ type:'lame', categorie, machine:machine||'', lameNum:String(num).trim(), dateInstall:d, date:d,
     description:description||'', responsable:currentUser?currentUser.ini:'',
-    createdAt:now, createdBy:currentUser?currentUser.ini:'?', deleted:false };
+    createdAt:now, createdBy:currentUser?currentUser.ini:'?', appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''), deleted:false };   // [L272 · audit #12] version estampillée : diagnostiquer un état lame faux sur un parc en versions hétérogènes
   const r=await boundedWrite(db.collection('maintenance').add(rec),10000);
   rec.id=r.id; maintenanceCache.unshift(rec);
   await logAudit('create','maintenance',r.id,(MAINT_CAT_LABEL[categorie]||categorie)+' — lame '+rec.lameNum+' ('+getMachineLabel(machine)+')');
@@ -14130,7 +14177,7 @@ async function validateFiche(id){
     // — sinon un validate écraserait silencieusement un reject concurrent (ou l'inverse).
     // Les gardes coupe/test/BL sont RÉÉVALUÉES sur la version relue (un opérateur a pu
     // dé-couper une bobine ou détacher un BL entre-temps).
-    await boundedWrite(db.runTransaction(async(tx)=>{
+    await boundedTx(db.runTransaction(async(tx)=>{
       const dref=db.collection('fiches').doc(id);
       const snap=await tx.get(dref);
       if(!snap.exists) throw new Error('fiche introuvable en base (supprimée ?)');
@@ -14768,7 +14815,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
     // + garde de cohérence sur le label), et Firestore réessaie en cas de conflit → les modifs
     // des autres bobines sont préservées.
     let finalDetail=null, strippedCount=0;
-    await boundedWrite(db.runTransaction(async(tx)=>{
+    await boundedTx(db.runTransaction(async(tx)=>{
       const ref=db.collection('fiches').doc(ficheId);
       const snap=await tx.get(ref);
       if(!snap.exists) throw new Error('Fiche introuvable en base (supprimée ?).');

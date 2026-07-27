@@ -9,6 +9,22 @@ global.isoNow=()=>'2026-07-23T12:00:00.000Z';
 const lameClasseurEtat=eval('('+fnOf('lameClasseurEtat')+')');
 let fail=0; const ok=(c,m)=>{ console.log((c?'✅ ':'❌ ')+m); if(!c)fail++; };
 
+// [L272 · audit #15] lameActiveForMachine doit respecter un démontage postérieur (une seule vérité lame).
+global._activeLameIn=eval('('+fnOf('_activeLameIn')+')');   // lameActiveForMachine délègue à _activeLameIn (revue L272)
+const lameActiveForMachine=eval('('+fnOf('lameActiveForMachine')+')');
+console.log('── [L272 · audit #15] lameActiveForMachine = classeur (respecte demonte) ──');
+global.maintenanceCache=[
+ {type:'lame',categorie:'installation',machine:'feba',lameNum:'36',dateInstall:'2026-07-23',date:'2026-07-23'},
+];
+ok(lameActiveForMachine('feba')&&lameActiveForMachine('feba').lameNum==='36','36 posée seule → active sur feba');
+global.maintenanceCache.push({type:'lame',categorie:'demonte',machine:'feba',lameNum:'36',dateInstall:'2026-07-24',date:'2026-07-24'});
+ok(lameActiveForMachine('feba')===null,'36 démontée le 24 → PLUS active (avant : encart montrait 36 montée alors que le classeur la disait à affûter)');
+global.maintenanceCache.push({type:'lame',categorie:'installation',machine:'feba',lameNum:'35',dateInstall:'2026-07-24',date:'2026-07-24'});
+ok(lameActiveForMachine('feba')&&lameActiveForMachine('feba').lameNum==='35','35 posée après → active');
+global.maintenanceCache.push({type:'lame',categorie:'affutage',machine:'feba',lameNum:'35',dateInstall:'2026-07-25',date:'2026-07-25'});
+ok(lameActiveForMachine('feba')===null,'35 partie à l\'affûtage → plus active');
+global.maintenanceCache=[];
+
 console.log('── machine à états parMachine ──');
 const T=[
  {type:'lame',categorie:'installation',machine:'cevenini',lameNum:'24',dateInstall:'2026-07-01'},

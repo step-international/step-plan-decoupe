@@ -283,12 +283,30 @@ has(/case N° de référence À COMPLÉTER À LA MAIN/,'L270 : étiquette solde 
 console.log('── L271 : anti-perte de référence (audit 27/07, lot 1) ──');
 has(/confirmDlg\('Retirer la référence '/,'L271 #1 CRITIQUE : suppression d\'une réf entière exige une confirmation DANGER + trace (cause probable perte Tacflex/Prima)');
 has(/logAudit\('delete','plan-ref'/,'L271 #1 : retrait de réf tracé dans l\'audit');
-has(/rawRows\.push\(\{q:_rq,w:_rw\}\)/,'L271 #2 : texte brut des lignes mal saisies capturé (getRefGroups)');
+has(/rawRows\.push\(\{q:_rq,w:_rw,carton:_rc/,'L271 #2 : texte brut des lignes mal saisies capturé (getRefGroups, + carton/mandrin/client depuis la revue)');
 has(/rawRows:g\.rawRows\|\|\[\]/,'L271 #2 : rawRows persistées (serializeRefGroups) → plus de perte de réf au ré-enregistrement/reprise');
-has(/\(g0\.rawRows\|\|\[\]\)\.forEach\(r=>cont0\.appendChild\(makeOrderRow\(r\.q,r\.w\)\)\)/,'L271 #2 : rawRows restaurées → la bannière « config illisible » re-signale');
+has(/\(g0\.rawRows\|\|\[\]\)\.forEach\(r=>cont0\.appendChild\(makeOrderRow\(r\.q,r\.w,r\.carton/,'L271 #2 : rawRows restaurées (texte + attributs) → la bannière « config illisible » re-signale');
 has(/else applySavedRef\(sel,prev,client\)/,'L271 #7 : réf hors-catalogue conservée au changement de client (plus vidée en silence)');
 has(/\.replace\(\/\[Oo\]\/g,'0'\)/,'L271 #8 : parseNum normalise la lettre O→0 (anti quantité ÷100 silencieuse)');
 has(/Promise\.race\(\[loadMaintenance\(\)/,'L271 #3 CRITIQUE : registre lames RAFRAÎCHI avant de tracer le démontage (fin du bug « démonté le 23 » sur tablette ouverte depuis des jours)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L271 présents dans index.html + sw.js');
+console.log('── L272 : hors-ligne honnête + vérité lame + règles (audit 27/07, lot 2) ──');
+has(/function boundedTx\(p,ms\)/,'L272 #5 CRITIQUE : helper boundedTx (timeout de transaction = message HONNÊTE « à refaire », PAS « en file »)');
+absent(/boundedWrite\(db\.runTransaction\(/,'L272 #5 : plus aucune transaction enrobée par boundedWrite (validation/NC/stock/BL ne mentent plus « mise en file »)');
+has(/boundedTx\(db\.runTransaction\(/,'L272 #5 : les 4 transactions critiques utilisent boundedTx');
+has(/var _persistenceOK=true/,'L272 #9/#11 : drapeau + avertissement visible si la persistance hors-ligne échoue');
+has(/function _warnPersistenceFailed/,'L272 #9/#11 : _warnPersistenceFailed prévient l\'opérateur (écritures non conservées au reload)');
+has(/appVersion:\(typeof APP_VERSION!=='undefined'\?APP_VERSION:''\)/,'L272 #12 : version d\'app estampillée sur les écritures maintenance + archive fiche (traçabilité parc hétérogène)');
+has(/if\(_pendingLocalPhotos && Object\.keys\(_pendingLocalPhotos\)\.length\) flushPendingLocalPhotos\(\); \}catch\(e\)\{\} \}, 45000\)/,'L272 #13 : file photos re-téléversée périodiquement (45 s), pas seulement à la reconnexion');
+has(/const lastInstall=evts\.find\(r=>r\.categorie==='installation'\)/,'L272 #15 : lameActiveForMachine respecte un démontage postérieur (une seule vérité lame, encart = classeur)');
+has(/new Date\(pose\)\.toLocaleDateString\('fr-FR'\)/,'L272 #17 : date de pose en heure LOCALE dans l\'audit (plus de recul d\'un jour la nuit)');
+has(/function _laizeSortExcluded\(ref\)\{ return false; \}/,'L272 : exception de tri KX1046/47 PÉRIMÉE retirée (ces réfs re-suivent grosses-laizes-d\'abord)');
+has(/CATALOGUE des définitions « chute \/ perte \/ solde »/,'L272 : définitions chute/perte/solde cataloguées (décision ISO documentée pour Esteban)');
+console.log('── L272 · fixes de la revue adversariale (3) ──');
+has(/function _activeLameIn\(cache,machine\)/,'revue : logique « lame active » factorisée dans _activeLameIn (partagée encart + alertes + classeur)');
+has(/const cur=_activeLameIn\(cache,m\); if\(!cur\) return;/,'revue MAJEUR : lameAlerts (bandeau « À CHANGER ») aligné sur #15 → n\'alerte plus pour une lame démontée (fin de la contradiction encart/bandeau)');
+has(/rawRows\.push\(\{q:_rq,w:_rw,carton:_rc/,'revue : rawRows garde carton/mandrin/client (plus de bobineau réattribué au mauvais client au restore)');
+has(/const _hasChute=Array\.from\(block\.querySelectorAll\('\.rb-chute-row,\.rb-recut-row'\)\)/,'revue : removeRefBlock confirme aussi si le bloc n\'a que des chutes/recuts ou une réf (même classe de perte)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L272 présents dans index.html + sw.js');
 process.exit(fail?1:0);
