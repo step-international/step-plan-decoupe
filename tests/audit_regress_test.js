@@ -131,8 +131,8 @@ console.log('── L221 dérive plan→fiche (bug Dominique) ──');
 has(/function _fichePlanDriftCheck\(\)/,'L221 : détecteur de dérive plan→fiche présent');
 has(/id="planDriftBanner"/,'L221 : bannière de dérive dans la page Fiche');
 has(/if\(typeof _fichePlanDriftCheck==='function'\) _fichePlanDriftCheck\(\);/,'L221 : check branché sur l\'arrivée onglet Fiche (showPage 1)');
-has(/if\(lines\.some\(engagedOf\)\) return;/,'L221 : réf ENGAGÉE jamais signalée (le travail terrain prime — zéro faux positif)');
-has(/function _applyPlanDriftFix\(\)\{[\s\S]{0,400}?recalcEcartsFromFiche\(\{force:true\}\)/,'L221 : bouton bannière route vers recalcEcartsFromFiche({force:true}) — chemin éprouvé qui conserve les coupées');
+has(/const _engaged=lines\.some\(engagedOf\);/,'L221→L278 : réf ENGAGÉE — la MACHINE reste gardée (dans if(!_engaged), travail terrain prime), mais stock/rouleaux chute passent (recalc du reste, sûr)');
+has(/function _applyPlanDriftFix\(\)\{[\s\S]{0,1100}?recalcEcartsFromFiche\(\{force:true, onApplied:/,'L221→L278 : bouton bannière route vers recalcEcartsFromFiche({force:true, onApplied}) — chemin éprouvé qui conserve les coupées + re-contrôle la dérive après re-base (plus de bandeau bloqué rouge)');
 has(/_applyPlanDriftFix\(\)\{\n?\s*if\(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId\(\)\)/,'L221 : garde partage AVANT toute mutation (verrous cuts par position protégés)');
 
 console.log('── L246/L247 chantier ANALYSE — lots R1/R2 ──');
@@ -323,5 +323,10 @@ has(/jamais < plus grande découpe → chute ≥ 0/,'L276 : impression depuis fi
 has(/SÉPARER les rouleaux CHUTE recoupés/,'L277 : impression fiche = rouleaux chute (recut) rendus « ♻ rouleau chute — À RECOUPER EN 1ER » (distincts des bobines mères)');
 has(/planGroups:pg, recutGroups:rg/,'L277 : recutGroups passés à buildPlanPrintHTML depuis la fiche');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L277 présents dans index.html + sw.js');
+console.log('── L278 : stock/chutes ajoutés en cours de découpe → recalcul du RESTE (garde les coupées) ──');
+has(/function _snapFicheChutes\(\)/,'L278 : instantané des chutes stock à la génération/recalcul de la fiche');
+has(/bobineaux en stock ajoutés → à imputer sur le reste/,'L278 : dérive « bobineaux stock » signalée MÊME sur réf engagée → bouton « Appliquer » qui garde les coupées + impute sur le reste');
+has(/_snapFicheChutes\(\);   \/\/ \[L278\] chutes appliquées/,'L278 : instantané re-basé après recalcul → la bannière se referme (pas de harcèlement)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L278 présents dans index.html + sw.js');
 process.exit(fail?1:0);

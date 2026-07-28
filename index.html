@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.27-L277';
+const APP_VERSION='2026.07.28-L278';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3942,6 +3942,15 @@ function openFileOverlay(url){
 // les réfs NON engagées uniquement (aucune ligne coupée/photo/NC/déchet/chute de CETTE réf → zéro risque de
 // faux positif sur le travail terrain). AUCUNE mutation automatique : bannière + bouton qui route vers le
 // chemin ÉPROUVÉ recalcEcartsFromFiche (conserve les coupées, régénère le reliquat avec machine + chutes).
+// [L278 · demande Esteban] Instantané des chutes-stock (par réf) pris à la GÉNÉRATION / au RECALCUL de la fiche.
+// Sert à détecter qu'un bobineau stock a été AJOUTÉ ensuite dans l'onglet Plan, pour router vers le recalcul du
+// RESTE (garde les coupées, impute la chute sur les bobines pas encore coupées) au lieu du re-plan complet.
+// En MÉMOIRE seulement : au rechargement → null → aucune fausse alerte (pas de harcèlement de bannière).
+let _ficheGenChutes=null;
+function _snapFicheChutes(){
+  try{ const cs=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length); const snap={}; cs.forEach(c=>{ snap[_refIdKey(c)]=JSON.stringify(c.chutesUsed||{}); }); _ficheGenChutes=snap; }
+  catch(e){ _ficheGenChutes=null; }
+}
 function _fichePlanDriftCheck(){
   const el=document.getElementById('planDriftBanner'); if(!el) return;
   const hide=()=>{ el.style.display='none'; el.innerHTML=''; };
@@ -3973,12 +3982,22 @@ function _fichePlanDriftCheck(){
         }
       }
       if(!lines.length) return;                          // réf absente du snapshot (fiche pas encore générée pour elle) : flux normal
-      if(lines.some(engagedOf)) return;                  // réf ENGAGÉE : jamais de signal ici — le travail terrain prime
+      const _engaged=lines.some(engagedOf);
       const msgs=[];
-      const mach=(c.machine||'').trim();
-      if(mach && !lines.some(d=>(d.machine||'')===mach)) msgs.push('machine → '+getMachineLabel(mach));
+      // [L278 · demande Esteban] STOCK / CHUTES ajoutés EN COURS de découpe : signalés MÊME sur réf engagée, car
+      // les appliquer route vers recalcEcartsFromFiche qui GARDE les bobines coupées et n'impute que sur le RESTE.
+      //  · bobineaux en stock (rb-chute-row) : détectés via l'instantané des chutesUsed pris à la génération.
+      if(_ficheGenChutes && _ficheGenChutes[key]!==undefined && JSON.stringify(c.chutesUsed||{})!==_ficheGenChutes[key]) msgs.push('bobineaux en stock ajoutés → à imputer sur le reste');   // [L278 · revue] clé ABSENTE de l'instantané (machine/dimension changée → refIdKey divergée) : ne PAS émettre à tort (la dérive machine a son propre chemin)
+      //  · rouleaux à recouper (rb-recut-row) : compte plan vs fiche (se referme seul quand la fiche les reflète).
       const planRec=(c.recutBobines||[]).length, ficheRec=lines.filter(d=>d.recut).length;
-      if(planRec!==ficheRec) msgs.push(planRec>ficheRec?('+'+(planRec-ficheRec)+' rouleau(x) chute à recouper'):((ficheRec-planRec)+' rouleau(x) chute retiré(s)'));
+      if(planRec>ficheRec) msgs.push('+'+(planRec-ficheRec)+' rouleau(x) chute à recouper');   // AJOUTÉ : signalé même en cours (sûr — imputé sur le reste, coupées gardées)
+      else if(planRec<ficheRec && !_engaged) msgs.push((ficheRec-planRec)+' rouleau(x) chute retiré(s)');   // [L278 · revue] RETIRÉ : seulement si non engagée — un rouleau déjà COUPÉ ne peut être « dé-coupé » (sinon bandeau qui ne se referme jamais)
+      // Changement de MACHINE : garde inchangée — signalé UNIQUEMENT si la réf n'est pas engagée (le travail
+      // terrain prime ; re-machiner le reste en cours de découpe est un choix conscient, pas un simple ajout stock).
+      if(!_engaged){
+        const mach=(c.machine||'').trim();
+        if(mach && !lines.some(d=>(d.machine||'')===mach)) msgs.push('machine → '+getMachineLabel(mach));
+      }
       if(msgs.length) drifts.push('🎞 '+esc(c.ref||'?')+' — '+esc(msgs.join(' · ')));
     });
     if(!drifts.length){ hide(); return; }
@@ -3995,14 +4014,16 @@ function _fichePlanDriftCheck(){
 function _applyPlanDriftFix(){
   if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){ showToast('🔒 Partage actif — arrête le partage d\'abord.','err'); return; }
   if(!confirm('Répercuter le plan modifié sur la fiche ?\n\nLes bobines déjà coupées seront CONSERVÉES ; seul le reste est régénéré depuis le plan (machine, rouleaux chute, reliquat).')) return;
-  const _res=recalcEcartsFromFiche({force:true});
+  // [L278 · revue sceptique] re-contrôle de la dérive DANS onApplied (après la re-base de l'instantané + la
+  // reconstruction de la fiche), et NON via un setTimeout(900) qui précédait la re-base (1000 ms) → le bandeau
+  // repassait rouge et RESTAIT rouge. onApplied garantit la fermeture, sans course de timers.
+  const _res=recalcEcartsFromFiche({force:true, onApplied:function(){ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }});
   if(!_res||!_res.started){ showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err'); }
   else {
-    // [L273 · demande Esteban] retour VERT immédiat au clic (le bandeau se referme ~900 ms après, quand la dérive est résorbée).
+    // [L273 · demande Esteban] retour VERT immédiat au clic (le bandeau se referme via onApplied quand la dérive est résorbée).
     const _b=document.getElementById('planDriftApplyBtn'); if(_b){ _b.className='btn btn-green'; _b.textContent='✓ Plan appliqué — bobines coupées conservées'; }
     showToast('✓ Plan appliqué à la fiche (bobines coupées conservées).','ok');
   }
-  setTimeout(function(){ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); },900);
 }
 function showPage(i){
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
@@ -4291,6 +4312,7 @@ function importPlanToFiche(opts){
     // SANS recliquer « Changement plan ». Le verrou ne se réarme que si
     // l'opérateur modifie ensuite une dimension (mère/bords/lame) ou une chute.
     fichePlanValidated=true; updateFPlanHint();
+    _snapFicheChutes();   // [L278] instantané des chutes stock à la génération de la fiche (base de comparaison pour détecter un ajout ultérieur)
     if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
 
     if(!auto && !opts.keepRefValidation){
@@ -8774,6 +8796,7 @@ function recalcEcartsFromFiche(opts){
          : (totalAdded>0?'♻ Plan ré-optimisé.':'♻ Recalcul terminé — commande couverte.'));
     showToast(head+'\n\n'+recap.join('\n'),'ok');
     if(op2||force){ fichePlanValidated=true; updateFPlanHint(); }
+    _snapFicheChutes();   // [L278] chutes appliquées → re-baser l'instantané → la bannière « bobineaux ajoutés » se referme
     if(typeof opts.onApplied==='function'){ try{ opts.onApplied(); }catch(e){ console.warn('onApplied:',e); } }   // [L70 · Audit B30]
    }finally{ _recalcPending=false; }
   },1000);
