@@ -328,5 +328,7 @@ has(/function _snapFicheChutes\(\)/,'L278 : instantané des chutes stock à la g
 has(/bobineaux en stock ajoutés → à imputer sur le reste/,'L278 : dérive « bobineaux stock » signalée MÊME sur réf engagée → bouton « Appliquer » qui garde les coupées + impute sur le reste');
 has(/_snapFicheChutes\(\);   \/\/ \[L278\] chutes appliquées/,'L278 : instantané re-basé après recalcul → la bannière se referme (pas de harcèlement)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L278 présents dans index.html + sw.js');
+has(/if\(typeof _snapFicheChutes==='function'\) _snapFicheChutes\(\);\n\}/,'L279 : instantané des chutes pris AUSSI à la reprise/chargement (restoreFicheState) → l\'ajout de chute après reprise déclenche bien le bandeau « appliquer sur le reste »');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L279 présents dans index.html + sw.js');
 process.exit(fail?1:0);
