@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.29-L284';
+const APP_VERSION='2026.07.29-L285';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3999,6 +3999,35 @@ function _fichePlanDriftCheck(){
         const mach=(c.machine||'').trim();
         if(mach && !lines.some(d=>(d.machine||'')===mach)) msgs.push('machine → '+getMachineLabel(mach));
       }
+      // [L285 · demande Esteban] SUR-COUPE encore présente dans le RESTE : une largeur coupée EN PLUS (vs commande
+      // − stock) reste prévue sur des bobines PAS ENCORE coupées → recalculer l'en retire (reliquat borné). Message
+      // AUTO-REFERMANT : après le recalcul, plus aucune bobine non coupée ne reproduit cette largeur → il disparaît
+      // (pas de harcèlement). Si plus rien à retirer (pas de reste concerné), on n'affiche RIEN : le surplus est
+      // déjà tracé sur le papier (récap L284). Lecture seule, mêmes sources que recalcEcartsFromFiche.
+      try{
+        // [L285 · revue adversariale] le prédicat « figée » DOIT répliquer isLineFrozen (ce que le recalcul
+        // PRÉSERVE), PAS engagedOf : une bobine NON coupée mais pré-ÉTIQUETÉE (n° mère écrit d'avance) ou à
+        // config éditée est GELÉE par le recalcul. Avec engagedOf, la bannière comptait cette ligne comme « à
+        // retirer du reste » alors que le recalcul ne peut PAS la retirer → bannière rouge coincée (harcèlement).
+        // On aligne le committed ET le « reste retirable » sur isLineFrozen (répliqué sur les données, pas d'id ici).
+        const _frozenLike=d=>{
+          if(d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit) return true;
+          if((d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng) return true;
+          const _lv=(d.label||'').trim(); if(_lv && _lv!==(d.autoLabel||'').trim()) return true;   // étiquette mère éditée = ligne engagée (B21)
+          if(typeof normConf==='function' && normConf(d.conf||'')!==(d.origConf||'')) return true;   // config modifiée à la main
+          return false;
+        };
+        const cmdW={}; (c.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0; if(w>0&&q>0) cmdW[w]=(cmdW[w]||0)+q;});
+        Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ if(cmdW[w]!=null) cmdW[w]=Math.max(0,cmdW[w]-(Number(q)||0)); });
+        const comW={};
+        lines.forEach(d=>{ if(!_frozenLike(d)||d.actDechet) return; parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) comW[p.width]=(comW[p.width]||0)+p.qty; }); });
+        const overW=new Set(); Object.keys(comW).forEach(w=>{ if((comW[w]||0)>(cmdW[w]||0)) overW.add(Number(w)); });
+        // « reste retirable » = bobines que le recalcul RÉGÉNÉRERAIT (donc non figées) reproduisant une largeur sur-coupée
+        if(overW.size && lines.some(d=>!_frozenLike(d) && parseConf(d.conf||'').some(p=>overW.has(Number(p.width))))){
+          const _ov=[...overW].sort((a,b)=>a-b).map(w=>((comW[w]||0)-(cmdW[w]||0))+'×'+fmt(w)).join(', ');
+          msgs.push(_ov+' coupé(s) en plus → recalculer pour l\'en retirer du reste');
+        }
+      }catch(e){}
       if(msgs.length) drifts.push('🎞 '+esc(c.ref||'?')+' — '+esc(msgs.join(' · ')));
     });
     if(!drifts.length){ hide(); return; }
@@ -4010,6 +4039,12 @@ function _fichePlanDriftCheck(){
     el.style.display='';
   }catch(e){ hide(); }
 }
+// [L285 · demande Esteban « ça change automatiquement »] re-vérifie la dérive plan↔fiche (coche / édition de
+// config / sur-coupe) et fait apparaître la BANNIÈRE tout seul, débouncé. NON DESTRUCTIF : ne lance JAMAIS le
+// recalcul (qui reste 1 clic sur « Appliquer », conserve les coupées) — évite le churn/renumérotation en pleine
+// coupe. showPage(1) couvre déjà le retour plan→fiche (ajout de bobineaux stock).
+let _driftAutoTimer=null;
+function _scheduleDriftCheck(){ try{ clearTimeout(_driftAutoTimer); }catch(e){} _driftAutoTimer=setTimeout(function(){ try{ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }catch(e){} },300); }
 // Bouton de la bannière : route vers recalcEcartsFromFiche({force}) — le MÊME chemin que « 🔄 Changement
 // plan » (conserve les coupées, régénère machine + rouleaux chute du reliquat), avec confirmation.
 function _applyPlanDriftFix(){
@@ -16782,6 +16817,7 @@ function toggleCoupee(id){
   btn.textContent=isCoupee?'✓ Coupée':'✂ Coupée';
   if(isCoupee) _cutFeedback(line);   // [L102 · M2-D] flash + vibration + bip : enregistré, sans regarder
   updateCoupeeStatus();
+  if(typeof _scheduleDriftCheck==='function') _scheduleDriftCheck();   // [L285 · demande Esteban] coche → re-vérifie la dérive/sur-coupe (bannière auto, non destructive)
   // [L71 · Audit B14] figer/défiger l'attribution CLIENT de cette ligne au ✂ : une bobine
   // coupée garde l'attribution constatée à cet instant, même si une ligne amont est
   // modifiée/supprimée ensuite (le calcul est fait AVANT de poser le gel → à cet instant
@@ -17086,7 +17122,7 @@ function parseConf(val){
   return pieces;
 }
 let _confCumulTimer=null;
-function onFicheConfChange(){ clearTimeout(_confCumulTimer); _confCumulTimer=setTimeout(updateAllCumuls,200); }   // [L163 · sweep perf #5] débounce : recalcul complet des cumuls était synchrone à CHAQUE frappe de « conf »
+function onFicheConfChange(){ clearTimeout(_confCumulTimer); _confCumulTimer=setTimeout(updateAllCumuls,200); if(typeof _scheduleDriftCheck==='function') _scheduleDriftCheck(); }   // [L163 · sweep perf #5] débounce cumuls ; [L285] + dérive/sur-coupe auto (bannière non destructive)
 function updateAllCumuls(){
   // Cumul PAR RÉFÉRENCE : chaque bobine compte dans le total de SA réf
   // (deux réfs partageant une largeur ont chacune leur compteur / ✓ / carton /

@@ -356,5 +356,10 @@ has(/Coupé EN PLUS \(hors plan/,'L284 : le surplus (sur-coupe) est IMPRIMÉ dan
 has(/Rebut déjà coupé — NE PAS recouper/,'L284 : bobine 🗑 déchet sortie de la liste « à couper » et tracée à part (anti double-découpe)');
 has(/Total commande d'origine/,'L284 : total multi-réf relibellé « commande d\'origine » (ne contredit plus le coupé réel par réf)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L284 présents dans index.html + sw.js');
+console.log('── L285 : « ça change automatiquement » — détection auto de dérive/sur-coupe (bannière NON destructive) ──');
+has(/function _scheduleDriftCheck\(\)/,'L285 : re-vérification auto de la dérive (débouncée) — la bannière apparaît seule, sans lancer le recalcul destructif');
+has(/coupé\(s\) en plus → recalculer pour l/,'L285 : sur-coupe encore présente dans le reste → signalée (auto-refermante après recalcul)');
+has(/_scheduleDriftCheck\(\);   \/\/ \[L285/,'L285 : la coche d\'une bobine déclenche la re-vérification auto (dérive/sur-coupe)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L285 présents dans index.html + sw.js');
 process.exit(fail?1:0);
