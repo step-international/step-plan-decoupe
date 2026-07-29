@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.29-L281';
+const APP_VERSION='2026.07.29-L282';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8206,7 +8206,10 @@ function _commitRace(batch,ms){
 // I1 — Récapitulatif de confirmation avant l'écriture irréversible + reset du Plan.
 // N'appelle confirmCommande() (inchangé) qu'après validation explicite de l'opérateur.
 function confirmCommandeRecap(){
-  if(_sendingFiche) return;
+  // [L282 · audit boutons — plainte Esteban « même en appuyant, le système reste bloqué »] l'envoi réseau dure
+  // jusqu'à ~8 s ; un re-tap sur le bouton pulsant pendant ce temps tombait sur un return MUET → l'opérateur
+  // croyait le bouton mort et re-tapait en boucle. On DIT désormais pourquoi + quoi faire (attendre).
+  if(_sendingFiche){ try{ showToast('⏳ Envoi en cours — patiente quelques secondes, ne re-tape pas.','err'); }catch(e){} return; }
   if(_shareBlockSend()) return;   // [L63 · Lot 5] destinataire d'un partage : envoi réservé à l'émetteur
   // [L161 · revue #9] l'ENVOI exige l'opérateur (comme le chrono) : sur un compte MACHINE, une fiche sans
   // initiales partirait au nom de « — » (traçabilité ISO) — cas atteignable après logout/login (la fiche

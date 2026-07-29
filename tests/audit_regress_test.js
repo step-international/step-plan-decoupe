@@ -339,5 +339,8 @@ has(/barres à coins HAUTS arrondis/,'L280 : graphiques lames modernisés (coins
 has(/id="etiqRefNum_\$\{d\.key\}"/,'L281 : étiquette solde — input DIGITAL « N° de référence » (fini la case au feutre)');
 has(/\$\{d\.refNum\?/,'L281 : étiquette imprimée avec le n° de référence rempli (repli case vide si non saisi)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L281 présents dans index.html + sw.js');
+console.log('── L282 : audit « bouton bloqué » — plus de blocage SILENCIEUX à l\'envoi (demande Esteban) ──');
+has(/Envoi en cours — patiente quelques secondes, ne re-tape pas\./,'L282 : envoi fiche déjà en cours → TOAST explicite au lieu d\'un blocage muet (l\'opérateur re-tape et croyait le bouton mort)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L282 présents dans index.html + sw.js');
 process.exit(fail?1:0);
