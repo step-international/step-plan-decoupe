@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.29-L283';
+const APP_VERSION='2026.07.29-L284';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6943,7 +6943,8 @@ function buildPlanPrintHTML(o){
     const _cmd=_planGroupCmd(c);
     const _nbMeres=(c.planGroups||[]).reduce((s,g)=>s+Math.max(1,parseInt(g.count)||1),0);
     const _cmdLine=(_nbMeres||_cmd.str)?`<div class="cmd-recap">🧾 ${multi?esc(c.ref||('réf '+(ci+1)))+' : ':''}<b>${_nbMeres}</b> bobine${_nbMeres>1?'s':''} mère${_nbMeres>1?'s':''} à monter${_cmd.str?` · découpe : ${esc(_cmd.str)}`:''}</div>`:'';
-    sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+chutePrintRecap(c)+recutPrintRecap(c)+_cmdLine;
+    const _dechetLine=c.dechetStr?`<div class="cmd-recap" style="background:#f3f4f6;border-left-color:#6b7280;color:#374151">🗑 <b>Rebut déjà coupé — NE PAS recouper</b>${multi?' ('+esc(c.ref||('réf '+(ci+1)))+')':''} : ${esc(c.dechetStr)}</div>`:'';   // [L284] le rebut n'apparaît plus comme bobine à couper
+    sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+chutePrintRecap(c)+recutPrintRecap(c)+_cmdLine+_dechetLine;
   });
   if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr></table>';
 
@@ -6971,7 +6972,13 @@ function buildPlanPrintHTML(o){
   ${metaTech}<br>
   Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(o.cerclage)}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
   ${sections}
-  ${multi?`<div class="cmd-recap cmd-total">🧾 Total : <b>${_totMeres}</b> bobine${_totMeres>1?'s':''} mère${_totMeres>1?'s':''}${_cmdStr?` · découpe : ${esc(_cmdStr)}`:''}</div>`:''}
+  ${multi?`<div class="cmd-recap cmd-total">🧾 Total commande d'origine : <b>${_totMeres}</b> bobine${_totMeres>1?'s':''} mère${_totMeres>1?'s':''}${_cmdStr?` · découpe : ${esc(_cmdStr)}`:''}</div>`:''}
+  ${(()=>{  /* [L284 · demande Esteban] récap « coupé EN PLUS (hors plan) » : sur-coupe réelle vs commande, tracée sur le papier (avant : seulement dans un toast éphémère). */
+    const s=o.surplus||{}; const refs=Object.keys(s).filter(r=>Object.keys(s[r]||{}).length);
+    if(!refs.length) return '';
+    const body=refs.map(r=>{ const w=s[r]; const parts=Object.keys(w).map(Number).sort((a,b)=>a-b).map(x=>w[x]+'×'+fmt(x)+'mm').join(' + '); return (multi&&r?'<b>'+esc(r)+'</b> : ':'')+parts; }).join('<br>');
+    return `<div class="cmd-recap" style="background:#fef2f2;border-left-color:#b91c1c;color:#7f1d1d">⚠ <b>Coupé EN PLUS (hors plan — à tracer)</b> :<br>${body}</div>`;
+  })()}
   ${cliAll?(()=>{  /* [L64 · Lot 6] récap PAR CLIENT : laizes commandées + n° cmd + livraison + packaging */
     const _cliMap={};
     _cmdSrc.forEach(g=>(g.rows||[]).forEach(r=>{const c2=r.cli||'A';const w=Number(r.width)||0,q=Number(r.qty)||0;if(w&&q){const m=_cliMap[c2]||(_cliMap[c2]={});m[w]=(m[w]||0)+q;}}));
@@ -16067,6 +16074,37 @@ function applyFichePlanChange(){
     if(!_res||!_res.started) showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis reclique « 🔄 Changement plan ».','err');   // [L70 · Audit B30]
   }
 }
+// [L284 · demande Esteban] SURPLUS « coupé EN PLUS » par réf (nom) / largeur — pour l'imprimer dans le récap.
+// MÊME sémantique que recalcEcartsFromFiche (surplusByRef) pour que le papier colle au toast du recalcul :
+//   command  = commande (rows) − bobineaux STOCK déjà à la bonne largeur (chutesUsed), borné ≥ 0 ;
+//   committed = Σ des configs des bobines FIGÉES (coupées / engagées), HORS déchet (🗑 rebut non livré) ;
+//   surplus   = committed − command, part positive uniquement.
+// Clé par NOM de réf (comme l'impression regroupe ficheLines par l.ref) — lecture seule, aucun effet de bord.
+function _fichePrintSurplus(){
+  const out={};
+  try{
+    const computed=(typeof packRefGroupsPal==='function')?packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length):[];
+    const cmd={};
+    computed.forEach(c=>{
+      const nm=(c.ref||''); const m=cmd[nm]||(cmd[nm]={});
+      (c.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0; if(w>0&&q>0) m[w]=(m[w]||0)+q;});
+      Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ if(m[w]!=null) m[w]=Math.max(0,m[w]-(Number(q)||0)); });
+    });
+    const com={};
+    ficheLines.forEach(l=>{
+      if(typeof isLineFrozen==='function' && !isLineFrozen(l.id)) return;                       // seulement les bobines réellement figées (coupées / engagées)
+      if(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')) return;    // le rebut n'est pas de la production livrée
+      const nm=(l.ref||''); const m=com[nm]||(com[nm]={});
+      parseConf(document.getElementById('flConf_'+l.id)?.value||'').forEach(p=>{ if(p.width>0&&p.qty>0) m[p.width]=(m[p.width]||0)+p.qty; });
+    });
+    Object.keys(com).forEach(nm=>{
+      const c=com[nm], o=cmd[nm]||{}, s={};
+      Object.keys(c).forEach(w=>{ const ex=(c[w]||0)-(o[w]||0); if(ex>0) s[w]=ex; });
+      if(Object.keys(s).length) out[nm]=s;
+    });
+  }catch(e){ return {}; }
+  return out;
+}
 // [L275 · bug Esteban] Construit l'ANCIEN modèle de plan imprimable (buildPlanPrintHTML, lisible) à partir des
 // BOBINES RÉELLES DE LA FICHE (ficheLines) au lieu d'un recalcul frais. Même forme que le plan MANUEL passé par
 // getPlanHTML (planGroups sans rows/chutes → géré par buildPlanPrintHTML) → le papier reflète toujours la fiche.
@@ -16079,7 +16117,13 @@ function _buildFichePlanPrintHTML(){
     // [L277 · bug Esteban] SÉPARER les rouleaux CHUTE recoupés (l.recut) des bobines MÈRES : les recut vont dans
     // recutGroups → imprimés « ♻ rouleau chute — À RECOUPER EN 1ER » (fond vert), avec leur PROPRE laize (rollW).
     // Avant (L275), tout était en planGroups → les 3 premières (des chutes) apparaissaient comme des bobines mères.
-    const normalLines=lines.filter(l=>!l.recut), recutLines=lines.filter(l=>l.recut);
+    // [L284 · sécurité anti double-découpe] une bobine 🗑 DÉCHET (rebut, déjà coupée mais NON livrée) ne doit PAS
+    // s'imprimer comme une bobine à couper : après un recalcul ses largeurs reviennent en ligne « RESTE- » → sans
+    // ce filtre le papier affichait À LA FOIS le rebut ET le reste à recouper (risque de recouper le rebut). On la
+    // sort de la liste « à couper » et on la trace à part « rebut déjà coupé — ne pas recouper ».
+    const _isDechet=l=>document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
+    const dechetLines=lines.filter(_isDechet);
+    const normalLines=lines.filter(l=>!l.recut&&!_isDechet(l)), recutLines=lines.filter(l=>l.recut&&!_isDechet(l));
     // regroupe des motifs IDENTIQUES consécutifs → « N bobines : config » (recut : aussi par rollW).
     const _grp=(arr,withRoll)=>{ const out=[]; arr.forEach(l=>{ const pat=parseConf(document.getElementById('flConf_'+l.id)?.value||''); const key=JSON.stringify(pat)+'|'+(withRoll?(Number(l.rollW)||0):''); const last=out[out.length-1]; if(last&&last._key===key) last.count++; else out.push(withRoll?{count:1,pattern:pat,rollW:Number(l.rollW)||0,_key:key}:{count:1,pattern:pat,_key:key}); }); out.forEach(g=>delete g._key); return out; };
     const pg=_grp(normalLines,false), rg=_grp(recutLines,true);
@@ -16091,9 +16135,13 @@ function _buildFichePlanPrintHTML(){
     const _src=normalLines.length?normalLines:lines;
     const _useful=Math.max(0, ..._src.map(l=>Number(l.useful)||0), ..._src.map(_usedOf));
     const _mother=Number(p.mother)||_useful;
+    // [L284] rebut 🗑 déjà coupé (tracé à part, jamais dans la liste « à couper »)
+    const _dechetMap={};
+    dechetLines.forEach(l=>{ parseConf(document.getElementById('flConf_'+l.id)?.value||'').forEach(pp=>{ if(pp.width>0&&pp.qty>0) _dechetMap[pp.width]=(_dechetMap[pp.width]||0)+pp.qty; }); });
+    const dechetStr=Object.keys(_dechetMap).map(Number).sort((a,b)=>a-b).map(w=>_dechetMap[w]+'×'+fmt(w)+'mm').join(' + ');
     return {ref, refIdKey:p.refIdKey||l0.refIdKey||null, useful:_useful, blade:_blade,
       longueur:p.longueur||'', mother:_mother, edge:Math.max(0,_mother-_useful), film:p.film||'', veka:p.veka||'', machine:l0.machine||p.machine||'',
-      planGroups:pg, recutGroups:rg};
+      planGroups:pg, recutGroups:rg, dechetStr};
   });
   const numCmd=document.getElementById('planNumCmd')?.value||document.getElementById('fNumCmd')?.value||'';
   return buildPlanPrintHTML({
@@ -16109,7 +16157,8 @@ function _buildFichePlanPrintHTML(){
     cerclage:document.getElementById('planCerclage')?.value||'—',
     notesEmb:document.getElementById('planNotesEmballage')?.value||'',
     cmdInfoHtml:(numCmd&&numCmd!=='—')?` · N° Cmd : <b>${esc(numCmd)}</b>`:'',
-    cmdClients:(typeof cliMulti==='function'&&cliMulti())?JSON.parse(JSON.stringify(cmdClients)):null
+    cmdClients:(typeof cliMulti==='function'&&cliMulti())?JSON.parse(JSON.stringify(cmdClients)):null,
+    surplus:_fichePrintSurplus()   // [L284] « coupé en plus » (hors plan) → récap imprimé
   });
 }
 // Bouton « Imprimer le plan » : imprime le plan complet recalculé avec les

@@ -350,5 +350,11 @@ has(/if\(_anyBob && !_refHasFicheBob\(r\)\) return;/,'L283 : réf sans bobine �
 has(/rien à couper \(stock\)/,'L283 : réf couverte par le stock étiquetée « rien à couper (stock) » dans Ordre de coupe (visible mais rien à valider)');
 has(/const _anyBob=refs\.some\(_refHasFicheBob\)/,'L283 : garde _anyBob — le traitement « réf sans bobine » ne s\'active que s\'il reste une vraie réf à couper');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L283 présents dans index.html + sw.js');
+console.log('── L284 : impression du plan = fiche live (récap « coupé en plus » + rebut + total commande d\'origine) ──');
+has(/function _fichePrintSurplus\(\)/,'L284 : surplus « coupé en plus » calculé pour le papier (même sémantique que recalcEcartsFromFiche)');
+has(/Coupé EN PLUS \(hors plan/,'L284 : le surplus (sur-coupe) est IMPRIMÉ dans le récap, plus seulement dans un toast éphémère');
+has(/Rebut déjà coupé — NE PAS recouper/,'L284 : bobine 🗑 déchet sortie de la liste « à couper » et tracée à part (anti double-découpe)');
+has(/Total commande d'origine/,'L284 : total multi-réf relibellé « commande d\'origine » (ne contredit plus le coupé réel par réf)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L284 présents dans index.html + sw.js');
 process.exit(fail?1:0);
