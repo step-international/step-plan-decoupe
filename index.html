@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.28-L279';
+const APP_VERSION='2026.07.29-L280';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2739,6 +2739,7 @@ document.addEventListener('keydown',function(e){
 // DONNÉES CLIENTS — extraites de l'Excel STEP International
 // ============================================================
 const CLIENT_DATA = {
+  "Mtechnologie": [{ref:"GHX173A",largeur:1290,longueur:1000}],   // [L280 · demande Esteban 29/07]
   "Best Aluminium": [{ref:"TacFlex® DH1006 micro perf",largeur:2200,longueur:1000}],
   "ACCOPLAST": [{ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600}],
   "ACTA": [
@@ -13279,24 +13280,30 @@ function _inPeriod(dateIso,period){ if(period==='all'||!period) return true; ret
 function _periodLabel(p){ if(p==='all'||!p) return 'Tout l\'historique'; const a=String(p).split('-'); return (_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0]; }
 // Graphique à barres générique (suivi des lames).
 function svgBars(items,opts){
-  opts=opts||{}; const W=opts.W||560,H=opts.H||210,padL=opts.padL||38,padB=opts.padB||26,padT=22;
+  // [L280 · demande Esteban] graphiques Lames modernisés : barres à coins HAUTS arrondis, dégradé plus riche,
+  // ombre portée douce (profondeur), liseré lumineux en tête, grille pointillée discrète. Signature inchangée.
+  opts=opts||{}; const W=opts.W||560,H=opts.H||214,padL=opts.padL||40,padB=opts.padB||28,padT=26;
   if(!items||!items.length) return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg"><text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="13">Pas de données sur la période</text></svg>`;
   const maxVal=Math.max(...items.map(x=>x.value),1);
-  const n=items.length,gap=(W-padL-12)/n,barW=Math.max(16,Math.min(70,gap*0.6)),plotH=H-padB-padT,scaleY=plotH/maxVal;
-  let defs='',out='';
-  // Grille horizontale discrète + graduations
-  for(let i=0;i<=4;i++){ const y=H-padB-i*plotH/4; out+=`<line x1="${padL}" x2="${W-6}" y1="${y}" y2="${y}" stroke="${i===0?'#4a4a46':'#323230'}" stroke-width="${i===0?1.4:1}"/><text x="${padL-6}" y="${y+3.5}" text-anchor="end" fill="#777" font-size="10">${Math.round(maxVal*i/4)}</text>`; }
+  const n=items.length,gap=(W-padL-14)/n,barW=Math.max(18,Math.min(74,gap*0.58)),plotH=H-padB-padT,scaleY=plotH/maxVal;
+  const rMax=Math.min(9,barW/2);
+  const _sid='lbsh'+Math.random().toString(36).slice(2,7);
+  let defs=`<filter id="${_sid}" x="-50%" y="-25%" width="200%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="3.2" flood-color="#000" flood-opacity="0.38"/></filter>`, grid='', bars='';
+  // Grille horizontale pointillée + graduations
+  for(let i=0;i<=4;i++){ const y=H-padB-i*plotH/4; grid+=`<line x1="${padL}" x2="${W-8}" y1="${y}" y2="${y}" stroke="${i===0?'#57574f':'#2d2d2b'}" stroke-width="${i===0?1.4:1}"${i?' stroke-dasharray="2 5"':''}/><text x="${padL-8}" y="${y+3.5}" text-anchor="end" fill="#7c7c78" font-size="10">${Math.round(maxVal*i/4)}</text>`; }
   items.forEach((it,i)=>{
     const col=it.color||opts.color||'#60a5fa';
     const gid='b'+i+'_'+Math.random().toString(36).slice(2,7);
-    const x=padL+i*gap+gap/2-barW/2,bh=Math.max(3,it.value*scaleY),y=H-padB-bh;
-    defs+=`<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity="0.98"/><stop offset="1" stop-color="${col}" stop-opacity="0.5"/></linearGradient>`;
-    out+=`<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="6" fill="url(#${gid})"/>`;
-    out+=`<rect x="${x}" y="${y}" width="${barW}" height="3.5" rx="1.75" fill="${col}"/>`;
-    out+=`<text x="${x+barW/2}" y="${y-6}" text-anchor="middle" fill="#f0f0ee" font-size="13" font-weight="800">${it.value}</text>`;
-    out+=`<text x="${x+barW/2}" y="${H-padB+15}" text-anchor="middle" fill="#aaa" font-size="10.5" font-weight="600">${esc(String(it.label))}</text>`;
+    const x=padL+i*gap+gap/2-barW/2, bh=Math.max(4,it.value*scaleY), y=H-padB-bh, rr=Math.min(rMax,bh);
+    defs+=`<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity="1"/><stop offset="0.55" stop-color="${col}" stop-opacity="0.86"/><stop offset="1" stop-color="${col}" stop-opacity="0.42"/></linearGradient>`;
+    // barre à coins HAUTS arrondis (path) + ombre douce
+    bars+=`<path d="M${x},${y+bh} L${x},${y+rr} Q${x},${y} ${x+rr},${y} L${x+barW-rr},${y} Q${x+barW},${y} ${x+barW},${y+rr} L${x+barW},${y+bh} Z" fill="url(#${gid})" filter="url(#${_sid})"/>`;
+    // liseré lumineux en tête (effet verre)
+    bars+=`<path d="M${(x+1.2).toFixed(1)},${(y+rr).toFixed(1)} Q${(x+1.2).toFixed(1)},${(y+1.2).toFixed(1)} ${(x+rr).toFixed(1)},${(y+1.2).toFixed(1)} L${(x+barW-rr).toFixed(1)},${(y+1.2).toFixed(1)} Q${(x+barW-1.2).toFixed(1)},${(y+1.2).toFixed(1)} ${(x+barW-1.2).toFixed(1)},${(y+rr).toFixed(1)}" fill="none" stroke="#ffffff" stroke-opacity="0.34" stroke-width="1.4"/>`;
+    bars+=`<text x="${x+barW/2}" y="${y-8}" text-anchor="middle" fill="#f4f4f2" font-size="13.5" font-weight="800">${it.value}</text>`;
+    bars+=`<text x="${x+barW/2}" y="${H-padB+16}" text-anchor="middle" fill="#b4b4b0" font-size="10.5" font-weight="600">${esc(String(it.label))}</text>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;min-width:420px;display:block" xmlns="http://www.w3.org/2000/svg"><defs>${defs}</defs>${out}</svg>`;   // [L250 · R5] min-width anti-rétrécissement (labels lames lisibles sur téléphone)
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;min-width:420px;display:block" xmlns="http://www.w3.org/2000/svg"><defs>${defs}</defs>${grid}${bars}</svg>`;   // [L250 · R5] min-width anti-rétrécissement (labels lames lisibles sur téléphone)
 }
 // Mois disponibles (union des dates fiches/temps/maintenance), récents d'abord.
 function _lameStatsMonths(){
@@ -18804,7 +18811,13 @@ function restoreChrono(c){
 }
 function renderDrafts(){
   try{ renderSharedDraftsBlock(); }catch(e){}   // [Lot 3] section « Partagées avec moi » (indépendante des brouillons normaux)
-  const drafts=loadDrafts().filter(d=>!d.consumed);   // DRAFT-4 : masquer les brouillons de commandes déjà produites
+  let drafts=loadDrafts().filter(d=>!d.consumed);   // DRAFT-4 : masquer les brouillons de commandes déjà produites
+  // [L280 · demande Esteban] plus de DOUBLON : masquer le brouillon « saisie de plan en cours » (planDraft) quand
+  // la MÊME commande (n°) existe déjà en FICHE (un brouillon non-planDraft avec des bobines) → le « ? » LIMA
+  // disparaît dès que la fiche LIMA existe. On matche par n° de commande (unique).
+  const _numOf=d=>{ const f=(d&&d.state&&d.state.fiche)||{}, p=(d&&d.state&&d.state.plan)||{}; const n=(f.numCmd||p.numCmd||''); return (n&&n!=='—')?nrm(n):''; };
+  const _ficheNums=new Set(drafts.filter(d=>!d.planDraft && d.state&&d.state.lines&&d.state.lines.length).map(_numOf).filter(Boolean));
+  drafts=drafts.filter(d=>!(d.planDraft && _numOf(d) && _ficheNums.has(_numOf(d))));
   const list=document.getElementById('draftsList');
   const empty=document.getElementById('draftsEmpty');
   if(!list) return;
@@ -18816,10 +18829,16 @@ function renderDrafts(){
     const tag=d.fromSend?'<span style="display:inline-block;background:#3d2a00;color:var(--orange);font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">non envoyé</span>'
       :(d.planDraft?'<span style="display:inline-block;background:#1e2a3d;color:#60a5fa;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">saisie plan</span>':'');
     const meta=d.planDraft?'Saisie de plan en cours':(nb+' bobine(s)');
+    // [L280 · demande Esteban] même sans initiales d'opérateur (owner '?'), afficher au moins la MACHINE : poste
+    // machine (ownerPost) ou, à défaut, la machine choisie dans le plan/la fiche du brouillon.
+    const _pMach=(d.state&&d.state.plan&&d.state.plan.machine)?getMachineLabel(d.state.plan.machine):'';
+    const _fMach=(d.state&&d.state.fiche&&d.state.fiche.machine)?getMachineLabel(d.state.fiche.machine):'';
+    const _post=d.ownerPost||_fMach||_pMach||'';
+    const _who=(d.owner&&d.owner!=='?')?(_post?_post+' / '+d.owner:d.owner):(_post||d.owner||'');
     return `<div class="save-card">
       <div class="save-info">
         <div class="save-title">${esc(d.label)}${tag}</div>
-        <div class="save-meta">Brouillon du ${ds} · ${meta}${d.owner?' · <b style="color:var(--blue)">'+esc((d.ownerPost&&d.owner!=='?')?d.ownerPost+' / '+d.owner:d.owner)+'</b>':''}</div>
+        <div class="save-meta">Brouillon du ${ds} · ${meta}${_who?' · <b style="color:var(--blue)">'+esc(_who)+'</b>':''}</div>
       </div>
       <div class="save-actions">
         <button class="btn btn-green btn-sm" onclick="resumeDraft('${d.id}')">▶ Reprendre</button>

@@ -330,5 +330,11 @@ has(/_snapFicheChutes\(\);   \/\/ \[L278\] chutes appliquées/,'L278 : instantan
 
 has(/if\(typeof _snapFicheChutes==='function'\) _snapFicheChutes\(\);\n\}/,'L279 : instantané des chutes pris AUSSI à la reprise/chargement (restoreFicheState) → l\'ajout de chute après reprise déclenche bien le bandeau « appliquer sur le reste »');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L279 présents dans index.html + sw.js');
+console.log('── L280 : brouillons (machine + anti-doublon), graphiques lames, client Mtechnologie (demandes Esteban) ──');
+has(/"Mtechnologie": \[\{ref:"GHX173A",largeur:1290,longueur:1000\}\]/,'L280 : client Mtechnologie + réf GHX173A (1290 mm, 1000 ml) créés');
+has(/const _post=d\.ownerPost\|\|_fMach\|\|_pMach\|\|'';/,'L280 : brouillon affiche la MACHINE même sans initiales d\'opérateur (plus de « ? » seul)');
+has(/drafts=drafts\.filter\(d=>!\(d\.planDraft && _numOf\(d\) && _ficheNums\.has\(_numOf\(d\)\)\)\)/,'L280 : doublon « saisie de plan » masqué quand la même commande existe en fiche');
+has(/barres à coins HAUTS arrondis/,'L280 : graphiques lames modernisés (coins arrondis, dégradé, ombre, liseré)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L280 présents dans index.html + sw.js');
 process.exit(fail?1:0);
