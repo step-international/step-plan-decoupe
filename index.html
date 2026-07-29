@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.29-L282';
+const APP_VERSION='2026.07.29-L283';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -15693,7 +15693,10 @@ let ficheRefOrder = [];              // Lot 2 : index plan des réfs productives
 function fmmRawRefs(){
   const groups=(typeof getRefGroups==='function'?getRefGroups():[]);
   const out=[];
-  groups.forEach((g,i)=>{ if((g.rows||[]).length) out.push({idx:i,ref:(g.ref||('Référence '+(i+1))),mother:g.mother,edge:g.edge,blade:g.blade,machine:g.machine||'',useful:g.useful,longueur:g.longueur,film:g.film||'',veka:g.veka||''}); });
+  // [L283] refKey = clé d'identité calculée sur le GROUPE RÉEL (nom vide préservé) — PAS sur le nom affiché
+  // « Référence N » que fmmRawRefs substitue quand le nom est vide. C'est EXACTEMENT la clé posée sur les lignes
+  // bobine par importPlanToFiche (_refIdKey(c)) → le rattachement réf↔bobines reste fiable même sans nom saisi.
+  groups.forEach((g,i)=>{ if((g.rows||[]).length) out.push({idx:i,ref:(g.ref||('Référence '+(i+1))),refKey:((typeof _refIdKey==='function')?_refIdKey(g):null),mother:g.mother,edge:g.edge,blade:g.blade,machine:g.machine||'',useful:g.useful,longueur:g.longueur,film:g.film||'',veka:g.veka||''}); });
   return out;
 }
 // Éléments distinctifs d'une réf (film, longueur, VEKA) pour la différencier
@@ -15718,6 +15721,18 @@ function fmmCutOrder(){
 function fmmGetRefs(){
   const byIdx={}; fmmRawRefs().forEach(r=>{byIdx[r.idx]=r;});
   return fmmCutOrder().map(i=>byIdx[i]).filter(Boolean);
+}
+// [L283] Une réf a-t-elle au moins une bobine à couper dans la FICHE ? Prédicat IDENTIQUE au sélecteur d'ancre
+// de renderFicheMachineBlocks (refIdKey d'abord, puis nom normalisé) → garanti cohérent avec « une carte est-elle
+// rendue ? ». Une réf entièrement couverte par du stock/chutes — ou saisie sans bobine mère (laize utile 0) — n'en
+// a AUCUNE : rien à couper = rien à valider. Sert UNIQUEMENT à l'affichage (curseur « réf en cours » qui la saute
+// + étiquette « rien à couper ») ; ne touche JAMAIS ficheRefValidated (le verrou chrono/trace ISO reste piloté par
+// les vraies validations opérateur — cf. mémoire invariant-gate-chrono-multiref).
+function _refHasFicheBob(r){
+  if(!r) return false;
+  const rk=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null);   // clé robuste (cf. fmmRawRefs) → pas de faux négatif sur réf sans nom
+  const k=nrm(r.ref);
+  return (rk && ficheLines.some(l=>l&&l.refIdKey===rk)) || ficheLines.some(l=>l&&nrm(l.ref)===k);
 }
 // Positions d'origine dans `computed` (ordre plan) réordonnées en ordre de coupe.
 // Sert à générer les bobines dans l'ordre de coupe SANS casser l'index planManual.
@@ -15763,6 +15778,12 @@ function fmmIsMulti(){ return fmmRawRefs().length>1; }
 // Index de la réf « en cours » = 1re réf non encore validée (ordre plan).
 function fmmActiveIdx(){
   const refs=fmmGetRefs();
+  // [L283] curseur « réf en cours » = 1re réf non validée QUI A une bobine à couper. On SAUTE les réfs sans
+  // bobine (couvertes par le stock / sans mère) : sinon le curseur restait coincé dessus (aucune carte « Valider
+  // la bobine mère » possible) et la réf suivante restait 🔒 sans bouton (impasse d'AFFICHAGE). ficheRefValidated
+  // n'est pas touché → le chrono exige toujours la validation d'une VRAIE réf (verrou/trace ISO intacts).
+  for(const r of refs){ if(!ficheRefValidated.has(r.idx) && _refHasFicheBob(r)) return r.idx; }
+  // Repli : aucune réf à couper non validée (ex. fiche entièrement stock) → comportement d'origine préservé.
   for(const r of refs){ if(!ficheRefValidated.has(r.idx)) return r.idx; }
   return refs.length?refs[refs.length-1].idx:0;
 }
@@ -15821,6 +15842,10 @@ function renderFicheMachineBlocks(opts){
   if(opts.fresh) ficheRefValidated.clear();
   if(opts.allValidated) refs.forEach(r=>ficheRefValidated.add(r.idx));
   const activeIdx=fmmActiveIdx();
+  // [L283] Y a-t-il au moins une réf avec une vraie bobine à couper ? Le traitement « réf sans bobine » (masquer
+  // sa carte + l'étiqueter « rien à couper ») ne s'active QUE dans ce cas — sinon (fiche 100% stock, dégénérée)
+  // on garde le rendu d'origine pour ne JAMAIS créer de nouveau cul-de-sac (au moins une carte reste validable).
+  const _anyBob=refs.some(_refHasFicheBob);
   // Liste « Ordre de coupe » (▲▼) — chaque réf est distinguée par film / longueur / VEKA.
   const orderEl=document.getElementById('fmmOrder');
   if(orderEl){
@@ -15834,10 +15859,13 @@ function renderFicheMachineBlocks(opts){
       const _oml=getMachineLabel(r.machine||'');
       const _omc=({feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'})[r.machine]||'#888';
       const _omChip=_oml?'<span class="frs-mch" style="--mc:'+_omc+'">⚙ '+esc(_oml)+'</span>':'';
+      // [L283] réf entièrement couverte par le stock (ou sans bobine mère) → chip « rien à couper » : elle reste
+      // visible dans l'ordre de coupe mais l'opérateur sait qu'il n'y a AUCUNE bobine à valider/couper dessus.
+      const _noBobChip=(_anyBob && !_refHasFicheBob(r))?'<span class="frs-mch" style="--mc:#8a94a6" title="Aucune bobine à couper — cette référence est entièrement couverte par le stock (ou saisie sans bobine mère). Rien à valider.">✓ rien à couper (stock)</span>':'';
       oh+='<div class="fmm-order-row" style="border-left:5px solid '+rc+'">'
         +'<span class="fmm-order-num" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">'+(pos+1)+'</span>'
         +'<span class="fmm-order-id"><span class="fmm-order-name">'+esc(String(r.ref))+'</span>'
-        +_omChip
+        +_omChip+_noBobChip
         +(tags.length?'<span class="fmm-order-tags">'+tags.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'')
         +'</span>'
         +'<span class="fmm-order-btns">'
@@ -15854,6 +15882,12 @@ function renderFicheMachineBlocks(opts){
   // sur le séparateur (qui peut manquer à la reprise d'un brouillon).
   const cont=document.getElementById('ficheLines');
   refs.forEach((r,pos)=>{
+    // [L283] réf sans bobine à couper (couverte par le stock / sans mère) : AUCUNE carte dans la colonne des
+    // bobines — rien à valider, rien à couper. Elle reste listée + étiquetée « rien à couper » dans « Ordre de
+    // coupe ». fmmActiveIdx la saute déjà → la réf suivante montre bien son bouton. Supprime la carte FANTÔME
+    // (pos0, insertion inconditionnelle) ET la réf « active invisible » qui verrouillait la suivante (posN).
+    // Gardé par _anyBob : inactif sur une fiche 100% stock (rendu d'origine préservé, pas de nouveau cul-de-sac).
+    if(_anyBob && !_refHasFicheBob(r)) return;
     const validated=ficheRefValidated.has(r.idx);
     const active=(r.idx===activeIdx) && !validated;
     const locked=!validated && !active;
@@ -15925,7 +15959,7 @@ function renderFicheMachineBlocks(opts){
     // CLÉ D'IDENTITÉ d'abord (refIdKey embarque film/veka/longueur/useful/blade) — sinon le bloc de la réf 2
     // s'ancrait sur la 1re bobine de la réf 1 (même nom) et remontait TOUT EN HAUT au lieu du changement de réf.
     const key=nrm(r.ref);
-    const rKey=(typeof _refIdKey==='function')?_refIdKey(r):null;
+    const rKey=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null);   // [L283] clé robuste (cf. fmmRawRefs) : identique à l'actuelle pour une réf nommée, corrige le rattachement d'une réf sans nom
     let anchor=null;
     if(rKey){ for(const l of ficheLines){ if(l.refIdKey===rKey){ anchor=document.getElementById(l.id); break; } } }
     if(!anchor) for(const l of ficheLines){ if(nrm(l.ref)===key){ anchor=document.getElementById(l.id); break; } }

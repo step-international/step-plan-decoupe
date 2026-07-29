@@ -342,5 +342,13 @@ has(/\$\{d\.refNum\?/,'L281 : étiquette imprimée avec le n° de référence re
 console.log('── L282 : audit « bouton bloqué » — plus de blocage SILENCIEUX à l\'envoi (demande Esteban) ──');
 has(/Envoi en cours — patiente quelques secondes, ne re-tape pas\./,'L282 : envoi fiche déjà en cours → TOAST explicite au lieu d\'un blocage muet (l\'opérateur re-tape et croyait le bouton mort)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L282 présents dans index.html + sw.js');
+console.log('── L283 : impasse multi-réf (réf couverte par le stock) — fix AFFICHAGE, 0 touche au verrou chrono/trace ISO ──');
+has(/function _refHasFicheBob\(r\)/,'L283 : prédicat « cette réf a-t-elle une bobine à couper ? » (clé robuste, identique au sélecteur d\'ancre)');
+has(/refKey:\(\(typeof _refIdKey==='function'\)\?_refIdKey\(g\):null\)/,'L283 : fmmRawRefs attache refKey calculée sur le GROUPE RÉEL (nom vide préservé) → plus de faux négatif sur réf sans nom');
+has(/if\(!ficheRefValidated\.has\(r\.idx\) && _refHasFicheBob\(r\)\) return r\.idx;/,'L283 : fmmActiveIdx SAUTE les réfs sans bobine (curseur « réf en cours » atterrit sur une vraie réf avec bouton) — repli d\'origine préservé');
+has(/if\(_anyBob && !_refHasFicheBob\(r\)\) return;/,'L283 : réf sans bobine → AUCUNE carte (ni fantôme pos0 ni 🔒 trompeur) ; gardé par _anyBob (fiche 100% stock = rendu d\'origine, pas de nouveau cul-de-sac)');
+has(/rien à couper \(stock\)/,'L283 : réf couverte par le stock étiquetée « rien à couper (stock) » dans Ordre de coupe (visible mais rien à valider)');
+has(/const _anyBob=refs\.some\(_refHasFicheBob\)/,'L283 : garde _anyBob — le traitement « réf sans bobine » ne s\'active que s\'il reste une vraie réf à couper');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L283 présents dans index.html + sw.js');
 process.exit(fail?1:0);
