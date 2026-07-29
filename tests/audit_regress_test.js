@@ -277,8 +277,8 @@ has(/const batch=db\.batch\(\); batch\.set\(iRef,rec\); if\(dRef\) batch\.set\(d
 has(/aAffuter\.push\(\{\.\.\.item,viaPose:true\}\)/,'L269 : à-affûter sans trace demonte marquée viaPose (classeur)');
 has(/'posée le ⚠':dateLbl/,'L269 : carte lame honnête — « posée le ⚠ » quand le démontage n\'a pas été tracé (plus de « démontée le » mensonger)');
 
-console.log('── L270 : étiquette solde — case N° de référence à compléter ──');
-has(/case N° de référence À COMPLÉTER À LA MAIN/,'L270 : étiquette solde porte une case vide « N° de référence » (l\'atelier note la réf réelle au feutre)');
+console.log('── L270→L281 : étiquette solde — N° de référence (case au feutre → saisie digitale) ──');
+has(/N° de référence saisi DIGITALEMENT/,'L270→L281 : étiquette solde — N° de référence saisi DIGITALEMENT (repli case vide si non saisi)');
 
 console.log('── L271 : anti-perte de référence (audit 27/07, lot 1) ──');
 has(/confirmDlg\('Retirer la référence '/,'L271 #1 CRITIQUE : suppression d\'une réf entière exige une confirmation DANGER + trace (cause probable perte Tacflex/Prima)');
@@ -336,5 +336,8 @@ has(/const _post=d\.ownerPost\|\|_fMach\|\|_pMach\|\|'';/,'L280 : brouillon affi
 has(/drafts=drafts\.filter\(d=>!\(d\.planDraft && _numOf\(d\) && _ficheNums\.has\(_numOf\(d\)\)\)\)/,'L280 : doublon « saisie de plan » masqué quand la même commande existe en fiche');
 has(/barres à coins HAUTS arrondis/,'L280 : graphiques lames modernisés (coins arrondis, dégradé, ombre, liseré)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L280 présents dans index.html + sw.js');
+has(/id="etiqRefNum_\$\{d\.key\}"/,'L281 : étiquette solde — input DIGITAL « N° de référence » (fini la case au feutre)');
+has(/\$\{d\.refNum\?/,'L281 : étiquette imprimée avec le n° de référence rempli (repli case vide si non saisi)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L281 présents dans index.html + sw.js');
 process.exit(fail?1:0);

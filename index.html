@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.29-L280';
+const APP_VERSION='2026.07.29-L281';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7078,11 +7078,11 @@ function printEtiquette(d){
       <span><b>Machine :</b> ${esc(String(d.mn))}</span>
       <span><b>Date :</b> ${esc(String(d.date))}</span>
     </div>
-    <!-- [L270 · demande Esteban 24/07] case N° de référence À COMPLÉTER À LA MAIN sur chaque étiquette solde
-         (le solde peut resservir sur une autre commande : l'atelier note la réf réelle au feutre) -->
+    <!-- [L281 · demande Esteban 29/07] N° de référence saisi DIGITALEMENT (input etiqRefNum) → imprimé rempli.
+         Repli : case vide à compléter au feutre si aucun n° n'a été saisi. -->
     <div style="display:flex;align-items:center;gap:16px;justify-content:center;margin-top:22px">
       <b style="font-size:38px;white-space:nowrap">N° de référence :</b>
-      <span style="display:inline-block;flex:1;max-width:150mm;height:24mm;border:4px solid #000;border-radius:12px"></span>
+      ${d.refNum?`<span style="font-size:62px;font-weight:900;color:#111;letter-spacing:1px">${esc(String(d.refNum))}</span>`:`<span style="display:inline-block;flex:1;max-width:150mm;height:24mm;border:4px solid #000;border-radius:12px"></span>`}
     </div>
   </div></div>
   </body></html>`;
@@ -7186,6 +7186,10 @@ function refreshEtiquetteSolde(){
         <label>N° de la bobine mère</label>
         <input type="text" id="etiqNumMere_${d.key}" placeholder="ex : 11" inputmode="text" oninput="updateEtiquetteBtn('${d.key}')">
       </div>
+      <div class="field" style="margin-bottom:8px"><!-- [L281 · demande Esteban] N° de référence saisi DIGITALEMENT (fini la case à remplir au feutre) : pré-rempli avec la réf, modifiable -->
+        <label>N° de référence <span style="color:var(--muted);font-weight:400">— imprimé sur l'étiquette (digital)</span></label>
+        <input type="text" id="etiqRefNum_${d.key}" value="${esc(String(d.ref||'').replace(/⟲ fin de phase/,'').trim()==='—'?'':String(d.ref||'').replace(/⟲ fin de phase/,'').trim())}" placeholder="ex : GHX173A">
+      </div>
       <button class="btn btn-orange" id="etiqPrintBtn_${d.key}" style="width:100%;justify-content:center;opacity:.4;cursor:not-allowed" onclick="printEtiquetteSolde('${d.key}')">🖨️ Imprimer l'étiquette solde</button>
     </div>`).join('');<!-- [L191] hint « Saisis le n° de la bobine mère… » retiré (demande Esteban) -->
 }
@@ -7203,7 +7207,8 @@ function printEtiquetteSolde(key){
   if(!d){showToast('⚠ Impossible de calculer le solde pour cette référence.','err');return;}
   // [L191] laize solde ÉDITABLE : si l'opérateur a corrigé la laize restante (bobine changée), imprimer SA valeur.
   const soldeEdit=(document.getElementById('etiqSolde_'+key)?.value||'').trim();
-  printEtiquette({...d,solde:soldeEdit||d.solde,numBob:num});
+  const refNum=(document.getElementById('etiqRefNum_'+key)?.value||'').trim();   // [L281] n° de référence saisi digitalement
+  printEtiquette({...d,solde:soldeEdit||d.solde,numBob:num,refNum});
 }
 
 function printPlan(){
