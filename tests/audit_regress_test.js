@@ -382,12 +382,41 @@ has(/Une sauvegarde AUTO plus récente existe/,'L287 : reprise d\'un brouillon p
 console.log('── L288 : les 6 tâches du 29/07 (décisions Esteban) ──');
 has(/body\.atelier \.nc-check\.ras,body\.atelier \.test2-sub,body\.atelier \.test2-nc\{font-size:17px;min-height:48px;padding:8px 14px\}/,'L288 T1 : test 2ᵉ compacté à 48px (plancher gants), puces Défaut inchangées à 60px');
 has(/bn\.dataset\.covTok=_tok/,'L288 T2 : bandeau violet « bobines ajoutées » auto-restauré après 5 s (jeton anti-course, retour via updateCoupeeStatus — jamais de display:none sec)');
-has(/dont <b>\$\{_meresN\}<\/b> sur bobines mères/,'L288 T3 : ligne par-réf = TOTAL commandé avec « dont X mères + Y rouleau chute + N stock » (fini le 42 vs 50)');
 has(/const _cuForRecap=\(c\.chutesUsed&&Object\.keys\(c\.chutesUsed\)\.length\)\?c:\{chutesUsed:_chutesSrc\}/,'L288 T3 : récap bobineaux STOCK visible aussi sur le PDF fiche (chutes appariées mandrinGroups)');
+
+console.log('── L289 : PDF tableau par laize + Total supprimé + édition manuelle avec rouleaux (choix Esteban 30/07) ──');
+has(/TABLEAU PAR LAIZE.*variante A allégée|maquette A allégée.*TABLEAU PAR LAIZE/,'L289 : tableau par laize (Laize | Commandé | ✂ En stock | À couper) — remplace la ligne 🧾 « dont » L288');
+has(/laize 100 % stock → bloc orange uniquement/,'L289 : une laize entièrement servie par le stock n\'apparaît PAS dans « à couper » (bloc orange seul)');
+has(/ligne « Total commande d'origine » multi-réf SUPPRIMÉE/,'L289 : Total global multi-réf supprimé (contradictions impossibles)');
+absent(/🧾 Total commande d'origine/,'L289 : l\'ancien Total multi-réf a bien disparu du template');
+has(/est SUPPRIMÉE \(redondante/,'L289 : bande verte « N rouleaux recoupés en 1er » retirée (info portée par les lignes ♻ du tableau) — seul « non utilisés » reste');
+has(/le blocage « rouleaux saisis → pas d'édition manuelle » SAUTE/,'L289 : édition manuelle DÉBLOQUÉE avec rouleaux ♻ (rouleaux figés auto + mères éditables)');
+absent(/Édition manuelle indisponible quand des rouleaux/,'L289 : l\'ancien message de blocage a disparu');
+has(/rouleaux ♻ AUSSI en plan manuel : gérés en AUTO \(calcul moteur,/,'L289 : la fiche générée depuis un plan manuel inclut les rouleaux ♻ (recoupés en 1er)');
+has(/leurs pièces \(calcul moteur, déterministe/,'L289 : planManualCoherence crédite les pièces des rouleaux (pas de faux « manque »)');
+has(/géré automatiquement \(recoupé en 1er\) — modifiable via ♻ dans la saisie/,'L289 : rouleaux visibles en LECTURE SEULE dans l\'éditeur manuel');
+has(/le PDF manuel les taisait/,'L289 : le PDF d\'un plan manuel imprime les rouleaux ♻ + stock (appariement auto)');
+has(/imprimer ses lignes vertes \(le tableau par laize compte leurs pièces/,'L289 (revue) : printSavedPlan apparie AUSSI les rouleaux du plan manuel sauvegardé (toutes les surfaces)');
+has(/const recMat=\(c\.recutGroups\|\|\[\]\)\.reduce/,'L289 (revue) : stats archive manuel+rouleaux = matière rouleau incluse (invariant L83#40, % perte juste)');
+
+console.log('── L290 : multi-clients lisibles + fixes audit 30/07 (NC test2, dims plan, partage validation mère) ──');
+has(/const CLI_COLORS=\{A:'#eab308',B:'#f472b6',C:'#22d3ee',D:'#c4b5fd'/,'L290 : palette clients RE-SÉPARÉE (jaune/rose/cyan/violet — fini orange≈jaune, lime≈jaune)');
+has(/function cliPrintChip\(id\)/,'L290 : pastille client IMPRIMABLE distincte en NIVEAUX DE GRIS (A blanc bordé, B noir, C gris, D double anneau)');
+has(/function cliAllocPrintHtml\(list\)/,'L290 : allocations PDF en pièces colorées + pastilles N&B (au lieu du texte violet 11px)');
+has(/flTest2nc_'\+id\)\?\.checked\) return true;/,'L290 (audit #NC) : ⚠ NC test 2ᵉ FIGE la ligne (isLineFrozen) — le recalcul ne détruit plus la trace qualité');
+has(/flTest2nc_'\+id\)\?\.checked\) return false;/,'L290 (audit #NC) : ⚠ NC test 2ᵉ = fiche « touchée » (isFicheUntouched) — l\'import auto ne l\'écrase plus');
+has(/DIMENSIONS modifiées dans le plan/,'L290 (audit #1) : dérive de DIMENSION plan→fiche détectée (mère/laize/lame via clé divergée + repli nom) — bannière needClick, auto-refermante');
+has(/valider\/modifier la bobine mère pendant un PARTAGE actif produisait un FAUX|Commande PARTAGÉE — arrête le partage avant de valider\/modifier la bobine mère/,'L290 (audit CRITIQUE) : validation mère bloquée pendant un partage actif (toast explicite, fini le faux succès)');
+has(/rollRest\+=cnt\*Math\.max\(0,\(Number\(g\.rollW\)\|\|0\)-u\)/,'L290 (contre-revue) : chip % de l\'éditeur manuel intègre la matière rouleau — écran == archive');
+has(/const _ln0=lines\.find\(d=>!d\.recut\)\|\|lines\[0\];/,'L290 (revue C3) : détecteur dims comparé à une ligne MÈRE, jamais un rouleau (fini « 190 → 946 » absurde)');
+has(/const _keyOf=l=>\(l&&l\.refIdKey\)\|\|\('nom:'\+nrm\(\(l&&l\.ref\)\|\|''\)\)/,'L290 (URGENT feuille MOREY) : papier fiche regroupé par CLÉ D\'IDENTITÉ — deux réfs de même nom (1000ml vs 500ml micro-perf) ne fusionnent plus en une section');
+has(/\{ref:"TacFlex® DH100-2",largeur:2200,longueur:1000\}/,'L290 : réf DH100-2 transparent 1000 ml créée (MOREY + FEILO SYLVANIA + EPSOTECH)');
+has(/\{ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500\}/,'L290 : réf DH1006-2 micro perf 500 ml créée (MOREY + FEILO SYLVANIA + EPSOTECH)');
+absent(/"MOREY": \[\{ref:"41116850 - TacFlex® DH1006-2"/,'L290 : l\'ancienne réf unique MOREY a bien été remplacée');
 has(/function _syncRefDonePills\(\)/,'L288 T4 : réf finie → carte repliée en pastille « ✓ Réf N terminée (déplier) », recorriger accessible, matching par refIdKey');
 has(/Valide d\\'abord la bobine mère de la réf en cours/,'L288 T5 : chrono multi-réf bloqué → toast qui nomme le VRAI geste + scroll/pulse du bloc actif (fini le motif « dimension modifiée » faux)');
 has(/Il reste '\+\(_tot-_dn\)\+' bobine\(s\) à marquer/,'L288 T5 : bouton d\'envoi jamais disabled — tap avant la fin = toast « reste N » + scroll (zéro tap mort)');
 has(/function _guideGo\(kind,id\)/,'L288 T6 : guide de prochaine action PERMANENT dans la bande de suivi (valide mère → chrono → coupe → envoie), tap = scroll/pulse cible visible');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L288 présents dans index.html + sw.js');
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L290 présents dans index.html + sw.js');
 process.exit(fail?1:0);

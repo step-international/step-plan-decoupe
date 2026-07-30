@@ -1800,7 +1800,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.30-L288';
+const APP_VERSION='2026.07.30-L290';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2866,7 +2866,10 @@ const CLIENT_DATA = {
     {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
     {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500}
   ],
-  "EPSOTECH": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
+  "EPSOTECH": [
+    {ref:"TacFlex® DH100-2",largeur:2200,longueur:1000},   // [L290 · demande Esteban 30/07] transparent 1000 ml (remplace 41116850 DH1006-2 500 ml)
+    {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
+  ],
   "EXAL": [
     {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
     {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
@@ -2880,8 +2883,8 @@ const CLIENT_DATA = {
     {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
   ],
   "FEILO SYLVANIA": [
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
-    {ref:"TacFlex® DH1006-2 1000m",largeur:2200,longueur:1000}
+    {ref:"TacFlex® DH100-2",largeur:2200,longueur:1000},   // [L290 · demande Esteban 30/07] transparent 1000 ml (remplace DH1006-2 500 ml + DH1006-2 1000m)
+    {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
   ],
   "GAMPLAST": [{ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500}],
   "GK TECHNIQUES": [
@@ -2929,7 +2932,10 @@ const CLIENT_DATA = {
   ],
   "Les Zelles": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
   "LETBEK": [{ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}],
-  "MOREY": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
+  "MOREY": [
+    {ref:"TacFlex® DH100-2",largeur:2200,longueur:1000},   // [L290 · demande Esteban 30/07] transparent 1000 ml (remplace 41116850 DH1006-2 500 ml)
+    {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
+  ],
   "MOSA GLAS": [{ref:"TacFlex® DQ1009 vert",largeur:2100,longueur:1000}],
   "MOSS": [
     {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
@@ -3294,7 +3300,10 @@ let cmdMetaByRef = {};
 let cmdClients = [];   // [{id:'B',nom,numCmd,dateLiv,palette,typeCond,etiquetage,cerclage,notes}]
 // Couleurs clients : lettre TOUJOURS affichée dans la pastille (impression N&B + daltonisme).
 // '#eab308' (pas #facc15 : collision exacte avec REF_PALETTE[7]). '+' = pièce hors commande.
-const CLI_COLORS={A:'#eab308',B:'#fb923c',C:'#a3e635',D:'#c4b5fd','+':'#888'};
+// [L290 · demande Esteban 30/07] palette RE-SÉPARÉE : l'orange B se confondait avec le jaune A, le lime C
+// avec les deux — l'opérateur ne distinguait plus les clients. Jaune / ROSE / CYAN / violet = 4 teintes
+// éloignées, sans collision avec l'ambre action, le rouge alerte ni les couleurs machine.
+const CLI_COLORS={A:'#eab308',B:'#f472b6',C:'#22d3ee',D:'#c4b5fd','+':'#888'};
 let ficheLines = [];
 let loadTargetIdx = null;
 let loadedSaveId = null; // id du plan sauvegardé chargé par l'opérateur (supprimé après confirmation de la fiche)
@@ -4023,17 +4032,34 @@ function _fichePlanDriftCheck(opts){
         }
       }
       if(!lines.length) return;                          // réf absente du snapshot (fiche pas encore générée pour elle) : flux normal
+      // [L290 · audit 30/07 #1] DIMENSIONS modifiées côté PLAN en cours de coupe (mère/bords/lame → useful/blade
+      // divergent → la clé a divergé → on est ici PAR REPLI DE NOM) : dérive 100 % SILENCIEUSE avant — aucune
+      // bannière, chrono jamais re-verrouillé, papier « mère nouvelle · utile ancien ». Détecteur par ÉTAT (survit
+      // au rechargement, couvre mono + multi). needClick : changer une dimension exige la conscience opérateur.
+      // AUTO-REFERMANT : après « Appliquer » (recalc), les lignes régénérées portent la NOUVELLE clé → plus de repli.
+      let _dimMsg='';
+      if(!allKeys.has(lines[0].refIdKey)){
+        // [L290 · revue C3] comparer contre une ligne BOBINE MÈRE, jamais un rouleau ♻ (useful=rollW → chiffres
+        // absurdes « 190 → 946 » et fausse alerte quand seule la longueur/film a divergé la clé).
+        const _ln0=lines.find(d=>!d.recut)||lines[0];
+        const _fu=Number(_ln0.useful)||0, _fb=Number(_ln0.blade)||0;
+        const _du=[];
+        if(Math.abs((Number(c.useful)||0)-_fu)>0.001) _du.push('laize utile '+fmt(_fu)+' → '+fmt(c.useful)+' mm');
+        if(Math.abs((Number(c.blade)||0)-_fb)>0.001) _du.push('lame '+fmt(_fb)+' → '+fmt(c.blade)+' mm');
+        if(_du.length) _dimMsg='DIMENSIONS modifiées dans le plan ('+_du.join(' · ')+') → re-valider puis recalculer';
+      }
       // [L286 · revue P2] les checks par-CLÉ (stock, rouleaux multiset, sur-coupe, équilibre) ne tournent que sur
       // le PREMIER groupe de chaque clé : `lines` contient déjà toutes les lignes de la clé, un 2ᵉ passage
       // comparerait la part d'UN bloc au total des lignes → faux positif structurel.
       const _firstOfKey=!_kSeen.has(key); _kSeen.add(key);
       const _engaged=lines.some(engagedOf);
       const msgs=[];
+      if(_dimMsg){ msgs.push(_dimMsg); needClick=true; }   // [L290 · audit #1] dimension = dérive SENSIBLE : bannière 1 clic, jamais d'auto-application
       // [L285/L286] prédicat « figée » : réplique isLineFrozen (ce que le recalcul PRÉSERVE) sur les données —
       // cf. revue L285 : engagedOf rate l'étiquette éditée / la config modifiée → bannière coincée. Hissé ici
       // (L286) car les détecteurs rouleaux + équilibre + sur-coupe l'utilisent tous.
       const _frozenLike=d=>{
-        if(d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit) return true;
+        if(d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc) return true;   // [L290 · audit #NC] test2nc figé (miroir isLineFrozen, mis à jour ensemble)
         if((d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng) return true;
         const _lv=(d.label||'').trim(); if(_lv && _lv!==(d.autoLabel||'').trim()) return true;   // étiquette mère éditée = ligne engagée (B21)
         if(typeof normConf==='function' && normConf(d.conf||'')!==(d.origConf||'')) return true;   // config modifiée à la main
@@ -4258,6 +4284,7 @@ function isFicheUntouched(){
     if(document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')) return false;
     if(document.getElementById('flDevi_'+id)?.checked) return false;
     if(document.getElementById('flDroit_'+id)?.checked) return false;
+    if(document.getElementById('flTest2nc_'+id)?.checked) return false;   // [L290 · audit 30/07 #NC] ⚠ NC test 2ᵉ = travail terrain : la fiche n'est plus « vierge » (l'import auto ne l'écrase plus)
   }
   return true;
 }
@@ -4415,6 +4442,18 @@ function importPlanToFiche(opts){
         // (l'ancien tri côté fiche créait 3 ordres différents → étiquette solde et 👥 contradictoires).
         // Le « grandes laizes d'abord » des plans écrits à la main est appliqué UNE FOIS au CHARGEMENT
         // du plan sauvegardé (_pmSortBobinesOnce dans doLoad), jamais pendant l'édition.
+        // [L289 · choix Esteban 30/07] rouleaux ♻ AUSSI en plan manuel : gérés en AUTO (calcul moteur,
+        // non éditables dans l'éditeur), générés AVANT les bobines manuelles — miroir exact du plan auto.
+        (c.recutGroups||[]).forEach(g=>{
+          for(let k=0;k<g.count;k++){
+            const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
+            addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
+              ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:c.blade, machine:c.machine||'',
+              recut:true, rollW:g.rollW,
+              chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm — À RECOUPER EN 1ER (avant les bobines mères)'});
+            bi++;
+          }
+        });
         man.bobines.forEach(b=>{
           const cnt=Math.max(1,parseInt(b.count)||1);
           for(let k=0;k<cnt;k++){
@@ -4711,6 +4750,22 @@ function cliListFull(){
 }
 // Pastille (lecture seule) : couleur + lettre.
 function cliDotHtml(id,small){ return `<span class="cli-dot${small?' cli-sm':''}" style="background:${cliColor(id)}">${esc(id)}</span>`; }
+// [L290 · demande Esteban 30/07] pastille client pour l'IMPRESSION : distincte même en NIVEAUX DE GRIS
+// (forme + contraste, pas seulement la teinte — les PDF partent en grayscale au print). A = blanc bordé noir,
+// B = noir plein, C = gris, D = blanc à double anneau. La couleur écran reste portée par cliColor (aperçu).
+function cliPrintChip(id){
+  const st={A:'background:#fff;color:#000;border:2px solid #000',
+            B:'background:#000;color:#fff;border:2px solid #000',
+            C:'background:#c7cdd6;color:#000;border:2px solid #000',
+            D:'background:#fff;color:#000;border:2px solid #000;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #000'}[id]||'background:#eee;color:#000;border:2px solid #888';
+  return '<span style="display:inline-block;min-width:15px;text-align:center;padding:0 4px;border-radius:4px;font-weight:900;font-size:11px;line-height:1.5;'+st+'">'+esc(id)+'</span>';
+}
+// Allocation d'une bobine pour l'impression : pièces COLORÉES par client (aperçu écran) + pastille N&B (papier).
+function cliAllocPrintHtml(list){
+  return (list||[]).map(x=>x.c!=='+'
+    ?`<span style="white-space:nowrap;color:${cliColor(x.c)}"><b>${x.q}×${fmt(x.w)}</b> ${cliPrintChip(x.c)}</span>`
+    :`<span style="white-space:nowrap;color:#888">${x.q}×${fmt(x.w)} [hors cmd]</span>`).join(' + ');
+}
 
 // ── ATTRIBUTION FIFO (fonctions PURES, testées hors-ligne) ──────────────────
 // Files de demande par largeur pour UNE réf : ordre = ordre de saisie des lignes.
@@ -5209,6 +5264,7 @@ function isLineFrozen(id){
       if(!_ln||_lv!==String(_ln.label||'').trim()) return true; } }   // [L94 · terrain 09/07] l'étiquette AUTO (BOB-xxx préremplie) ne gèle plus : elle gelait TOUTES les bobines → le recalcul ne ré-optimisait jamais, il ne faisait qu'AJOUTER des RESTE-. Une étiquette MODIFIÉE par l'opérateur (n° de bobine mère réel) gèle toujours (B21).
   if(document.getElementById('flDevi_'+id)?.checked) return true;
   if(document.getElementById('flDroit_'+id)?.checked) return true;
+  if(document.getElementById('flTest2nc_'+id)?.checked) return true;   // [L290 · audit 30/07 #NC] ⚠ NC du test 2ᵉ = trace qualité ISO : la ligne est FIGÉE (avant : l'import auto / un recalcul la détruisait en silence)
   const meta=ficheLines.find(l=>l.id===id);
   const cur=normConf(document.getElementById('flConf_'+id)?.value);   // [L88] * accepté
   if(meta && cur!==(meta.origConf||'')) return true; // config modifiée manuellement
@@ -6274,9 +6330,14 @@ function _pmComputedForArchive(computed){
     const pg=man.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1),pattern:parseConf(normConf(b.conf||''))})).filter(gp=>gp.pattern.length);
     if(!pg.length) return c;
     const bobs=[].concat(...pg.map(gp=>Array.from({length:gp.count},()=>gp.pattern.map(p=>({...p})))));
-    const totalMat=useful*bobs.length;
-    const used=bobs.reduce((sm,p)=>sm+calcStats(p,blade).total,0);
-    return {...c,useful,blade,planGroups:pg,bobines:bobs,recutGroups:[],recutBobines:[],chutesUsed:{},
+    // [L289 · revue P2] la matière des rouleaux ♻ (conservés désormais) doit entrer dans les stats comme au
+    // moteur (recutMat/recutUsed) — sinon computePlanAggregate soustrait resteRouleauxMm d'une perte qui ne
+    // l'a jamais contenu → % perte archive SOUS-évalué (réouverture de l'invariant L83 · Audit #40).
+    const recMat=(c.recutGroups||[]).reduce((s,g)=>s+Math.max(1,parseInt(g.count)||1)*(Number(g.rollW)||0),0);
+    const recUsed=(c.recutGroups||[]).reduce((s,g)=>s+Math.max(1,parseInt(g.count)||1)*calcStats(g.pattern||[],c.blade).total,0);
+    const totalMat=useful*bobs.length+recMat;
+    const used=bobs.reduce((sm,p)=>sm+calcStats(p,blade).total,0)+recUsed;
+    return {...c,useful,blade,planGroups:pg,bobines:bobs,recutGroups:c.recutGroups||[],recutBobines:c.recutBobines||[],chutesUsed:{},   // [L289] les rouleaux ♻ (gérés en auto, présents dans la fiche) restent dans l'archive — avant : vidés (le manuel les interdisait) ; chutesUsed:{} inchangé (comportement archive manuel historique)
       stats:{totalBobines:bobs.length,totalMat,totalUsed:used,pct:totalMat>0?(totalMat-used)/totalMat*100:0}};
   });
 }
@@ -6603,10 +6664,10 @@ function togglePlanManual(){
 function enterPlanManual(){
   const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
   if(!computed.length){ showToast('Aucun plan à modifier — saisis d\'abord la commande.','err'); return; }
-  if(computed.some(c=>(c.recutBobines||[]).length||(c.recuts||[]).length)){
-    showToast('✏️ Édition manuelle indisponible quand des rouleaux à recouper sont saisis.\n\nRetire les rouleaux (♻) pour éditer le plan à la main, ou garde le plan automatique.','err');
-    return;
-  }
+  // [L289 · choix Esteban 30/07] le blocage « rouleaux saisis → pas d'édition manuelle » SAUTE : les rouleaux ♻
+  // restent gérés en AUTOMATIQUE (recoupés en 1er, affichés en lecture seule dans l'éditeur), l'opérateur édite
+  // librement les bobines MÈRES. La cohérence (planManualCoherence) crédite leurs pièces ; la fiche les génère
+  // avant les bobines manuelles ; le PDF les imprime comme en plan auto.
   planManual=computed.map((c,ci)=>({
     ref:c.ref||'', useful:c.useful, blade:c.blade, longueur:c.longueur,
     mother:c.mother, edge:c.edge, film:c.film, veka:c.veka, machine:c.machine||'',
@@ -6715,6 +6776,9 @@ function planManualCoherence(pm, refGroups){
     const ordered={}, covered={};
     (g.rows||[]).forEach(x=>{ if(x.width>0&&x.qty>0) ordered[x.width]=(ordered[x.width]||0)+x.qty; });
     { const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{}; Object.entries(cu).forEach(([w,q])=>{ covered[w]=(covered[w]||0)+q; }); }   // [L97 · relecture #7] chutes PLAFONNÉES par la demande (comme le moteur) — un stock déclaré > commandé n'affiche plus un faux « surplus »
+    // [L289] rouleaux ♻ gérés en AUTO même en manuel : leurs pièces (calcul moteur, déterministe — indépendant
+    // des bobines mères éditées) comptent comme couverture, sinon faux « manque » permanent dès qu'un rouleau existe.
+    if((g.recuts||[]).length){ try{ const _pk=packRefGroupsPal([g])[0]; ((_pk&&_pk.recutGroups)||[]).forEach(rg=>{ const cnt=Math.max(1,parseInt(rg.count)||1); (rg.pattern||[]).forEach(p=>{ if(p.width>0&&p.qty>0) covered[p.width]=(covered[p.width]||0)+cnt*p.qty; }); }); }catch(e){} }
     (r.bobines||[]).forEach(b=>{
       const cnt=Math.max(1,parseInt(b.count)||1);
       const pat=parseConf(b.conf);
@@ -6745,6 +6809,8 @@ function planManualCoherence(pm, refGroups){
     // couverte par des bobineaux déjà à la bonne largeur ne doit pas afficher un faux « manque » (chiffre
     // sur-évalué, incohérent écran/fiche/PDF). On n'émet l'écart que sur la part NON couverte.
     const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{};
+    // [L289] créditer AUSSI les rouleaux ♻ (gérés en auto) pour une réf non rattachée — même logique que la 1re boucle.
+    if((g.recuts||[]).length){ try{ const _pk=packRefGroupsPal([g])[0]; ((_pk&&_pk.recutGroups)||[]).forEach(rg=>{ const cnt=Math.max(1,parseInt(rg.count)||1); (rg.pattern||[]).forEach(p=>{ if(p.width>0&&p.qty>0) cu[p.width]=(cu[p.width]||0)+cnt*p.qty; }); }); }catch(e){} }
     Object.keys(ordered).map(Number).forEach(w=>{ const c=cu[w]||0, o=ordered[w]; if(o-c>0) out.push({ref:g.ref||('Réf +'+(gi+1)), width:w, ordered:o, covered:c, diff:o-c}); });
   });
   return out;
@@ -6764,7 +6830,17 @@ function planCoherenceText(coh, multi){
 }
 // Recalcule les totaux d'un plan manuel (perte/chute) à l'affichage.
 function planManualStats(){
-  let totalBobines=0,totalMat=0,totalUsed=0,chuteStock=0;
+  let totalBobines=0,totalMat=0,totalUsed=0,chuteStock=0,rollRest=0;
+  // [L290 · contre-revue L289] rouleaux ♻ (gérés en auto, désormais permis en manuel) : leur matière entre dans
+  // le dénominateur du % (miroir exact archive/moteur recMat/recUsed) et leur RESTE est exclu de la perte (comme
+  // resteRouleauxMm dans computePlanAggregate) → le chip de l'éditeur == le % archivé (invariant L83 · Audit #40).
+  try{
+    if(getRefGroups().some(g=>(g.recuts||[]).length)){
+      packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length).forEach(c=>{
+        (c.recutGroups||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); const u=calcStats(g.pattern||[],c.blade).total; totalMat+=cnt*(Number(g.rollW)||0); totalUsed+=cnt*u; rollRest+=cnt*Math.max(0,(Number(g.rollW)||0)-u); });
+      });
+    }
+  }catch(e){}
   planManual.forEach(r=>{
     let lastUsed=null;
     r.bobines.forEach(b=>{
@@ -6774,7 +6850,7 @@ function planManualStats(){
     });
     if(lastUsed!=null) chuteStock+=Math.max(0,r.useful-lastUsed); // 1 solde par réf
   });
-  const perteMm=Math.max(0,totalMat-totalUsed-chuteStock);
+  const perteMm=Math.max(0,totalMat-totalUsed-chuteStock-rollRest);
   const pertePct=totalMat>0?(perteMm/totalMat*100):0;
   return {totalBobines,totalMat,totalUsed,chuteStock,perteMm,pertePct};
 }
@@ -6814,6 +6890,10 @@ function renderPlanManual(){
       html+='<div class="plan-banner-warn">⚠ '+esc(r.ref||('Réf '+(ri+1)))+' : bobine mère saisie <b>'+fmt(moPM)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(stdPM)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
     }
   });
+  // [L289 · choix Esteban 30/07] rouleaux ♻ visibles en LECTURE SEULE dans l'éditeur (gérés en auto) —
+  // calcul une seule fois par rendu, et uniquement si des rouleaux sont saisis quelque part.
+  let _pmAutoG=null;
+  try{ if(getRefGroups().some(g=>(g.recuts||[]).length)) _pmAutoG=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length); }catch(e){ _pmAutoG=null; }
   planManual.forEach((r,ri)=>{
     if(multi){
       const mc=machineCls(r.machine);const mLbl=getMachineLabel(r.machine||'');
@@ -6823,6 +6903,18 @@ function renderPlanManual(){
         <span class="rb-name">🎞 ${esc(r.ref||('Référence '+(ri+1)))}</span>
         <span class="rb-meta"><span class="rb-m">laize ${fmt(r.useful)} mm</span><span class="rb-m">lame ${fmt(r.blade)} mm</span>${r.longueur?`<span class="rb-m">${esc(String(r.longueur))} ml</span>`:''}</span>
       </div>`;
+    }
+    if(_pmAutoG){
+      try{
+        const _ag=(r.refIdKey&&(()=>{const h=_pmAutoG.filter(g=>_refIdKey(g)===r.refIdKey);return h.length===1?h[0]:null;})())||_pmAutoG[ri]||null;
+        ((_ag&&_ag.recutGroups)||[]).forEach(rg=>{
+          html+=`<div class="bobine-card" style="border-left:4px solid #0d9488;background:#10201e">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:#2dd4bf;font-weight:700">
+              ♻ ${rg.count>1?rg.count+' rouleaux chute':'1 rouleau chute'} ${fmt(rg.rollW)} mm — ${esc(rg.pattern.map(p=>p.qty+'×'+p.width).join(' + '))}
+              <span style="font-size:12px;font-weight:600;color:var(--muted)">géré automatiquement (recoupé en 1er) — modifiable via ♻ dans la saisie, pas ici</span>
+            </div></div>`;
+        });
+      }catch(e){}
     }
     r.bobines.forEach((b,bi)=>{
       const used=calcStats(parseConf(b.conf),r.blade).total;
@@ -6982,8 +7074,8 @@ function recutPrintRows(c,blade,recutAllocs){
     if(Array.isArray(recutAllocs)){
       const allocs=recutAllocs.slice(_ai,_ai+g.count); _ai+=g.count;
       const clis=[...new Set([].concat(...allocs.map(cliOfAlloc)))];
-      const txt=(g.count===1&&allocs[0])?cliAllocText(allocs[0]):clis.map(id=>'['+id+']').join(' ');
-      if(clis.length||txt) cliNote=`<div style="margin-top:2px;font-size:11px;color:#6d28d9;font-weight:700">👥 ${esc(txt)}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer)</b>':''}</div>`;
+      const txt=(g.count===1&&allocs[0])?cliAllocPrintHtml(allocs[0]):clis.map(id=>cliPrintChip(id)).join(' ');   // [L290] pastilles + couleurs par client (lisible en N&B)
+      if(clis.length||txt) cliNote=`<div style="margin-top:2px;font-size:12.5px;color:#111;font-weight:700">👥 ${txt}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer)</b>':''}</div>`;
     }
     out+=`<tr style="background:#e6fffa">
       <td style="border-left:4px solid #0d9488;font-weight:700;color:#0f766e">♻ ${g.count>1?g.count+' rouleaux chute':'1 rouleau chute'}</td>
@@ -6992,21 +7084,14 @@ function recutPrintRows(c,blade,recutAllocs){
   });
   return out;
 }
-// Récap rouleaux imprimable pour une réf (utilisés + inutilisés). Vide si aucun.
+// Récap rouleaux imprimable pour une réf. [L289 · choix Esteban 30/07] la bande « N rouleaux recoupés en 1er »
+// est SUPPRIMÉE (redondante : les lignes vertes ♻ du tableau des bobines disent déjà quoi recouper et où).
+// On ne garde que l'info UNIQUE : rouleaux saisis mais NON utilisés (demande couverte → conservés en stock).
 function recutPrintRecap(c){
   if(!c) return '';
-  const used=(c.recutBobines||[]).length;
   const unused=c.recutUnused||0;
-  const box=t=>'<div style="margin:2px 0 14px;padding:7px 11px;border:1.5px solid #0d9488;background:#e6fffa;border-radius:6px;color:#0f766e;font-size:12px">'+t+'</div>';
-  let out='';
-  if(used){
-    const mm=c.recutBobines.reduce((s,r)=>s+r.rollW,0);
-    out+=box(`♻ <b>${used} rouleau${used>1?'x':''} chute (${fmt(mm)} mm) recoupé${used>1?'s':''} en 1er</b> — le reste du rouleau part en déchet.`);
-  }
-  if(unused){
-    out+=box(`♻ <b>${unused} rouleau${unused>1?'x':''} à recouper non utilisé${unused>1?'s':''}</b> — demande déjà couverte. Rouleau conservé en stock.`);
-  }
-  return out;
+  if(!unused) return '';
+  return '<div style="margin:2px 0 14px;padding:7px 11px;border:1.5px solid #0d9488;background:#e6fffa;border-radius:6px;color:#0f766e;font-size:12px">♻ <b>'+unused+' rouleau'+(unused>1?'x':'')+' à recouper non utilisé'+(unused>1?'s':'')+'</b> — demande déjà couverte. Rouleau conservé en stock.</div>';
 }
 // ============================================================
 // IMPRESSION PLAN — builder COMMUN
@@ -7080,7 +7165,7 @@ function buildPlanPrintHTML(o){
         const allocs=_cliAllocs.slice(_cliIdx,_cliIdx+g.count); _cliIdx+=g.count;   // [L100 · audit e2e #4] scinder par composition client réelle (comme l'écran) — l'union « [A][B] MIXTE » sur tout le groupe masquait les bobines pures
         _subRows=[]; let run=null;
         allocs.forEach(a=>{ const sg=cliAllocText(a); if(run&&run.sig===sg) run.count++; else { run={sig:sg,count:1,alloc:a}; _subRows.push(run); } });
-        _subRows.forEach(r=>{ const clis=cliOfAlloc(r.alloc); r.note=`<div style="margin-top:3px;font-size:11px;color:#6d28d9;font-weight:700">👥 ${esc(cliAllocText(r.alloc))}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer à l\'emballage)</b>':''}</div>`; });
+        _subRows.forEach(r=>{ const clis=cliOfAlloc(r.alloc); r.note=`<div style="margin-top:3px;font-size:12.5px;color:#111;font-weight:700">👥 ${cliAllocPrintHtml(r.alloc)}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer à l\'emballage)</b>':''}</div>`; });   // [L290] pastilles + couleurs par client (lisible en N&B)
       }
       _subRows.forEach((r,ri)=>{
         const _isL=isLast&&ri===_subRows.length-1;
@@ -7094,24 +7179,42 @@ function buildPlanPrintHTML(o){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
       sections+=`<h3 class="pp-ref" style="font-size:14px;margin:18px 0 6px;color:${refColor(ci)};border-left:5px solid ${refColor(ci)};padding-left:9px">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;   /* [L219] couleur PAR RÉFÉRENCE — écran/aperçu ; [L231 · audit MAJ-3] SUR PAPIER l'en-tête repasse NOIR (les pastels devenaient gris pâle illisible sous grayscale) */
     }
-    // [L288 · T3 · choix Esteban « option B » 29/07] la ligne par-réf affiche le TOTAL COMMANDÉ (ex. 50×40) avec la
-    // décomposition « dont 42 sur bobines mères + 8 via rouleau chute + N bobineaux stock » — fini la contradiction
-    // « 42×40 par réf vs 50×40 au Total » (le par-réf ne sommait que la sortie mères ; rouleau chute et stock
-    // n'étaient jamais additionnés). Source commande = rows réels (groupe, sinon mandrinGroups appariés ci-dessus).
-    const _cmd=_planGroupCmd(_rowsSrc?{rows:_rowsSrc}:c);
-    const _nbMeres=(c.planGroups||[]).reduce((s,g)=>s+Math.max(1,parseInt(g.count)||1),0);
-    const _sumPat=arr=>{ let n=0; (arr||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); (g.pattern||[]).forEach(pw=>{ const q=Number(pw&&pw.qty!==undefined?pw.qty:1)||1, w=Number(pw&&pw.width!==undefined?pw.width:pw)||0; if(w) n+=cnt*q; }); }); return n; };
-    const _meresN=_sumPat(c.planGroups), _recN=_sumPat(c.recutGroups);
-    const _stockN=Object.values(_chutesSrc||{}).reduce((s,q)=>s+(Number(q)||0),0);
-    const _dont=(_rowsSrc&&(_recN||_stockN))?` · dont <b>${_meresN}</b> sur bobines mères${_recN?` + <b>${_recN}</b> via rouleau chute`:''}${_stockN?` + <b>${_stockN}</b> bobineau${_stockN>1?'x':''} stock (déjà à largeur)`:''}`:'';
-    const _cmdLbl=_dont?'commande':'découpe';
-    const _cmdLine=(_nbMeres||_cmd.str)?`<div class="cmd-recap">🧾 ${multi?esc(c.ref||('réf '+(ci+1)))+' : ':''}<b>${_nbMeres}</b> bobine${_nbMeres>1?'s':''} mère${_nbMeres>1?'s':''} à monter${_cmd.str?` · ${_cmdLbl} : ${esc(_cmd.str)}`:''}${_dont}</div>`:'';
+    // [L289 · choix Esteban 30/07 — maquette A allégée] TABLEAU PAR LAIZE : Laize | Commandé | ✂ En stock |
+    // À couper. « À couper » = commandé − stock : il INCLUT les pièces recoupées sur rouleau chute (l'opérateur
+    // les coupe aussi — les lignes vertes ♻ du tableau des bobines disent déjà où) ; pas de colonne rouleau ni
+    // de bande verte redondante (demande Esteban). Une laize ENTIÈREMENT servie par le stock n'apparaît PAS
+    // dans le tableau : elle vit uniquement dans le bloc orange ✂ en dessous → impossible de la couper en double.
+    // Remplace la ligne 🧾 « N mères à monter · commande … dont … » (L288) sur les DEUX PDF + mono-réf.
+    let _laizeTable='';
+    try{
+      const _cmdW={};
+      if(_rowsSrc){ _rowsSrc.forEach(r2=>{ const w=Number(r2.width)||0,q=Number(r2.qty)||0; if(w>0&&q>0) _cmdW[w]=(_cmdW[w]||0)+q; }); }
+      else{
+        // repli (vieux plans sans rows ni mandrins) : commande reconstituée = production (mères + rouleaux) + stock
+        [c.planGroups,c.recutGroups].forEach(arr=>(arr||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); (g.pattern||[]).forEach(pw=>{ const w=Number(pw&&pw.width!==undefined?pw.width:pw)||0,q=Number(pw&&pw.qty!==undefined?pw.qty:1)||1; if(w>0&&q>0) _cmdW[w]=(_cmdW[w]||0)+cnt*q; }); }));
+        Object.entries(_chutesSrc||{}).forEach(([w,q])=>{ const n=Number(q)||0; if(n>0) _cmdW[w]=(_cmdW[w]||0)+n; });
+      }
+      const _stW={}; Object.entries(_chutesSrc||{}).forEach(([w,q])=>{ const n=Number(q)||0; if(n>0) _stW[w]=n; });
+      const _ws=Object.keys(_cmdW).map(Number).sort((a,b)=>b-a);   // grandes laizes d'abord (règle atelier)
+      const _rws=[]; let _tCmd=0,_tSt=0,_tCut=0;
+      _ws.forEach(w=>{
+        const cmd=_cmdW[w]||0, st=Math.min(cmd,Number(_stW[w])||0), cut=Math.max(0,cmd-st);
+        _tCmd+=cmd; _tSt+=st; _tCut+=cut;
+        if(cut<=0) return;   // laize 100 % stock → bloc orange uniquement (choix Esteban 30/07)
+        _rws.push('<tr><td style="font-size:15px;font-weight:800">'+fmt(w)+' mm</td><td style="text-align:right">'+cmd+'</td><td style="text-align:right;color:#b45309;font-weight:700">'+(st>0?st:'—')+'</td><td style="text-align:right;font-size:15px;font-weight:800">'+cut+'</td></tr>');
+      });
+      if(_rws.length){
+        _laizeTable='<table style="width:auto;min-width:58%;margin:8px 0 2px"><tr><th>Laize</th><th style="text-align:right">Commandé</th><th style="text-align:right">✂ En stock</th><th style="text-align:right">À couper</th></tr>'
+          +_rws.join('')
+          +'<tr><td style="font-weight:800;border-top:2px solid #9aa1ab">Total</td><td style="text-align:right;font-weight:800;border-top:2px solid #9aa1ab">'+_tCmd+'</td><td style="text-align:right;font-weight:800;color:#b45309;border-top:2px solid #9aa1ab">'+(_tSt>0?_tSt:'—')+'</td><td style="text-align:right;font-weight:800;font-size:15px;border-top:2px solid #9aa1ab">'+_tCut+'</td></tr></table>';
+      }
+    }catch(e){ _laizeTable=''; }
     const _dechetLine=c.dechetStr?`<div class="cmd-recap" style="background:#f3f4f6;border-left-color:#6b7280;color:#374151">🗑 <b>Rebut déjà coupé — NE PAS recouper</b>${multi?' ('+esc(c.ref||('réf '+(ci+1)))+')':''} : ${esc(c.dechetStr)}</div>`:'';   // [L284] le rebut n'apparaît plus comme bobine à couper
     // [L288 · T3] récap STOCK aussi sur le PDF fiche : les groupes fiche n'ont pas de chutesUsed → on nourrit
     // chutePrintRecap avec les chutes appariées (_chutesSrc, mêmes données que l'onglet Plan). Avant : stock
     // totalement INVISIBLE sur le papier imprimé en découpe.
     const _cuForRecap=(c.chutesUsed&&Object.keys(c.chutesUsed).length)?c:{chutesUsed:_chutesSrc};
-    sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+chutePrintRecap(_cuForRecap)+recutPrintRecap(c)+_cmdLine+_dechetLine;
+    sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+_laizeTable+chutePrintRecap(_cuForRecap)+recutPrintRecap(c)+_dechetLine;
   });
   if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr></table>';
 
@@ -7135,11 +7238,12 @@ function buildPlanPrintHTML(o){
   @media print{body{padding:8px}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}h3.pp-ref{color:#000!important;border-left-color:#000!important}}/* [L231 · audit MAJ-3] en-tête de réf NOIR sur papier (les pastels refColor viraient au gris pâle) */</style></head><body>
   <h2>Plan de découpe — STEP International</h2>
   <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
-  ${cliAll?`👥 Multi-clients : ${cliAll.map(c=>`[${esc(c.id)}] <b>${esc(c.nom||'—')}</b>${c.numCmd?' (n° '+esc(c.numCmd)+')':''}`).join(' · ')}<br>`:''}
+  ${cliAll?`👥 Multi-clients : ${cliAll.map(c=>`${cliPrintChip(c.id)} <b>${esc(c.nom||'—')}</b>${c.numCmd?' (n° '+esc(c.numCmd)+')':''}`).join(' · ')}<br>`:''}
   ${metaTech}<br>
   Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(o.cerclage)}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
   ${sections}
-  ${multi?`<div class="cmd-recap cmd-total">🧾 Total commande d'origine : <b>${_totMeres}</b> bobine${_totMeres>1?'s':''} mère${_totMeres>1?'s':''}${_cmdStr?` · découpe : ${esc(_cmdStr)}`:''}</div>`:''}
+  <!-- [L289 · choix Esteban 30/07] ligne « Total commande d'origine » multi-réf SUPPRIMÉE (somme toutes-réfs
+       mélangées qui contredisait les tableaux par laize de chaque réf — chaque réf porte désormais son tableau). -->
   ${(()=>{  /* [L284 · demande Esteban] récap « coupé EN PLUS (hors plan) » : sur-coupe réelle vs commande, tracée sur le papier (avant : seulement dans un toast éphémère). */
     const s=o.surplus||{}; const refs=Object.keys(s).filter(r=>Object.keys(s[r]||{}).length);
     if(!refs.length) return '';
@@ -7153,7 +7257,7 @@ function buildPlanPrintHTML(o){
       const m=_cliMap[c.id]||{};
       const laizes=Object.keys(m).map(Number).sort((a,b)=>a-b).map(w=>m[w]+'×'+w+'mm').join(' + ')||'—';
       const pkg=c.id==='A'?[o.palette,o.typeCond,o.etiquetage,o.cerclage].filter(v=>v&&v!=='—').join(' · '):[c.palette,c.typeCond,c.etiquetage,c.cerclage].filter(Boolean).join(' · ');
-      return `<b>[${esc(c.id)}] ${esc(c.nom||'—')}</b>${c.numCmd?' · n° '+esc(c.numCmd):''}${c.dateLiv?' · livraison '+esc(String(c.dateLiv)):''} — ${esc(laizes)}${pkg?' · 📦 '+esc(pkg):''}${c.notes?' · ⚡ '+esc(c.notes):''}`;
+      return `${cliPrintChip(c.id)} <b style="color:${cliColor(c.id)}">${esc(c.nom||'—')}</b>${c.numCmd?' · n° '+esc(c.numCmd):''}${c.dateLiv?' · livraison '+esc(String(c.dateLiv)):''} — ${esc(laizes)}${pkg?' · 📦 '+esc(pkg):''}${c.notes?' · ⚡ '+esc(c.notes):''}`;
     }).join('<br>')}</div>`;
   })():''}
   ${packagingRecapHTML(o.mandrinGroups||groups)}</body></html>`;
@@ -7162,8 +7266,14 @@ function getPlanHTML(){
   const autoGroups=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
   // Si le plan a été modifié à la main, on imprime cette version.
   const groups=planManual
-    ? planManual.map(r=>({ref:r.ref, refIdKey:r.refIdKey||null, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film, veka:r.veka, machine:r.machine||'',
-        planGroups:r.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1), pattern:parseConf(b.conf)}))}))
+    ? planManual.map((r,ri)=>{
+        // [L289] apparier l'entrée manuelle à son groupe AUTO (clé d'identité, repli positionnel) pour imprimer
+        // les rouleaux ♻ (gérés en auto) et le stock — avant : le PDF manuel les taisait (le manuel les interdisait).
+        const _ag=(r.refIdKey&&(()=>{const h=autoGroups.filter(g=>_refIdKey(g)===r.refIdKey);return h.length===1?h[0]:null;})())||autoGroups[ri]||null;
+        return {ref:r.ref, refIdKey:r.refIdKey||null, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film, veka:r.veka, machine:r.machine||'',
+          planGroups:r.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1), pattern:parseConf(b.conf)})),
+          recutGroups:(_ag&&_ag.recutGroups)||[], recutBobines:(_ag&&_ag.recutBobines)||[], recutUnused:(_ag&&_ag.recutUnused)||0, chutesUsed:(_ag&&_ag.chutesUsed)||{}};
+      })
     : autoGroups;
   const numCmd=document.getElementById('planNumCmd')?.value||'';
   return buildPlanPrintHTML({
@@ -7200,9 +7310,15 @@ function printSavedPlan(id){
   const _pmPrint=(Array.isArray(s.planManual)&&s.planManual.length)?JSON.parse(JSON.stringify(s.planManual)):null;
   if(_pmPrint) _pmSortBobinesOnce(_pmPrint);   // [L92 · Audit #18] MÊME tri qu'au chargement (doLoad) : le PDF imprimé depuis Données correspondait à un autre ordre/solde que la fiche après chargement
   const groups=_pmPrint
-    ? _pmPrint.map(r=>({ref:r.ref, refIdKey:r.refIdKey||null, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film||'', veka:r.veka||'', machine:r.machine||'',
-        planGroups:r.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1), pattern:parseConf(b.conf)}))
-      }))
+    ? _pmPrint.map((r,ri)=>{
+        // [L289 · revue P1] MÊME appariement que getPlanHTML : un plan manuel sauvegardé AVEC rouleaux ♻ doit
+        // imprimer ses lignes vertes (le tableau par laize compte leurs pièces dans « À couper » — sans elles,
+        // l'opérateur monterait une mère en trop). Clé d'identité unique, sinon repli positionnel.
+        const _ag=(r.refIdKey&&(()=>{const h=autoGroups.filter(g=>_refIdKey(g)===r.refIdKey);return h.length===1?h[0]:null;})())||autoGroups[ri]||null;
+        return {ref:r.ref, refIdKey:r.refIdKey||null, useful:r.useful, blade:r.blade, longueur:r.longueur, mother:r.mother, edge:r.edge, film:r.film||'', veka:r.veka||'', machine:r.machine||'',
+          planGroups:r.bobines.map(b=>({count:Math.max(1,parseInt(b.count)||1), pattern:parseConf(b.conf)})),
+          recutGroups:(_ag&&_ag.recutGroups)||[], recutBobines:(_ag&&_ag.recutBobines)||[], recutUnused:(_ag&&_ag.recutUnused)||0, chutesUsed:(_ag&&_ag.chutesUsed)||{}};
+      })
     : autoGroups;
   openPrintWindow(buildPlanPrintHTML({
     groups,
@@ -7252,6 +7368,14 @@ function printEtiquette(d){
       <span><b>Machine :</b> ${esc(String(d.mn))}</span>
       <span><b>Date :</b> ${esc(String(d.date))}</span>
     </div>
+    <!-- [L290 · demande Esteban 30/07] MATIÈRE : film / type / longueur / laize mère — « je n'arrive pas à
+         distinguer quelle matière c'est » : le solde repart en stock, sans ces infos il devenait anonyme. -->
+    ${(d.film||d.veka||d.longueur||d.mother)?`<div class="grid" style="margin-top:14px;padding-top:14px;border-top:3px dashed #000">
+      ${d.film?`<span><b>Film :</b> ${esc(String(d.film))}</span>`:''}
+      ${d.veka?`<span><b>Type :</b> ${esc(String(d.veka))}</span>`:''}
+      ${d.longueur?`<span><b>Longueur :</b> ${esc(String(d.longueur))} ml</span>`:''}
+      ${d.mother?`<span><b>Laize mère :</b> ${esc(String(fmt(d.mother)))} mm</span>`:''}
+    </div>`:''}
     <!-- [L281 · demande Esteban 29/07] N° de référence saisi DIGITALEMENT (input etiqRefNum) → imprimé rempli.
          Repli : case vide à compléter au feutre si aucun n° n'a été saisi. -->
     <div style="display:flex;align-items:center;gap:16px;justify-content:center;margin-top:22px">
@@ -7269,6 +7393,14 @@ function printEtiquette(d){
 // Si la fiche est vide, repli sur le pack de la commande (mono-réf).
 function getEtiquetteSoldeList(){
   const mn=getMachineLabel(ficheMachine||currentMachine);
+  // [L290 · demande Esteban 30/07] MATIÈRE sur l'étiquette : « je n'arrive pas à distinguer quelle matière
+  // c'est » — on attache film / type (VEKA·Profilé) / longueur (ml) / laize mère depuis le bloc réf
+  // (clé d'identité d'abord — deux réfs homonymes 1000 ml vs 500 ml donnent chacune LEURS données — puis nom).
+  const _refG=(typeof getRefGroups==='function')?getRefGroups():[];
+  const _matOf=(l0,rname)=>{
+    const g=(l0&&l0.refIdKey&&_refG.find(x=>_refIdKey(x)===l0.refIdKey))||_refG.find(x=>(x.ref||'')===String(rname||''))||_refG[0]||null;
+    return g?{film:g.film||'',veka:g.veka||'',longueur:g.longueur||'',mother:g.mother||''}:{film:'',veka:'',longueur:'',mother:''};
+  };
   // --- Cas fiche remplie : on groupe les bobines par réf ---
   if(ficheLines.length){
     // Détecte le multi-réf : plus d'une réf distincte non vide parmi les lignes.
@@ -7286,7 +7418,7 @@ function getEtiquetteSoldeList(){
         if(u<=0) return;
         const pp=parseConf(document.getElementById('flConf_'+l.id)?.value||'');
         if(!pp.length) return;
-        out.push({key:'p_'+l.id,mn,ref:(l.ref||'—')+' ⟲ fin de phase',solde:fmt(u-calcStats(pp,b).total),date:today(),color:color||''});
+        out.push({key:'p_'+l.id,mn,ref:(l.ref||'—')+' ⟲ fin de phase',solde:fmt(u-calcStats(pp,b).total),date:today(),color:color||'',..._matOf(l,l.ref)});
       });
       return out;
     };
@@ -7305,7 +7437,7 @@ function getEtiquetteSoldeList(){
         const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
         if(!p.length) return;
         const solde=useful-calcStats(p,blade).total;
-        out.push({key:'r'+idx,mn,ref:r||'—',solde:fmt(solde),date:today(),color:_rc});
+        out.push({key:'r'+idx,mn,ref:r||'—',solde:fmt(solde),date:today(),color:_rc,..._matOf(last,r)});
       });
       return out;
     }
@@ -7319,7 +7451,7 @@ function getEtiquetteSoldeList(){
     const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
     if(!p.length) return _outMono;
     const solde=useful-calcStats(p,blade).total;
-    return _outMono.concat([{key:'r0',mn,ref,solde:fmt(solde),date:today()}]);
+    return _outMono.concat([{key:'r0',mn,ref,solde:fmt(solde),date:today(),..._matOf(last,ref)}]);
   }
   // --- Cas fiche vide : repli sur la commande (mono-réf seulement) ---
   const useful=getUseful(),blade=getBlade();
@@ -7335,7 +7467,7 @@ function getEtiquetteSoldeList(){
   if(!lastG){ const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade); lastG=groups[groups.length-1]; u2=useful; }
   if(!lastG) return [];
   const solde=u2-calcStats(lastG.pattern,blade).total;
-  return [{key:'r0',mn,ref,solde:fmt(solde),date:today()}];
+  return [{key:'r0',mn,ref,solde:fmt(solde),date:today(),..._matOf(null,ref)}];
 }
 function refreshEtiquetteSolde(){
   const wrap=document.getElementById('etiquetteSoldeList');
@@ -15343,7 +15475,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
   // [L64 · Lot 6] rendu clients d'une bobine depuis l'attribution FIGÉE à l'envoi
   // (fd.cliParts) — lettre [A] toujours présente : lisible en impression N&B.
   const _cliCol=id=>(typeof CLI_COLORS!=='undefined'&&CLI_COLORS[id])||'#888';
-  const cliDotPdf=id=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:900;color:#141414;background:${_cliCol(id)};border:1px solid rgba(255,255,255,.4)">${esc(id)}</span>`;
+  const cliDotPdf=id=>(typeof cliPrintChip==='function')?cliPrintChip(id):`<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:900;color:#141414;background:${_cliCol(id)};border:1px solid rgba(255,255,255,.4)">${esc(id)}</span>`;   // [L290] pastille N&B (le rond coloré devenait un gris uniforme au print grayscale)
   const cliCellPdf=fd=>{
     if(!fd||!Array.isArray(fd.cliParts)||!fd.cliParts.length) return '<span style="color:#555">—</span>';
     const ids=[...new Set(fd.cliParts.filter(p=>p.c!=='+').map(p=>p.c))];
@@ -16221,6 +16353,14 @@ function _syncRefDonePills(){
 // correspondant, recalcule uniquement cette réf (les coupées sont conservées),
 // marque la réf validée et débloque la suivante.
 function applyFicheRefPlanChange(idx){
+  // [L290 · audit 30/07 CRITIQUE] valider/changer une bobine mère pendant un PARTAGE actif produisait un FAUX
+  // succès : le plan + la trace ISO passaient à la nouvelle mère mais les bobines de la fiche (verrouillées par
+  // le partage) restaient sur l'ancienne — écran ≠ papier ≠ trace. Même règle que la bannière de dérive : on
+  // arrête le partage d'abord (toast explicite, zéro tap mort — le bouton reste cliquable et DIT quoi faire).
+  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){
+    showToast('🔒 Commande PARTAGÉE — arrête le partage avant de valider/modifier la bobine mère de cette réf (bouton « Arrêter le partage » en haut de la fiche), puis repartage si besoin.','err');
+    return;
+  }
   const blk=document.querySelector('.fmm-block[data-ref-idx="'+idx+'"]');
   if(!blk){ return; }
   const gv=s=>blk.querySelector('[data-fmm="'+s+'"]');
@@ -16336,10 +16476,17 @@ function _fichePrintSurplus(){
 // getPlanHTML (planGroups sans rows/chutes → géré par buildPlanPrintHTML) → le papier reflète toujours la fiche.
 function _buildFichePlanPrintHTML(){
   const refG=(typeof getRefGroups==='function')?getRefGroups():[];
-  const paramOf=ref=>refG.find(g=>(g.ref||'')===ref)||{};
-  const refsSeen=[]; ficheLines.forEach(l=>{ const r=l.ref||''; if(!refsSeen.includes(r)) refsSeen.push(r); });
-  const groups=refsSeen.map(ref=>{
-    const lines=ficheLines.filter(l=>(l.ref||'')===ref);
+  // [L290 · URGENT terrain 30/07 (feuille MOREY) + audit] regroupement par CLÉ D'IDENTITÉ (refIdKey), plus par
+  // NOM : deux réfs de MÊME NOM (ex. TacFlex DH1006-2 en 1000 ml transparent ET en 500 ml micro-perf) fusionnaient
+  // en UNE seule section sur le papier — commande d'une seule réf affichée, récap faux (« dont 316 sur mères »
+  // pour 150 commandées), chute 215 mm inexpliquée (les 19 mm de l'AUTRE réf ne peuvent pas la combler : films
+  // séparés au moteur, exprès). Le moteur séparait déjà ; seul l'affichage fusionnait. Repli nom pour le legacy.
+  const _keyOf=l=>(l&&l.refIdKey)||('nom:'+nrm((l&&l.ref)||''));
+  const keysSeen=[]; ficheLines.forEach(l=>{ const k=_keyOf(l); if(!keysSeen.includes(k)) keysSeen.push(k); });
+  const groups=keysSeen.map(key=>{
+    const lines=ficheLines.filter(l=>_keyOf(l)===key);
+    const ref=(lines[0]&&lines[0].ref)||'';
+    const paramOf=r0=>refG.find(g=>_refIdKey(g)===key)||refG.find(g=>(g.ref||'')===r0)||{};
     // [L277 · bug Esteban] SÉPARER les rouleaux CHUTE recoupés (l.recut) des bobines MÈRES : les recut vont dans
     // recutGroups → imprimés « ♻ rouleau chute — À RECOUPER EN 1ER » (fond vert), avec leur PROPRE laize (rollW).
     // Avant (L275), tout était en planGroups → les 3 premières (des chutes) apparaissaient comme des bobines mères.
@@ -19285,7 +19432,7 @@ function printFiche(){
     const chutes=document.getElementById('act_chutes_'+l.id)?.classList.contains('btn-orange');
     const action=dechet?'Déchet':chutes?'Chutes':'—';
     const photo=ficholinePhotos[l.id]?`<img src="${esc(safeUrl(ficholinePhotos[l.id]))}" style="width:40px;height:40px;object-fit:cover;border-radius:4px">`:'—';
-    rows+=`<tr><td>${esc(label)}</td><td style="text-align:center">${photo}</td><td>${esc(conf)}</td>${cliPartsPrint?`<td style="font-size:11px">${(()=>{const ps=cliPartsPrint[idx]||[];if(!ps.length)return '—';const ids=[...new Set(ps.filter(p=>p.c!=='+').map(p=>p.c))];return esc(cliAllocText(ps))+(ids.length>1?' <b>MIXTE</b>':'');})()}</td>`:''}<td style="text-align:center">${test2}</td>
+    rows+=`<tr><td>${esc(label)}</td><td style="text-align:center">${photo}</td><td>${esc(conf)}</td>${cliPartsPrint?`<td style="font-size:12px">${(()=>{const ps=cliPartsPrint[idx]||[];if(!ps.length)return '—';const ids=[...new Set(ps.filter(p=>p.c!=='+').map(p=>p.c))];return cliAllocPrintHtml(ps)+(ids.length>1?' <b>MIXTE</b>':'');})()}</td>`:''}<td style="text-align:center">${test2}</td>
       <td style="font-size:12px">${esc(cumText)}</td>
       <td>${esc(ncText)}${ncDetail?'<br><em style="font-size:12px">'+esc(ncDetail)+'</em>':''}</td>
       <td>${action}</td>${liveShare?`<td style="text-align:center;font-weight:700">${cutC?'✂ '+esc(cutC.cutBy):'—'}</td>`:''}</tr>`;
@@ -19301,7 +19448,7 @@ function printFiche(){
   <span><b>Machine :</b> ${esc(mn)}${(()=>{const c=document.getElementById('fMachChg')?.checked&&document.getElementById('fMachChgTo')?.value;return c?' → '+esc(getMachineLabel(document.getElementById('fMachChgTo').value))+' dès bob. '+esc(document.getElementById('fMachChgBob')?.value||'?'):'';})()}</span><span><b>Lame N° :</b> ${esc(lame)}</span>
   <span><b>Opérateur 1 :</b> ${esc(ini)}</span>${op2Meta}<span><b>N° Jour :</b> ${esc(numJour)}</span>
   <span><b>Longueur réf. :</b> ${esc(document.getElementById('fLongueur').value||'—')} m</span>
-  <span><b>Date :</b> ${today()}</span>${liveShare?'<span><b>Partage :</b> 🔗 commande coupée à plusieurs</span>':''}${liveCli?'<span><b>👥 Multi-clients :</b> '+cliIds().map(id=>'['+id+'] '+esc(cliNom(id)||'—')).join(' · ')+'</span>':''}</div>
+  <span><b>Date :</b> ${today()}</span>${liveShare?'<span><b>Partage :</b> 🔗 commande coupée à plusieurs</span>':''}${liveCli?'<span><b>👥 Multi-clients :</b> '+cliIds().map(id=>cliPrintChip(id)+' '+esc(cliNom(id)||'—')).join(' · ')+'</span>':''}</div>
   <table><tr><th>Étiquette bobine mère</th><th>Photo</th><th>Nb bob × Larg.</th>${liveCli?'<th>Clients</th>':''}<th>Test 2ème</th><th>Cumul laizes</th><th>Non-conformité</th><th>Action</th>${liveShare?'<th>Coupé par</th>':''}</tr>
   ${rows}</table></body></html>`);
 }
