@@ -1781,6 +1781,15 @@ const OP_COLORS={'TB':'#22d3ee','JF':'#a3e635','MT':'#f59e0b','DC':'#e879f9','ER
 // sur fond sombre. Sert à distinguer visuellement chaque réf dans l'ordre de coupe et les blocs machine.
 const REF_PALETTE=['#818cf8','#22d3ee','#f472b6','#2dd4bf','#94a3b8','#38bdf8','#e879f9','#facc15'];
 function refColor(pos){ return REF_PALETTE[((pos||0)%REF_PALETTE.length+REF_PALETTE.length)%REF_PALETTE.length]; }
+// [L293 · demande Esteban 30/07] AFFICHAGE COURT des références : le n° de commande fournisseur et la marque
+// sont du bruit pour l'opérateur (« garde juste KX1045-1 »). « 41312799 - TacFlex® KX1045-1 » → « KX1045-1 ».
+// AFFICHAGE SEULEMENT : les données (catalogue, clés d'identité, archives, selects) gardent le nom complet.
+function refDisp(r){
+  let s=String(r==null?'':r).trim();
+  s=s.replace(/^[0-9]{4,}\s*-\s*/,'');        // n° de commande en tête
+  s=s.replace(/^TacFlex®?\s*/i,'');            // marque
+  return s||String(r==null?'':r);
+}
 var currentRole=null;
 var currentUser=null;
 
@@ -1800,7 +1809,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.30-L292';
+const APP_VERSION='2026.07.30-L294';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4450,7 +4459,7 @@ function importPlanToFiche(opts){
         // non éditables dans l'éditeur), générés AVANT les bobines manuelles — miroir exact du plan auto.
         (c.recutGroups||[]).forEach(g=>{
           for(let k=0;k<g.count;k++){
-            const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
+            const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
@@ -4461,7 +4470,7 @@ function importPlanToFiche(opts){
         man.bobines.forEach(b=>{
           const cnt=Math.max(1,parseInt(b.count)||1);
           for(let k=0;k<cnt;k++){
-            addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
+            addFicheLine({label:(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
               conf:normConf(b.conf),   // [L88] * accepté
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
             bi++;
@@ -4473,7 +4482,7 @@ function importPlanToFiche(opts){
         // compte dans la production comme n'importe quelle bobine.
         (c.recutGroups||[]).forEach(g=>{
           for(let k=0;k<g.count;k++){
-            const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
+            const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
@@ -4488,7 +4497,7 @@ function importPlanToFiche(opts){
           const _phNote=g._phaseEnd?('⟲ FIN DE PHASE — reste ≈'+fmt(Math.max(0,Math.round(c.useful-calcStats(g.pattern,c.blade).total)))+' mm à CONSERVER (chute réutilisable, pas un déchet)'):'';
           const chuteNote=[g.chute?('✂ '+Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')+' mm pris dans chute stock (déjà en stock, ne pas découper)'):'',_phNote].filter(Boolean).join(' · ');
           for(let k=0;k<g.count;k++){
-            const lbl=(multi&&c.ref?c.ref+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
+            const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
               phaseEnd:!!g._phaseEnd});
@@ -4539,7 +4548,7 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,
   // « Réf N » en haut (bloc fmm) est l'UNIQUE porteur de l'info réf/machine/film. On ne rend le séparateur QUE
   // s'il y a un CHANGEMENT DE MACHINE (bande rouge — repère atelier critique, conservé).
   if(!bandHtml) return;
-  div.innerHTML=`${bandHtml}${machLbl?`<span class="frs-mch">⚙ ${esc(machLbl)}</span>`:''}<span class="frs-name">🎞 ${esc(ref)}</span><span class="frs-count ref-sep-count"></span>`;
+  div.innerHTML=`${bandHtml}${machLbl?`<span class="frs-mch">⚙ ${esc(machLbl)}</span>`:''}<span class="frs-name">🎞 ${esc(refDisp(ref))}</span><span class="frs-count ref-sep-count"></span>`;   /* [L293] nom court (dataset.ref garde le nom complet pour le matching) */
   document.getElementById('ficheLines').appendChild(div);
 }
 
@@ -6549,7 +6558,7 @@ function recalcPlan(){
       }catch(e){ console.warn('Attribution clients (plan) :',e); _cliAllocs=null; }
     }
     if(multi){
-      const refLbl=c.ref||('Référence '+(_cPos+1));
+      const refLbl=refDisp(c.ref)||('Référence '+(_cPos+1));   // [L293] nom court partout
       const mlPart=(c.longueur!=null&&String(c.longueur).trim()!=='')?`<span class="rb-m">${esc(String(c.longueur))} ml</span>`:'';
       const filmOnly=(c.film||'').trim();
       const filmPart=filmOnly?`<span class="rb-m">${esc(filmOnly)}</span>`:'';
@@ -6904,7 +6913,7 @@ function renderPlanManual(){
       html+=`<div class="ref-band${mc}" style="border-left-color:${refColor(ri)}"><!-- [L231 · audit] couleur L219 aussi en plan MANUEL (l'aperçu PDF du même plan colorait déjà) -->
         <span class="rb-refchip" style="background:${refColor(ri)}26;color:${refColor(ri)};border:1.5px solid ${refColor(ri)}">Réf ${ri+1}</span>
         ${mLbl?`<span class="rb-mch">⚙ ${esc(mLbl)}</span>`:''}
-        <span class="rb-name">🎞 ${esc(r.ref||('Référence '+(ri+1)))}</span>
+        <span class="rb-name">🎞 ${esc(refDisp(r.ref)||('Référence '+(ri+1)))}</span>
         <span class="rb-meta"><span class="rb-m">laize ${fmt(r.useful)} mm</span><span class="rb-m">lame ${fmt(r.blade)} mm</span>${r.longueur?`<span class="rb-m">${esc(String(r.longueur))} ml</span>`:''}</span>
       </div>`;
     }
@@ -7124,11 +7133,10 @@ function buildPlanPrintHTML(o){
   const mono=groups[0]||{};
   // [L292 · choix Esteban 30/07] réfs GROUPÉES dans l'en-tête : quand toutes partagent le même nom produit
   // (« NUM - NOM »), on écrit « NUM1 + NUM2 + NUM3 — NOM » au lieu de répéter le nom 3 fois (feuille annotée rose).
-  const refLabel=(()=>{
-    if(!multi) return mono.ref||o.refLabelFallback||'—';
-    const parts=groups.map(c=>{ const m=String(c.ref||'').match(/^(\S+)\s*-\s*(.+)$/); return m?{num:m[1],nom:m[2].trim()}:null; });
-    if(parts.every(Boolean) && new Set(parts.map(p=>p.nom)).size===1 && parts.length>1) return parts.map(p=>p.num).join(' + ')+' — '+parts[0].nom;
-    return groups.map(c=>c.ref||'?').join(' + ');
+  const refLabel=(()=>{   // [L292→L293 · demande Esteban] noms COURTS (refDisp) dédupliqués — plus aucun n° de commande
+    if(!multi) return refDisp(mono.ref||o.refLabelFallback||'—');
+    const _ds=[...new Set(groups.map(c=>refDisp(c.ref||'')).filter(Boolean))];
+    return _ds.length?_ds.join(' + '):'—';
   })();
   // [L64 · Lot 6] multi-clients : o.cmdClients = clients B/C/D (null/vide = mono-client,
   // rendu inchangé). Le client A = o.client. Lettres [A]/[B] : lisibles en N&B.
@@ -7188,7 +7196,7 @@ function buildPlanPrintHTML(o){
     });
     if(multi){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
-      sections+=`<h3 class="pp-ref" style="font-size:14px;margin:18px 0 6px;color:${refColor(ci)};border-left:5px solid ${refColor(ci)};padding-left:9px">🎞 ${esc(c.ref||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;   /* [L219] couleur PAR RÉFÉRENCE — écran/aperçu ; [L231 · audit MAJ-3] SUR PAPIER l'en-tête repasse NOIR (les pastels devenaient gris pâle illisible sous grayscale) */
+      sections+=`<h3 class="pp-ref" style="font-size:14px;margin:18px 0 6px;color:${refColor(ci)};border-left:5px solid ${refColor(ci)};padding-left:9px">🎞 ${esc(refDisp(c.ref)||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;   /* [L219] couleur PAR RÉFÉRENCE — écran/aperçu ; [L231 · audit MAJ-3] SUR PAPIER l'en-tête repasse NOIR (les pastels devenaient gris pâle illisible sous grayscale) */
     }
     // [L289 · choix Esteban 30/07 — maquette A allégée] TABLEAU PAR LAIZE : Laize | Commandé | ✂ En stock |
     // À couper. « À couper » = commandé − stock : il INCLUT les pièces recoupées sur rouleau chute (l'opérateur
@@ -7207,21 +7215,19 @@ function buildPlanPrintHTML(o){
       }
       const _stW={}; Object.entries(_chutesSrc||{}).forEach(([w,q])=>{ const n=Number(q)||0; if(n>0) _stW[w]=n; });
       const _ws=Object.keys(_cmdW).map(Number).sort((a,b)=>b-a);   // grandes laizes d'abord (règle atelier)
-      const _rws=[]; let _tCmd=0,_tSt=0,_tCut=0;
+      const _rws=[];
       _ws.forEach(w=>{
-        const cmd=_cmdW[w]||0, st=Math.min(cmd,Number(_stW[w])||0), cut=Math.max(0,cmd-st);
-        _tCmd+=cmd; _tSt+=st; _tCut+=cut;
-        // [L292 · choix Esteban 30/07] une laize 100 % stock reste une LIGNE du tableau (À couper 0, grisé) —
-        // la bande orange sous le tableau est supprimée (doublon de la colonne ✂ EN STOCK, feuille annotée rose).
-        _rws.push('<tr><td style="font-size:15px;font-weight:800">'+fmt(w)+' mm</td><td style="text-align:right">'+cmd+'</td><td style="text-align:right;color:#b45309;font-weight:700">'+(st>0?st:'—')+'</td><td style="text-align:right;font-size:15px;font-weight:800'+(cut<=0?';color:#9aa1ab':'')+'">'+cut+'</td></tr>');
+        const cmd=_cmdW[w]||0, st=Math.min(cmd,Number(_stW[w])||0);
+        // [L292/L293 · choix Esteban 30/07] une laize 100 % stock reste une LIGNE du tableau ; colonne « À couper »
+        // et ligne « Total » SUPPRIMÉES (feuille annotée ×2) : Laize | Commandé | ✂ En stock, rien d'autre.
+        _rws.push('<tr><td style="font-size:15px;font-weight:800">'+fmt(w)+' mm</td><td style="text-align:right;font-weight:700">'+cmd+'</td><td style="text-align:right;color:#b45309;font-weight:700">'+(st>0?st:'—')+'</td></tr>');
       });
       if(_rws.length){
-        _laizeTable='<table style="width:auto;min-width:58%;margin:8px 0 2px"><tr><th>Laize</th><th style="text-align:right">Commandé</th><th style="text-align:right">✂ En stock</th><th style="text-align:right">À couper</th></tr>'
-          +_rws.join('')
-          +'<tr><td style="font-weight:800;border-top:2px solid #9aa1ab">Total</td><td style="text-align:right;font-weight:800;border-top:2px solid #9aa1ab">'+_tCmd+'</td><td style="text-align:right;font-weight:800;color:#b45309;border-top:2px solid #9aa1ab">'+(_tSt>0?_tSt:'—')+'</td><td style="text-align:right;font-weight:800;font-size:15px;border-top:2px solid #9aa1ab">'+_tCut+'</td></tr></table>';
+        _laizeTable='<table style="width:auto;min-width:46%;margin:8px 0 2px"><tr><th>Laize</th><th style="text-align:right">Commandé</th><th style="text-align:right">✂ En stock</th></tr>'
+          +_rws.join('')+'</table>';
       }
     }catch(e){ _laizeTable=''; }
-    const _dechetLine=c.dechetStr?`<div class="cmd-recap" style="background:#f3f4f6;border-left-color:#6b7280;color:#374151">🗑 <b>Rebut déjà coupé — NE PAS recouper</b>${multi?' ('+esc(c.ref||('réf '+(ci+1)))+')':''} : ${esc(c.dechetStr)}</div>`:'';   // [L284] le rebut n'apparaît plus comme bobine à couper
+    const _dechetLine=c.dechetStr?`<div class="cmd-recap" style="background:#f3f4f6;border-left-color:#6b7280;color:#374151">🗑 <b>Rebut déjà coupé — NE PAS recouper</b>${multi?' ('+esc(refDisp(c.ref)||('réf '+(ci+1)))+')':''} : ${esc(c.dechetStr)}</div>`:'';   // [L284] le rebut n'apparaît plus comme bobine à couper
     // [L292 · choix Esteban 30/07 (feuille annotée)] bande orange « ✂ Chutes en stock utilisées » SUPPRIMÉE :
     // doublon de la colonne ✂ EN STOCK du tableau par laize (qui liste désormais AUSSI les laizes 100 % stock).
     sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+_laizeTable+recutPrintRecap(c)+_dechetLine;
@@ -7229,7 +7235,7 @@ function buildPlanPrintHTML(o){
   if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr></table>';
 
   const metaTech=multi
-    ? `Machine : ${o.mn} · ${groups.length} références · Date : ${today()}`
+    ? `Machine : ${o.mn} · Date : ${today()}`   /* [L293] « N références » supprimé (violet) */
     : `Machine : ${o.mn} · Bobine mère : ${fmt(mono.mother||o.motherFallback||0)} mm · Utile : ${fmt(mono.useful||0)} mm · Lame : ${fmt(mono.blade||0)} mm · Date : ${today()}`;
   const monoAttr=multi?'':filmAttrStr(mono);
   // Commande globale (laizes commandées agrégées) : pour visualiser le volume total.
@@ -7246,18 +7252,18 @@ function buildPlanPrintHTML(o){
   .cmd-recap{margin:2px 0 14px;padding:9px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:6px;font-size:12.5px;color:#333}
   .cmd-recap.cmd-total{background:#eef2ff;border-left-color:#4338ca}
   @media print{body{padding:8px}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}h3.pp-ref{color:#000!important;border-left-color:#000!important}}/* [L231 · audit MAJ-3] en-tête de réf NOIR sur papier (les pastels refColor viraient au gris pâle) */</style></head><body>
-  <div style="font-size:13px;font-weight:800;letter-spacing:.05em;color:#444;margin-bottom:6px;text-transform:uppercase">STEP International — Plan</div><!-- [L292 · choix Esteban 30/07] titre discret sur une ligne (l'ancien grand « Plan de découpe — » mangeait de la place sans informer) -->
+  <!-- [L293 · demande Esteban 30/07] titre SUPPRIMÉ (surligné violet sur la feuille) : la page commence au client. -->
   <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
   ${cliAll?`👥 Multi-clients : ${cliAll.map(c=>`${cliPrintChip(c.id)} <b>${esc(c.nom||'—')}</b>${c.numCmd?' (n° '+esc(c.numCmd)+')':''}`).join(' · ')}<br>`:''}
   ${metaTech}<br>
-  Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(o.cerclage)}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
+  Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(String(o.cerclage||'').replace(/\s*\([^)]*\)\s*$/,''))}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
   ${sections}
   <!-- [L289 · choix Esteban 30/07] ligne « Total commande d'origine » multi-réf SUPPRIMÉE (somme toutes-réfs
        mélangées qui contredisait les tableaux par laize de chaque réf — chaque réf porte désormais son tableau). -->
   ${(()=>{  /* [L284 · demande Esteban] récap « coupé EN PLUS (hors plan) » : sur-coupe réelle vs commande, tracée sur le papier (avant : seulement dans un toast éphémère). */
     const s=o.surplus||{}; const refs=Object.keys(s).filter(r=>Object.keys(s[r]||{}).length);
     if(!refs.length) return '';
-    const body=refs.map(r=>{ const w=s[r]; const parts=Object.keys(w).map(Number).sort((a,b)=>a-b).map(x=>w[x]+'×'+fmt(x)+'mm').join(' + '); return (multi&&r?'<b>'+esc(r)+'</b> : ':'')+parts; }).join('<br>');
+    const body=refs.map(r=>{ const w=s[r]; const parts=Object.keys(w).map(Number).sort((a,b)=>a-b).map(x=>w[x]+'×'+fmt(x)+'mm').join(' + '); return (multi&&r?'<b>'+esc(refDisp(r))+'</b> : ':'')+parts; }).join('<br>');
     return `<div class="cmd-recap" style="background:#fef2f2;border-left-color:#b91c1c;color:#7f1d1d">⚠ <b>Coupé EN PLUS (hors plan — à tracer)</b> :<br>${body}</div>`;
   })()}
   ${cliAll?(()=>{  /* [L64 · Lot 6] récap PAR CLIENT : laizes commandées + n° cmd + livraison + packaging */
@@ -7374,7 +7380,7 @@ function printEtiquette(d){
     <div class="solde">${esc(String(d.solde))}<small> mm</small></div>
     <div class="grid">
       ${d.numBob?`<span><b>Bobine mère n° :</b> ${esc(String(d.numBob))}</span>`:''}
-      ${(d.ref&&String(d.ref).replace(/⟲ fin de phase/,'').trim()!=='—')?`<span><b>Réf :</b> ${esc(String(d.ref))}</span>`:''}
+      ${(d.ref&&String(d.ref).replace(/⟲ fin de phase/,'').trim()!=='—')?`<span><b>Réf :</b> ${esc(refDisp(String(d.ref)))}</span>`:''}
       <span><b>Machine :</b> ${esc(String(d.mn))}</span>
       <span><b>Date :</b> ${esc(String(d.date))}</span>
     </div>
@@ -8123,7 +8129,7 @@ function chronoStart(){
       // geste = valider la bobine mère de la réf en cours. Orange (à valider) ≠ rouge (dimension modifiée).
       const _ai=(typeof fmmActiveIdx==='function')?fmmActiveIdx():null;
       const _rf=(typeof fmmGetRefs==='function')?(fmmGetRefs().find(x=>x.idx===_ai)||null):null;
-      showToast('⚠ Valide d\'abord la bobine mère de la réf en cours'+(_rf&&_rf.ref?' — « '+_rf.ref+' »':'')+' : bouton « 🔄 Valider la bobine mère » juste au-dessus de sa 1re bobine.','err');
+      showToast('⚠ Valide d\'abord la bobine mère de la réf en cours'+(_rf&&_rf.ref?' — « '+refDisp(_rf.ref)+' »':'')+' : bouton « 🔄 Valider la bobine mère » juste au-dessus de sa 1re bobine.','err');
       const _blk=document.querySelector('.fmm-block.active')||document.querySelector('.fmm-inline-block.active');
       if(_blk){ try{_blk.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){} _blk.style.outline='3px solid var(--orange)'; setTimeout(function(){ _blk.style.outline=''; },2500); }
       return;
@@ -9615,6 +9621,10 @@ function resetSiteConfirm(){
   // [L67 · Audit] partage actif : prévenir que le reset l'arrête (resetAll clôt le partage).
   const _msgShare=_shareActive?'\n\n⚠ Le PARTAGE en cours sera ARRÊTÉ (les collègues ne verront plus la commande).':'';
   if(!confirm('↺ Réinitialiser : vider entièrement le plan et la fiche en cours pour repartir d\'un site vierge ?'+_msgShare+'\n\n(Les données déjà enregistrées — plans, fiches, brouillons manuels — ne sont pas touchées.)')) return;
+  // [L294 · revue] capture AVANT resetAll : il annule _viewingSharedId/_localCopyFromShare et vide les champs
+  // n° de commande → la garde de protection des brouillons auto (plus bas) serait toujours fausse (code mort).
+  const _wasCopy=!!(_localCopyFromShare||_viewingSharedId);
+  const _screenNum=(function(){ try{ return nrm(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||''); }catch(e){ return ''; } })();
   try{ resetAll(); }catch(e){ console.warn('resetSiteConfirm:',e); }
   // Site VRAIMENT vierge : purge les brouillons AUTO de CE poste (fiche + plan) et
   // réarme les gardes de signature. Sinon maybeResumeRunningChrono/maybeResumePlan
@@ -9624,8 +9634,23 @@ function resetSiteConfirm(){
     if(_planAutosaveTimer){ clearInterval(_planAutosaveTimer); _planAutosaveTimer=null; }
     const _aid=(typeof autosaveId==='function')?autosaveId():null;
     const _pid=(typeof planAutosaveId==='function')?planAutosaveId():null;
-    persistDrafts(loadDrafts().filter(function(d){ return d.id!==_aid && d.id!==_pid; }));
+    // [L294 · audit 30/07] NE PURGER les brouillons auto QUE s'ils reflètent l'écran qu'on vide. En vue miroir /
+    // copie locale d'un partage, les ticks d'autosave étaient NEUTRALISÉS : d_autosave contient encore la
+    // commande EN PAUSE du poste (bobines cochées, NC, chrono figé — jamais parquée à la main). La purger ici
+    // contredisait le confirm (« les données déjà enregistrées ne sont pas touchées ») → travail terrain
+    // irrécupérable. Même garde si le n° de commande du brouillon ≠ celui de l'écran (autre commande).
+    const _protege=function(d){
+      if(!d) return false;
+      if(_wasCopy) return true;   // [revue L294] écran = commande d'un collègue (capturé AVANT resetAll) → le brouillon auto est CELLE DU POSTE
+      try{ const f=(d.state&&d.state.fiche)||{}, p=(d.state&&d.state.plan)||{}; const n=nrm(f.numCmd||p.numCmd||'');
+        return !!(n&&_screenNum&&n!==_screenNum); }catch(e){ return false; }   // brouillon d'une AUTRE commande que l'écran (capturé avant reset) → conservé
+    };
+    const _all=loadDrafts();
+    const _aDoc=_all.find(function(d){return d.id===_aid;}), _pDoc=_all.find(function(d){return d.id===_pid;});
+    const _keepA=_protege(_aDoc), _keepP=_protege(_pDoc);
+    persistDrafts(_all.filter(function(d){ return (d.id!==_aid||_keepA) && (d.id!==_pid||_keepP); }));
     _autosaveLastSig=''; _planAutosaveLast='';
+    if(_keepA||_keepP) showToast('💾 Ta commande en pause reste dans Données > Brouillons (le reset ne vide que l\'écran).','ok');
   }catch(e){ console.warn('resetSiteConfirm purge brouillons auto:',e); }
   try{ if(typeof showPage==='function') showPage(0); }catch(e){}
   try{ showToast('↺ Site réinitialisé','ok'); }catch(e){}
@@ -16276,7 +16301,7 @@ function renderFicheMachineBlocks(opts){
       // 1 ligne « ✓ Réf N terminée (déplier) » : libère l'écran, garde le repère de progression ET l'accès au
       // bouton 🔄 recorriger (dans le dépliable). JAMAIS de display:none sec. Classe .ref-done posée/retirée par
       // _syncRefDonePills (updateCoupeeStatus + rendu) — matching par refIdKey/idx, PAS par nom (homonymes).
-      body='<div class="fmm-done-line" onclick="this.closest(\'.fmm-inline-block\').classList.toggle(\'ref-open\')">✓ Réf '+(pos+1)+' · '+esc(String(r.ref))+' terminée <span class="fdl-hint fdl-o">(déplier)</span><span class="fdl-hint fdl-c">(replier)</span></div>'
+      body='<div class="fmm-done-line" onclick="this.closest(\'.fmm-inline-block\').classList.toggle(\'ref-open\')">✓ Réf '+(pos+1)+' · '+esc(refDisp(r.ref))+' terminée <span class="fdl-hint fdl-o">(déplier)</span><span class="fdl-hint fdl-c">(replier)</span></div>'
         +'<div class="fmm-valsum">'
         +(_ml?'<span class="frs-mch" style="--mc:'+_mc+'">⚙ '+esc(_ml)+'</span>':'')
         +(_mo>0?'<span class="frs-m">mère '+V(r.mother)+' mm</span>':'')
@@ -16314,7 +16339,7 @@ function renderFicheMachineBlocks(opts){
     const _hml=getMachineLabel(r.machine||'');
     const _hmc=({feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'})[r.machine]||'#888';
     const _hmChip=(!validated&&_hml)?'<span class="frs-mch" style="--mc:'+_hmc+'">⚙ '+esc(_hml)+'</span>':'';
-    block.innerHTML='<div class="fmm-head">'+refChip+badge+_hmChip+'<span class="fmm-name">🎞 '+esc(String(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
+    block.innerHTML='<div class="fmm-head">'+refChip+badge+_hmChip+'<span class="fmm-name">🎞 '+esc(refDisp(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
     // [L236 · demande Esteban] RÉF 1 : sa carte de validation vit ENTRE le suivi « X/N coupées » et la
     // 1re bobine à couper (colonne des bobines) — l'opérateur voit suivi → réf à valider → bobines, d'un
     // seul flux. Réfs 2, 3, … : inchangées (bloc à leur 1re bobine). (Avant L107/L236 : au-dessus de l'en-tête.)
@@ -17238,7 +17263,7 @@ function updateCoupeeStatus(){
           if(c){c.innerHTML=`✂ <strong>${d}/${lines.length}</strong>`;c.style.color=ok?'var(--green)':'#fca5a5';}
         }
       });
-      return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(r)} <strong>${d}/${lines.length}</strong></span>`;
+      return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(refDisp(r))} <strong>${d}/${lines.length}</strong></span>`;
     }).join(' · ');
   }
   const banner=document.getElementById('coupeeBanner');
@@ -17900,10 +17925,19 @@ function _restoreSharedApply(doc){
 // Signature du CONTENU partagé. Le chrono est EXCLU : il ticke chaque seconde (ferait
 // un write par tick) et surtout chaque opérateur mesure SON propre temps — le chrono
 // n'est pas synchronisé entre postes.
+// [L294 · audit 30/07] stringify STABLE (clés d'objets triées) : Firestore re-canonicalise l'ordre des clés des
+// maps au round-trip → comparer un JSON local à un JSON relu du serveur ne marchait jamais à contenu pourtant égal.
+function _stableSig(o){
+  return JSON.stringify(o,function(k,v){
+    if(v&&typeof v==='object'&&!Array.isArray(v)){ const s={}; Object.keys(v).sort().forEach(function(kk){ s[kk]=v[kk]; }); return s; }
+    return v;
+  });
+}
 function _shareSig(){
   // [L170 · revue régression #7] EXCLURE planManual de la signature : sérialisé brut mais re-trié
   // (_pmSortBobinesOnce) à la restauration → la signature aurait pu varier sans changement réel → push en boucle.
-  try{ const st=serializeFicheState(); const plan=Object.assign({},st.plan); delete plan.planManual; return JSON.stringify({plan,fiche:st.fiche,lines:st.lines}); }
+  // [L294] signature STABLE (clés triées) — symétrique de _dsig côté doc (libération du gel enfin possible).
+  try{ const st=serializeFicheState(); const plan=Object.assign({},st.plan); delete plan.planManual; return _stableSig({plan,fiche:st.fiche,lines:st.lines}); }
   catch(e){ return ''; }
 }
 function shareAutosaveTick(){
@@ -17937,9 +17971,13 @@ function shareAutosaveTick(){
       }).catch(function(){ _shareHoldGetBusy=false; /* réseau KO : ne pas conclure à tort — nouvel essai au prochain tick */ });
       return;
     }
+    // [L294 · audit 30/07] comparaison SYMÉTRIQUE et STABLE : (1) le doc partagé contient toujours la clé
+    // planManual (sérialisée) alors que _shareSig la supprime côté écran → égalité impossible ; (2) Firestore
+    // re-canonicalise l'ordre des clés des maps → deux JSON jamais identiques même à contenu égal. On normalise
+    // donc les DEUX côtés pareil (delete planManual + clés triées). Sans ça le gel ne se libérait JAMAIS par ici.
     let _dsig=null;
-    try{ _dsig=(_d&&_d.state)?JSON.stringify({plan:_d.state.plan,fiche:_d.state.fiche,lines:_d.state.lines}):null; }catch(e){}
-    if(_dsig&&_shareSig()===_dsig){ _sharePushHold=false; _shareAutosaveLastSig=_dsig; }
+    try{ if(_d&&_d.state){ const _p=Object.assign({},_d.state.plan); delete _p.planManual; _dsig=_stableSig({plan:_p,fiche:_d.state.fiche,lines:_d.state.lines}); } }catch(e){}
+    if(_dsig&&_shareSig()===_dsig){ _sharePushHold=false; _shareAutosaveLastSig=_dsig; }   // sig posée → pas de re-push d'un contenu identique
     return;
   }
   const sig=_shareSig();
@@ -18021,7 +18059,18 @@ function openSharedCommand(id){
   if(!doc||!_isSharedDoc(doc)){ showToast('Commande partagée introuvable (peut-être arrêtée).','err'); refreshShareReception(); return; }
   if(Array.isArray(ficheLines)&&ficheLines.length&&typeof confirm==='function'
      && !confirm('Ouvrir la commande partagée par '+_nomOf(doc.sharedBy)+' ?\n\nTa saisie en cours sera remplacée par la sienne (miroir live).')) return;
-  try{ restoreFicheState(_shareCloneForReceiver(doc.state)); }
+  // [L294 · audit 30/07] PRÉSERVER LE CHRONO DU RÉCEPTEUR : le clone met chrono à zéro (le récepteur mesure
+  // SON temps, exclu de la synchro) — mais après un reload (purge iOS), le chrono repris « live » tournait déjà
+  // et la réouverture du partage l'ÉCRASAIT à 00:00:00 sans avertissement → temps opérateur ISO perdu,
+  // irrécupérable (la clé live est purgée au prochain écran éteint). On réinjecte l'état chrono courant dans le
+  // clone AVANT restauration : le miroir s'ouvre avec le temps du récepteur intact, en marche s'il l'était.
+  try{
+    const _cl=_shareCloneForReceiver(doc.state);
+    if((typeof chronoSec==='number'&&chronoSec>0)||chronoRunning){
+      _cl.chrono={sec:chronoSec||0,wasRunning:!!chronoRunning,runStart:chronoRunning?(Date.now()-(chronoSec||0)*1000):null,startTs:(typeof chronoStartTs!=='undefined'&&chronoStartTs)||null};
+    }
+    restoreFicheState(_cl);
+  }
   catch(e){ console.warn('Ouverture partage :',e); showToast('Impossible d\'ouvrir cette commande partagée.','err'); return; }
   _viewingSharedId=doc.id; _viewingSharedRev=doc.sharedRev||0; _viewingSharedFrom=doc.sharedBy||null;
   // [L62 · Lot 4] appliquer le verrou « qui coupe quoi » (🔒 sur les bobines des collègues).
@@ -18890,6 +18939,15 @@ async function maybeResumeRunningChrono(){
         if(live&&live.override) _chronoAutoStopOverride=live.override;
         restoreFicheState(d.state); _rearmResume(d.state); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono à '+fmtTimeFr(showSec),'ok'); }catch(e){}
+        // [L294 · audit 30/07] ÉMETTEUR d'un partage reconstruit par la reprise AUTO : libérer le gel du push
+        // comme le fait resumeDraft (L103) — sinon « synchro en direct » mentait À VIE (l'opérateur repris
+        // automatiquement n'a aucune raison d'aller dans Brouillons, seul autre chemin de libération ; et la
+        // comparaison écran↔doc ne s'égalisait jamais). L'écran repris EST sa commande : le push repart au
+        // prochain tick, les ✂ des collègues (champ cuts séparé) sont ré-appliqués.
+        if(_shareActive&&_sharePushHold){
+          _sharePushHold=false; _shareAutosaveLastSig='';
+          try{ const _sd2=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(x=>x&&x.id===_shareDocId); if(_sd2) applySharedCuts(_sd2.cuts||{}); }catch(e){}
+        }
       } else if(confirm('⏱ Reprendre ta commande non terminée ?\n\n'+lbl+'\nChrono : '+fmtTimeFr(showSec)+' (figé)\n\nOK = reprendre · Annuler = repartir de zéro')){
         // Jour précédent : reprise FIGÉE (jamais recalée sur l'horloge d'aujourd'hui).
         const stFrozen=Object.assign({},d.state);

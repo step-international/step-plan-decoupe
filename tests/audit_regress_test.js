@@ -427,11 +427,26 @@ has(/GUIDE DE PROCHAINE ACTION \(T6\/L288\) RETIRÉ EN ENTIER/,'L292 : trace du 
 has(/#fmmHint ENTIÈREMENT muet/,'L292 : #fmmHint totalement supprimé (vert « Chrono autorisé » ET orange « Valide la bobine mère » — demande Esteban ×2) ; seuls bouton bleu + toast T5 informent');
 absent(/hintEl\.innerHTML='⚠ Valide la bobine mère/,'L292 : plus aucun texte permanent « Valide la bobine mère » à l\'écran');
 has(/case VIERGE : le pré-remplissage avec la réf commande/,'L292 : étiquette solde — case N° de référence VIERGE (le pré-rempli imprimait la réf commande à la place du vrai n°)');
-has(/réfs GROUPÉES dans l\'en-tête/,'L292 : en-tête PDF — réfs « NUM1 + NUM2 + NUM3 — NOM » quand le nom produit est commun');
-has(/STEP International — Plan<\/div>/,'L292 : titre PDF discret sur une ligne');
+console.log('── L293 : feuille annotée ×2 (violet) — noms courts partout, PDF minimal ──');
+has(/function refDisp\(r\)/,'L293 : refDisp — affichage COURT des réfs (« 41312799 - TacFlex® KX1045-1 » → « KX1045-1 »), données/clés intactes');
+has(/noms COURTS \(refDisp\) dédupliqués/,'L293 : en-tête PDF — noms courts dédupliqués (plus aucun n° de commande)');
+has(/titre SUPPRIMÉ \(surligné violet/,'L293 : titre « Plan de découpe — STEP International » SUPPRIMÉ du PDF');
+absent(/STEP International — Plan<\/div>/,'L293 : l\'ancien titre discret L292 a aussi disparu');
+has(/« N références » supprimé \(violet\)/,'L293 : « · N références · » retiré de la ligne Machine/Date');
+has(/colonne « À couper »\n {6}\/\/ et ligne « Total » SUPPRIMÉES|et ligne « Total » SUPPRIMÉES/,'L293 : tableau laize = Laize | Commandé | ✂ En stock (colonne À couper + ligne Total supprimées)');
+has(/replace\(\/\\s\*\\\(\[\^\)\]\*\\\)\\s\*\$\/,''\)\)\}<\/b>/,'L293 : parenthèse du cerclage retirée du papier (« Standard » au lieu de « Standard (≤39mm + tous KX) »)');
+has(/label:\(multi&&c\.ref\?refDisp\(c\.ref\)\+' · ':''\)/,'L293 : étiquettes BOB de la fiche en nom court');
+has(/frs-name">🎞 \$\{esc\(refDisp\(ref\)\)\}/,'L293 : séparateurs de réf de la fiche en nom court (dataset complet préservé pour le matching)');
 has(/pas de doublon : n° déjà présent dans le nom client/,'L292 : N° Cmd supprimé du PDF quand le numéro figure déjà dans le nom client');
 has(/Cerclage : automatique \(film KX, toutes largeurs\)/,'L292 : SPÉCIFICITÉ LIMA réécrite courte (papier vert 1×, cerclage 1×)');
 has(/la ligne « Film KX détecté → cerclage automatique » ne/,'L292 : plus d\'ajout auto « Film KX » quand les règles client le disent déjà (fini le triple cerclage)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L292 présents dans index.html + sw.js');
+console.log('── L294 : audit 30/07 — partage/chrono/réinit ──');
+has(/function _stableSig\(o\)/,'L294 : signature STABLE (clés triées) — la comparaison écran↔doc Firestore devient possible');
+has(/delete _p\.planManual; _dsig=_stableSig/,'L294 : _dsig symétrique de _shareSig (planManual retiré des DEUX côtés) — le gel du push peut enfin se libérer par comparaison');
+has(/ÉMETTEUR d'un partage reconstruit par la reprise AUTO : libérer le gel/,'L294 : reprise AUTO même-jour de l\'émetteur → gel du push libéré (fini « synchro en direct » menteur à vie)');
+has(/PRÉSERVER LE CHRONO DU RÉCEPTEUR/,'L294 : rouvrir un partage après reload ne remet plus le chrono du récepteur à zéro (temps ISO préservé)');
+has(/NE PURGER les brouillons auto QUE s'ils reflètent l'écran/,'L294 : ↺ Réinitialiser ne détruit plus la commande EN PAUSE du poste (copie locale de partage / autre n° de commande → brouillons auto conservés)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L294 présents dans index.html + sw.js');
 process.exit(fail?1:0);
