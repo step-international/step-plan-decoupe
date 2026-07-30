@@ -382,11 +382,11 @@ has(/Une sauvegarde AUTO plus récente existe/,'L287 : reprise d\'un brouillon p
 console.log('── L288 : les 6 tâches du 29/07 (décisions Esteban) ──');
 has(/body\.atelier \.nc-check\.ras,body\.atelier \.test2-sub,body\.atelier \.test2-nc\{font-size:17px;min-height:48px;padding:8px 14px\}/,'L288 T1 : test 2ᵉ compacté à 48px (plancher gants), puces Défaut inchangées à 60px');
 has(/bn\.dataset\.covTok=_tok/,'L288 T2 : bandeau violet « bobines ajoutées » auto-restauré après 5 s (jeton anti-course, retour via updateCoupeeStatus — jamais de display:none sec)');
-has(/const _cuForRecap=\(c\.chutesUsed&&Object\.keys\(c\.chutesUsed\)\.length\)\?c:\{chutesUsed:_chutesSrc\}/,'L288 T3 : récap bobineaux STOCK visible aussi sur le PDF fiche (chutes appariées mandrinGroups)');
+has(/bande orange « ✂ Chutes en stock utilisées » SUPPRIMÉE/,'L288 T3→L292 : le stock vit dans la colonne ✂ EN STOCK du tableau par laize (bande orange supprimée — feuille annotée Esteban 30/07)');
 
 console.log('── L289 : PDF tableau par laize + Total supprimé + édition manuelle avec rouleaux (choix Esteban 30/07) ──');
 has(/TABLEAU PAR LAIZE.*variante A allégée|maquette A allégée.*TABLEAU PAR LAIZE/,'L289 : tableau par laize (Laize | Commandé | ✂ En stock | À couper) — remplace la ligne 🧾 « dont » L288');
-has(/laize 100 % stock → bloc orange uniquement/,'L289 : une laize entièrement servie par le stock n\'apparaît PAS dans « à couper » (bloc orange seul)');
+has(/une laize 100 % stock reste une LIGNE du tableau/,'L289→L292 : laize 100 % stock = ligne du tableau à 0 grisé (choix Esteban 30/07, plus de bande orange)');
 has(/ligne « Total commande d'origine » multi-réf SUPPRIMÉE/,'L289 : Total global multi-réf supprimé (contradictions impossibles)');
 absent(/🧾 Total commande d'origine/,'L289 : l\'ancien Total multi-réf a bien disparu du template');
 has(/est SUPPRIMÉE \(redondante/,'L289 : bande verte « N rouleaux recoupés en 1er » retirée (info portée par les lignes ♻ du tableau) — seul « non utilisés » reste');
@@ -422,7 +422,16 @@ absent(/"MOREY": \[\{ref:"41116850 - TacFlex® DH1006-2"/,'L290 : l\'ancienne r�
 has(/function _syncRefDonePills\(\)/,'L288 T4 : réf finie → carte repliée en pastille « ✓ Réf N terminée (déplier) », recorriger accessible, matching par refIdKey');
 has(/Valide d\\'abord la bobine mère de la réf en cours/,'L288 T5 : chrono multi-réf bloqué → toast qui nomme le VRAI geste + scroll/pulse du bloc actif (fini le motif « dimension modifiée » faux)');
 has(/Il reste '\+\(_tot-_dn\)\+' bobine\(s\) à marquer/,'L288 T5 : bouton d\'envoi jamais disabled — tap avant la fin = toast « reste N » + scroll (zéro tap mort)');
-has(/function _guideGo\(kind,id\)/,'L288 T6 : guide de prochaine action PERMANENT dans la bande de suivi (valide mère → chrono → coupe → envoie), tap = scroll/pulse cible visible');
+absent(/function _guideGo\(kind,id\)/,'L288 T6→L292 : guide permanent RETIRÉ en entier (demande Esteban 30/07 « ce texte est inutile ») — les toasts zéro-tap-mort T5 restent');
+has(/GUIDE DE PROCHAINE ACTION \(T6\/L288\) RETIRÉ EN ENTIER/,'L292 : trace du retrait du guide documentée dans updateCoupeeStatus');
+has(/#fmmHint ENTIÈREMENT muet/,'L292 : #fmmHint totalement supprimé (vert « Chrono autorisé » ET orange « Valide la bobine mère » — demande Esteban ×2) ; seuls bouton bleu + toast T5 informent');
+absent(/hintEl\.innerHTML='⚠ Valide la bobine mère/,'L292 : plus aucun texte permanent « Valide la bobine mère » à l\'écran');
+has(/case VIERGE : le pré-remplissage avec la réf commande/,'L292 : étiquette solde — case N° de référence VIERGE (le pré-rempli imprimait la réf commande à la place du vrai n°)');
+has(/réfs GROUPÉES dans l\'en-tête/,'L292 : en-tête PDF — réfs « NUM1 + NUM2 + NUM3 — NOM » quand le nom produit est commun');
+has(/STEP International — Plan<\/div>/,'L292 : titre PDF discret sur une ligne');
+has(/pas de doublon : n° déjà présent dans le nom client/,'L292 : N° Cmd supprimé du PDF quand le numéro figure déjà dans le nom client');
+has(/Cerclage : automatique \(film KX, toutes largeurs\)/,'L292 : SPÉCIFICITÉ LIMA réécrite courte (papier vert 1×, cerclage 1×)');
+has(/la ligne « Film KX détecté → cerclage automatique » ne/,'L292 : plus d\'ajout auto « Film KX » quand les règles client le disent déjà (fini le triple cerclage)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L291 présents dans index.html + sw.js');
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L292 présents dans index.html + sw.js');
 process.exit(fail?1:0);
