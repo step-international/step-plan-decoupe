@@ -379,5 +379,15 @@ has(/const recuts=\[\], rawRecuts=\[\]/,'L287 : idem filet pour les rouleaux à 
 has(/rawChutes:g\.rawChutes\|\|\[\], rawRecuts:g\.rawRecuts\|\|\[\]/,'L287 : rawChutes/rawRecuts persistés dans serializeRefGroups');
 has(/Une sauvegarde AUTO plus récente existe/,'L287 : reprise d\'un brouillon plus VIEUX que la dernière sauvegarde AUTO → confirmation explicite (sinon les ticks écrasaient la seule copie fraîche)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L287 présents dans index.html + sw.js');
+console.log('── L288 : les 6 tâches du 29/07 (décisions Esteban) ──');
+has(/body\.atelier \.nc-check\.ras,body\.atelier \.test2-sub,body\.atelier \.test2-nc\{font-size:17px;min-height:48px;padding:8px 14px\}/,'L288 T1 : test 2ᵉ compacté à 48px (plancher gants), puces Défaut inchangées à 60px');
+has(/bn\.dataset\.covTok=_tok/,'L288 T2 : bandeau violet « bobines ajoutées » auto-restauré après 5 s (jeton anti-course, retour via updateCoupeeStatus — jamais de display:none sec)');
+has(/dont <b>\$\{_meresN\}<\/b> sur bobines mères/,'L288 T3 : ligne par-réf = TOTAL commandé avec « dont X mères + Y rouleau chute + N stock » (fini le 42 vs 50)');
+has(/const _cuForRecap=\(c\.chutesUsed&&Object\.keys\(c\.chutesUsed\)\.length\)\?c:\{chutesUsed:_chutesSrc\}/,'L288 T3 : récap bobineaux STOCK visible aussi sur le PDF fiche (chutes appariées mandrinGroups)');
+has(/function _syncRefDonePills\(\)/,'L288 T4 : réf finie → carte repliée en pastille « ✓ Réf N terminée (déplier) », recorriger accessible, matching par refIdKey');
+has(/Valide d\\'abord la bobine mère de la réf en cours/,'L288 T5 : chrono multi-réf bloqué → toast qui nomme le VRAI geste + scroll/pulse du bloc actif (fini le motif « dimension modifiée » faux)');
+has(/Il reste '\+\(_tot-_dn\)\+' bobine\(s\) à marquer/,'L288 T5 : bouton d\'envoi jamais disabled — tap avant la fin = toast « reste N » + scroll (zéro tap mort)');
+has(/function _guideGo\(kind,id\)/,'L288 T6 : guide de prochaine action PERMANENT dans la bande de suivi (valide mère → chrono → coupe → envoie), tap = scroll/pulse cible visible');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L288 présents dans index.html + sw.js');
 process.exit(fail?1:0);
