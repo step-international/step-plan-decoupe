@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.30-L286';
+const APP_VERSION='2026.07.30-L287';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5565,20 +5565,25 @@ function getRefGroups(){
         else { const _rq=(row.querySelector('[data-type="qty"]')?.value||'').trim(), _rw=(row.querySelector('[data-type="width"]')?.value||'').trim(); if(_rq||_rw){ const _rc=(row.querySelector('[data-type="carton"]')?.value||'').trim(), _rm=(row.querySelector('[data-type="mandrin"]')?.value||'').trim(), _rcli=(row.querySelector('[data-type="cli"]')?.value||'A').trim(); rawRows.push({q:_rq,w:_rw,carton:_rc,mandrin:_rm,cli:_rcli}); } }   // [L271 · audit #2 + revue L272] ligne mal saisie NON parsée : on garde son TEXTE BRUT + carton/mandrin/client (sinon le client B/mandrin était perdu au restore → bobineau réattribué au mauvais client)
       });
       // Chutes en stock saisies pour cette réf : bobineaux déjà à la bonne largeur.
-      const chutes=[];
+      // [L287 · enquête brouillon] filet TEXTE BRUT (miroir exact de rawRows, correctif L271 #2) : une ligne
+      // mi-saisie (largeur sans quantité — le « 2 » gris n'est qu'un placeholder — ou faute de frappe) était
+      // JETÉE en silence de CHAQUE sauvegarde alors qu'elle restait visible à l'écran → disparue à la reprise.
+      const chutes=[], rawChutes=[];
       bl.querySelectorAll('.rb-chute-row').forEach(cr=>{
         const cw=parseNum(cr.querySelector('[data-ct="cw"]')?.value);
         const cq=clampQ(parseNum(cr.querySelector('[data-ct="cq"]')?.value),9999);
         if(cw>0&&cq>0) chutes.push({width:cw, qty:cq});
+        else { const _cw=(cr.querySelector('[data-ct="cw"]')?.value||'').trim(), _cq=(cr.querySelector('[data-ct="cq"]')?.value||'').trim(); if(_cw||_cq) rawChutes.push({w:_cw,q:_cq}); }
       });
       // Rouleaux à recouper pour cette réf : laizes résiduelles recoupées en 1er.
-      const recuts=[];
+      const recuts=[], rawRecuts=[];
       bl.querySelectorAll('.rb-recut-row').forEach(rr=>{
         const rw=clampUseful(parseNum(rr.querySelector('[data-ct="rw"]')?.value));
         const rq=clampQ(parseNum(rr.querySelector('[data-ct="rq"]')?.value),999);
         if(rw>0&&rq>0) recuts.push({width:rw, qty:rq});
+        else { const _rw2=(rr.querySelector('[data-ct="rw"]')?.value||'').trim(), _rq2=(rr.querySelector('[data-ct="rq"]')?.value||'').trim(); if(_rw2||_rq2) rawRecuts.push({w:_rw2,q:_rq2}); }   // [L287] idem filet (nota : qty rouleau a un vrai défaut '1', l'exposition principale reste la largeur mal tapée)
       });
-      groups.push({ref,longueur,film,veka,mother,edge,useful,blade,machine,rows,chutes,recuts,rawRows});
+      groups.push({ref,longueur,film,veka,mother,edge,useful,blade,machine,rows,chutes,recuts,rawRows,rawChutes,rawRecuts});
     });
     return groups;
   }
@@ -5596,14 +5601,16 @@ function getRefGroups(){
     rows:getOrderRows(),
     chutes:[],
     recuts:[],
-    rawRows:[]
+    rawRows:[],
+    rawChutes:[],
+    rawRecuts:[]
   }];
 }
 
 // Sérialise les blocs réf pour la sauvegarde (structure persistée).
 function serializeRefGroups(){
   return getRefGroups().map(g=>({
-    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine||'', rows:g.rows, chutes:g.chutes||[], recuts:g.recuts||[], rawRows:g.rawRows||[]   // [L271 · audit #2] rawRows persistées pour ne pas perdre une ligne mal saisie (réf disparue) au ré-enregistrement
+    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine||'', rows:g.rows, chutes:g.chutes||[], recuts:g.recuts||[], rawRows:g.rawRows||[], rawChutes:g.rawChutes||[], rawRecuts:g.rawRecuts||[]   // [L271 · audit #2] rawRows persistées pour ne pas perdre une ligne mal saisie (réf disparue) au ré-enregistrement ; [L287] même filet pour bobineaux stock + rouleaux chute
   }));
 }
 // Chaîne lisible des attributs film d'une réf (ex. "Imprimé · VEKA"). Vide si rien.
@@ -5713,9 +5720,9 @@ function _restoreRefGroupsBody(arr){
   (g0.rows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
   (g0.rawRows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A')));   // [L271 · audit #2 + revue L272] restaure texte brut + carton/mandrin/client → la bannière re-signale ET aucun attribut perdu
   const chutes0=document.querySelector('.ref-block .rb-chutes');
-  if(chutes0){ chutes0.innerHTML=''; (g0.chutes||[]).forEach(ch=>chutes0.appendChild(makePlanChuteRow(ch.width,ch.qty))); }
+  if(chutes0){ chutes0.innerHTML=''; (g0.chutes||[]).forEach(ch=>chutes0.appendChild(makePlanChuteRow(ch.width,ch.qty))); (g0.rawChutes||[]).forEach(ch=>chutes0.appendChild(makePlanChuteRow(ch.w,ch.q))); }   // [L287] texte brut restauré → la ligne mi-saisie redevient visible au lieu de disparaître
   const recuts0=document.querySelector('.ref-block .rb-recuts');
-  if(recuts0){ recuts0.innerHTML=''; (g0.recuts||[]).forEach(rc=>recuts0.appendChild(makePlanRecutRow(rc.width,rc.qty))); }
+  if(recuts0){ recuts0.innerHTML=''; (g0.recuts||[]).forEach(rc=>recuts0.appendChild(makePlanRecutRow(rc.width,rc.qty))); (g0.rawRecuts||[]).forEach(rc=>recuts0.appendChild(makePlanRecutRow(rc.w,rc.q))); }   // [L287] idem rouleaux
   // Blocs suivants
   for(let i=1;i<arr.length;i++){
     addRefBlock();
@@ -5731,9 +5738,9 @@ function _restoreRefGroupsBody(arr){
     (gi.rows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
     (gi.rawRows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A')));   // [L271 · audit #2 + revue L272] idem blocs suivants (texte brut + carton/mandrin/client)
     const chutesC=bl.querySelector('.rb-chutes');
-    if(chutesC){ chutesC.innerHTML=''; (gi.chutes||[]).forEach(ch=>chutesC.appendChild(makePlanChuteRow(ch.width,ch.qty))); }
+    if(chutesC){ chutesC.innerHTML=''; (gi.chutes||[]).forEach(ch=>chutesC.appendChild(makePlanChuteRow(ch.width,ch.qty))); (gi.rawChutes||[]).forEach(ch=>chutesC.appendChild(makePlanChuteRow(ch.w,ch.q))); }   // [L287] filet texte brut, idem bloc #1
     const recutsC=bl.querySelector('.rb-recuts');
-    if(recutsC){ recutsC.innerHTML=''; (gi.recuts||[]).forEach(rc=>recutsC.appendChild(makePlanRecutRow(rc.width,rc.qty))); }
+    if(recutsC){ recutsC.innerHTML=''; (gi.recuts||[]).forEach(rc=>recutsC.appendChild(makePlanRecutRow(rc.width,rc.qty))); (gi.rawRecuts||[]).forEach(rc=>recutsC.appendChild(makePlanRecutRow(rc.w,rc.q))); }   // [L287] idem
   }
   updateCartonVisibility();
   updateVekaVisibility();
@@ -8098,12 +8105,12 @@ async function acquireWakeLock(){
 function releaseWakeLock(){ try{ if(_wakeLock){ _wakeLock.release(); _wakeLock=null; } }catch(e){} }
 if(typeof document!=='undefined' && document.addEventListener){
   document.addEventListener('visibilitychange',()=>{
-    if(document.hidden){ persistChronoLive(); try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) autosaveDraftTick(true); }catch(e){} }          // [L265 · audit] capture l'état AVANT que le tél. gèle/tue la page — AUSSI les cases bobines/NC (pas que le chrono)
+    if(document.hidden){ persistChronoLive(); try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) autosaveDraftTick(true); }catch(e){} try{ if(typeof planAutosaveTick==='function') planAutosaveTick(); }catch(e){} }          // [L265 · audit] capture l'état AVANT que le tél. gèle/tue la page — AUSSI les cases bobines/NC (pas que le chrono) ; [L287 · enquête brouillon] AUSSI le brouillon PLAN (bobineaux stock/chutes saisis sans fiche, ou après l'arrêt auto du chrono) — il n'était JAMAIS flushé à la fermeture (perte sèche < 10 s). planAutosaveTick s'auto-garde (contenu, partage, signature).
     else { chronoCatchUp(); if(chronoRunning) acquireWakeLock(); }
   });
   window.addEventListener('focus',chronoCatchUp);
   window.addEventListener('pageshow',chronoCatchUp);
-  window.addEventListener('pagehide',function(){ persistChronoLive(); try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) autosaveDraftTick(true); }catch(e){} });   // [L265 · audit] idem pagehide
+  window.addEventListener('pagehide',function(){ persistChronoLive(); try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) autosaveDraftTick(true); }catch(e){} try{ if(typeof planAutosaveTick==='function') planAutosaveTick(); }catch(e){} });   // [L265 · audit] idem pagehide ; [L287] idem flush plan
 }
 
 // ============================================================
@@ -18170,7 +18177,23 @@ function _ficheStripHeavyPhotos(obj){
 }
 function _draftSet(d){
   if(!db||!d||!d.id) return;
-  db.collection('brouillons').doc(d.id).set(d).catch(e=>console.warn('Brouillon (écriture) :',e.message));
+  db.collection('brouillons').doc(d.id).set(d).catch(e=>{
+    console.warn('Brouillon (écriture) :',e.message);
+    // [L287 · enquête brouillon] écriture REJETÉE (règles/quota/doc trop gros — un simple hors-ligne ne rejette
+    // pas, il met en file) : avant, persistDrafts avait déjà renvoyé true → la signature d'autosave restait posée
+    // sur un ÉCHEC → plus aucun ré-essai tant que le contenu ne rechangeait pas (« brouillon qui ne s'enregistre
+    // pas »). On invalide : retrait du cache optimiste (le diff ré-écrira) + signature vidée (le tick ré-essaie)
+    // + toast (1×/min max) pour que l'opérateur SACHE que ce n'est pas sauvé.
+    try{ brouillonsCache=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(x=>!(x&&x.id===d.id)); }catch(_e){}
+    try{
+      if(typeof autosaveId==='function'&&d.id===autosaveId()) _autosaveLastSig='';
+      if(typeof planAutosaveId==='function'&&d.id===planAutosaveId()) _planAutosaveLast='';
+    }catch(_e){}
+    try{
+      const _t=Date.now();
+      if(!_draftSet._warnAt||_t-_draftSet._warnAt>60000){ _draftSet._warnAt=_t; if(typeof showToast==='function') showToast('⚠ Sauvegarde du brouillon REFUSÉE — tes dernières saisies ne sont PAS enregistrées (ré-essai automatique au prochain tick).','err'); }
+    }catch(_e){}
+  });
 }
 function _draftDelete(id){
   if(!db||!id) return;
@@ -18716,6 +18739,7 @@ function planAutosaveTick(){
 }
 function startPlanAutosave(){
   if(_planAutosaveTimer) return;
+  planAutosaveTick();                  // [L287 · enquête brouillon] capture IMMÉDIATE (miroir de startAutosave) : app tuée < 10 s après la 1re frappe = plus aucune fenêtre à zéro write
   _planAutosaveTimer=setInterval(planAutosaveTick,10000);
 }
 function clearPlanAutosaveDraft(){
@@ -18782,6 +18806,19 @@ function resumeDraft(id){
   // On mémorise son id : l'envoi réussi le purgera/consommera (clearCurrentDraft), comme les
   // brouillons auto du poste courant. Un abandon (reset/parcage) annule le marquage.
   // [L104 · Phase 2 · T] posé APRÈS restoreFicheState (qui remet désormais le marqueur à null).
+  // [L287 · enquête brouillon] reprendre un brouillon PLUS VIEUX que la dernière sauvegarde AUTO de CE poste :
+  // les ticks (10/15 s, id fixe) réécriront d_autosave/d_autosave_plan avec l'état restauré PÉRIMÉ → la seule
+  // copie contenant les saisies récentes (ex. bobineaux stock saisis après le parcage 💾) serait détruite.
+  // Confirmation EXPLICITE, indépendante d'isFicheUntouched (écran vide après reload = garde B09 muette).
+  try{
+    const _dT=Date.parse(d.savedAt||0)||0;
+    let _fresh=null;
+    loadDrafts().forEach(x=>{ if(!x||x.id===id||x.consumed) return; if(x.id!==autosaveId()&&x.id!==planAutosaveId()) return; const _t=Date.parse(x.savedAt||0)||0; if(_t>_dT+60000&&(!_fresh||_t>(Date.parse(_fresh.savedAt||0)||0))) _fresh=x; });
+    if(_fresh){
+      const _mn=Math.max(1,Math.round(((Date.parse(_fresh.savedAt||0)||0)-_dT)/60000));
+      if(!confirm('⚠ Une sauvegarde AUTO plus récente existe :\n'+(_fresh.label||'🔄 Auto')+' (+'+_mn+' min après ce brouillon).\n\nReprendre quand même CE brouillon plus ancien ?\nLa sauvegarde auto plus récente sera ÉCRASÉE dans quelques secondes.\n\nConseil : reprends plutôt la sauvegarde 🔄 Auto dans la liste.')) return;
+    }
+  }catch(e){}
   const _foreignId=(/^d_autosave_/.test(String(id))&&id!==autosaveId()&&id!==planAutosaveId())?id:null;
   restoreFicheState(d.state);
   _resumedForeignDraftId=_foreignId;
@@ -19058,8 +19095,13 @@ function renderDrafts(){
   // la MÊME commande (n°) existe déjà en FICHE (un brouillon non-planDraft avec des bobines) → le « ? » LIMA
   // disparaît dès que la fiche LIMA existe. On matche par n° de commande (unique).
   const _numOf=d=>{ const f=(d&&d.state&&d.state.fiche)||{}, p=(d&&d.state&&d.state.plan)||{}; const n=(f.numCmd||p.numCmd||''); return (n&&n!=='—')?nrm(n):''; };
-  const _ficheNums=new Set(drafts.filter(d=>!d.planDraft && d.state&&d.state.lines&&d.state.lines.length).map(_numOf).filter(Boolean));
-  drafts=drafts.filter(d=>!(d.planDraft && _numOf(d) && _ficheNums.has(_numOf(d))));
+  // [L287 · enquête brouillon] la dédup L280 masquait le brouillon plan SANS comparer les dates : après l'arrêt
+  // auto du chrono (16h15), les bobineaux/chutes saisis ne vivent QUE dans le brouillon plan → il devenait
+  // INVISIBLE (puis écrasé à la re-saisie). On ne masque plus que si la FICHE est aussi récente (tolérance 60 s
+  // pour le décalage des ticks 10/15 s) : un brouillon plan nettement plus frais reste proposé.
+  const _ficheNewest={};
+  drafts.forEach(d=>{ if(!d.planDraft && d.state&&d.state.lines&&d.state.lines.length){ const n=_numOf(d); if(n){ const t=Date.parse(d.savedAt||0)||0; if(!(n in _ficheNewest)||t>_ficheNewest[n]) _ficheNewest[n]=t; } } });
+  drafts=drafts.filter(d=>{ if(!d.planDraft) return true; const n=_numOf(d); if(!n||!(n in _ficheNewest)) return true; return (Date.parse(d.savedAt||0)||0)>_ficheNewest[n]+60000; });
   const list=document.getElementById('draftsList');
   const empty=document.getElementById('draftsEmpty');
   if(!list) return;

@@ -333,7 +333,7 @@ has(/if\(!_gcRestored && typeof _snapFicheChutes==='function'\) _snapFicheChutes
 console.log('── L280 : brouillons (machine + anti-doublon), graphiques lames, client Mtechnologie (demandes Esteban) ──');
 has(/"Mtechnologie": \[\{ref:"GHX173A",largeur:1290,longueur:1000\}\]/,'L280 : client Mtechnologie + réf GHX173A (1290 mm, 1000 ml) créés');
 has(/const _post=d\.ownerPost\|\|_fMach\|\|_pMach\|\|'';/,'L280 : brouillon affiche la MACHINE même sans initiales d\'opérateur (plus de « ? » seul)');
-has(/drafts=drafts\.filter\(d=>!\(d\.planDraft && _numOf\(d\) && _ficheNums\.has\(_numOf\(d\)\)\)\)/,'L280 : doublon « saisie de plan » masqué quand la même commande existe en fiche');
+has(/drafts=drafts\.filter\(d=>\{ if\(!d\.planDraft\) return true; const n=_numOf\(d\); if\(!n\|\|!\(n in _ficheNewest\)\) return true; return \(Date\.parse\(d\.savedAt\|\|0\)\|\|0\)>_ficheNewest\[n\]\+60000; \}\)/,'L280→L287 : doublon « saisie de plan » masqué SEULEMENT si la fiche est aussi récente (un brouillon plan plus frais — chutes saisies après 16h15 — reste visible)');
 has(/barres à coins HAUTS arrondis/,'L280 : graphiques lames modernisés (coins arrondis, dégradé, ombre, liseré)');
 
 has(/id="etiqRefNum_\$\{d\.key\}"/,'L281 : étiquette solde — input DIGITAL « N° de référence » (fini la case au feutre)');
@@ -366,7 +366,18 @@ has(/genChutes:\(_ficheGenChutes\?JSON\.stringify\(_ficheGenChutes\):null\)/,'L2
 has(/DÉTECTEUR D'ÉQUILIBRE DU RESTE/,'L286 : détecteur d\'équilibre du reste (sans instantané) — manque/en-trop par largeur vs commande−stock−figé, survit au rechargement');
 has(/rouleau\(x\) chute modifié\(s\) dans le plan/,'L286 : rouleaux chute comparés par MULTISET de largeurs (un rouleau REMPLACÉ 1-contre-1 était invisible) — rouleaux figés décomptés des deux côtés');
 has(/appliqué AUTOMATIQUEMENT à la fiche/,'L286 : dérives SÛRES (stock/rouleaux) appliquées AUTOMATIQUEMENT à l\'arrivée sur la fiche (choix Esteban 30/07) — coupées conservées, toast de traçabilité');
-has(/opts\.autoApply && !needClick && !shared/,'L286 : l\'auto-application est bloquée dès qu\'une dérive SENSIBLE (machine / sur-coupe / équilibre) coexiste (needClick) — bannière 1 clic conservée');
+has(/opts\.autoApply && !needClick && !shared && !_pm/,'L286 (revue P4) : JAMAIS d\'auto-application en plan MANUEL — le recalcul (moteur auto) écraserait le plan écrit main');
+has(/const _eqAgg=\{\}, _cuAgg=\{\}, _recAgg=\{\}, _kSeen=new Set\(\)/,'L286 (revue P2) : agrégats PAR CLÉ (commande−stock, chutesUsed, rouleaux) — même réf scindée sur 2 machines ne fabrique plus de fausse dérive');
+has(/const _firstOfKey=!_kSeen\.has\(key\); _kSeen\.add\(key\)/,'L286 (revue P2) : chaque check par-clé (stock/rouleaux/sur-coupe/équilibre) tourne UNE fois par clé d\'identité');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L286 présents dans index.html + sw.js');
+console.log('── L287 : enquête « brouillon qui ne s\'enregistre pas » (perte bobineaux stock / chutes) ──');
+has(/\[L287\] idem flush plan/,'L287 : brouillon PLAN flushé à pagehide/visibilitychange (avant : jamais — perte sèche des saisies < 10 s à la fermeture)');
+has(/planAutosaveTick\(\);                  \/\/ \[L287/,'L287 : capture IMMÉDIATE du brouillon plan à la 1re frappe (avant : 1er write à +10 s seulement)');
+has(/Sauvegarde du brouillon REFUSÉE/,'L287 : écriture Firestore rejetée → signature invalidée + retrait du cache optimiste + toast (le tick ré-essaie au lieu de croire la saisie sauvée)');
+has(/const chutes=\[\], rawChutes=\[\]/,'L287 : filet TEXTE BRUT pour les bobineaux stock mi-saisis (miroir rawRows L271) — plus jamais jetés en silence de la sauvegarde');
+has(/const recuts=\[\], rawRecuts=\[\]/,'L287 : idem filet pour les rouleaux à recouper');
+has(/rawChutes:g\.rawChutes\|\|\[\], rawRecuts:g\.rawRecuts\|\|\[\]/,'L287 : rawChutes/rawRecuts persistés dans serializeRefGroups');
+has(/Une sauvegarde AUTO plus récente existe/,'L287 : reprise d\'un brouillon plus VIEUX que la dernière sauvegarde AUTO → confirmation explicite (sinon les ticks écrasaient la seule copie fraîche)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L287 présents dans index.html + sw.js');
 process.exit(fail?1:0);
