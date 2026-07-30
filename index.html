@@ -1790,7 +1790,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.29-L285';
+const APP_VERSION='2026.07.30-L286';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3949,10 +3949,19 @@ function openFileOverlay(url){
 // En MÉMOIRE seulement : au rechargement → null → aucune fausse alerte (pas de harcèlement de bannière).
 let _ficheGenChutes=null;
 function _snapFicheChutes(){
-  try{ const cs=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length); const snap={}; cs.forEach(c=>{ snap[_refIdKey(c)]=JSON.stringify(c.chutesUsed||{}); }); _ficheGenChutes=snap; }
+  try{
+    // [L286 · revue P2] clés d'identité DUPLIQUÉES (même réf scindée sur 2 machines aux mêmes défauts bords/lame) :
+    // on AGRÈGE les chutesUsed par clé (somme par largeur) au lieu d'écraser au dernier groupe — sinon la
+    // comparaison « groupe 1 vs instantané du groupe 2 » fabriquait une fausse dérive stock permanente.
+    const cs=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length); const agg={};
+    cs.forEach(c=>{ const k=_refIdKey(c); const a=agg[k]||(agg[k]={}); Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ a[w]=(a[w]||0)+(Number(q)||0); }); });
+    const snap={}; Object.keys(agg).forEach(k=>{ snap[k]=JSON.stringify(agg[k]); });
+    _ficheGenChutes=snap;
+  }
   catch(e){ _ficheGenChutes=null; }
 }
-function _fichePlanDriftCheck(){
+function _fichePlanDriftCheck(opts){
+  opts=opts||{};   // [L286] opts.autoApply : posé UNIQUEMENT par showPage(1) — dérives « sûres » appliquées seules à l'arrivée sur la fiche
   const el=document.getElementById('planDriftBanner'); if(!el) return;
   const hide=()=>{ el.style.display='none'; el.innerHTML=''; };
   try{
@@ -3963,7 +3972,28 @@ function _fichePlanDriftCheck(){
     const data=getFicheLinesData();
     const engagedOf=d=>d.coupee||!!d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||!!(d.ncDetail||'').trim();
     const drifts=[];
+    let needClick=false;   // [L286] une dérive « sensible » (machine / sur-coupe / équilibre) est présente → JAMAIS d'auto-application
     const allKeys=new Set(computed.map(c=>_refIdKey(c)));
+    // [L286 · bug lima] agrégat « commande − bobineaux stock » par clé d'identité (les clés strictement identiques
+    // se SOMMENT — miroir exact de cmdByRef du recalcul) : base du détecteur d'équilibre du reste ci-dessous.
+    // [L286 · revue P2] même réf scindée en 2 blocs à machines différentes mais mêmes défauts bords/lame → clés
+    // IDENTIQUES (la machine n'entre pas dans _refIdKey) alors que `lines` est filtré PAR CLÉ : toute comparaison
+    // par GROUPE (rouleaux, sur-coupe, stock) contre des lignes par CLÉ fabrique une fausse dérive permanente →
+    // on agrège AUSSI chutesUsed (_cuAgg) et rouleaux (_recAgg) par clé, et chaque check par-clé tourne UNE fois.
+    const _eqAgg={}, _cuAgg={}, _recAgg={}, _kSeen=new Set();
+    computed.forEach(c=>{
+      const k=_refIdKey(c);
+      const m={};
+      (c.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0; if(w>0&&q>0) m[w]=(m[w]||0)+q;});
+      const cu=_cuAgg[k]||(_cuAgg[k]={});
+      Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ if(m[w]!=null) m[w]=Math.max(0,m[w]-(Number(q)||0)); cu[w]=(cu[w]||0)+(Number(q)||0); });
+      const a=_eqAgg[k]||(_eqAgg[k]={});
+      Object.entries(m).forEach(([w,q])=>{ a[w]=(a[w]||0)+q; });
+      const rr=_recAgg[k]||(_recAgg[k]=[]);
+      (c.recutBobines||[]).forEach(r=>{ rr.push(Number(r.rollW)||0); });
+    });
+    // [L286 · revue P4] plan MANUEL : hissé hors boucle (sert aussi à la porte d'auto-application plus bas).
+    const _pm=(typeof planManual!=='undefined')&&planManual&&Array.isArray(planManual)&&planManual.length;
     computed.forEach(c=>{
       const key=_refIdKey(c);
       let lines=data.filter(d=>d.refIdKey===key);
@@ -3983,42 +4013,64 @@ function _fichePlanDriftCheck(){
         }
       }
       if(!lines.length) return;                          // réf absente du snapshot (fiche pas encore générée pour elle) : flux normal
+      // [L286 · revue P2] les checks par-CLÉ (stock, rouleaux multiset, sur-coupe, équilibre) ne tournent que sur
+      // le PREMIER groupe de chaque clé : `lines` contient déjà toutes les lignes de la clé, un 2ᵉ passage
+      // comparerait la part d'UN bloc au total des lignes → faux positif structurel.
+      const _firstOfKey=!_kSeen.has(key); _kSeen.add(key);
       const _engaged=lines.some(engagedOf);
       const msgs=[];
+      // [L285/L286] prédicat « figée » : réplique isLineFrozen (ce que le recalcul PRÉSERVE) sur les données —
+      // cf. revue L285 : engagedOf rate l'étiquette éditée / la config modifiée → bannière coincée. Hissé ici
+      // (L286) car les détecteurs rouleaux + équilibre + sur-coupe l'utilisent tous.
+      const _frozenLike=d=>{
+        if(d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit) return true;
+        if((d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng) return true;
+        const _lv=(d.label||'').trim(); if(_lv && _lv!==(d.autoLabel||'').trim()) return true;   // étiquette mère éditée = ligne engagée (B21)
+        if(typeof normConf==='function' && normConf(d.conf||'')!==(d.origConf||'')) return true;   // config modifiée à la main
+        return false;
+      };
+      // [L286] plan MANUEL (_pm hissé hors boucle, revue P4) : les détecteurs par CONTENU (rouleaux multiset /
+      // équilibre) comparent au plan AUTO recalculé → faux positifs structurels quand l'opérateur a voulu un
+      // plan différent. En manuel on garde les checks historiques uniquement (comptes + snapshot).
       // [L278 · demande Esteban] STOCK / CHUTES ajoutés EN COURS de découpe : signalés MÊME sur réf engagée, car
       // les appliquer route vers recalcEcartsFromFiche qui GARDE les bobines coupées et n'impute que sur le RESTE.
-      //  · bobineaux en stock (rb-chute-row) : détectés via l'instantané des chutesUsed pris à la génération.
-      if(_ficheGenChutes && _ficheGenChutes[key]!==undefined && JSON.stringify(c.chutesUsed||{})!==_ficheGenChutes[key]) msgs.push('bobineaux en stock ajoutés → à imputer sur le reste');   // [L278 · revue] clé ABSENTE de l'instantané (machine/dimension changée → refIdKey divergée) : ne PAS émettre à tort (la dérive machine a son propre chemin)
-      //  · rouleaux à recouper (rb-recut-row) : compte plan vs fiche (se referme seul quand la fiche les reflète).
-      const planRec=(c.recutBobines||[]).length, ficheRec=lines.filter(d=>d.recut).length;
-      if(planRec>ficheRec) msgs.push('+'+(planRec-ficheRec)+' rouleau(x) chute à recouper');   // AJOUTÉ : signalé même en cours (sûr — imputé sur le reste, coupées gardées)
-      else if(planRec<ficheRec && !_engaged) msgs.push((ficheRec-planRec)+' rouleau(x) chute retiré(s)');   // [L278 · revue] RETIRÉ : seulement si non engagée — un rouleau déjà COUPÉ ne peut être « dé-coupé » (sinon bandeau qui ne se referme jamais)
+      //  · bobineaux en stock (rb-chute-row) : détectés via l'instantané des chutesUsed pris à la génération
+      //    ([revue P2] agrégé par clé des deux côtés — miroir de _snapFicheChutes).
+      if(_firstOfKey && _ficheGenChutes && _ficheGenChutes[key]!==undefined && JSON.stringify(_cuAgg[key]||{})!==_ficheGenChutes[key]) msgs.push('bobineaux en stock ajoutés → à imputer sur le reste');   // [L278 · revue] clé ABSENTE de l'instantané (machine/dimension changée → refIdKey divergée) : ne PAS émettre à tort (la dérive machine a son propre chemin)
+      //  · rouleaux à recouper (rb-recut-row) :
+      if(_pm){
+        // plan manuel : compte plan vs fiche (comportement historique L278, inchangé).
+        const planRec=(c.recutBobines||[]).length, ficheRec=lines.filter(d=>d.recut).length;
+        if(planRec>ficheRec) msgs.push('+'+(planRec-ficheRec)+' rouleau(x) chute à recouper');
+        else if(planRec<ficheRec && !_engaged) msgs.push((ficheRec-planRec)+' rouleau(x) chute retiré(s)');
+      }else if(_firstOfKey){
+        // [L286 · bug lima] MULTISET des largeurs de rouleau, plus un simple compte : un rouleau REMPLACÉ
+        // (ex. fantôme 8×40 vs nouveau 190 mm) était 1-contre-1 → invisible. Les rouleaux FIGÉS (coupés/engagés,
+        // conservés par le recalcul) sont décomptés des DEUX côtés (appariement par rollW, comme le recalcul) →
+        // un rouleau déjà coupé puis retiré du plan reste invisible (pas de bandeau incoercible, garde L278).
+        // [revue P2] rouleaux du plan agrégés PAR CLÉ (_recAgg) et check UNE fois par clé, comme l'équilibre.
+        try{
+          const _planLeft=(_recAgg[key]||[]).slice();
+          lines.filter(d=>d.recut&&_frozenLike(d)).forEach(d=>{ const i=_planLeft.indexOf(Number(d.rollW)||0); if(i>=0) _planLeft.splice(i,1); });
+          const _ficheFree=lines.filter(d=>d.recut&&!_frozenLike(d)).map(d=>Number(d.rollW)||0);
+          if(JSON.stringify(_planLeft.slice().sort((a,b)=>a-b))!==JSON.stringify(_ficheFree.slice().sort((a,b)=>a-b))) msgs.push('rouleau(x) chute modifié(s) dans le plan → à refléter sur le reste');
+        }catch(e){}
+      }
       // Changement de MACHINE : garde inchangée — signalé UNIQUEMENT si la réf n'est pas engagée (le travail
       // terrain prime ; re-machiner le reste en cours de découpe est un choix conscient, pas un simple ajout stock).
       if(!_engaged){
         const mach=(c.machine||'').trim();
-        if(mach && !lines.some(d=>(d.machine||'')===mach)) msgs.push('machine → '+getMachineLabel(mach));
+        if(mach && !lines.some(d=>(d.machine||'')===mach)){ msgs.push('machine → '+getMachineLabel(mach)); needClick=true; }
       }
       // [L285 · demande Esteban] SUR-COUPE encore présente dans le RESTE : une largeur coupée EN PLUS (vs commande
       // − stock) reste prévue sur des bobines PAS ENCORE coupées → recalculer l'en retire (reliquat borné). Message
       // AUTO-REFERMANT : après le recalcul, plus aucune bobine non coupée ne reproduit cette largeur → il disparaît
       // (pas de harcèlement). Si plus rien à retirer (pas de reste concerné), on n'affiche RIEN : le surplus est
       // déjà tracé sur le papier (récap L284). Lecture seule, mêmes sources que recalcEcartsFromFiche.
-      try{
-        // [L285 · revue adversariale] le prédicat « figée » DOIT répliquer isLineFrozen (ce que le recalcul
-        // PRÉSERVE), PAS engagedOf : une bobine NON coupée mais pré-ÉTIQUETÉE (n° mère écrit d'avance) ou à
-        // config éditée est GELÉE par le recalcul. Avec engagedOf, la bannière comptait cette ligne comme « à
-        // retirer du reste » alors que le recalcul ne peut PAS la retirer → bannière rouge coincée (harcèlement).
-        // On aligne le committed ET le « reste retirable » sur isLineFrozen (répliqué sur les données, pas d'id ici).
-        const _frozenLike=d=>{
-          if(d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit) return true;
-          if((d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng) return true;
-          const _lv=(d.label||'').trim(); if(_lv && _lv!==(d.autoLabel||'').trim()) return true;   // étiquette mère éditée = ligne engagée (B21)
-          if(typeof normConf==='function' && normConf(d.conf||'')!==(d.origConf||'')) return true;   // config modifiée à la main
-          return false;
-        };
-        const cmdW={}; (c.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0; if(w>0&&q>0) cmdW[w]=(cmdW[w]||0)+q;});
-        Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ if(cmdW[w]!=null) cmdW[w]=Math.max(0,cmdW[w]-(Number(q)||0)); });
+      if(_firstOfKey) try{
+        // [revue P2/P1] commande − stock agrégé PAR CLÉ (= _eqAgg, déjà borné ≥ 0) : le calcul par GROUPE créait
+        // une fausse « sur-coupe » dès que la production figée de la clé dépassait la part d'UN seul bloc.
+        const cmdW=_eqAgg[key]||{};
         const comW={};
         lines.forEach(d=>{ if(!_frozenLike(d)||d.actDechet) return; parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) comW[p.width]=(comW[p.width]||0)+p.qty; }); });
         const overW=new Set(); Object.keys(comW).forEach(w=>{ if((comW[w]||0)>(cmdW[w]||0)) overW.add(Number(w)); });
@@ -4026,12 +4078,51 @@ function _fichePlanDriftCheck(){
         if(overW.size && lines.some(d=>!_frozenLike(d) && parseConf(d.conf||'').some(p=>overW.has(Number(p.width))))){
           const _ov=[...overW].sort((a,b)=>a-b).map(w=>((comW[w]||0)-(cmdW[w]||0))+'×'+fmt(w)).join(', ');
           msgs.push(_ov+' coupé(s) en plus → recalculer pour l\'en retirer du reste');
+          needClick=true;
+        }
+        // [L286 · bug lima] DÉTECTEUR D'ÉQUILIBRE DU RESTE — défense en profondeur SANS instantané (survit au
+        // rechargement, là où le snapshot chutes était perdu). Invariant du recalcul, par largeur :
+        //   production des lignes NON figées  ==  need = commande − bobineaux stock − production FIGÉE (borné ≥ 0).
+        // Un écart = le plan a changé sans que la fiche suive : « manque 1×70 au reste » / « 8×100 en trop
+        // (couverts par le stock) » — exactement le cas lima, attrapé même avec un instantané perdu.
+        // AUTO-REFERMANT : le recalcul régénère le reste précisément à need (residual borné) → silence après.
+        // Multiset de largeurs → immunisé contre l'ordre, le regroupement, le solde phasé et l'op.2.
+        if(!_pm && _eqAgg[key]){   // [revue P2] déjà borné à un passage par clé via _firstOfKey (englobe ce bloc)
+          const needBase=_eqAgg[key];
+          const restW={};
+          lines.forEach(d=>{ if(_frozenLike(d)) return; parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) restW[p.width]=(restW[p.width]||0)+p.qty; }); });
+          const _uf=Number(c.useful)||0;
+          const lack=[], extra=[];
+          new Set([...Object.keys(needBase),...Object.keys(comW),...Object.keys(restW)].map(Number)).forEach(w=>{
+            if(_uf>0 && w>_uf) return;   // largeur hors laize utile : le recalcul ne peut pas la produire → on ne promet rien (jamais de bannière incoercible)
+            const need=Math.max(0,(needBase[w]||0)-(comW[w]||0));
+            const have=restW[w]||0;
+            if(need>have) lack.push((need-have)+'×'+fmt(w));
+            else if(have>need && !overW.has(w)) extra.push((have-need)+'×'+fmt(w));   // overW : déjà porté par le message sur-coupe (pas de doublon)
+          });
+          if(lack.length){ msgs.push('manque '+lack.join(' + ')+' mm dans le reste à couper → recalculer'); needClick=true; }
+          if(extra.length){ msgs.push(extra.join(' + ')+' mm en TROP dans le reste (couverts par le stock / déjà produits) → recalculer'); needClick=true; }
         }
       }catch(e){}
       if(msgs.length) drifts.push('🎞 '+esc(c.ref||'?')+' — '+esc(msgs.join(' · ')));
     });
     if(!drifts.length){ hide(); return; }
     const shared=(typeof _shareCurrentDocId==='function')&&_shareCurrentDocId();
+    // [L286 · choix Esteban 30/07] AUTO-APPLICATION à l'ARRIVÉE sur la fiche (opts.autoApply, posé UNIQUEMENT par
+    // showPage(1) — jamais par les checks débouncés en pleine coupe) : dérives SÛRES seulement (bobineaux stock
+    // ajoutés / rouleaux modifiés — recalcEcartsFromFiche conserve les coupées et n'impute que le reste).
+    // machine / sur-coupe / équilibre (needClick) gardent la bannière 1 clic : conscience opérateur requise.
+    // Un SEUL essai par arrivée : si la dérive persiste après l'auto (onApplied re-vérifie sans autoApply), la
+    // bannière rouge classique s'affiche — pas de boucle.
+    // [L286 · revue P4] JAMAIS d'auto en plan MANUEL (!_pm) : recalcEcartsFromFiche régénère le reste au moteur
+    // AUTO → écraserait silencieusement le plan écrit main. En manuel : bannière + confirm (comportement < L286).
+    if(opts.autoApply && !needClick && !shared && !_pm
+       && !(typeof _recalcPending!=='undefined'&&_recalcPending)
+       && !(typeof _sendingFiche!=='undefined'&&_sendingFiche)
+       && typeof _applyPlanDriftFix==='function'){
+      _applyPlanDriftFix({silent:true});
+      return;
+    }
     el.innerHTML='⚠ <b>Le plan a changé</b> mais la fiche ne le reflète pas encore :<br>'+drifts.join('<br>')
       +(shared
         ?'<div style="margin-top:6px">🔒 Commande PARTAGÉE : arrête le partage, puis clique « 🔄 Changement plan » pour répercuter (les bobines coupées seront conservées).</div>'
@@ -4047,14 +4138,25 @@ let _driftAutoTimer=null;
 function _scheduleDriftCheck(){ try{ clearTimeout(_driftAutoTimer); }catch(e){} _driftAutoTimer=setTimeout(function(){ try{ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }catch(e){} },300); }
 // Bouton de la bannière : route vers recalcEcartsFromFiche({force}) — le MÊME chemin que « 🔄 Changement
 // plan » (conserve les coupées, régénère machine + rouleaux chute du reliquat), avec confirmation.
-function _applyPlanDriftFix(){
-  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){ showToast('🔒 Partage actif — arrête le partage d\'abord.','err'); return; }
-  if(!confirm('Répercuter le plan modifié sur la fiche ?\n\nLes bobines déjà coupées seront CONSERVÉES ; seul le reste est régénéré depuis le plan (machine, rouleaux chute, reliquat).')) return;
+// [L286] opts.silent : auto-application à l'arrivée sur la fiche (choix Esteban 30/07) — saute le confirm,
+// garde TOUTES les autres gardes (partage, _recalcPending refusé par le recalcul → repli bannière classique).
+function _applyPlanDriftFix(opts){
+  opts=opts||{};
+  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){ if(!opts.silent) showToast('🔒 Partage actif — arrête le partage d\'abord.','err'); return; }
+  if(!opts.silent && !confirm('Répercuter le plan modifié sur la fiche ?\n\nLes bobines déjà coupées seront CONSERVÉES ; seul le reste est régénéré depuis le plan (machine, rouleaux chute, reliquat).')) return;
   // [L278 · revue sceptique] re-contrôle de la dérive DANS onApplied (après la re-base de l'instantané + la
   // reconstruction de la fiche), et NON via un setTimeout(900) qui précédait la re-base (1000 ms) → le bandeau
   // repassait rouge et RESTAIT rouge. onApplied garantit la fermeture, sans course de timers.
   const _res=recalcEcartsFromFiche({force:true, onApplied:function(){ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }});
-  if(!_res||!_res.started){ showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err'); }
+  if(!_res||!_res.started){
+    if(opts.silent){ _fichePlanDriftCheck(); }   // [L286] auto refusée (recalcul déjà en cours…) → repli : bannière classique, l'opérateur garde la main
+    else showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err');
+  }
+  else if(opts.silent){
+    // [L286] trace claire de ce qui vient de se passer tout seul (pas de confirm : le toast + le récap du
+    // recalcul + la bannière verte assurent la conscience opérateur, règle « toutes les surfaces »).
+    showToast('♻ Plan modifié (bobineaux stock / rouleaux chute) → appliqué AUTOMATIQUEMENT à la fiche.\n\nBobines coupées conservées — le reste vient d\'être recalculé.','ok');
+  }
   else {
     // [L273 · demande Esteban] retour VERT immédiat au clic (le bandeau se referme via onApplied quand la dérive est résorbée).
     const _b=document.getElementById('planDriftApplyBtn'); if(_b){ _b.className='btn btn-green'; _b.textContent='✓ Plan appliqué — bobines coupées conservées'; }
@@ -4069,7 +4171,7 @@ function showPage(i){
   // Le bouton "→ Créer / Mettre à jour la fiche" fait la même chose en mode interactif.
   if(i===1){ try{ clearTimeout(_recalcPlanTimer); recalcPlan(); }catch(e){}   /* [L140 · audit #20] purger le recalcul débouncé (comme printPlan L6320) : sinon adaptPlanManualToInputs n'a pas tourné → la fiche calcule solde/chute/cumul sur d'ANCIENNES dimensions (useful/blade périmés) */
     importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn();
-    if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck();   /* [L221 · bug Dominique] l'import auto sort en silence si la fiche est touchée → on signale la dérive plan→fiche au lieu de la taire */
+    if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck({autoApply:true});   /* [L221 · bug Dominique] dérive plan→fiche signalée au lieu d'être tue ; [L286 · choix Esteban] dérives SÛRES (stock/rouleaux) appliquées AUTOMATIQUEMENT à l'arrivée sur la fiche — machine/sur-coupe/équilibre restent bannière 1 clic */
     if(typeof refreshEtiqPhotoZone==='function') refreshEtiqPhotoZone(); }   /* [L226 · ergo #14] vignettes étiquettes à jour en arrivant sur la Fiche (couvre doLoad/brouillon/reset) */
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
@@ -18199,7 +18301,12 @@ function serializeFicheState(){
     lines:getFicheLinesData(),
     pendingFicheId:_pendingFicheId||null, pendingTempsId:_pendingTempsId||null,   // ENVOI-1 : renvoi idempotent
     resumedDraftId:_resumedDraftId||null,   // [L166 · audit #6] lien de reprise DURABLE : sans lui, un solde repris puis re-coupé APRÈS un rechargement n'était jamais marqué consommé → reprennable une 2ᵉ fois = double découpe
-    loadedSaveId:loadedSaveId||null   // [L67 · Audit] lien vers le plan source : sans lui, un envoi via brouillon laissait le plan dans Données→Plans → rechargeable → double découpe
+    loadedSaveId:loadedSaveId||null,   // [L67 · Audit] lien vers le plan source : sans lui, un envoi via brouillon laissait le plan dans Données→Plans → rechargeable → double découpe
+    // [L286 · bug lima] instantané des chutes-stock pris à la GÉNÉRATION (base de la détection « bobineaux
+    // ajoutés »). Il n'existait qu'en RAM : au rechargement (ex. mise à jour d'app), restoreFicheState le
+    // re-basait sur le plan DÉJÀ modifié → la dérive stock devenait STRUCTURELLEMENT invisible (fiche/papier
+    // périmés en silence, cas lima). STRING JSON (pas un map Firestore : les clés _refIdKey contiennent « ¦ »).
+    genChutes:(_ficheGenChutes?JSON.stringify(_ficheGenChutes):null)
   };
 }
 let _savingDraftManual=false;   // [L73 · Lot 5 · B41] verrou anti double-tap « 💾 Brouillon »
@@ -18876,7 +18983,15 @@ function restoreFicheState(st){
   // [L279 · bug Esteban] fiche REPRISE / chargée : prendre l'instantané des chutes ICI AUSSI. Sinon, sur une fiche
   // reprise d'un brouillon, ajouter un bobineau stock dans le Plan ne déclenchait PAS le bandeau « à imputer sur
   // le reste » (l'instantané n'existait qu'à la génération/recalcul, pas à la reprise → détection court-circuitée).
-  if(typeof _snapFicheChutes==='function') _snapFicheChutes();
+  // [L286 · bug lima] PRIORITÉ à l'instantané PERSISTÉ (st.genChutes, sérialisé à chaque brouillon/autosave/partage) :
+  // le re-prendre ici re-basait la comparaison sur le plan DÉJÀ modifié après un rechargement → un bobineau stock
+  // ajouté juste avant une mise à jour d'app devenait indétectable pour toujours. Repli = comportement L279
+  // (anciens brouillons sans le champ : zéro fausse alerte).
+  let _gcRestored=false;
+  if(typeof st.genChutes==='string' && st.genChutes){
+    try{ const _gc=JSON.parse(st.genChutes); if(_gc&&typeof _gc==='object'){ _ficheGenChutes=_gc; _gcRestored=true; } }catch(e){}
+  }
+  if(!_gcRestored && typeof _snapFicheChutes==='function') _snapFicheChutes();
 }
 // Repositionne le chrono depuis un brouillon. Deux cas :
 //  - le chrono était EN PAUSE à la fermeture : on le laisse en pause à sa valeur.

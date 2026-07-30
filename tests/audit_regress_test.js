@@ -128,12 +128,12 @@ has(/const optPerte=opt\.waste-_reuse\(opt\.keys\)/,'L220 : DOMINANT en 2 passes
 has(/phaseEndSolde:Math\.max\(0,c\.useful-calcStats\(_lp,c\.blade\)\.total\)/,'L220 : solde de fin de phase calculé par tranche (même déf. que le marquage _phaseEnd)');
 
 console.log('── L221 dérive plan→fiche (bug Dominique) ──');
-has(/function _fichePlanDriftCheck\(\)/,'L221 : détecteur de dérive plan→fiche présent');
+has(/function _fichePlanDriftCheck\(opts\)/,'L221→L286 : détecteur de dérive plan→fiche présent (signature opts : autoApply réservé à showPage)');
 has(/id="planDriftBanner"/,'L221 : bannière de dérive dans la page Fiche');
-has(/if\(typeof _fichePlanDriftCheck==='function'\) _fichePlanDriftCheck\(\);/,'L221 : check branché sur l\'arrivée onglet Fiche (showPage 1)');
+has(/if\(typeof _fichePlanDriftCheck==='function'\) _fichePlanDriftCheck\(\{autoApply:true\}\);/,'L221→L286 : check branché sur l\'arrivée onglet Fiche (showPage 1), SEUL porteur d\'autoApply');
 has(/const _engaged=lines\.some\(engagedOf\);/,'L221→L278 : réf ENGAGÉE — la MACHINE reste gardée (dans if(!_engaged), travail terrain prime), mais stock/rouleaux chute passent (recalc du reste, sûr)');
-has(/function _applyPlanDriftFix\(\)\{[\s\S]{0,1100}?recalcEcartsFromFiche\(\{force:true, onApplied:/,'L221→L278 : bouton bannière route vers recalcEcartsFromFiche({force:true, onApplied}) — chemin éprouvé qui conserve les coupées + re-contrôle la dérive après re-base (plus de bandeau bloqué rouge)');
-has(/_applyPlanDriftFix\(\)\{\n?\s*if\(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId\(\)\)/,'L221 : garde partage AVANT toute mutation (verrous cuts par position protégés)');
+has(/function _applyPlanDriftFix\(opts\)\{[\s\S]{0,1600}?recalcEcartsFromFiche\(\{force:true, onApplied:/,'L221→L286 : bouton bannière route vers recalcEcartsFromFiche({force:true, onApplied}) — chemin éprouvé qui conserve les coupées + re-contrôle la dérive après re-base (plus de bandeau bloqué rouge)');
+has(/_applyPlanDriftFix\(opts\)\{\n?\s*opts=opts\|\|\{\};\n?\s*if\(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId\(\)\)/,'L221→L286 : garde partage AVANT toute mutation (verrous cuts par position protégés), y compris en mode silent');
 
 console.log('── L246/L247 chantier ANALYSE — lots R1/R2 ──');
 has(/function _acSetHTML\(ac,html\)/,'R1 : re-render Analyse préservant saisies + details ouverts (_acSetHTML)');
@@ -328,7 +328,7 @@ has(/function _snapFicheChutes\(\)/,'L278 : instantané des chutes stock à la g
 has(/bobineaux en stock ajoutés → à imputer sur le reste/,'L278 : dérive « bobineaux stock » signalée MÊME sur réf engagée → bouton « Appliquer » qui garde les coupées + impute sur le reste');
 has(/_snapFicheChutes\(\);   \/\/ \[L278\] chutes appliquées/,'L278 : instantané re-basé après recalcul → la bannière se referme (pas de harcèlement)');
 
-has(/if\(typeof _snapFicheChutes==='function'\) _snapFicheChutes\(\);\n\}/,'L279 : instantané des chutes pris AUSSI à la reprise/chargement (restoreFicheState) → l\'ajout de chute après reprise déclenche bien le bandeau « appliquer sur le reste »');
+has(/if\(!_gcRestored && typeof _snapFicheChutes==='function'\) _snapFicheChutes\(\);\n\}/,'L279→L286 : à la reprise, PRIORITÉ à l\'instantané chutes PERSISTÉ (st.genChutes) ; repli L279 (_snapFicheChutes) pour les anciens brouillons');
 
 console.log('── L280 : brouillons (machine + anti-doublon), graphiques lames, client Mtechnologie (demandes Esteban) ──');
 has(/"Mtechnologie": \[\{ref:"GHX173A",largeur:1290,longueur:1000\}\]/,'L280 : client Mtechnologie + réf GHX173A (1290 mm, 1000 ml) créés');
@@ -361,5 +361,12 @@ has(/function _scheduleDriftCheck\(\)/,'L285 : re-vérification auto de la déri
 has(/coupé\(s\) en plus → recalculer pour l/,'L285 : sur-coupe encore présente dans le reste → signalée (auto-refermante après recalcul)');
 has(/_scheduleDriftCheck\(\);   \/\/ \[L285/,'L285 : la coche d\'une bobine déclenche la re-vérification auto (dérive/sur-coupe)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L285 présents dans index.html + sw.js');
+console.log('── L286 : bug lima — synchro plan→fiche fiable (snapshot persisté + détecteurs sans état + auto-application) ──');
+has(/genChutes:\(_ficheGenChutes\?JSON\.stringify\(_ficheGenChutes\):null\)/,'L286 : instantané chutes-stock PERSISTÉ dans l\'état (brouillons/autosave/partage) — il n\'existait qu\'en RAM → dérive stock indétectable après rechargement (cas lima)');
+has(/DÉTECTEUR D'ÉQUILIBRE DU RESTE/,'L286 : détecteur d\'équilibre du reste (sans instantané) — manque/en-trop par largeur vs commande−stock−figé, survit au rechargement');
+has(/rouleau\(x\) chute modifié\(s\) dans le plan/,'L286 : rouleaux chute comparés par MULTISET de largeurs (un rouleau REMPLACÉ 1-contre-1 était invisible) — rouleaux figés décomptés des deux côtés');
+has(/appliqué AUTOMATIQUEMENT à la fiche/,'L286 : dérives SÛRES (stock/rouleaux) appliquées AUTOMATIQUEMENT à l\'arrivée sur la fiche (choix Esteban 30/07) — coupées conservées, toast de traçabilité');
+has(/opts\.autoApply && !needClick && !shared/,'L286 : l\'auto-application est bloquée dès qu\'une dérive SENSIBLE (machine / sur-coupe / équilibre) coexiste (needClick) — bannière 1 clic conservée');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L286 présents dans index.html + sw.js');
 process.exit(fail?1:0);
