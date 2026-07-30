@@ -409,7 +409,13 @@ has(/DIMENSIONS modifiées dans le plan/,'L290 (audit #1) : dérive de DIMENSION
 has(/valider\/modifier la bobine mère pendant un PARTAGE actif produisait un FAUX|Commande PARTAGÉE — arrête le partage avant de valider\/modifier la bobine mère/,'L290 (audit CRITIQUE) : validation mère bloquée pendant un partage actif (toast explicite, fini le faux succès)');
 has(/rollRest\+=cnt\*Math\.max\(0,\(Number\(g\.rollW\)\|\|0\)-u\)/,'L290 (contre-revue) : chip % de l\'éditeur manuel intègre la matière rouleau — écran == archive');
 has(/const _ln0=lines\.find\(d=>!d\.recut\)\|\|lines\[0\];/,'L290 (revue C3) : détecteur dims comparé à une ligne MÈRE, jamais un rouleau (fini « 190 → 946 » absurde)');
-has(/const _keyOf=l=>\(l&&l\.refIdKey\)\|\|\('nom:'\+nrm\(\(l&&l\.ref\)\|\|''\)\)/,'L290 (URGENT feuille MOREY) : papier fiche regroupé par CLÉ D\'IDENTITÉ — deux réfs de même nom (1000ml vs 500ml micro-perf) ne fusionnent plus en une section');
+has(/return \(ms&&ms\.size>1\)\?\(l\.refIdKey\+'¦⚙'\+\(l\.machine\|\|''\)\):l\.refIdKey;/,'L290→L291 : papier fiche par CLÉ D\'IDENTITÉ, + machine SEULEMENT si le plan a 2 blocs machine (revue P1 : le changement de machine mono-bloc ne double plus le tableau laize)');
+has(/_autosaveLastSig=_cur\?JSON\.stringify\(\{plan:_st\.plan,fiche:_st\.fiche,lines:_st\.lines\}\):'';/,'L291 (revue P2) : doLoad ne pose la signature fiche QUE si le doc d\'autosave existe (invariant B08 préservé — autosave jamais morte après envoi+chargement)');
+
+console.log('── L291 : suite audit 30/07 (PDF-depuis-fiche + surplus + doLoad) ──');
+has(/\|'\+\(l\.phaseEnd\?'P':''\)/,'L291 : FIN DE PHASE conservée sur le PDF-depuis-fiche (marquage « Solde à CONSERVER » plus jamais fusionné)');
+has(/const cmd=\{\}, _disp=\{\};/,'L291 : récap « Coupé EN PLUS » clé par nom NORMALISÉ (une casse/espace ≠ ne fabrique plus une fausse sur-coupe totale)');
+has(/doLoad écrasait en ~10-15 s la SEULE sauvegarde auto/,'L291 : doLoad pose les signatures d\'autosave sur l\'état chargé — la sauvegarde auto de la commande précédente survit jusqu\'à la 1re vraie modification');
 has(/\{ref:"TacFlex® DH100-2",largeur:2200,longueur:1000\}/,'L290 : réf DH100-2 transparent 1000 ml créée (MOREY + FEILO SYLVANIA + EPSOTECH)');
 has(/\{ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500\}/,'L290 : réf DH1006-2 micro perf 500 ml créée (MOREY + FEILO SYLVANIA + EPSOTECH)');
 absent(/"MOREY": \[\{ref:"41116850 - TacFlex® DH1006-2"/,'L290 : l\'ancienne réf unique MOREY a bien été remplacée');
@@ -418,5 +424,5 @@ has(/Valide d\\'abord la bobine mère de la réf en cours/,'L288 T5 : chrono mul
 has(/Il reste '\+\(_tot-_dn\)\+' bobine\(s\) à marquer/,'L288 T5 : bouton d\'envoi jamais disabled — tap avant la fin = toast « reste N » + scroll (zéro tap mort)');
 has(/function _guideGo\(kind,id\)/,'L288 T6 : guide de prochaine action PERMANENT dans la bande de suivi (valide mère → chrono → coupe → envoie), tap = scroll/pulse cible visible');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L290 présents dans index.html + sw.js');
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L291 présents dans index.html + sw.js');
 process.exit(fail?1:0);

@@ -1800,7 +1800,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.30-L290';
+const APP_VERSION='2026.07.30-L291';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7494,7 +7494,7 @@ function refreshEtiquetteSolde(){
       </div>
       <div class="field" style="margin-bottom:8px"><!-- [L281 · demande Esteban] N° de référence saisi DIGITALEMENT (fini la case à remplir au feutre) : pré-rempli avec la réf, modifiable -->
         <label>N° de référence <span style="color:var(--muted);font-weight:400">— imprimé sur l'étiquette (digital)</span></label>
-        <input type="text" id="etiqRefNum_${d.key}" value="${esc(String(d.ref||'').replace(/⟲ fin de phase/,'').trim()==='—'?'':String(d.ref||'').replace(/⟲ fin de phase/,'').trim())}" placeholder="ex : GHX173A">
+        <input type="text" id="etiqRefNum_${d.key}" value="" placeholder="ex : GHX173A"><!-- [L292 · demande Esteban 30/07] case VIERGE : le pré-remplissage avec la réf commande (L281) faisait imprimer un n° faux si l'opérateur ne le remplaçait pas — il saisit le n° réel ou laisse la case du papier à remplir au feutre -->
       </div>
       <button class="btn btn-orange" id="etiqPrintBtn_${d.key}" style="width:100%;justify-content:center;opacity:.4;cursor:not-allowed" onclick="printEtiquetteSolde('${d.key}')">🖨️ Imprimer l'étiquette solde</button>
     </div>`).join('');<!-- [L191] hint « Saisis le n° de la bobine mère… » retiré (demande Esteban) -->
@@ -8020,6 +8020,22 @@ async function doLoad(){
     const pmh=document.getElementById('planManualHint'); if(pmh) pmh.style.display='block';
     renderPlanManual();
   }
+  // [L291 · audit 30/07] doLoad écrasait en ~10-15 s la SEULE sauvegarde auto de la commande précédente (les
+  // ticks à id fixe réécrivaient d_autosave/d_autosave_plan avec le plan fraîchement chargé — la garde fraîcheur
+  // L287 n'existait que dans resumeDraft). On pose les DEUX signatures sur l'état chargé : les ticks se taisent
+  // tant que l'opérateur n'a pas réellement travaillé le nouveau plan — l'ancienne sauvegarde auto survit dans
+  // Données > Brouillons (reprenable), et la 1re vraie modification reprend l'autosave normalement.
+  try{
+    const _st=serializeFicheState();
+    _planAutosaveLast=JSON.stringify(_st.plan);
+    // [L291 · revue P2] signature FICHE posée SEULEMENT si le doc d_autosave existe encore (commande précédente
+    // non envoyée → il survit jusqu'à la 1re vraie modif). Après un ENVOI, le doc est purgé : poser une signature
+    // non vide SANS write déclencherait la garde B08 (« sig non vide + doc absent → jamais recréer ») → autosave
+    // fiche MORTE pour toute la nouvelle commande, flushs pagehide compris. Invariant B08 : 1er write d'une
+    // commande neuve jamais bloqué (_autosaveLastSig vide).
+    const _cur=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(d=>d&&d.id===autosaveId());
+    _autosaveLastSig=_cur?JSON.stringify({plan:_st.plan,fiche:_st.fiche,lines:_st.lines}):'';
+  }catch(e){}
   closeLoadModal();showPage(0);
 }
 async function deleteSave(id){
@@ -16450,9 +16466,11 @@ function _fichePrintSurplus(){
   const out={};
   try{
     const computed=(typeof packRefGroupsPal==='function')?packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length):[];
-    const cmd={};
+    // [L291 · audit] clé par nom NORMALISÉ (nrm) des deux côtés — la clé brute était plus fragile que toutes
+    // les autres clés de l'app (une casse/espace différent classait TOUTE la production en faux « Coupé EN PLUS »).
+    const cmd={}, _disp={};
     computed.forEach(c=>{
-      const nm=(c.ref||''); const m=cmd[nm]||(cmd[nm]={});
+      const nm=nrm(c.ref||''); if(_disp[nm]===undefined)_disp[nm]=(c.ref||''); const m=cmd[nm]||(cmd[nm]={});
       (c.rows||[]).forEach(r=>{const w=Number(r.width)||0,q=Number(r.qty)||0; if(w>0&&q>0) m[w]=(m[w]||0)+q;});
       Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ if(m[w]!=null) m[w]=Math.max(0,m[w]-(Number(q)||0)); });
     });
@@ -16460,13 +16478,13 @@ function _fichePrintSurplus(){
     ficheLines.forEach(l=>{
       if(typeof isLineFrozen==='function' && !isLineFrozen(l.id)) return;                       // seulement les bobines réellement figées (coupées / engagées)
       if(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')) return;    // le rebut n'est pas de la production livrée
-      const nm=(l.ref||''); const m=com[nm]||(com[nm]={});
+      const nm=nrm(l.ref||''); if(_disp[nm]===undefined)_disp[nm]=(l.ref||''); const m=com[nm]||(com[nm]={});
       parseConf(document.getElementById('flConf_'+l.id)?.value||'').forEach(p=>{ if(p.width>0&&p.qty>0) m[p.width]=(m[p.width]||0)+p.qty; });
     });
     Object.keys(com).forEach(nm=>{
       const c=com[nm], o=cmd[nm]||{}, s={};
       Object.keys(c).forEach(w=>{ const ex=(c[w]||0)-(o[w]||0); if(ex>0) s[w]=ex; });
-      if(Object.keys(s).length) out[nm]=s;
+      if(Object.keys(s).length) out[_disp[nm]||nm]=s;
     });
   }catch(e){ return {}; }
   return out;
@@ -16481,12 +16499,25 @@ function _buildFichePlanPrintHTML(){
   // en UNE seule section sur le papier — commande d'une seule réf affichée, récap faux (« dont 316 sur mères »
   // pour 150 commandées), chute 215 mm inexpliquée (les 19 mm de l'AUTRE réf ne peuvent pas la combler : films
   // séparés au moteur, exprès). Le moteur séparait déjà ; seul l'affichage fusionnait. Repli nom pour le legacy.
-  const _keyOf=l=>(l&&l.refIdKey)||('nom:'+nrm((l&&l.ref)||''));
+  // [L291 · audit] la MACHINE entre aussi dans la clé de section : une réf scindée sur 2 machines (mêmes
+  // défauts bords/lame → même refIdKey) fusionnait encore → la bande « CHANGEMENT DE MACHINE » disparaissait
+  // du papier alors que l'écran fiche l'affiche. Deux sections = la bande revient (buildPlanPrintHTML l'émet).
+  // [L291 · revue P1] SEULEMENT si le PLAN déclare vraiment PLUSIEURS blocs machine pour cette clé : un simple
+  // changement de machine en cours de commande (applyMachChg, UN bloc) re-tague les lignes → scinder ferait
+  // matcher les DEUX sections sur le même bloc (repli nom) → tableau laize + stock imprimés EN DOUBLE.
+  const _machByKey={};
+  refG.forEach(g=>{ try{ const k=_refIdKey(g); (_machByKey[k]=_machByKey[k]||new Set()).add(g.machine||''); }catch(e){} });
+  const _keyOf=l=>{
+    if(!(l&&l.refIdKey)) return 'nom:'+nrm((l&&l.ref)||'');
+    const ms=_machByKey[l.refIdKey];
+    return (ms&&ms.size>1)?(l.refIdKey+'¦⚙'+(l.machine||'')):l.refIdKey;
+  };
   const keysSeen=[]; ficheLines.forEach(l=>{ const k=_keyOf(l); if(!keysSeen.includes(k)) keysSeen.push(k); });
   const groups=keysSeen.map(key=>{
     const lines=ficheLines.filter(l=>_keyOf(l)===key);
     const ref=(lines[0]&&lines[0].ref)||'';
-    const paramOf=r0=>refG.find(g=>_refIdKey(g)===key)||refG.find(g=>(g.ref||'')===r0)||{};
+    const _rk0=(lines[0]&&lines[0].refIdKey)||'';
+    const paramOf=r0=>(_rk0&&refG.find(g=>_refIdKey(g)===_rk0&&(!lines[0].machine||(g.machine||'')===lines[0].machine)))||( _rk0&&refG.find(g=>_refIdKey(g)===_rk0))||refG.find(g=>(g.ref||'')===r0)||{};   // [L291] bloc réf apparié par clé PUIS machine (bi-machine : chaque section retrouve SON bloc)
     // [L277 · bug Esteban] SÉPARER les rouleaux CHUTE recoupés (l.recut) des bobines MÈRES : les recut vont dans
     // recutGroups → imprimés « ♻ rouleau chute — À RECOUPER EN 1ER » (fond vert), avec leur PROPRE laize (rollW).
     // Avant (L275), tout était en planGroups → les 3 premières (des chutes) apparaissaient comme des bobines mères.
@@ -16498,7 +16529,7 @@ function _buildFichePlanPrintHTML(){
     const dechetLines=lines.filter(_isDechet);
     const normalLines=lines.filter(l=>!l.recut&&!_isDechet(l)), recutLines=lines.filter(l=>l.recut&&!_isDechet(l));
     // regroupe des motifs IDENTIQUES consécutifs → « N bobines : config » (recut : aussi par rollW).
-    const _grp=(arr,withRoll)=>{ const out=[]; arr.forEach(l=>{ const pat=parseConf(document.getElementById('flConf_'+l.id)?.value||''); const key=JSON.stringify(pat)+'|'+(withRoll?(Number(l.rollW)||0):''); const last=out[out.length-1]; if(last&&last._key===key) last.count++; else out.push(withRoll?{count:1,pattern:pat,rollW:Number(l.rollW)||0,_key:key}:{count:1,pattern:pat,_key:key}); }); out.forEach(g=>delete g._key); return out; };
+    const _grp=(arr,withRoll)=>{ const out=[]; arr.forEach(l=>{ const pat=parseConf(document.getElementById('flConf_'+l.id)?.value||''); const key=JSON.stringify(pat)+'|'+(withRoll?(Number(l.rollW)||0):'')+'|'+(l.phaseEnd?'P':''); const last=out[out.length-1]; if(last&&last._key===key) last.count++; else out.push(withRoll?{count:1,pattern:pat,rollW:Number(l.rollW)||0,_key:key}:{count:1,pattern:pat,_key:key,_phaseEnd:!!l.phaseEnd}); }); out.forEach(g=>delete g._key); return out; };   // [L291 · audit] FIN DE PHASE conservée sur le PDF-depuis-fiche : la fusion des motifs identiques perdait le marquage « Solde à CONSERVER » (le papier disait au pire de jeter une chute réutilisable)
     const pg=_grp(normalLines,false), rg=_grp(recutLines,true);
     const p=paramOf(ref), l0=normalLines[0]||lines[0]||{};
     const _blade=Number(l0.blade)||Number(p.blade)||0;
