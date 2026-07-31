@@ -488,5 +488,9 @@ has(/SYNCHRO MACHINE fiche → plan/,'L299 : machine fiche → select du bloc pl
 has(/AUTO-APPLIQUÉ à l'arrivée sur la fiche \(plus de needClick — choix Esteban/,'L299 : machine plan → fiche AUTO-appliquée (reste re-machiné, coupées conservées — remplace la bannière L286)');
 has(/return Ls\.length===1\?` · <b>\$\{esc\(Ls\[0\]\)\} ml<\/b>`:'';/,'L299 : les ml affichés à côté de la référence en haut du PDF (mono ou longueur commune)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L299 présents dans index.html + sw.js');
+console.log('── L300 : retours Esteban 31/07 ──');
+has(/bobine\$\{_nbMeres>1\?'s':''\} mère/,'L300 : « N bobines mères à monter » de retour sous chaque section (les 2 PDF)');
+has(/🎞 \$\{esc\(refDisp\(c\.ref\)\|\|\('Référence '/,'L300 : titre de section en refDisp simple (le ml suit déjà — plus de « 1000 ml » en double)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L300 présents dans index.html + sw.js');
 process.exit(fail?1:0);
