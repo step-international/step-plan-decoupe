@@ -1809,7 +1809,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.30-L294';
+const APP_VERSION='2026.07.30-L297';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2876,7 +2876,7 @@ const CLIENT_DATA = {
     {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500}
   ],
   "EPSOTECH": [
-    {ref:"TacFlex® DH100-2",largeur:2200,longueur:1000},   // [L290 · demande Esteban 30/07] transparent 1000 ml (remplace 41116850 DH1006-2 500 ml)
+    {ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000},   // [L290→L295] transparent 1000 ml (« DH100-2 » était une faute de frappe — confirmé Esteban 30/07)
     {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
   ],
   "EXAL": [
@@ -2892,7 +2892,7 @@ const CLIENT_DATA = {
     {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
   ],
   "FEILO SYLVANIA": [
-    {ref:"TacFlex® DH100-2",largeur:2200,longueur:1000},   // [L290 · demande Esteban 30/07] transparent 1000 ml (remplace DH1006-2 500 ml + DH1006-2 1000m)
+    {ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000},   // [L290→L295] transparent 1000 ml (« DH100-2 » = faute de frappe confirmée)
     {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
   ],
   "GAMPLAST": [{ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500}],
@@ -2942,7 +2942,7 @@ const CLIENT_DATA = {
   "Les Zelles": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
   "LETBEK": [{ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}],
   "MOREY": [
-    {ref:"TacFlex® DH100-2",largeur:2200,longueur:1000},   // [L290 · demande Esteban 30/07] transparent 1000 ml (remplace 41116850 DH1006-2 500 ml)
+    {ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000},   // [L290→L295] transparent 1000 ml (« DH100-2 » était une faute de frappe — confirmé Esteban 30/07)
     {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
   ],
   "MOSA GLAS": [{ref:"TacFlex® DQ1009 vert",largeur:2100,longueur:1000}],
@@ -3980,7 +3980,27 @@ function openFileOverlay(url){
 // RESTE (garde les coupées, impute la chute sur les bobines pas encore coupées) au lieu du re-plan complet.
 // En MÉMOIRE seulement : au rechargement → null → aucune fausse alerte (pas de harcèlement de bannière).
 let _ficheGenChutes=null;
+// [L296 · audit 30/07 (constat re-vérifié)] signature du PLAN au moment où la fiche a été générée/recalculée :
+// si le plan n'a pas changé, l'import auto ne régénère RIEN (la régénération effaçait la validation mère et
+// l'ordre de coupe ▲▼ sur un simple aller-retour Plan↔Fiche avant la 1re coupe).
+let _ficheGenPlanSig=null;
+// [L298 · contre-revue] SIGNATURE DE PLAN stable et normalisée : (1) _stableSig (clés triées — Firestore
+// re-canonicalise l'ordre au round-trip, un JSON brut ne re-matche jamais) ; (2) pièces jointes commandeFiles
+// EXCLUES (ajouter une photo ne change pas la découpe → ne doit PAS régénérer la fiche ni embarquer de data:) ;
+// (3) planManual signé sous forme TRIÉE déterministe (re-trié par _pmSortBobinesOnce à la restauration) ;
+// (4) toute string data: restante remplacée par '' (jamais de base64 dans la sig).
+function _planSigOf(){
+  try{
+    const p=Object.assign({},serializeFicheState().plan);
+    delete p.commandeFiles;
+    if(Array.isArray(p.planManual)) p.planManual=p.planManual.map(r=>Object.assign({},r,{bobines:Array.isArray(r.bobines)?r.bobines.slice().sort((a,b)=>String(a.conf||'').localeCompare(String(b.conf||''))||((parseInt(b.count)||0)-(parseInt(a.count)||0))):r.bobines}));
+    const clean=JSON.parse(JSON.stringify(p,(k,v)=>(typeof v==='string'&&v.indexOf('data:')===0)?'':v));
+    return _stableSig(clean);
+  }catch(e){ return null; }
+}
 function _snapFicheChutes(){
+  // [L297 · audit v2] signature = PLAN COMPLET (en-têtes + refGroups + planManual) — via _planSigOf (L298).
+  try{ _ficheGenPlanSig=_planSigOf(); }catch(e){ _ficheGenPlanSig=null; }
   try{
     // [L286 · revue P2] clés d'identité DUPLIQUÉES (même réf scindée sur 2 machines aux mêmes défauts bords/lame) :
     // on AGRÈGE les chutesUsed par clé (somme par largeur) au lieu d'écraser au dernier groupe — sinon la
@@ -4155,6 +4175,26 @@ function _fichePlanDriftCheck(opts){
       }catch(e){}
       if(msgs.length) drifts.push('🎞 '+esc(c.ref||'?')+' — '+esc(msgs.join(' · ')));
     });
+    // [L296 · audit 30/07] LIGNES ORPHELINES : réf RENOMMÉE ou bloc RETIRÉ du plan en cours de coupe — leurs
+    // lignes fiche ne matchent plus AUCUNE réf (clé ET nom divergés) → invisibles à tous les détecteurs (la
+    // boucle ne parcourt que le plan) et le papier classait la production en faux « Coupé EN PLUS ». On ne
+    // signale que s'il reste des lignes NON figées (que le recalcul peut résorber) : une production déjà coupée
+    // sous l'ancien nom est préservée par le recalcul (« réf disparue ») — pas de bannière incoercible.
+    try{
+      const _names=new Set(computed.map(c=>nrm(c.ref||'')));
+      const _orph={}, _orphFree={};
+      data.forEach(d=>{
+        if(d.refIdKey&&allKeys.has(d.refIdKey)) return;
+        if(_names.has(nrm(d.ref||''))) return;   // rattachée par le repli de nom : déjà couverte par la boucle
+        const nm2=(d.ref||'?'); _orph[nm2]=(_orph[nm2]||0)+1;
+        const _fz=d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||(d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng;
+        if(!_fz) _orphFree[nm2]=(_orphFree[nm2]||0)+1;
+      });
+      Object.keys(_orphFree).forEach(nm2=>{
+        drifts.push('🎞 '+esc(refDisp(nm2))+' — '+_orph[nm2]+' bobine(s) d\'une réf RENOMMÉE ou RETIRÉE du plan → vérifie la réf (remets le bon nom) ou recalcule pour purger le reste');
+        needClick=true;
+      });
+    }catch(e){}
     if(!drifts.length){ hide(); return; }
     const shared=(typeof _shareCurrentDocId==='function')&&_shareCurrentDocId();
     // [L286 · choix Esteban 30/07] AUTO-APPLICATION à l'ARRIVÉE sur la fiche (opts.autoApply, posé UNIQUEMENT par
@@ -4329,6 +4369,11 @@ function importPlanToFiche(opts){
     }
     const multi=computed.length>1;
 
+    // [L296] fiche présente, non touchée, et PLAN STRICTEMENT INCHANGÉ depuis sa génération : ne pas
+    // régénérer — la fiche existante (validation mère, ordre de coupe choisi, étiquettes) est déjà la bonne.
+    if(auto && Array.isArray(ficheLines) && ficheLines.length && _ficheGenPlanSig){
+      try{ if(_planSigOf()===_ficheGenPlanSig) return; }catch(e){}
+    }
     // Si l'opérateur a déjà commencé à travailler dans la Fiche :
     // - en auto : on ne touche À RIEN (protège le travail terrain)
     // - au clic : confirmation avant d'écraser
@@ -7079,7 +7124,10 @@ function chutePrintRecap(c){
 }
 // Lignes ROULEAU CHUTE en tête de table imprimée (mockup validé) : fond
 // turquoise clair, config en gras, laize du rouleau (pas celle de la mère).
-function recutPrintRows(c,blade,recutAllocs){
+// [L297 · demande Esteban « plus gamifié/ergonomique »] chk=true (papier fiche) : case ☐ par bobine à cocher
+// au stylo quand elle est coupée — le papier devient un suivi, pas juste une consigne.
+function _chkBoxes(n){ n=Math.max(1,parseInt(n)||1); return n<=15?Array(n).fill('☐').join(' '):('☐ × '+n); }
+function recutPrintRows(c,blade,recutAllocs,chk){
   let out=''; let _ai=0;   // [L100 · audit e2e #5] index dans recutAllocs (rouleaux servis en 1er)
   (c&&c.recutGroups||[]).forEach(g=>{
     const st=calcStats(g.pattern,blade), rest=Math.max(0,g.rollW-st.total);
@@ -7091,6 +7139,7 @@ function recutPrintRows(c,blade,recutAllocs){
       if(clis.length||txt) cliNote=`<div style="margin-top:2px;font-size:12.5px;color:#111;font-weight:700">👥 ${txt}${clis.length>1?' — <b style="color:#b45309">MIXTE (à séparer)</b>':''}</div>`;
     }
     out+=`<tr style="background:#e6fffa">
+      ${chk?`<td style="text-align:center;font-size:14px;background:#e6fffa">${_chkBoxes(g.count)}</td>`:''}
       <td style="border-left:4px solid #0d9488;font-weight:700;color:#0f766e">♻ ${g.count>1?g.count+' rouleaux chute':'1 rouleau chute'}</td>
       <td><b>${esc(makeLabel(g.pattern))}</b> — À RECOUPER EN 1ER${cliNote}</td>
       <td>reste ${fmt(rest)} mm</td></tr>`;
@@ -7116,6 +7165,22 @@ function recutPrintRecap(c){
 // Désormais UNE seule source. o = {groups, mandrinGroups, mn, client,
 //   refLabelFallback, motherFallback, typeCond, palette, etiquetage, cerclage,
 //   notesEmb, cmdInfoHtml}. Toutes les valeurs texte sont échappées.
+// [L297 · terrain 30/07] MIGRATION des textes SPÉCIFICITÉ stockés AVANT la réécriture L292 : les commandes en
+// cours (ex. lima) portent l'ANCIEN texte à doublons dans leur état sauvegardé — le catalogue corrigé ne les
+// touche pas. Remplacement à l'impression, par correspondance EXACTE du préfixe (un texte édité main ne matche
+// pas → jamais dénaturé). La ligne « Film KX détecté » devient inutile quand le texte dit déjà le cerclage KX.
+const _OLD_NOTES=[
+  {o:'⚡ SPÉCIFICITÉ : Papier vert + gamme 100/250/500ml + cerclage sans seuil rappelé (à confirmer).\nPapier vert entre les bobines.\nArticles : KX1045 noir blanc 100/250/500ml.\n⚠ Cerclage : pas de seuil standard rappelé — à confirmer si ≤39mm s\'applique.\nBob/pile : 20mm=11 | 30mm=7 | 40mm=6 | 50mm=4 | 60mm=4 | 70mm=3 | 80mm=2 | 100mm=2',
+   n:'⚡ SPÉCIFICITÉ : Papier vert entre les bobines.\nCerclage : automatique (film KX, toutes largeurs).\nArticles : KX1045 noir blanc 100/250/500ml.\nBob/pile : 20mm=11 | 30mm=7 | 40mm=6 | 50mm=4 | 60mm=4 | 70mm=3 | 80mm=2 | 100mm=2'},
+  {o:'⚡ SPÉCIFICITÉ : Papier vert + 100ml seul + cerclage standard ≤39mm.\nPapier vert entre les bobines.\nArticle : KX1045 noir blanc 100ml.',
+   n:'⚡ SPÉCIFICITÉ : Papier vert entre les bobines · cerclage standard ≤39mm.\nArticle : KX1045 noir blanc 100ml (100ml seul).'}
+];
+function _migrateOldNotes(t){
+  let out=String(t==null?'':t);
+  for(const m of _OLD_NOTES){ if(out.indexOf(m.o)===0){ out=m.n+out.slice(m.o.length); break; } }
+  if(/Cerclage : automatique \(film KX/.test(out)) out=out.replace(/\n?🔵 Film KX détecté → cerclage automatique quelle que soit la largeur\./,'');
+  return out;
+}
 function buildPlanPrintHTML(o){
   // Récap "bobines à couper" d'une référence : total + détail qty×largeur.
   // Source prioritaire : la commande (rows) ; repli : reconstitution depuis les patterns.
@@ -7176,7 +7241,7 @@ function buildPlanPrintHTML(o){
         _cliIdx=(c.recutGroups||[]).reduce((s,g)=>s+(g.count||0),0);   // [L100 · #5] allocs rouleaux = _cliAllocs[0.._cliIdx-1] → transmises à recutPrintRows
       }catch(e){ _cliAllocs=null; }
     }
-    let tRows=recutPrintRows(c,blade,(_cliAllocs&&_cliIdx>0)?_cliAllocs.slice(0,_cliIdx):null);   // [L100 · audit e2e #5]
+    let tRows=recutPrintRows(c,blade,(_cliAllocs&&_cliIdx>0)?_cliAllocs.slice(0,_cliIdx):null,o.coupeCol);   // [L100 · audit e2e #5] · [L297] cases ☐ sur le papier fiche
     _pgDisp.forEach((g,gi)=>{
       const st=calcStats(g.pattern,blade),waste=useful-st.total,isLast=(gi===_pgDisp.length-1)||!!g._phaseEnd;   // [L92 · Audit #8] fin de phase = solde aussi sur le PDF
       let _subRows=[{count:g.count,note:'',alloc:null}];
@@ -7189,6 +7254,7 @@ function buildPlanPrintHTML(o){
       _subRows.forEach((r,ri)=>{
         const _isL=isLast&&ri===_subRows.length-1;
         tRows+=`<tr style="${_isL?'background:#fffbea;font-style:italic':''}">
+          ${o.coupeCol?`<td style="text-align:center;font-size:14px">${_chkBoxes(r.count)}</td>`:''}
           <td>${r.count>1?r.count+' bobines':'1 bobine'}</td>
           <td>${chutePrintConfig(g.pattern,g.chute)}${r.note||''}</td>
           <td>${_isL?'Solde '+fmt(waste)+' mm':fmt(waste)+' mm'}</td></tr>`;
@@ -7220,17 +7286,22 @@ function buildPlanPrintHTML(o){
         const cmd=_cmdW[w]||0, st=Math.min(cmd,Number(_stW[w])||0);
         // [L292/L293 · choix Esteban 30/07] une laize 100 % stock reste une LIGNE du tableau ; colonne « À couper »
         // et ligne « Total » SUPPRIMÉES (feuille annotée ×2) : Laize | Commandé | ✂ En stock, rien d'autre.
-        _rws.push('<tr><td style="font-size:15px;font-weight:800">'+fmt(w)+' mm</td><td style="text-align:right;font-weight:700">'+cmd+'</td><td style="text-align:right;color:#b45309;font-weight:700">'+(st>0?st:'—')+'</td></tr>');
+        // [L295 · demande Esteban 30/07] colonne « Bobines coupées final » : case VIDE à remplir AU STYLO par
+        // l'opérateur (résultat réel de sa coupe) — uniquement sur le papier fiche (o.coupeCol), pas l'onglet Plan.
+        _rws.push('<tr><td style="font-size:15px;font-weight:800">'+fmt(w)+' mm</td><td style="text-align:right;font-weight:700">'+cmd+'</td><td style="text-align:right;color:#b45309;font-weight:700">'+(st>0?st:'—')+'</td>'+(o.coupeCol?'<td style="min-width:30mm;height:9mm"></td>':'')+'</tr>');
       });
       if(_rws.length){
-        _laizeTable='<table style="width:auto;min-width:46%;margin:8px 0 2px"><tr><th>Laize</th><th style="text-align:right">Commandé</th><th style="text-align:right">✂ En stock</th></tr>'
+        _laizeTable='<table style="width:auto;min-width:46%;margin:8px 0 2px"><tr><th>Laize</th><th style="text-align:right">Commandé</th><th style="text-align:right">✂ En stock</th>'+(o.coupeCol?'<th style="text-align:center">✍ Bobines coupées final</th>':'')+'</tr>'
           +_rws.join('')+'</table>';
       }
     }catch(e){ _laizeTable=''; }
     const _dechetLine=c.dechetStr?`<div class="cmd-recap" style="background:#f3f4f6;border-left-color:#6b7280;color:#374151">🗑 <b>Rebut déjà coupé — NE PAS recouper</b>${multi?' ('+esc(refDisp(c.ref)||('réf '+(ci+1)))+')':''} : ${esc(c.dechetStr)}</div>`:'';   // [L284] le rebut n'apparaît plus comme bobine à couper
     // [L292 · choix Esteban 30/07 (feuille annotée)] bande orange « ✂ Chutes en stock utilisées » SUPPRIMÉE :
     // doublon de la colonne ✂ EN STOCK du tableau par laize (qui liste désormais AUSSI les laizes 100 % stock).
-    sections+=`<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`+_laizeTable+recutPrintRecap(c)+_dechetLine;
+    const _nbTot=(c.planGroups||[]).reduce((s2,g)=>s2+Math.max(1,parseInt(g.count)||1),0)+(c.recutGroups||[]).reduce((s2,g)=>s2+Math.max(1,parseInt(g.count)||1),0);
+    sections+=`<table><tr>${o.coupeCol?'<th style="width:12mm;text-align:center">✂</th>':''}<th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`
+      +(o.coupeCol?`<div style="margin:2px 0 8px;font-size:13px;font-weight:800">✂ Coupées : <span style="display:inline-block;min-width:22mm;border-bottom:2px solid #000">&nbsp;</span> / ${_nbTot} bobine${_nbTot>1?'s':''}</div>`:'')
+      +_laizeTable+recutPrintRecap(c)+_dechetLine;
   });
   if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr></table>';
 
@@ -7246,9 +7317,10 @@ function buildPlanPrintHTML(o){
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plan STEP</title>
   <style>body{font-family:Arial,sans-serif;padding:24px;font-size:13px}h2{font-size:18px;margin-bottom:4px}
-  .meta{color:#555;font-size:12px;margin-bottom:16px;line-height:1.8}
-  table{border-collapse:collapse;width:100%;margin-bottom:6px}th,td{border:1px solid #bbb;padding:7px 11px;text-align:left}
-  th{background:#f0f0f0;font-size:12px;text-transform:uppercase}
+  .meta{color:#444;font-size:12.5px;margin-bottom:14px;line-height:1.8}
+  table{border-collapse:collapse;width:100%;margin-bottom:6px}th,td{border:1px solid #b5bac2;padding:8px 11px;text-align:left}
+  th{background:#eef1f5;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2.5px solid #333}
+  tr:nth-child(even):not([style*="background"]) td{background:#fafbfc}/* [L297] zébrage léger — [revue] JAMAIS par-dessus un fond spécial inline (ligne ♻ turquoise, solde jaune : le fond td opaque recouvrait le fond du tr) */
   .cmd-recap{margin:2px 0 14px;padding:9px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:6px;font-size:12.5px;color:#333}
   .cmd-recap.cmd-total{background:#eef2ff;border-left-color:#4338ca}
   @media print{body{padding:8px}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}h3.pp-ref{color:#000!important;border-left-color:#000!important}}/* [L231 · audit MAJ-3] en-tête de réf NOIR sur papier (les pastels refColor viraient au gris pâle) */</style></head><body>
@@ -7256,15 +7328,24 @@ function buildPlanPrintHTML(o){
   <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
   ${cliAll?`👥 Multi-clients : ${cliAll.map(c=>`${cliPrintChip(c.id)} <b>${esc(c.nom||'—')}</b>${c.numCmd?' (n° '+esc(c.numCmd)+')':''}`).join(' · ')}<br>`:''}
   ${metaTech}<br>
-  Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(String(o.cerclage||'').replace(/\s*\([^)]*\)\s*$/,''))}</b>${o.notesEmb?'<br><em style="font-size:11px;color:#666">'+esc(o.notesEmb).replace(/\n/g,' | ')+'</em>':''}</div>
+  Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(String(o.cerclage||'').replace(/\s*\([^)]*\)\s*$/,''))}</b>${o.notesEmb?'<div style="border:1.5px solid #9aa1ab;border-radius:6px;padding:6px 10px;font-size:12px;color:#222;margin-top:6px;line-height:1.5">'+esc(_migrateOldNotes(o.notesEmb)).replace(/\n/g,'<br>')+'</div>':''}</div>
   ${sections}
   <!-- [L289 · choix Esteban 30/07] ligne « Total commande d'origine » multi-réf SUPPRIMÉE (somme toutes-réfs
        mélangées qui contredisait les tableaux par laize de chaque réf — chaque réf porte désormais son tableau). -->
   ${(()=>{  /* [L284 · demande Esteban] récap « coupé EN PLUS (hors plan) » : sur-coupe réelle vs commande, tracée sur le papier (avant : seulement dans un toast éphémère). */
-    const s=o.surplus||{}; const refs=Object.keys(s).filter(r=>Object.keys(s[r]||{}).length);
-    if(!refs.length) return '';
-    const body=refs.map(r=>{ const w=s[r]; const parts=Object.keys(w).map(Number).sort((a,b)=>a-b).map(x=>w[x]+'×'+fmt(x)+'mm').join(' + '); return (multi&&r?'<b>'+esc(refDisp(r))+'</b> : ':'')+parts; }).join('<br>');
-    return `<div class="cmd-recap" style="background:#fef2f2;border-left-color:#b91c1c;color:#7f1d1d">⚠ <b>Coupé EN PLUS (hors plan — à tracer)</b> :<br>${body}</div>`;
+    const s=o.surplus||{}; const miss=(s&&s._missing)||{};
+    const refs=Object.keys(s).filter(r=>r!=='_missing'&&Object.keys(s[r]||{}).length);
+    const mrefs=Object.keys(miss).filter(r=>Object.keys(miss[r]||{}).length);
+    let html='';
+    if(refs.length){
+      const body=refs.map(r=>{ const w=s[r]; const parts=Object.keys(w).map(Number).sort((a,b)=>a-b).map(x=>w[x]+'×'+fmt(x)+'mm').join(' + '); return (multi&&r?'<b>'+esc(refDisp(r))+'</b> : ':'')+parts; }).join('<br>');
+      html+=`<div class="cmd-recap" style="background:#fef2f2;border-left-color:#b91c1c;color:#7f1d1d">⚠ <b>Coupé EN PLUS (hors plan — à tracer)</b> :<br>${body}</div>`;
+    }
+    if(mrefs.length){
+      const body2=mrefs.map(r=>{ const w=miss[r]; const parts=Object.keys(w).map(Number).sort((a,b)=>a-b).map(x=>w[x]+'×'+fmt(x)+'mm').join(' + '); return '<b>'+esc(refDisp(r))+'</b> : '+parts; }).join('<br>');
+      html+=`<div class="cmd-recap" style="background:#fffbeb;border-left-color:#b45309;color:#7a5200">⚠ <b>Production sous une réf ABSENTE du plan</b> (réf renommée ou bloc retiré ?) — à vérifier avant archivage :<br>${body2}</div>`;   /* [L296 · audit] plus jamais classée « Coupé EN PLUS » (fausse trace ISO) */
+    }
+    return html;
   })()}
   ${cliAll?(()=>{  /* [L64 · Lot 6] récap PAR CLIENT : laizes commandées + n° cmd + livraison + packaging */
     const _cliMap={};
@@ -8281,7 +8362,13 @@ let _wroteChronoLive=false;   // [L103 · audit-max] CET onglet a-t-il écrit la
 function persistChronoLive(){
   try{
     if(chronoRunning && chronoRunStart!=null){
-      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||''}));
+      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',mir:(_viewingSharedId||null)}));   // [L298 · audit v2] mir = le chrono mesure une commande PARTAGÉE (vue miroir) : jamais greffé sur un brouillon perso, préservé à la réouverture du MÊME partage
+      _wroteChronoLive=true;
+    }else if((typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof chronoSec==='number'&&chronoSec>0)){
+      // [L298 · audit v2] miroir + chrono EN PAUSE (⏸ ou arrêt auto 16h15) : les autosaves sont neutralisés en
+      // vue miroir → ce temps ne vivait NULLE PART. On le garde dans la clé live (wasRunning=false), identité
+      // du partage incluse — une purge iOS ne perd plus le temps du récepteur.
+      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({sec:chronoSec,startTs:chronoStartTs||null,override:_chronoAutoStopOverride||'',mir:_viewingSharedId,paused:true}));
       _wroteChronoLive=true;
     }else{
       // [L103 · audit-max] 2 onglets sur la même tablette : l'onglet au chrono ARRÊTÉ effaçait
@@ -8820,7 +8907,12 @@ function recalcEcartsFromFiche(opts){
   // différents) et au ré-ordonnancement. Sert de clé à tous les dictionnaires
   // internes ; sans elle, deux réfs de même code fusionnaient leurs commandes
   // et leurs bobines figées étaient écrites en double.
-  const refKey=c=>_refIdKey(c);
+  // [L295 · audit bi-machine · choix Esteban « option A » 30/07] la clé INTERNE du recalcul inclut la MACHINE
+  // (base¦⚙machine) : chaque bloc machine garde SA part de commande, SES rouleaux chute et SA machine — avant,
+  // le dedup par clé de base sommait les commandes puis régénérait TOUT le reste sous la machine du 1er bloc
+  // (séparateur unique, rouleaux du 2e bloc jamais réoffert). Clé interne SEULEMENT : les données des lignes
+  // (l.refIdKey) restent en clé de base.
+  const refKey=c=>_refIdKey(c)+'¦⚙'+((c&&c.machine)||'');
   // Table nom→clé robuste (1re réf portant ce nom) : repli pour les lignes fiche
   // LEGACY sans refIdKey, rattachées par nom à la 1re réf de ce nom.
   const nameToKeys={};   // [L103 · audit-max] nom → TOUTES les clés connues de ce nom (réfs homonymes)
@@ -8839,10 +8931,27 @@ function recalcEcartsFromFiche(opts){
   // (ref¦film¦veka¦longueur — les 4 champs que le changement de mère/lame NE modifie PAS)
   // correspond à l'ancienne clé de la ligne ; sans correspondance, repli d'avant (1re clé).
   const _idPrefix=k=>String(k||'').split('¦').slice(0,4).join('¦');
+  // [L295] rattachement des lignes fiche aux clés COMPOSITES : clé de base + machine de la ligne d'abord ;
+  // machine inconnue de cette clé (ligne re-taguée par un changement de machine) → 1er bloc de la même clé de
+  // base (JAMAIS d'orpheline, sinon reliquat = commande complète → surproduction) ; homonymes : préfixe
+  // d'identité puis machine ; repli final inchangé (« réf disparue »).
+  const baseToComp={};
+  computed.forEach(c=>{ const b=_refIdKey(c); (baseToComp[b]=baseToComp[b]||[]).push(refKey(c)); });
   const lineKey=l=>{
-    if(l.refIdKey&&knownKeys.has(l.refIdKey)) return l.refIdKey;
+    const _m=(l&&l.machine)||'';
+    if(l.refIdKey){
+      const comp=l.refIdKey+'¦⚙'+_m;
+      if(knownKeys.has(comp)) return comp;
+      const sib=baseToComp[l.refIdKey];
+      if(sib&&sib.length) return sib[0];
+    }
     const _cand=nameToKeys[nrmRef(l.ref)]||[];
-    if(_cand.length>1&&l.refIdKey){ const _pf=_idPrefix(l.refIdKey); const _hit=_cand.find(k=>_idPrefix(k)===_pf); if(_hit) return _hit; }
+    if(_cand.length){
+      const _byM=_cand.filter(k2=>k2.endsWith('¦⚙'+_m));
+      if(l.refIdKey&&_cand.length>1){ const _pf=_idPrefix(l.refIdKey);
+        const _hit=(_byM.find(k2=>_idPrefix(k2)===_pf))||_cand.find(k2=>_idPrefix(k2)===_pf); if(_hit) return _hit; }
+      if(_byM.length===1) return _byM[0];
+    }
     return nameToKey[nrmRef(l.ref)]||l.refIdKey||nrmRef(l.ref);
   };
 
@@ -8931,6 +9040,32 @@ function recalcEcartsFromFiche(opts){
     if(_tooLarge.length){
       alert('⚠ '+_tooLarge.length+' bobine(s) coupée(s) ont une découpe PLUS LARGE que la laize utile enregistrée :\n\n'+_tooLarge.join('\n')+'\n\nSi la bobine mère est en réalité plus grande, corrige sa laize (bobine mère / perte bords) dans la fiche.\nLe recalcul continue quand même sur ce qui est enregistré.');
     }
+    // [L295 · revue B1] RÉVENTILATION inter-blocs d'une même clé de BASE : un committed routé sur UN bloc
+    // machine au-delà de SA part (sur-coupe locale, lignes re-taguées par un changement de machine) COUVRE
+    // d'abord le reliquat des blocs FRÈRES avant d'être déclaré surplus. Sans ça : SURPRODUCTION (le frère
+    // régénérait sa part entière — 22 coupées pour 20 commandées au repro) et bannière d'équilibre L286
+    // incoercible (le détecteur agrège par clé de base : le recalcul doit préserver cet agrégat). L'option A
+    // reste intacte au nominal : sans excédent croisé, chaque machine garde exactement sa part.
+    try{
+      const _byBase={};
+      Object.keys(cmdByRef).forEach(k=>{ const i=k.lastIndexOf('¦⚙'); const b=i>=0?k.slice(0,i):k; (_byBase[b]=_byBase[b]||[]).push(k); });
+      Object.values(_byBase).forEach(sibs=>{
+        if(sibs.length<2) return;
+        const widths=new Set();
+        sibs.forEach(k=>{ Object.keys(cmdByRef[k].command||{}).forEach(w=>widths.add(w)); Object.keys(committedByRef[k]||{}).forEach(w=>widths.add(w)); });
+        widths.forEach(w=>{
+          const overs=sibs.map(k=>({k,ov:Math.max(0,((committedByRef[k]||{})[w]||0)-((cmdByRef[k].command||{})[w]||0))})).filter(x=>x.ov>0);
+          const lacks=sibs.map(k=>({k,lk:Math.max(0,((cmdByRef[k].command||{})[w]||0)-((committedByRef[k]||{})[w]||0))})).filter(x=>x.lk>0);
+          overs.forEach(o=>{ lacks.forEach(l2=>{
+            if(o.ov<=0||l2.lk<=0) return;
+            const t=Math.min(o.ov,l2.lk);
+            committedByRef[o.k][w]-=t;
+            committedByRef[l2.k]=committedByRef[l2.k]||{}; committedByRef[l2.k][w]=(committedByRef[l2.k][w]||0)+t;
+            o.ov-=t; l2.lk-=t;
+          }); });
+        });
+      });
+    }catch(e){}
     residualByRef={}; surplusByRef={};
     Object.keys(cmdByRef).forEach(k=>{
       const cmd=cmdByRef[k].command, com=committedByRef[k]||{};
@@ -9024,11 +9159,12 @@ function recalcEcartsFromFiche(opts){
     ficheLines=[];
     const recap=[]; let totalAdded=0; let _firstAddedId=null;   // [L87]
     const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
-    const doneKeys=new Set();
+    const doneKeys=new Set(), _riByBase={}, _rollConsByBase={};   // [L298] compteur d'étiquettes + conso rouleaux PAR CLÉ DE BASE (partagés entre blocs machine frères)
     let _prevMachR='';   // [L92 · Audit #15] même signalétique machine que l'import
     _genOrderR.forEach(ci=>{
       const c=computed[ci];
       const k=refKey(c);
+      const _kb=(kk=>{const i2=kk.lastIndexOf('¦⚙');return i2>=0?kk.slice(0,i2):kk;})(k);   // [L298] clé de base du bloc
       // Dédup : si plusieurs groupes computed partagent la même clé robuste (réf
       // strictement identique), on ne reconstruit qu'une seule fois -> pas de
       // bobines figées ré-attachées en double, pas de reliquat compté 2×.
@@ -9037,7 +9173,7 @@ function recalcEcartsFromFiche(opts){
       if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, _prevMachR, c.mother, c.edge); if(c.machine) _prevMachR=c.machine; }   // [L92 · Audit #15] couleur machine + bande CHANGEMENT DE MACHINE conservées après recalcul
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
-      frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=k; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante
+      frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=_refIdKey(c); if(!l.machine&&c.machine) l.machine=c.machine; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante — [L295] clé de BASE (jamais la composite interne) + machine complétée
 
       // 3b) Ré-empaqueter le reliquat de cette réf. Par défaut avec SA laize/lame ;
       // si op.2 est ciblé sur cette réf, on utilise la laize utile / lame de l'op.2.
@@ -9060,8 +9196,11 @@ function recalcEcartsFromFiche(opts){
         // le plan − ceux déjà consommés par des bobines rouleau FIGÉES (coupées).
         // Les lignes rouleau non figées ont été supprimées à l'étape 2 : elles
         // sont régénérées ici, ré-optimisées sur le reliquat courant.
-        const consumed={};
-        frozenMetas.forEach(l=>{ if(l.recut&&lineKey(l)===k) consumed[l.rollW]=(consumed[l.rollW]||0)+1; });
+        // [L298 · audit v2] consommation des rouleaux partagée PAR CLÉ DE BASE (construite une fois, puis
+        // DÉCRÉMENTÉE entre blocs frères) : une ligne rouleau figée re-taguée sur la machine du bloc frère
+        // consommait « nulle part » → le bloc déclarant ré-offrait un rouleau DÉJÀ COUPÉ (fantôme À RECOUPER).
+        if(!_rollConsByBase[_kb]){ const m={}; frozenMetas.forEach(l=>{ if(!l.recut) return; const lk=lineKey(l); const i2=lk.lastIndexOf('¦⚙'); if((i2>=0?lk.slice(0,i2):lk)===_kb) m[l.rollW]=(m[l.rollW]||0)+1; }); _rollConsByBase[_kb]=m; }
+        const consumed=_rollConsByBase[_kb];
         const avail=[];
         (c.recuts||[]).forEach(rc=>{
           let q=rc.qty||0; const w=rc.width;
@@ -9071,17 +9210,17 @@ function recalcEcartsFromFiche(opts){
           if(q>0) avail.push({width:w, qty:q});
         });
         const rr=avail.length?packRecutRolls(avail,items,pb):{rolls:[],remaining:items.slice().sort((a,b)=>b-a),unusedRolls:0};
-        let ri=1;
-        // [L103 · audit-max] ne PAS repartir à 01 : des RESTE-/OP2- FIGÉES (déjà coupées) de la
-        // même réf gardent leur étiquette — repartir à 01 créait des étiquettes DUPLIQUÉES
-        // (RESTE-01 coupée + RESTE-01 neuve : traçabilité et garde d'identité partage faussées).
-        frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{
+        // [L103 · audit-max + L298 · audit v2] ne PAS repartir à 01 : ancrage sur TOUTES les figées de la même
+        // clé de BASE (pas seulement ce bloc composite — sinon les 2 blocs machine d'une même réf émettaient
+        // chacun leur RESTE-01 : étiquettes dupliquées) + continuité entre blocs frères via _riByBase.
+        let ri=_riByBase[_kb]||1;
+        frozenMetas.filter(l=>{const lk=lineKey(l);const i2=lk.lastIndexOf('¦⚙');return (i2>=0?lk.slice(0,i2):lk)===_kb;}).forEach(l=>{
           const _m=/(?:RESTE|OP2)-(\d+)/i.exec(String(l.label||'')); if(_m) ri=Math.max(ri,parseInt(_m[1],10)+1);
         });
         groupRecutRolls(rr.rolls).forEach(g=>{
           waste+=Math.max(0,g.rollW-calcStats(g.pattern,pb).total)*g.count;
           for(let n=0;n<g.count;n++){
-            addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
+            addFicheLine({label:(multi&&c.ref?refDisp(c.ref)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:pb, machine:pm,   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
               recut:true, rollW:g.rollW,
@@ -9103,13 +9242,14 @@ function recalcEcartsFromFiche(opts){
         groups.forEach(g=>{
           waste+=(pu-calcStats(g.pattern,pb).total)*g.count;
           for(let n=0;n<g.count;n++){
-            addFicheLine({label:(multi&&c.ref?c.ref+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
+            addFicheLine({label:(multi&&c.ref?refDisp(c.ref)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:pu, blade:pb, machine:pm});   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
             if(!_firstAddedId&&ficheLines.length) _firstAddedId=ficheLines[ficheLines.length-1].id;   // [L87] 1re bobine ajoutée : repérée pour scroll+surbrillance
             ri++; added++;
           }
         });
+        _riByBase[_kb]=ri;   // [L298] continuité du compteur d'étiquettes entre blocs machine frères (même clé de base)
       }
       totalAdded+=added+recutAdded;
 
@@ -16495,7 +16635,7 @@ function applyFichePlanChange(){
 //   surplus   = committed − command, part positive uniquement.
 // Clé par NOM de réf (comme l'impression regroupe ficheLines par l.ref) — lecture seule, aucun effet de bord.
 function _fichePrintSurplus(){
-  const out={};
+  const out={}, outMissing={};   // [L296] outMissing = production sous une réf absente du plan (renommée ?)
   try{
     const computed=(typeof packRefGroupsPal==='function')?packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length):[];
     // [L291 · audit] clé par nom NORMALISÉ (nrm) des deux côtés — la clé brute était plus fragile que toutes
@@ -16516,9 +16656,14 @@ function _fichePrintSurplus(){
     Object.keys(com).forEach(nm=>{
       const c=com[nm], o=cmd[nm]||{}, s={};
       Object.keys(c).forEach(w=>{ const ex=(c[w]||0)-(o[w]||0); if(ex>0) s[w]=ex; });
-      if(Object.keys(s).length) out[_disp[nm]||nm]=s;
+      if(!Object.keys(s).length) return;
+      // [L296 · audit 30/07] réf ABSENTE du plan (renommée / bloc retiré) : sa production figée n'est PAS une
+      // sur-coupe — la classer « Coupé EN PLUS » fabriquait une fausse trace ISO. Boîte dédiée « à vérifier ».
+      if(!cmd[nm]) outMissing[_disp[nm]||nm]=s;
+      else out[_disp[nm]||nm]=s;
     });
   }catch(e){ return {}; }
+  out._missing=outMissing;   // [L296] transporté au rendu (clé non-réf, préfixe _)
   return out;
 }
 // [L275 · bug Esteban] Construit l'ANCIEN modèle de plan imprimable (buildPlanPrintHTML, lisible) à partir des
@@ -16593,6 +16738,7 @@ function _buildFichePlanPrintHTML(){
     cerclage:document.getElementById('planCerclage')?.value||'—',
     notesEmb:document.getElementById('planNotesEmballage')?.value||'',
     cmdInfoHtml:(numCmd&&numCmd!=='—'&&!(((document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'')).toLowerCase().includes(numCmd.toLowerCase())))?` · N° Cmd : <b>${esc(numCmd)}</b>`:'',   // [L292] pas de doublon avec le nom client
+    coupeCol:true,   // [L295 · demande Esteban] colonne manuscrite « Bobines coupées final » sur le papier fiche
     cmdClients:(typeof cliMulti==='function'&&cliMulti())?JSON.parse(JSON.stringify(cmdClients)):null,
     surplus:_fichePrintSurplus()   // [L284] « coupé en plus » (hors plan) → récap imprimé
   });
@@ -18650,7 +18796,8 @@ function serializeFicheState(){
     // ajoutés »). Il n'existait qu'en RAM : au rechargement (ex. mise à jour d'app), restoreFicheState le
     // re-basait sur le plan DÉJÀ modifié → la dérive stock devenait STRUCTURELLEMENT invisible (fiche/papier
     // périmés en silence, cas lima). STRING JSON (pas un map Firestore : les clés _refIdKey contiennent « ¦ »).
-    genChutes:(_ficheGenChutes?JSON.stringify(_ficheGenChutes):null)
+    genChutes:(_ficheGenChutes?JSON.stringify(_ficheGenChutes):null),
+    genPlanSig:(_ficheGenPlanSig||null)   // [L297 · revue] signature du plan à la génération, PERSISTÉE (comme genChutes) — re-dérivée à la restauration elle certifiait à tort une fiche périmée (famille lima)
   };
 }
 let _savingDraftManual=false;   // [L73 · Lot 5 · B41] verrou anti double-tap « 💾 Brouillon »
@@ -19359,6 +19506,10 @@ function restoreFicheState(st){
     try{ const _gc=JSON.parse(st.genChutes); if(_gc&&typeof _gc==='object'){ _ficheGenChutes=_gc; _gcRestored=true; } }catch(e){}
   }
   if(!_gcRestored && typeof _snapFicheChutes==='function') _snapFicheChutes();
+  // [L297 · revue] la signature n'est JAMAIS re-dérivée du plan restauré (elle certifierait une fiche périmée
+  // si le plan a bougé après génération — modif de LIGNE qui n'arme pas le verrou dims). Elle est restaurée
+  // PERSISTÉE (st.genPlanSig) ; brouillon legacy sans le champ → null → l'import auto régénère (pré-L296, sûr).
+  _ficheGenPlanSig=(typeof st.genPlanSig==='string'&&st.genPlanSig)?st.genPlanSig:null;
 }
 // Repositionne le chrono depuis un brouillon. Deux cas :
 //  - le chrono était EN PAUSE à la fermeture : on le laisse en pause à sa valeur.

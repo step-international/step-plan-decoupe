@@ -328,7 +328,11 @@ has(/function _snapFicheChutes\(\)/,'L278 : instantané des chutes stock à la g
 has(/bobineaux en stock ajoutés → à imputer sur le reste/,'L278 : dérive « bobineaux stock » signalée MÊME sur réf engagée → bouton « Appliquer » qui garde les coupées + impute sur le reste');
 has(/_snapFicheChutes\(\);   \/\/ \[L278\] chutes appliquées/,'L278 : instantané re-basé après recalcul → la bannière se referme (pas de harcèlement)');
 
-has(/if\(!_gcRestored && typeof _snapFicheChutes==='function'\) _snapFicheChutes\(\);\n\}/,'L279→L286 : à la reprise, PRIORITÉ à l\'instantané chutes PERSISTÉ (st.genChutes) ; repli L279 (_snapFicheChutes) pour les anciens brouillons');
+has(/if\(!_gcRestored && typeof _snapFicheChutes==='function'\) _snapFicheChutes\(\);/,'L279→L286 : à la reprise, PRIORITÉ à l\'instantané chutes PERSISTÉ (st.genChutes) ; repli L279 (_snapFicheChutes) pour les anciens brouillons');
+has(/let _ficheGenPlanSig=null;/,'L296 : signature du plan à la génération — l\'aller-retour Plan↔Fiche ne régénère plus (validation mère + ordre de coupe conservés)');
+has(/JSON\.stringify\(serializeFicheState\(\)\.plan\)===_ficheGenPlanSig\) return;/,'L296→L297 : import auto court-circuité SEULEMENT si le plan COMPLET (en-têtes + refGroups + planManual) est inchangé (audit v2)');
+has(/bobine\(s\) d\\'une réf RENOMMÉE ou RETIRÉE du plan/,'L296 : lignes ORPHELINES (réf renommée / bloc retiré) détectées → bannière needClick (fini le silence total)');
+has(/Production sous une réf ABSENTE du plan/,'L296 : la production d\'une réf renommée n\'est plus classée « Coupé EN PLUS » (fausse trace ISO) — boîte dédiée « à vérifier »');
 
 console.log('── L280 : brouillons (machine + anti-doublon), graphiques lames, client Mtechnologie (demandes Esteban) ──');
 has(/"Mtechnologie": \[\{ref:"GHX173A",largeur:1290,longueur:1000\}\]/,'L280 : client Mtechnologie + réf GHX173A (1290 mm, 1000 ml) créés');
@@ -416,7 +420,14 @@ console.log('── L291 : suite audit 30/07 (PDF-depuis-fiche + surplus + doLoa
 has(/\|'\+\(l\.phaseEnd\?'P':''\)/,'L291 : FIN DE PHASE conservée sur le PDF-depuis-fiche (marquage « Solde à CONSERVER » plus jamais fusionné)');
 has(/const cmd=\{\}, _disp=\{\};/,'L291 : récap « Coupé EN PLUS » clé par nom NORMALISÉ (une casse/espace ≠ ne fabrique plus une fausse sur-coupe totale)');
 has(/doLoad écrasait en ~10-15 s la SEULE sauvegarde auto/,'L291 : doLoad pose les signatures d\'autosave sur l\'état chargé — la sauvegarde auto de la commande précédente survit jusqu\'à la 1re vraie modification');
-has(/\{ref:"TacFlex® DH100-2",largeur:2200,longueur:1000\}/,'L290 : réf DH100-2 transparent 1000 ml créée (MOREY + FEILO SYLVANIA + EPSOTECH)');
+has(/\{ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000\}/,'L290→L295 : réf DH1006-2 transparent 1000 ml (« DH100-2 » = faute de frappe confirmée par Esteban) — MOREY + FEILO SYLVANIA + EPSOTECH');
+absent(/DH100-2",largeur/,'L295 : plus aucune réf « DH100-2 » (faute de frappe corrigée)');
+
+console.log('── L295 : colonne manuscrite + bi-machine option A (choix Esteban 30/07) ──');
+has(/coupeCol:true,/,'L295 : PDF fiche — colonne « ✍ Bobines coupées final » (cases vides à remplir au stylo)');
+has(/const refKey=c=>_refIdKey\(c\)\+'¦⚙'\+\(\(c&&c\.machine\)\|\|''\)/,'L295 : recalcul par clé COMPOSITE base+machine (option A) — chaque bloc machine garde sa part, ses rouleaux, sa machine');
+has(/JAMAIS d'orpheline, sinon reliquat = commande complète/,'L295 : lignes re-taguées rattachées au 1er bloc de la clé de base (anti-surproduction)');
+has(/clé de BASE \(jamais la composite interne\)/,'L295 : l.refIdKey resynchronisé en clé de BASE (la composite ne fuit jamais dans les données)');
 has(/\{ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500\}/,'L290 : réf DH1006-2 micro perf 500 ml créée (MOREY + FEILO SYLVANIA + EPSOTECH)');
 absent(/"MOREY": \[\{ref:"41116850 - TacFlex® DH1006-2"/,'L290 : l\'ancienne réf unique MOREY a bien été remplacée');
 has(/function _syncRefDonePills\(\)/,'L288 T4 : réf finie → carte repliée en pastille « ✓ Réf N terminée (déplier) », recorriger accessible, matching par refIdKey');
@@ -448,5 +459,13 @@ has(/ÉMETTEUR d'un partage reconstruit par la reprise AUTO : libérer le gel/,'
 has(/PRÉSERVER LE CHRONO DU RÉCEPTEUR/,'L294 : rouvrir un partage après reload ne remet plus le chrono du récepteur à zéro (temps ISO préservé)');
 has(/NE PURGER les brouillons auto QUE s'ils reflètent l'écran/,'L294 : ↺ Réinitialiser ne détruit plus la commande EN PAUSE du poste (copie locale de partage / autre n° de commande → brouillons auto conservés)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L294 présents dans index.html + sw.js');
+console.log('── L295 (revue) + L297 : réventilation inter-blocs, migration textes, papier gamifié ──');
+has(/RÉVENTILATION inter-blocs d'une même clé de BASE/,'L295 (revue B1) : excédent committed d\'un bloc → couvre le reliquat des blocs frères AVANT surplus (anti-surproduction bi-machine, bannière équilibre refermable)');
+has(/const _OLD_NOTES=\[/,'L297 : migration des anciens textes SPÉCIFICITÉ stockés (correspondance EXACTE — un texte édité main n\'est jamais dénaturé)');
+has(/function _chkBoxes\(n\)/,'L297 : cases ☐ par bobine sur le papier fiche (gamification demande Esteban) + compteur manuscrit Coupées __/N');
+has(/tr:nth-child\(even\):not\(\[style\*="background"\]\) td\{background:#fafbfc\}/,'L297 (revue) : zébrage léger SANS écraser les fonds spéciaux inline (ligne ♻ turquoise, solde jaune)');
+has(/genPlanSig:\(_ficheGenPlanSig\|\|null\)/,'L297 (revue) : signature du plan PERSISTÉE dans l\'état (comme genChutes) — jamais re-dérivée à la restauration');
+has(/_ficheGenPlanSig=\(typeof st\.genPlanSig==='string'&&st\.genPlanSig\)\?st\.genPlanSig:null;/,'L297 (revue) : restauration = sig persistée ou null (legacy → régénération pré-L296, sûre)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L297 présents dans index.html + sw.js');
 process.exit(fail?1:0);
