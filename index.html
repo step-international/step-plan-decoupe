@@ -1790,6 +1790,16 @@ function refDisp(r){
   s=s.replace(/^TacFlex®?\s*/i,'');            // marque
   return s||String(r==null?'':r);
 }
+// [L298 · audit v2] nom court DÉSAMBIGUÏSÉ : deux réfs DISTINCTES du plan peuvent partager le même nom court
+// (cas réel : 41312799/41312806/41312809 → « KX1045-1 » ×3, en 100/250/500 ml). On suffixe alors la longueur.
+function refDispCtx(ref){
+  try{
+    const short=refDisp(ref);
+    const twins=getRefGroups().filter(x=>refDisp(x.ref||'')===short);
+    if(twins.length>1){ const me=twins.find(x=>(x.ref||'')===String(ref||'')); if(me&&me.longueur) return short+' · '+me.longueur+' ml'; }
+    return short;
+  }catch(e){ return refDisp(ref); }
+}
 var currentRole=null;
 var currentUser=null;
 
@@ -1809,7 +1819,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.30-L297';
+const APP_VERSION='2026.07.31-L299';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4125,11 +4135,12 @@ function _fichePlanDriftCheck(opts){
           if(JSON.stringify(_planLeft.slice().sort((a,b)=>a-b))!==JSON.stringify(_ficheFree.slice().sort((a,b)=>a-b))) msgs.push('rouleau(x) chute modifié(s) dans le plan → à refléter sur le reste');
         }catch(e){}
       }
-      // Changement de MACHINE : garde inchangée — signalé UNIQUEMENT si la réf n'est pas engagée (le travail
-      // terrain prime ; re-machiner le reste en cours de découpe est un choix conscient, pas un simple ajout stock).
-      if(!_engaged){
+      // [L299 · demande Esteban 31/07 « quand l'un change l'autre aussi »] changement de MACHINE : détecté même
+      // sur réf ENGAGÉE (le recalcul conserve les coupées avec LEUR machine — trace ISO — et re-machine le reste)
+      // et AUTO-APPLIQUÉ à l'arrivée sur la fiche (plus de needClick — choix Esteban, remplace la bannière L286).
+      {
         const mach=(c.machine||'').trim();
-        if(mach && !lines.some(d=>(d.machine||'')===mach)){ msgs.push('machine → '+getMachineLabel(mach)); needClick=true; }
+        if(mach && !lines.some(d=>(d.machine||'')===mach)) msgs.push('machine → '+getMachineLabel(mach)+' (reste re-machiné, coupées conservées)');
       }
       // [L285 · demande Esteban] SUR-COUPE encore présente dans le RESTE : une largeur coupée EN PLUS (vs commande
       // − stock) reste prévue sur des bobines PAS ENCORE coupées → recalculer l'en retire (reliquat borné). Message
@@ -4244,7 +4255,7 @@ function _applyPlanDriftFix(opts){
   else if(opts.silent){
     // [L286] trace claire de ce qui vient de se passer tout seul (pas de confirm : le toast + le récap du
     // recalcul + la bannière verte assurent la conscience opérateur, règle « toutes les surfaces »).
-    showToast('♻ Plan modifié (bobineaux stock / rouleaux chute) → appliqué AUTOMATIQUEMENT à la fiche.\n\nBobines coupées conservées — le reste vient d\'être recalculé.','ok');
+    showToast('♻ Plan modifié (stock / rouleaux / machine) → appliqué AUTOMATIQUEMENT à la fiche.\n\nBobines coupées conservées — le reste vient d\'être recalculé.','ok');
   }
   else {
     // [L273 · demande Esteban] retour VERT immédiat au clic (le bandeau se referme via onApplied quand la dérive est résorbée).
@@ -4394,7 +4405,8 @@ function importPlanToFiche(opts){
     // de l'autre poste re-proposé au redémarrage = retour du risque de double découpe. Un changement de
     // commande passe TOUJOURS par doLoad/newCmd/resetAll qui désarment déjà les flags (L7177/L8829/L17xxx) :
     // le reset ici n'est donc nécessaire QUE sur la régénération MANUELLE consciente (« TOUT EFFACER »).
-    if(!auto && !_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }
+    // [L298 · audit v2] déplacé APRÈS les confirms annulables ci-dessous : un tap + Annuler doit être un no-op
+    // (avant : la passation était déjà désarmée → le brouillon de l'autre poste n'était plus consommé à l'envoi).
     // L32 — Contrôle de cohérence plan→fiche : le plan manuel couvre-t-il exactement
     // les quantités commandées (bobineaux produits + chutes stock) ? Avertissement
     // NON bloquant (l'opérateur peut continuer) : en auto un toast, au clic une
@@ -4416,6 +4428,7 @@ function importPlanToFiche(opts){
         else if(!confirm('⚠ Plan ≠ commande — il manque : '+_txt+'.\n\nGénérer la fiche quand même ?')) return;
       }
     }
+    if(!auto && !_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }   // [L298] passation désarmée SEULEMENT une fois tous les confirms passés (la régénération va vraiment avoir lieu)
     // Régénération complète = repart de zéro pour le gating multi-réf, SAUF si
     // l'appel vient d'une revalidation par référence (keepRefValidation).
     if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); ficheRefOrder=[]; }
@@ -7262,7 +7275,7 @@ function buildPlanPrintHTML(o){
     });
     if(multi){
       const attr=filmAttrStr(c); const attrPart=attr?` · <b>${esc(attr)}</b>`:'';
-      sections+=`<h3 class="pp-ref" style="font-size:14px;margin:18px 0 6px;color:${refColor(ci)};border-left:5px solid ${refColor(ci)};padding-left:9px">🎞 ${esc(refDisp(c.ref)||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;   /* [L219] couleur PAR RÉFÉRENCE — écran/aperçu ; [L231 · audit MAJ-3] SUR PAPIER l'en-tête repasse NOIR (les pastels devenaient gris pâle illisible sous grayscale) */
+      sections+=`<h3 class="pp-ref" style="font-size:14px;margin:18px 0 6px;color:${refColor(ci)};border-left:5px solid ${refColor(ci)};padding-left:9px">🎞 ${esc(refDispCtx(c.ref)||('Référence '+(ci+1)))} — bobine mère ${fmt(c.mother)} mm · utile ${fmt(useful)} mm · lame ${fmt(blade)} mm${(()=>{const _m=getMachineLabel(c.machine||'');return _m?' · ⚙ '+esc(_m):'';})()}${c.longueur?` · ${esc(String(c.longueur))} ml`:''}${attrPart}</h3>`;   /* [L219] couleur PAR RÉFÉRENCE — écran/aperçu ; [L231 · audit MAJ-3] SUR PAPIER l'en-tête repasse NOIR (les pastels devenaient gris pâle illisible sous grayscale) */
     }
     // [L289 · choix Esteban 30/07 — maquette A allégée] TABLEAU PAR LAIZE : Laize | Commandé | ✂ En stock |
     // À couper. « À couper » = commandé − stock : il INCLUT les pièces recoupées sur rouleau chute (l'opérateur
@@ -7325,7 +7338,7 @@ function buildPlanPrintHTML(o){
   .cmd-recap.cmd-total{background:#eef2ff;border-left-color:#4338ca}
   @media print{body{padding:8px}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}h3.pp-ref{color:#000!important;border-left-color:#000!important}}/* [L231 · audit MAJ-3] en-tête de réf NOIR sur papier (les pastels refColor viraient au gris pâle) */</style></head><body>
   <!-- [L293 · demande Esteban 30/07] titre SUPPRIMÉ (surligné violet sur la feuille) : la page commence au client. -->
-  <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
+  <div class="meta">Client : <b>${esc(o.client)}</b> · Réf : <b>${esc(refLabel)}</b>${(()=>{const Ls=[...new Set(groups.map(c=>String(c.longueur||'').trim()).filter(Boolean))];return Ls.length===1?` · <b>${esc(Ls[0])} ml</b>`:'';})()}${monoAttr?` · Film : <b>${esc(monoAttr)}</b>`:''}${o.cmdInfoHtml||''}<br>
   ${cliAll?`👥 Multi-clients : ${cliAll.map(c=>`${cliPrintChip(c.id)} <b>${esc(c.nom||'—')}</b>${c.numCmd?' (n° '+esc(c.numCmd)+')':''}`).join(' · ')}<br>`:''}
   ${metaTech}<br>
   Packaging : Palette <b>${esc(o.palette)}</b> · Type <b>${esc(o.typeCond)}</b> · Étiquetage <b>${esc(o.etiquetage)}</b> · Cerclage <b>${esc(String(o.cerclage||'').replace(/\s*\([^)]*\)\s*$/,''))}</b>${o.notesEmb?'<div style="border:1.5px solid #9aa1ab;border-radius:6px;padding:6px 10px;font-size:12px;color:#222;margin-top:6px;line-height:1.5">'+esc(_migrateOldNotes(o.notesEmb)).replace(/\n/g,'<br>')+'</div>':''}</div>
@@ -7461,7 +7474,7 @@ function printEtiquette(d){
     <div class="solde">${esc(String(d.solde))}<small> mm</small></div>
     <div class="grid">
       ${d.numBob?`<span><b>Bobine mère n° :</b> ${esc(String(d.numBob))}</span>`:''}
-      ${(d.ref&&String(d.ref).replace(/⟲ fin de phase/,'').trim()!=='—')?`<span><b>Réf :</b> ${esc(refDisp(String(d.ref)))}</span>`:''}
+      ${(d.ref&&String(d.ref).replace(/⟲ fin de phase/,'').trim()!=='—')?`<span><b>Réf :</b> ${esc(refDispCtx(String(d.ref).replace(/ ⟲ fin de phase$/,'')))}${/⟲ fin de phase/.test(String(d.ref))?' ⟲ fin de phase':''}</span>`:''}
       <span><b>Machine :</b> ${esc(String(d.mn))}</span>
       <span><b>Date :</b> ${esc(String(d.date))}</span>
     </div>
@@ -8083,7 +8096,7 @@ async function doLoad(){
   // Packaging sauvegardé (écrase les règles auto déclenchées par onClientChange).
   set('planType',s.typeCond||s.carton); set('planPalette',s.palette);
   set('planEtiquetage',s.etiquetage||s.etiquette); set('planCerclage',s.cerclage);
-  set('planNotesEmballage',s.notesEmballage);
+  set('planNotesEmballage',(typeof _migrateOldNotes==='function')?_migrateOldNotes(s.notesEmballage||''):s.notesEmballage);   // [L298 · audit v2] vieux texte SPÉCIFICITÉ migré aussi À L'ÉCRAN (persisté à la prochaine sauvegarde)
   const pa=G('packagingAlert'); if(pa) pa.classList.add('hidden');
 
   // 3) RÉFÉRENCES / LIGNES.
@@ -8210,7 +8223,7 @@ function chronoStart(){
       // geste = valider la bobine mère de la réf en cours. Orange (à valider) ≠ rouge (dimension modifiée).
       const _ai=(typeof fmmActiveIdx==='function')?fmmActiveIdx():null;
       const _rf=(typeof fmmGetRefs==='function')?(fmmGetRefs().find(x=>x.idx===_ai)||null):null;
-      showToast('⚠ Valide d\'abord la bobine mère de la réf en cours'+(_rf&&_rf.ref?' — « '+refDisp(_rf.ref)+' »':'')+' : bouton « 🔄 Valider la bobine mère » juste au-dessus de sa 1re bobine.','err');
+      showToast('⚠ Valide d\'abord la bobine mère de la réf en cours'+(_rf&&_rf.ref?' — « '+refDispCtx(_rf.ref)+' »':'')+' : bouton « 🔄 Valider la bobine mère » juste au-dessus de sa 1re bobine.','err');
       const _blk=document.querySelector('.fmm-block.active')||document.querySelector('.fmm-inline-block.active');
       if(_blk){ try{_blk.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){} _blk.style.outline='3px solid var(--orange)'; setTimeout(function(){ _blk.style.outline=''; },2500); }
       return;
@@ -8273,6 +8286,7 @@ function chronoReset(force){
   // (persistChronoLive plus bas la purge car chronoRunning=false). Sans ça, un « Annuler » laissait
   // survivre un vieux runStart (~2 h) qui ressuscitait sur la commande suivante = chrono faux.
   if(!force&&chronoSec>0&&typeof confirm==='function'&&!confirm('Remettre le chronomètre à zéro ?\n\nLe temps affiché ('+fmtTime(chronoSec)+') sera perdu.')) return;
+  try{ localStorage.removeItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L298 · revue ×2] reset CONFIRMÉ (manuel OU frontière force) : le temps miroir en attente est jeté aussi — un ↺ Reset en vue miroir ne doit JAMAIS ressusciter à la réouverture
   chronoRunning=false;
   clearInterval(chronoInterval);
   chronoSec=0;chronoStartTs=null;chronoRunStart=null;_chronoAutoStopOverride=null;
@@ -8358,18 +8372,21 @@ function chronoCatchUp(){ if(chronoRunning) chronoTick(); }
 // pour qu'elle ne soit JAMAIS perdue, même si le téléphone tue l'onglet pendant la
 // veille — et on garde l'écran allumé via Wake Lock tant que le chrono tourne.
 const CHRONO_LS_KEY='step_chrono_live';
+const CHRONO_MIR_LS_KEY='step_chrono_mir';   // [L298 · revue P1] temps d'une VUE MIROIR : clé SÉPARÉE — le chrono perso (reprise de brouillon, ▶) ne peut plus écraser le temps du récepteur en attente de réouverture du partage
 let _wroteChronoLive=false;   // [L103 · audit-max] CET onglet a-t-il écrit la clé live ? (2 onglets même tablette)
 function persistChronoLive(){
   try{
-    if(chronoRunning && chronoRunStart!=null){
-      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',mir:(_viewingSharedId||null)}));   // [L298 · audit v2] mir = le chrono mesure une commande PARTAGÉE (vue miroir) : jamais greffé sur un brouillon perso, préservé à la réouverture du MÊME partage
+    if(chronoRunning && chronoRunStart!=null && (typeof _viewingSharedId!=='undefined'&&_viewingSharedId)){
+      // [L298 · revue P1] chrono d'une VUE MIROIR : clé DÉDIÉE (jamais la clé perso — sinon la reprise d'un
+      // brouillon perso au boot la réécrivait mir:null et détruisait le temps du récepteur avant la réouverture).
+      localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',mir:_viewingSharedId}));
+    }else if(chronoRunning && chronoRunStart!=null){
+      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||''}));
       _wroteChronoLive=true;
     }else if((typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof chronoSec==='number'&&chronoSec>0)){
       // [L298 · audit v2] miroir + chrono EN PAUSE (⏸ ou arrêt auto 16h15) : les autosaves sont neutralisés en
-      // vue miroir → ce temps ne vivait NULLE PART. On le garde dans la clé live (wasRunning=false), identité
-      // du partage incluse — une purge iOS ne perd plus le temps du récepteur.
-      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({sec:chronoSec,startTs:chronoStartTs||null,override:_chronoAutoStopOverride||'',mir:_viewingSharedId,paused:true}));
-      _wroteChronoLive=true;
+      // vue miroir → ce temps ne vivait NULLE PART. Clé MIR dédiée, identité du partage incluse.
+      localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({sec:chronoSec,startTs:chronoStartTs||null,override:_chronoAutoStopOverride||'',mir:_viewingSharedId,paused:true}));
     }else{
       // [L103 · audit-max] 2 onglets sur la même tablette : l'onglet au chrono ARRÊTÉ effaçait
       // (visibilitychange/pagehide) la sauvegarde live du chrono qui TOURNE dans l'autre onglet
@@ -10765,7 +10782,7 @@ function plnOpenCard(sid){
       +'<div><b style="color:var(--text)">Livraison :</b> '+(liv?new Date(liv+'T12:00:00').toLocaleDateString('fr-FR'):'—')+(late?' <b style="color:var(--red)">⚠ dépassée par la date posée</b>':'')+'</div>'
       +(s.plannedDate?'<div><b style="color:var(--text)">Posé :</b> S'+_plnIsoWeekNum(new Date(s.plannedDate+'T12:00:00'))+' · '+new Date(s.plannedDate+'T12:00:00').toLocaleDateString('fr-FR')+' × '+esc(getMachineLabel(s.plannedMachine||'')||'—')+(_plnDays(s)>1?' · <b style="color:#93c5fd">étalé sur '+_plnDays(s)+' j</b>':'')+'</div>':'')
       +'<div><b style="color:var(--text)">Durée estimée :</b> '+_plnH(h)+(_plnDays(s)>1&&h!=null?' ('+_plnH(h/_plnDays(s))+'/jour)':'')+'</div>'
-      +(s.notesEmballage?'<div><b style="color:var(--text)">Notes :</b> '+esc(s.notesEmballage)+'</div>':'')
+      +(s.notesEmballage?'<div><b style="color:var(--text)">Notes :</b> '+esc((typeof _migrateOldNotes==='function')?_migrateOldNotes(s.notesEmballage):s.notesEmballage)+'</div>':'')   /* [L298] texte migré aussi au popup planning */
     +'</div>'
     // [L119] commande longue : étaler sur plusieurs jours consécutifs (même machine)
     +((canE&&s.plannedDate)?'<div style="margin:0 0 12px;padding:10px;background:var(--card);border:1px solid var(--border2);border-radius:9px"><div style="font-size:12.5px;color:var(--muted);margin-bottom:7px">🗓 Étaler la commande sur plusieurs jours '+(h!=null&&h>PLN_OVER_H?'<b style="color:var(--orange)">(longue : '+Math.ceil(h/PLN_OVER_H)+' j suggérés)</b>':'')+' :</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+[1,2,3,4,5,6,7].map(function(n){return '<button class="btn '+(_plnDays(s)===n?'btn-blue':'btn-ghost')+' btn-sm" style="min-width:50px;justify-content:center" onclick="plnSetDays(\''+esc(sid)+'\','+n+');document.getElementById(\'plnCardModal\').classList.remove(\'open\')">'+n+' j</button>';}).join('')+'</div></div>':'')
@@ -15791,7 +15808,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
   const machCol={'FEBA':'#4f9df2','MAVEG':'#2fb85f','CEVENINI':'#9b7cf0'}[machLbl]||'#a78bfa';
   const cartonStr=cartonRatioStr(f);
   const pkgLine=`<span>Packaging</span><span>Palette ${esc(f.palette||'—')} · Type ${esc(f.typeCond||f.carton||'—')}${cartonStr?` · ${esc(cartonStr)}`:''} · Étiquetage ${esc(f.etiquetage||f.etiquette||'—')} · Cerclage ${esc(f.cerclage||'—')}</span>`;
-  const notesLine=(f.notesEmballage&&f.notesEmballage.trim())?`<span>Notes condit.</span><span style="white-space:pre-line">${esc(f.notesEmballage)}</span>`:'';
+  const notesLine=(f.notesEmballage&&f.notesEmballage.trim())?`<span>Notes condit.</span><span style="white-space:pre-line">${esc((typeof _migrateOldNotes==='function')?_migrateOldNotes(f.notesEmballage):f.notesEmballage)}</span>`:'';   /* [L298 · audit v2] le PDF archive dit la MÊME consigne que le papier atelier (migration partout) */
 
   // [L63 · Lot 5] bandeau « commande partagée » (thème rose du partage, cf. L62).
   const partageBanner=sharedFiche?`
@@ -16152,6 +16169,11 @@ function selectFicheMachine(m,opts){
       document.querySelectorAll('#refBlocks [data-rb="edge"]').forEach(el=>{el.value=def.edge;});
       document.querySelectorAll('#refBlocks [data-rb="blade"]').forEach(el=>{el.value=def.blade;});
     }
+    // [L299 · demande Esteban 31/07] SYNCHRO MACHINE fiche → plan : le select machine du bloc plan suit
+    // (mono-réf uniquement — en multi, la validation par réf écrit déjà SON bloc via applyFicheRefPlanChange).
+    if(!(opts&&opts.keepDims) && !(typeof fmmIsMulti==='function'&&fmmIsMulti())){
+      document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value=m;});
+    }
     currentMachine=m;
     if(typeof recalcPlan==='function') recalcPlan();
   }
@@ -16441,7 +16463,7 @@ function renderFicheMachineBlocks(opts){
       // 1 ligne « ✓ Réf N terminée (déplier) » : libère l'écran, garde le repère de progression ET l'accès au
       // bouton 🔄 recorriger (dans le dépliable). JAMAIS de display:none sec. Classe .ref-done posée/retirée par
       // _syncRefDonePills (updateCoupeeStatus + rendu) — matching par refIdKey/idx, PAS par nom (homonymes).
-      body='<div class="fmm-done-line" onclick="this.closest(\'.fmm-inline-block\').classList.toggle(\'ref-open\')">✓ Réf '+(pos+1)+' · '+esc(refDisp(r.ref))+' terminée <span class="fdl-hint fdl-o">(déplier)</span><span class="fdl-hint fdl-c">(replier)</span></div>'
+      body='<div class="fmm-done-line" onclick="this.closest(\'.fmm-inline-block\').classList.toggle(\'ref-open\')">✓ Réf '+(pos+1)+' · '+esc(refDispCtx(r.ref))+' terminée <span class="fdl-hint fdl-o">(déplier)</span><span class="fdl-hint fdl-c">(replier)</span></div>'
         +'<div class="fmm-valsum">'
         +(_ml?'<span class="frs-mch" style="--mc:'+_mc+'">⚙ '+esc(_ml)+'</span>':'')
         +(_mo>0?'<span class="frs-m">mère '+V(r.mother)+' mm</span>':'')
@@ -16479,7 +16501,7 @@ function renderFicheMachineBlocks(opts){
     const _hml=getMachineLabel(r.machine||'');
     const _hmc=({feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'})[r.machine]||'#888';
     const _hmChip=(!validated&&_hml)?'<span class="frs-mch" style="--mc:'+_hmc+'">⚙ '+esc(_hml)+'</span>':'';
-    block.innerHTML='<div class="fmm-head">'+refChip+badge+_hmChip+'<span class="fmm-name">🎞 '+esc(refDisp(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
+    block.innerHTML='<div class="fmm-head">'+refChip+badge+_hmChip+'<span class="fmm-name">🎞 '+esc(refDispCtx(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
     // [L236 · demande Esteban] RÉF 1 : sa carte de validation vit ENTRE le suivi « X/N coupées » et la
     // 1re bobine à couper (colonne des bobines) — l'opérateur voit suivi → réf à valider → bobines, d'un
     // seul flux. Réfs 2, 3, … : inchangées (bloc à leur 1re bobine). (Avant L107/L236 : au-dessus de l'en-tête.)
@@ -17409,7 +17431,7 @@ function updateCoupeeStatus(){
           if(c){c.innerHTML=`✂ <strong>${d}/${lines.length}</strong>`;c.style.color=ok?'var(--green)':'#fca5a5';}
         }
       });
-      return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(refDisp(r))} <strong>${d}/${lines.length}</strong></span>`;
+      return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(refDispCtx(r))} <strong>${d}/${lines.length}</strong></span>`;
     }).join(' · ');
   }
   const banner=document.getElementById('coupeeBanner');
@@ -17840,7 +17862,8 @@ let _shareDocId=null;                    // [Lot 2] id du doc d_shared_<uid>_<ts
 let _shareRestoreDone=false;             // [Lot 2] garde one-shot : la restauration au reload ne s'exécute qu'une fois par session
 let _shareAutosaveTimer=null;            // [Lot 3] émetteur : timer de push du doc partagé (10 s)
 let _shareAutosaveLastSig='';            // [Lot 3] signature du dernier contenu poussé (évite les écritures inutiles)
-let _sharePushHold=false;                // [L67 · Audit] après restauration au reload : gel du push tant que l'écran ne correspond pas au contenu déjà partagé (anti-écrasement de la commande des collègues)
+let _sharePushHold=false;
+let _mirChronoDoc=null;   // [L298 · audit v2] identité du partage dont le chrono local mesure le temps (vue miroir) — pilote la préservation à la réouverture                // [L67 · Audit] après restauration au reload : gel du push tant que l'écran ne correspond pas au contenu déjà partagé (anti-écrasement de la commande des collègues)
 let _shareRevLast=0;                     // [L72 · Audit B04] sharedRev MONOTONE même si l'horloge de la tablette recule
 let _localCopyFromShare=null;            // [L72 · Audit B59] {from,at} : la commande à l'écran est la copie locale d'un partage terminé — bandeau persistant + confirmation à l'envoi
 let _localCopyBannerDismissed=false;     // [L138 · audit #21] UI seul : masque le bandeau (« OK, vu ») SANS lever la garde anti-doublon _localCopyFromShare
@@ -18212,10 +18235,39 @@ function openSharedCommand(id){
   // clone AVANT restauration : le miroir s'ouvre avec le temps du récepteur intact, en marche s'il l'était.
   try{
     const _cl=_shareCloneForReceiver(doc.state);
-    if((typeof chronoSec==='number'&&chronoSec>0)||chronoRunning){
-      _cl.chrono={sec:chronoSec||0,wasRunning:!!chronoRunning,runStart:chronoRunning?(Date.now()-(chronoSec||0)*1000):null,startTs:(typeof chronoStartTs!=='undefined'&&chronoStartTs)||null};
+    // [L298 · audit v2] GARDE D'IDENTITÉ sur la préservation L294 : on ne garde le chrono courant QUE s'il
+    // mesure CE partage (_mirChronoDoc/_viewingSharedId = doc.id) ou, à défaut d'identité connue (legacy),
+    // si AUCUNE autre commande n'est à l'écran. Le temps en pause d'une AUTRE commande ne se déverse plus
+    // sur le miroir (double comptage) — il reste à sa commande (brouillon auto).
+    const _keepChr=((typeof chronoSec==='number'&&chronoSec>0)||chronoRunning)
+      && ((_mirChronoDoc===doc.id)||(_viewingSharedId===doc.id)||(!_mirChronoDoc&&!(Array.isArray(ficheLines)&&ficheLines.length)));
+    // [L298 · revue (ii)] identité mémoire ABSENTE (reboot qui a restauré un brouillon perso : _mirChronoDoc
+    // inatteignable) : consulter la clé chrono LIVE — si elle porte le temps du miroir de CE partage (mir===doc.id),
+    // le réinjecter. Sans ça le temps du récepteur restait orphelin dans localStorage puis était détruit — pire
+    // que L294 (mal attribué mais visible). Cross-day : figé au cutoff du jour de départ (jamais recalé).
+    let _liveChr=null;
+    if(!_keepChr){
+      try{
+        const lv=JSON.parse(localStorage.getItem(CHRONO_MIR_LS_KEY)||'null');
+        if(lv&&lv.mir===doc.id){
+          // [L298 · revue P2] réinjection TOUJOURS FIGÉE (wasRunning:false) : une restauration « en marche »
+          // relançait startAutosave avec un tick IMMÉDIAT alors que _viewingSharedId n'est posé qu'après →
+          // la commande PARTAGÉE s'écrivait dans le brouillon auto PERSO (classe double-découpe). L'opérateur
+          // reprend d'un ▶ conscient ; le toast lui dit le temps restauré.
+          let _sec=0;
+          if(lv.runStart&&_dateKey(lv.runStart)===_dateKey(Date.now())) _sec=Math.max(0,Math.floor((Date.now()-lv.runStart)/1000));
+          else if(lv.runStart) _sec=chronoCrossDaySec(0,lv.runStart);
+          else if(lv.paused&&typeof lv.sec==='number') _sec=lv.sec;
+          if(_sec>0) _liveChr={sec:_sec,wasRunning:false,runStart:null,startTs:lv.startTs||null};
+        }
+      }catch(e){}
     }
+    if(_keepChr){
+      _cl.chrono={sec:chronoSec||0,wasRunning:!!chronoRunning,runStart:chronoRunning?(Date.now()-(chronoSec||0)*1000):null,startTs:(typeof chronoStartTs!=='undefined'&&chronoStartTs)||null};
+    } else if(_liveChr){ _cl.chrono=_liveChr; }
     restoreFicheState(_cl);
+    if(_keepChr||_liveChr) _mirChronoDoc=doc.id;   // le chrono appartient désormais à ce partage
+    if(_liveChr){ try{ localStorage.removeItem(CHRONO_MIR_LS_KEY); }catch(e){} try{ showToast('⏱ Ton temps sur cette commande partagée est restauré — figé à '+fmtTimeFr(_liveChr.sec)+'. Appuie sur ▶ pour reprendre.','ok'); }catch(e){} }   // [L298] clé consommée + geste conscient
   }
   catch(e){ console.warn('Ouverture partage :',e); showToast('Impossible d\'ouvrir cette commande partagée.','err'); return; }
   _viewingSharedId=doc.id; _viewingSharedRev=doc.sharedRev||0; _viewingSharedFrom=doc.sharedBy||null;
@@ -19048,7 +19100,10 @@ async function maybeResumeRunningChrono(){
     if(d && d.consumed) d=null;
     let c=(d&&d.state&&d.state.chrono)?d.state.chrono:null;
     // Le brouillon n'avait pas (encore) capté le chrono en marche → on complète depuis la sauvegarde live.
-    if(c && (!c.wasRunning||!c.runStart) && live && live.runStart){ c.runStart=live.runStart; c.wasRunning=true; if(live.startTs)c.startTs=live.startTs; }
+    // [L298 · audit v2] SAUF si la sauvegarde live vient d'une VUE MIROIR (live.mir) : ce temps mesure la
+    // commande PARTAGÉE d'un collègue — le greffer sur le brouillon PERSO ressuscitait la vieille commande
+    // avec un temps qui n'est pas le sien. La clé live est laissée pour la réouverture du partage.
+    if(c && (!c.wasRunning||!c.runStart) && live && live.runStart && !live.mir){ c.runStart=live.runStart; c.wasRunning=true; if(live.startTs)c.startTs=live.startTs; }
 
     // POINT 4 — modèle unifié : on propose la DERNIÈRE commande NON ENVOYÉE de ce
     // poste dès qu'un brouillon fiche exploitable existe, qu'elle soit EN COURS ou
@@ -19101,6 +19156,12 @@ async function maybeResumeRunningChrono(){
         stFrozen.chrono=Object.assign({},cRef,{wasRunning:false,runStart:null,sec:showSec});
         restoreFicheState(stFrozen); _rearmResume(stFrozen); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono figé à '+fmtTimeFr(showSec),'ok'); }catch(e){}
+        // [L298 · audit v2] même libération du gel qu'en reprise même-jour (L294) : la reprise CROSS-DAY d'une
+        // commande partagée laissait « synchro en direct » gelé à vie (aucun autre chemin de libération).
+        if(_shareActive&&_sharePushHold){
+          _sharePushHold=false; _shareAutosaveLastSig='';
+          try{ const _sd3=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(x=>x&&x.id===_shareDocId); if(_sd3) applySharedCuts(_sd3.cuts||{}); }catch(e){}
+        }
       }
       return;
     }
@@ -19111,8 +19172,11 @@ async function maybeResumeRunningChrono(){
       restoreChrono({startTs:live.startTs, runStart:live.runStart, wasRunning:true,
         sec:Math.max(0,Math.floor((Date.now()-live.runStart)/1000))});
       if(live.override) _chronoAutoStopOverride=live.override;
+      if(live.mir) _mirChronoDoc=live.mir;   // [L298] temps d'une vue MIROIR : mémorisé pour la réouverture du même partage (openSharedCommand le préserve)
       try{ showToast('⏱ Chrono repris','ok'); }catch(e){}
     }
+    // [L298 · revue P1] le temps d'une vue MIROIR vit dans CHRONO_MIR_LS_KEY : consommé UNIQUEMENT à la
+    // réouverture du partage (openSharedCommand) — jamais restauré ni greffé ici.
   }catch(e){ console.warn('Reprise chrono:',e); }
 }
 // L28 — Reprise auto du brouillon PLAN. maybeResumeRunningChrono ne restaure QUE

@@ -330,7 +330,23 @@ has(/_snapFicheChutes\(\);   \/\/ \[L278\] chutes appliquées/,'L278 : instantan
 
 has(/if\(!_gcRestored && typeof _snapFicheChutes==='function'\) _snapFicheChutes\(\);/,'L279→L286 : à la reprise, PRIORITÉ à l\'instantané chutes PERSISTÉ (st.genChutes) ; repli L279 (_snapFicheChutes) pour les anciens brouillons');
 has(/let _ficheGenPlanSig=null;/,'L296 : signature du plan à la génération — l\'aller-retour Plan↔Fiche ne régénère plus (validation mère + ordre de coupe conservés)');
-has(/JSON\.stringify\(serializeFicheState\(\)\.plan\)===_ficheGenPlanSig\) return;/,'L296→L297 : import auto court-circuité SEULEMENT si le plan COMPLET (en-têtes + refGroups + planManual) est inchangé (audit v2)');
+has(/_planSigOf\(\)===_ficheGenPlanSig\) return;/,'L296→L298 : import auto court-circuité si le plan COMPLET est inchangé — signature stable/normalisée _planSigOf');
+
+console.log('── L298 : audit v2 (11 confirmés → corrigés) ──');
+has(/function _planSigOf\(\)/,'L298 : _planSigOf — _stableSig + commandeFiles exclus (une photo ne régénère plus la fiche) + planManual trié déterministe + zéro data:');
+has(/const doneKeys=new Set\(\), _riByBase=\{\}, _rollConsByBase=\{\}/,'L298 : compteur RESTE-/OP2- et conso rouleaux PAR CLÉ DE BASE (étiquettes jamais dupliquées entre blocs machine, rouleau coupé jamais ré-offert)');
+has(/_riByBase\[_kb\]=ri;/,'L298 : continuité du compteur d\'étiquettes entre blocs frères');
+has(/passation désarmée SEULEMENT une fois tous les confirms passés/,'L298 : tap + Annuler sur « Créer/Mettre à jour la fiche » = no-op (passation intacte)');
+has(/la reprise CROSS-DAY d'une\n?\s*\/\/ commande partagée laissait « synchro en direct » gelé/,'L298 : gel du push libéré AUSSI en reprise cross-day');
+has(/const CHRONO_MIR_LS_KEY='step_chrono_mir'/,'L298 (revue P1) : temps MIROIR sur une clé localStorage DÉDIÉE — le chrono perso ne peut plus l\'écraser');
+has(/réinjection TOUJOURS FIGÉE \(wasRunning:false\)/,'L298 (revue P2) : réouverture d\'un partage = temps réinjecté FIGÉ (jamais de tick d\'autosave parasite avant la pose de _viewingSharedId)');
+has(/le temps miroir en attente est jeté aussi/,'L298 (revue ×2) : clé MIR purgée à TOUT reset confirmé (manuel compris — un temps jeté ne ressuscite jamais)');
+has(/localStorage\.removeItem\(CHRONO_MIR_LS_KEY\); \}catch\(e\)\{\} \}catch\(e2\)\{\}|clé consommée \+ geste conscient/,'L298 (revue) : clé MIR consommée à la réinjection + toast « appuie sur ▶ »');
+has(/miroir \+ chrono EN PAUSE/,'L298 : chrono miroir en PAUSE persisté (16h15/⏸ + purge iOS ne perdent plus le temps du récepteur)');
+has(/&& !live\.mir\)/,'L298 : un chrono de vue MIROIR n\'est jamais greffé sur un brouillon perso');
+has(/GARDE D'IDENTITÉ sur la préservation L294/,'L298 : le chrono d\'une AUTRE commande ne se déverse plus sur un miroir ouvert');
+has(/function refDispCtx\(ref\)/,'L298 : noms courts en collision désambiguïsés par la longueur (KX1045-1 · 100 ml vs · 500 ml)');
+has(/le PDF archive dit la MÊME consigne que le papier atelier/,'L298 : migration des vieux textes SPÉCIFICITÉ sur TOUTES les surfaces (écran, popup planning, PDF archive)');
 has(/bobine\(s\) d\\'une réf RENOMMÉE ou RETIRÉE du plan/,'L296 : lignes ORPHELINES (réf renommée / bloc retiré) détectées → bannière needClick (fini le silence total)');
 has(/Production sous une réf ABSENTE du plan/,'L296 : la production d\'une réf renommée n\'est plus classée « Coupé EN PLUS » (fausse trace ISO) — boîte dédiée « à vérifier »');
 
@@ -467,5 +483,10 @@ has(/tr:nth-child\(even\):not\(\[style\*="background"\]\) td\{background:#fafbfc
 has(/genPlanSig:\(_ficheGenPlanSig\|\|null\)/,'L297 (revue) : signature du plan PERSISTÉE dans l\'état (comme genChutes) — jamais re-dérivée à la restauration');
 has(/_ficheGenPlanSig=\(typeof st\.genPlanSig==='string'&&st\.genPlanSig\)\?st\.genPlanSig:null;/,'L297 (revue) : restauration = sig persistée ou null (legacy → régénération pré-L296, sûre)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L297 présents dans index.html + sw.js');
+console.log('── L299 : demandes Esteban 31/07 ──');
+has(/SYNCHRO MACHINE fiche → plan/,'L299 : machine fiche → select du bloc plan synchronisé (mono)');
+has(/AUTO-APPLIQUÉ à l'arrivée sur la fiche \(plus de needClick — choix Esteban/,'L299 : machine plan → fiche AUTO-appliquée (reste re-machiné, coupées conservées — remplace la bannière L286)');
+has(/return Ls\.length===1\?` · <b>\$\{esc\(Ls\[0\]\)\} ml<\/b>`:'';/,'L299 : les ml affichés à côté de la référence en haut du PDF (mono ou longueur commune)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L299 présents dans index.html + sw.js');
 process.exit(fail?1:0);
