@@ -374,6 +374,11 @@ body.atelier .fp-num{font-size:28px}
 .test2-sub input{display:none}
 .test2-sub.sel{border-color:var(--blue);color:var(--blue);background:#1a2e47}
 .test2-sub:not(.sel){color:var(--muted)}
+/* [L301 · audit boutons] la puce test 2ᵉ (Dévidage/Droit) est le 2ᵉ bouton le plus tapé (1× par bobine) mais restait
+   grise/invisible : quand la bobine attend le test (.t2-todo) ET que le chrono tourne, on FLÈCHE la puce NON cochée —
+   liseré épais + texte haut-contraste. NON-ambre (réservé au prochain geste ✂/▶) et NON-bleu (= déjà cochée). Hauteur
+   INCHANGÉE (respect du compactage 29/07). Se coordonne avec le « ⚠ test 2ᵉ à cocher » du ✂ (L327), même déclencheur. */
+#ficheLines:not(.chrono-off) .fiche-line.t2-todo:not(.coupee) .test2-sub:not(.sel){color:var(--text);font-weight:800;border-color:#cfd6e0;box-shadow:inset 0 0 0 1px #cfd6e0;background:#2b2f37}
 .test2-nc{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted);padding:8px 10px;min-height:44px;margin-bottom:6px;border:1px solid var(--border2);border-radius:7px;background:#222220;cursor:pointer;user-select:none;transition:all .15s}/* [L121·T4-B1] cible tactile 44px */
 .test2-nc input[type=checkbox]{width:16px;height:16px;flex-shrink:0;accent-color:#ef4444}
 .test2-nc.sel{border-color:#ef4444;color:var(--red);background:#2a1717}
@@ -771,8 +776,8 @@ body.has-topbanner #nav{top:calc(48px + env(safe-area-inset-top,0px));padding-to
 /* D — confirmation forte au ✂ : flash vert bref sur la carte (+ vibration +
    bip togglable via _cutFeedback). Avec « Masquer les coupées » actif, la
    carte reste visible le temps du flash (:not(.flash-cut) sur la règle L62). */
-@keyframes flashCut{0%{box-shadow:0 0 0 4px var(--green);background:#1e4d2b;opacity:1}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
-.fiche-line.flash-cut{animation:flashCut .85s ease-out}
+@keyframes flashCut{0%{box-shadow:0 0 0 7px var(--green);background:#1e4d2b;opacity:1}55%{box-shadow:0 0 0 7px var(--green);background:#1e4d2b;opacity:1}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+.fiche-line.flash-cut{animation:flashCut 1.2s ease-out}   /* [L301 · audit boutons] flash de confirmation ÉPAISSI (4→7px) et ALLONGÉ (0,85→1,2s) : sur iPad navigator.vibrate est mort → le flash est le SEUL retour « sans regarder » du bouton n°1 (✂ Coupée) */
 /* E/nav — repère « où couper » quand la barre du bas fait défiler vers la bobine en cours */
 @keyframes flSpot{0%{box-shadow:0 0 0 4px var(--action)}100%{box-shadow:0 0 0 0 rgba(245,179,1,0)}}
 .fiche-line.fl-spot{animation:flSpot 1.4s ease-out}
@@ -1175,8 +1180,8 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     <div class="chrono-block">
       <div class="chrono-display" id="chronoDisplay">00:00:00</div>
       <div class="chrono-btns">
-        <button class="btn btn-green btn-sm" id="chronoStartBtn" onclick="chronoStart()">▶ Démarrer</button>
-        <button class="btn btn-orange btn-sm hidden" id="chronoPauseBtn" onclick="chronoPause()">⏸ Pause</button>
+        <button class="btn btn-green" id="chronoStartBtn" onclick="chronoStart()">▶ Démarrer</button><!-- [L301 · audit boutons] btn-sm retiré : ▶ est le verrou qui débloque toute la découpe (le ✂ est refusé chrono arrêté) → cible gant pleine (62px atelier) -->
+        <button class="btn btn-orange hidden" id="chronoPauseBtn" onclick="chronoPause()">⏸ Pause</button>
         <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="chronoReset()">↺ Reset</button>
       </div>
       <div class="chrono-status" id="chronoStatus"></div><!-- [L188] prompt « Prêt — appuie sur Démarrer… » retiré (demande Esteban : texte inutile) -->
@@ -1819,7 +1824,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.07.31-L300';
+const APP_VERSION='2026.08.03-L301';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -17171,7 +17176,7 @@ function addFicheLine(data){
           <textarea id="flConf_${id}" rows="1" placeholder="5×80 + 3×50" style="flex:1;min-width:0;resize:none;overflow:hidden;min-height:44px;font-size:16px;line-height:1.4"
             oninput="if(this.value.indexOf('\\n')>-1)this.value=this.value.replace(/\\n/g,' ');onFicheConfChange('${id}');_confAutoH(this)"
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(data.conf||'')}</textarea>
-          <button type="button" class="btn btn-sm" style="flex-shrink:0;align-self:flex-start;min-height:44px;background:var(--action);border:1px solid var(--action);color:#141310;font-weight:800" onclick="recalcEcartsFromFiche()" title="Recalcule les écarts de cette bobine (rattrapage / surplus) — les bobines coupées sont toujours conservées">♻ Recalculer les écarts</button><!-- [L222 · ergo #11/#12 rétabli · L230 jaune] -->
+          <button type="button" class="btn btn-sm btn-ghost" style="flex-shrink:0;align-self:flex-start;min-height:44px;font-weight:700" onclick="recalcEcartsFromFiche()" title="Recalcule les écarts de cette bobine (rattrapage / surplus) — les bobines coupées sont toujours conservées">♻ Recalculer les écarts</button><!-- [L222 · ergo #11/#12 rétabli · L301 · audit boutons + accord Esteban] jaune RETIRÉ : l'ambre (--action) est réservé au SEUL prochain geste (.next-action). 20 boutons ambres fixes noyaient ce repère unique → ghost discret. -->
         </div>
         ${data.chuteNote?`<div class="fiche-chute-note">${esc(data.chuteNote)}</div>`:''}
       </div>
@@ -17301,7 +17306,7 @@ function resetFicheBobines(){
 // [L104 · Esteban] Le bip sonore optionnel a été RETIRÉ (bouton « 🔕 Bip coupée » jugé
 // inutile en atelier). On garde flash + vibration.
 function _cutFeedback(line){
-  try{ line.classList.remove('flash-cut'); void line.offsetWidth; line.classList.add('flash-cut'); setTimeout(function(){ line.classList.remove('flash-cut'); },900); }catch(e){}
+  try{ line.classList.remove('flash-cut'); void line.offsetWidth; line.classList.add('flash-cut'); setTimeout(function(){ line.classList.remove('flash-cut'); },1300); }catch(e){}   // [L301] aligné sur l'animation allongée (1,2 s) — retirer la classe APRÈS la fin, pas avant
   try{ if(navigator.vibrate) navigator.vibrate(120); }catch(e){}
 }
 // [L73 · Lot 5 · B40] anti-rebond ✂ : instant du dernier MARQUAGE (tous boutons confondus).

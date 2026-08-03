@@ -492,5 +492,11 @@ console.log('── L300 : retours Esteban 31/07 ──');
 has(/bobine\$\{_nbMeres>1\?'s':''\} mère/,'L300 : « N bobines mères à monter » de retour sous chaque section (les 2 PDF)');
 has(/🎞 \$\{esc\(refDisp\(c\.ref\)\|\|\('Référence '/,'L300 : titre de section en refDisp simple (le ml suit déjà — plus de « 1000 ml » en double)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L300 présents dans index.html + sw.js');
+console.log('── L301 : audit boutons (mise en avant selon l usage réel) ──');
+has(/btn btn-sm btn-ghost"[^>]*onclick="recalcEcartsFromFiche\(\)"/,'L301 : ♻ Recalculer DÉ-AMBRÉ (ghost) — l ambre redevient unique au prochain geste (accord Esteban)');
+has(/class="btn btn-green" id="chronoStartBtn"/,'L301 : ▶ Démarrer promu btn-sm → bouton plein (cible gant)');
+has(/animation:flashCut 1\.2s ease-out/,'L301 : flash ✂ Coupée épaissi+allongé (seul retour sans-regarder sur iPad)');
+has(/\.fiche-line\.t2-todo:not\(\.coupee\) \.test2-sub:not\(\.sel\)\{color:var\(--text\)/,'L301 : puce test 2ᵉ à cocher FLÉCHÉE (liseré+contraste, non-ambre, hauteur inchangée)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L301 présents dans index.html + sw.js');
 process.exit(fail?1:0);
