@@ -1824,7 +1824,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.03-L301';
+const APP_VERSION='2026.08.03-L302';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5681,8 +5681,32 @@ function groupRecutRolls(rolls){
 // Lit la liste des blocs réf à l'écran. Chaque bloc porte ses propres champs.
 // Si aucun bloc multi-réf n'existe, fabrique un groupe unique depuis les
 // champs historiques (planRef, motherWidth, edgeLoss, planLongueur, .order-row).
+// [L302 · filet anti-régression avant redesign, demande Esteban 03/08] Les couplages DOM↔JS échouent aujourd'hui
+// EN SILENCE : si un redesign renomme/retire un id/classe que le JS attend, l'app nourrit le moteur d'un plan
+// faux ou ampute le brouillon SANS erreur ni test rouge. Cette garde rend l'anomalie BRUYANTE (console + toast
+// throttlé) sans JAMAIS bloquer le chemin normal (elle ne se déclenche que si la structure attendue a disparu).
+let _domGuardAt={};
+function _domGuardWarn(key,msg){
+  try{ console.error('[DOM-GUARD] '+key+' — '+msg); }catch(e){}
+  try{ const t=Date.now(); if(!_domGuardAt[key]||t-_domGuardAt[key]>30000){ _domGuardAt[key]=t;
+    if(typeof showToast==='function') showToast('⚠ Anomalie interface ('+key+') — préviens : '+msg,'err'); } }catch(e){}
+}
+let _persistIdsChecked=false;
+function _checkPersistIds(){
+  if(_persistIdsChecked) return; _persistIdsChecked=true;
+  try{ const crit=['motherWidth','edgeLoss','bladeWidth','planClient','planRef','planNumCmd','fClient','fNumCmd','ficheLines'];
+    const miss=crit.filter(id=>!document.getElementById(id));
+    if(miss.length) _domGuardWarn('persistance','champ(s) absent(s) du DOM : '+miss.join(', ')+' → brouillon/autosave/partage/signature amputés (id renommé au redesign ?).');
+  }catch(e){}
+}
 function getRefGroups(){
   const blocks=document.querySelectorAll('.ref-block');
+  if(!blocks.length){
+    // [L302] repli mono-réf « historique » : ne devrait JAMAIS servir dans l'app actuelle (il y a toujours ≥1
+    // .ref-block). S'il est atteint ALORS QUE #refBlocks contient des éléments → la classe .ref-block a été
+    // renommée/retirée → le plan multi-réf est perdu en silence. On alerte (le repli tourne quand même, l'app limpe).
+    try{ const _rc=document.getElementById('refBlocks'); if(_rc&&_rc.children&&_rc.children.length) _domGuardWarn('ref-block','aucun .ref-block trouvé alors que #refBlocks contient des éléments → classe renommée ? Le plan risque d\'être FAUX (repli mono-réf).'); }catch(e){}
+  }
   if(blocks.length){
     const groups=[];
     blocks.forEach(bl=>{
@@ -8177,7 +8201,9 @@ function chronoTick(){
   chronoAutoStopCheck();
   if(!chronoRunning) return;            // l'arrêt auto vient de prendre la main
   chronoSec=Math.max(0,Math.floor((Date.now()-chronoRunStart)/1000));
-  document.getElementById('chronoDisplay').textContent=fmtTime(chronoSec);
+  const _cd=document.getElementById('chronoDisplay');
+  if(_cd) _cd.textContent=fmtTime(chronoSec);
+  else _domGuardWarn('chronoDisplay','#chronoDisplay absent → l\'affichage du chrono est cassé (id renommé/retiré au redesign ?).');   // [L302] garde null : évite un crash 1×/s et rend l'anomalie visible
   try{ _chronoPauseReminderCheck(); }catch(e){}   // [L275 · demande Esteban] rappel « pense à ⏸ » si le chrono tourne sans découpe
 }
 // [L275 · demande Esteban] Rappel « pense à ⏸ Pause » : si le chrono TOURNE depuis 30 min SANS qu'une nouvelle
@@ -18834,6 +18860,7 @@ async function clearCurrentDraft(ficheId){
 }
 
 function serializeFicheState(){
+  _checkPersistIds();   // [L302] alerte UNE fois si un champ de persistance critique a disparu du DOM (id renommé au redesign)
   return {
     plan:{machine:currentMachine,mother:g('motherWidth')?.value||'',blade:g('bladeWidth')?.value||'',edge:g('edgeLoss')?.value||'',
       client:g('planClient')?.value||'',ref:g('planRef')?.value||'',largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',

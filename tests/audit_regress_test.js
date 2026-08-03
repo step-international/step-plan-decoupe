@@ -498,5 +498,11 @@ has(/class="btn btn-green" id="chronoStartBtn"/,'L301 : ▶ Démarrer promu btn-
 has(/animation:flashCut 1\.2s ease-out/,'L301 : flash ✂ Coupée épaissi+allongé (seul retour sans-regarder sur iPad)');
 has(/\.fiche-line\.t2-todo:not\(\.coupee\) \.test2-sub:not\(\.sel\)\{color:var\(--text\)/,'L301 : puce test 2ᵉ à cocher FLÉCHÉE (liseré+contraste, non-ambre, hauteur inchangée)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L301 présents dans index.html + sw.js');
+console.log('── L302 : filet anti-régression avant redesign (couplages DOM bruyants) ──');
+has(/function _domGuardWarn\(key,msg\)/,'L302 : garde DOM bruyante (console + toast throttlé) — anomalie interface visible au lieu d échouer en silence');
+has(/aucun \.ref-block trouvé alors que #refBlocks contient des éléments/,'L302 : getRefGroups alerte si .ref-block renommé (plan multi-réf perdu en silence sinon)');
+has(/_checkPersistIds\(\);   \/\/ \[L302\]/,'L302 : serializeFicheState vérifie les champs de persistance critiques (id renommé → brouillon amputé)');
+has(/#chronoDisplay absent → l'affichage du chrono est cassé/,'L302 : chronoTick garde null sur #chronoDisplay (crash 1×/s évité)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L302 présents dans index.html + sw.js');
 process.exit(fail?1:0);
