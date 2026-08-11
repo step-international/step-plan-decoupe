@@ -564,5 +564,11 @@ has(/total<=40/,'L309 : plafond 40 bobines → barre continue historique (perfs 
 has(/fp-seg nc/,'L309 : cran NC hachuré (jamais couleur seule)');
 has(/Chip SÉRIE → LOT 12/,'L309 : chip SÉRIE volontairement reportée au LOT 12 (G1)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L309 présents dans index.html + sw.js');
+console.log('── L310 : REDESIGN LOT 23 — ordre de coupe lisible (§2.21) ──');
+has(/foc-ml/,'L310 : pastille ml (discriminant) jamais tronquée — nowrap + flex:none');
+has(/refDisp\(String\(r\.ref\)\)/,'L310 : nom produit via refDisp (sans code numérique) dans l ordre de coupe');
+has(/\.fmm-order-name\.foc-name\{white-space:normal/,'L310 : le nom produit passe à la ligne au lieu de tronquer');
+has(/Chip machine CONSERVÉE \(acquis L258/,'L310 : chip machine par réf conservée (acquis Esteban L258, prime sur §2.13-B)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L310 présents dans index.html + sw.js');
 process.exit(fail?1:0);

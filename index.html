@@ -855,6 +855,12 @@ body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
 .fp-seg.cur{background:var(--action);border-color:#b8860b;animation:segPulse 1.4s ease-in-out infinite}
 @keyframes segPulse{0%,100%{opacity:1}50%{opacity:.45}}
 @media(prefers-reduced-motion:reduce){.fp-seg.cur{animation:none;outline:2px solid rgba(245,179,1,.5)}}
+/* [L310 · LOT 23 · §2.21] ordre de coupe lisible : pastille ml jamais tronquée, nom produit qui PEUT passer
+   à la ligne (le rail n'est pas contraint en hauteur), tags dessous. Recette : scrollWidth===clientWidth sur .foc-ml */
+.foc-l1{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:2px}
+.foc-ml{flex:none;white-space:nowrap;font-weight:800;font-size:13px;padding:2px 8px;border-radius:99px;background:transparent}
+.fmm-order-name.foc-name{white-space:normal;overflow:visible;text-overflow:clip;display:block;font-size:14px;line-height:1.3}
+.fmm-order-id{min-width:0;flex:1;display:flex;flex-direction:column}
 /* D — confirmation forte au ✂ : flash vert bref sur la carte (+ vibration +
    bip togglable via _cutFeedback). Avec « Masquer les coupées » actif, la
    carte reste visible le temps du flash (:not(.flash-cut) sur la règle L62). */
@@ -1924,7 +1930,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L309';
+const APP_VERSION='2026.08.11-L310';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16580,11 +16586,18 @@ function renderFicheMachineBlocks(opts){
       // [L283] réf entièrement couverte par le stock (ou sans bobine mère) → chip « rien à couper » : elle reste
       // visible dans l'ordre de coupe mais l'opérateur sait qu'il n'y a AUCUNE bobine à valider/couper dessus.
       const _noBobChip=(_anyBob && !_refHasFicheBob(r))?'<span class="frs-mch" style="--mc:#8a94a6" title="Aucune bobine à couper — cette référence est entièrement couverte par le stock (ou saisie sans bobine mère). Rien à valider.">✓ rien à couper (stock)</span>':'';
-      oh+='<div class="fmm-order-row" style="border-left:5px solid '+rc+'">'
+      // [L310 · LOT 23 · §2.21] réf LISIBLE : le ml en PASTILLE jamais tronquée (c'est LE discriminant entre
+      // deux réfs du même client), le nom produit (refDisp, sans code numérique) sur SA ligne qui peut passer
+      // à la ligne, les tags film/veka en dessous. Chip machine CONSERVÉE (acquis L258, demande Esteban).
+      const _mlTag=(r.longueur!=null&&String(r.longueur).trim()!=='')?'<span class="foc-ml" style="border:2px solid '+rc+';color:'+rc+'">'+esc(String(r.longueur))+' ml</span>':'';
+      const _tagsNoMl=tags.filter(t=>!/ ml$/.test(t));
+      const _nm=(typeof refDisp==='function')?esc(refDisp(String(r.ref))):esc(String(r.ref));
+      oh+='<div class="fmm-order-row" style="border-left:5px solid '+rc+';align-items:flex-start">'
         +'<span class="fmm-order-num" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">'+(pos+1)+'</span>'
-        +'<span class="fmm-order-id"><span class="fmm-order-name">'+esc(String(r.ref))+'</span>'
-        +_omChip+_noBobChip
-        +(tags.length?'<span class="fmm-order-tags">'+tags.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'')
+        +'<span class="fmm-order-id">'
+        +'<span class="foc-l1">'+_mlTag+_omChip+_noBobChip+'</span>'
+        +'<span class="fmm-order-name foc-name">'+_nm+'</span>'
+        +(_tagsNoMl.length?'<span class="fmm-order-tags">'+_tagsNoMl.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'')
         +'</span>'
         +'<span class="fmm-order-btns">'
         +'<button class="btn btn-ghost btn-sm" title="Monter — couper cette réf plus tôt" aria-label="Monter cette référence" '+(pos===0?'disabled ':'')+'onclick="fmmMoveRef('+r.idx+',-1)">▲</button>'
