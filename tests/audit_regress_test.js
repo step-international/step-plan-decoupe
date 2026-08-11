@@ -255,7 +255,7 @@ has(/const _ovc=\(c\.oversize\|\|\[\]\)\.filter\(r=>r&&Number\(r\.qty\)>0\);/,'L
 has(/reste des pièces NON produites \(voir ci-dessous\)/,'L263 : plus de « commande couverte » quand des laizes sont trop larges (sous-livraison rendue VISIBLE)');
 
 console.log('── L267 : audit (choix Esteban) — indicateur test 2ᵉ + photos hors-ligne ──');
-has(/line\.classList\.toggle\('t2-todo',!test2Resolved\(id\)\)/,'L267 : carte marquée t2-todo quand le test 2ᵉ n\'est pas tranché');
+has(/classList\.toggle\('t2-todo',!!_t2nc&&!test2Resolved\(id\)\)/,'L267 (révisé L307 · décision Esteban §6.1) : t2-todo posé seulement sur le chemin NC — le tap unique auto-résout le chemin sain');
 has(/\.fiche-line\.t2-todo:not\(\.coupee\) \[id\^="coupeeBtn_"\]::after\{content:" · ⚠ test 2ᵉ à cocher"/,'L267 : le ✂ affiche « test 2ᵉ à cocher » (chrono tournant)');
 has(/function flushPendingLocalPhotos\(\)/,'L267 : re-téléversement des photos gardées en base64 au retour réseau');
 has(/window\.addEventListener\('online',function\(\)\{ setTimeout\(flushPendingLocalPhotos/,'L267 : déclenché sur l\'événement online');
@@ -533,5 +533,24 @@ has(/maybeShowChutesRappel/,'L306 : rappel mémorisé par commande (localStorage
 absent(/content:" · ⏱ arrêté"/,'L306 : suffixe « ⏱ arrêté » retiré (faux avec l auto-start)');
 has(/Reprise de commande : le plan n/,'L306 : le confirm() de REPRISE après crash (L89) est CONSERVÉ (garde de sécurité)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L306 présents dans index.html + sw.js');
+console.log('── L307 : REDESIGN LOT 2 — tap unique ✂ Coupée — Test OK (§2.2, décision 03/08) ──');
+has(/function coupeeTapOne\(id\)/,'L307 : coupeeTapOne existe (coche Dévidage/Droit selon machine LIGNE puis toggleCoupee)');
+has(/rollback des coches automatiques/,'L307 : refus d une garde → DÉ-coche les cases auto (aucun test validé sans coupe)');
+has(/coupeeTapOne\('\$\{id\}'\)/,'L307 : le bouton ✂ passe par coupeeTapOne (toggleCoupee reste le chemin gardé)');
+has(/✂ Coupée — Test OK/,'L307 : libellé repos « ✂ Coupée — Test OK »');
+has(/id="flDevi_\$\{id\}" aria-label/,'L307 : inputs test 2ᵉ CONSERVÉS avec aria-label (déplacés dans ⚠ Défaut, jamais supprimés)');
+has(/_t2nc&&!test2Resolved\(id\)/,'L307 : indice t2-todo réservé au chemin NC (le chemin sain est auto-résolu)');
+has(/ncEl&&ncEl\.checked/,'L307 : NC cochée → AUCUNE coche auto (chemin défaut strictement inchangé)');
+
+console.log('── L307b : fixes audit lot 2 + photos pied (décision Esteban 11/08) ──');
+has(/'✂ Coupée — Test OK';/,'L307b : les 4 writers de repos harmonisés (dé-marquage + partage inclus)');
+(function(){ const n=(src.match(/'✂ Coupée — Test OK'/g)||[]).length; const okk=n>=4;
+  console.log((okk?'✅ ':'❌ ')+'L307b : libellé repos présent partout ('+n+'/≥4 writers JS (le libellé template est en HTML non quoté))'); if(!okk)fail++; })();
+has(/on l'OUVRE au refus \(symétrie avec la garde action NC\)/,'L307b : refus test 2ᵉ → le volet ⚠ Défaut s OUVRE (les puces y vivent désormais)');
+has(/!ncMotif/,'L307b : NC dimensionnelle cochée → AUCUNE attestation auto (ISO)');
+has(/t2auto/,'L307b : attestation posée par le tap PURGÉE au dé-marquage (pas de test fantôme)');
+has(/id="etiqPhotoZone"/,'L307b : bloc PHOTOS ÉTIQ. rétabli en pied (alarme _etiqCount à nouveau alimentable)');
+has(/photoZone_\$\{id\}" style="margin-left:auto;display:none"/,'L307b : case 📷 par bobine masquée (nœud + infra conservés)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L307 présents dans index.html + sw.js');
 process.exit(fail?1:0);

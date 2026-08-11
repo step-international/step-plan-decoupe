@@ -1560,7 +1560,14 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
   <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
     <div class="section-title">🏷️ Étiquette solde — bobine mère restante</div>
     <div id="etiquetteSoldeList"><div style="font-size:13px;color:var(--muted)">—</div></div>
-<!-- [L229 · demande Esteban] bloc « 📷 Photographier une étiquette » RETIRÉ (le 📷 par bobine L228 couvre le besoin) — input etiqPhotoInput + JS conservés inertes (refreshEtiqPhotoZone garde if(!z)return), réactivables -->
+<!-- [L229 retiré → L307 · LOT 2 · §2.2 + décision Esteban 11/08 « laisse le truc photo en pied »] bloc PHOTOS ÉTIQ. unique en PIED rétabli : le 📷 par bobine sort de la carte. Réutilise l'infra L226 restée inerte : etiqPhotoInput → commandeFiles « Étiquette N » → alarme d'envoi _etiqCount (qui était devenue inalimentable depuis L229 !). Vignettes = refreshEtiqPhotoZone. -->
+    <div class="field" style="margin-top:10px;margin-bottom:0">
+      <label>📷 Photos étiquettes</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div id="etiqPhotoZone" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
+        <button class="btn btn-sm" style="min-height:48px;min-width:64px;justify-content:center" onclick="document.getElementById('etiqPhotoInput').click()" aria-label="Prendre ou ajouter une photo d'étiquette">📷＋</button>
+      </div>
+    </div>
   </div>
 
   <!-- [L64 · Lot 6] Récap emballage PAR CLIENT (affiché uniquement en multi-clients) -->
@@ -1893,7 +1900,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L306';
+const APP_VERSION='2026.08.11-L307';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8879,7 +8886,7 @@ function confirmCommandeRecap(){
   const _etiqCount=(commandeFiles||[]).filter(f=>f&&/^Étiquette /.test(f.name||'')).length;
   if(!_etiqCount){
     showToast('🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ? Aucune photo d\'étiquette jointe à cette commande.','err');
-    msg='🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?\n(Aucune photo d\'étiquette n\'est jointe — 📷 sur une bobine pour l\'ajouter, ou confirme quand même.)\n\n'+msg;
+    msg='🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?\n(Aucune photo d\'étiquette n\'est jointe — bouton 📷＋ « Photos étiquettes » en pied de fiche, ou confirme quand même.)\n\n'+msg;
   }else{
     msg='✅ '+_etiqCount+' photo(s) d\'étiquette jointe(s).\n\n'+msg;
   }
@@ -17290,7 +17297,7 @@ function addFicheLine(data){
     <div class="fiche-line-header"><!-- [L107 · Phase 1 · C] le ✂ descend en GROS bouton en bas de carte · [L110] case photo remontée ICI, à droite de « 1/9 Bobine RAS » (demande Esteban) -->
       <span class="fl-pos" id="pos_${id}">—</span>
       <span class="fl-title">Bobine <span id="badge_${id}" class="fl-badge badge-green">✓ RAS</span></span><!-- [L142 · ergo #8] forme + texte (pas la couleur seule) : sûr pour le daltonisme sous reflets/gants -->
-      <span class="photo-zone-hd" id="photoZone_${id}" style="margin-left:auto"></span><!-- [L228 · demande Esteban] case 📷 par bobine RÉTABLIE à côté de « 1/N Bobine RAS » (retirée en L187, redemandée le 23/07) — infra intacte : refreshPhotoZone/ficholinePhotos/triggerPhoto -->
+      <span class="photo-zone-hd" id="photoZone_${id}" style="margin-left:auto;display:none"></span><!-- [L228 rétabli → L307 · LOT 2 · décision Esteban 11/08] case 📷 par bobine MASQUÉE (le bloc PHOTOS ÉTIQ. du pied reprend le geste) — nœud + infra ficholinePhotos/triggerPhoto conservés : les photos par ligne des anciennes fiches restent lisibles (PDF/archive) -->
       <button class="btn btn-ghost btn-sm" style="min-width:48px;color:var(--red)" aria-label="Retirer cette bobine" title="Retirer cette bobine de la fiche" onclick="removeFicheLine('${id}')">✕</button>
 <!-- [L121 · T4-C2] ghost (le rouge plein se noyait avec la bordure NC rouge de la carte) -->
     </div>
@@ -17307,18 +17314,21 @@ function addFicheLine(data){
         </div>
         ${data.chuteNote?`<div class="fiche-chute-note">${esc(data.chuteNote)}</div>`:''}
       </div>
-      <div class="field" style="grid-column:1/-1"><!-- [L177 · demande Esteban] UNE SEULE LIGNE : Dévidage · Droit · ⚠ NC · ✓ R.A.S. — le R.A.S. (gris) passe VERT automatiquement quand le test 2ᵉ est conforme (Dévidage + Droit ; FEBA : Dévidage seul). Le bloc « Conforme — auto » est SUPPRIMÉ de l'affichage (inputs conservés cachés : updateTest2Subs/gardes d'envoi inchangés). -->
+      <details class="fl-more" id="flMore_${id}"><!-- [L107 · Phase 1 · F] zone Défaut REPLIÉE par défaut (aucune place prise) ; s'ouvre au tap, ou AUTO si NC / action requise (syncFlMore, toggleCoupee) -->
+        <summary>⚠ Défaut — NC · chutes/déchet <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary>
+        <div class="fl-more-body">
+      <div class="field" style="grid-column:1/-1"><!-- [L307 · LOT 2 · §2.2 + décision Esteban 03/08 §6.1] les puces test 2ᵉ SORTENT de la carte (le tap unique « ✂ Coupée — Test OK » les coche) et vivent ICI, dans ⚠ Défaut : inputs INCHANGÉS (ids, sérialisation, PDF, partage, gardes), focusables au clavier une fois le volet ouvert. Le R.A.S. auto-vert (L177) et le fléchage L302 continuent d'opérer dans ce volet. -->
         <label>Test 2ème bobineaux</label>
         <div class="test2-block">
           <div class="test2-subs">
             <label class="test2-sub" id="sub_devi_${id}">
-              <input type="checkbox" id="flDevi_${id}" onchange="updateTest2Subs('${id}')"> ↔ Dévidage
+              <input type="checkbox" id="flDevi_${id}" aria-label="Test 2ᵉ bobineaux — dévidage conforme" onchange="updateTest2Subs('${id}')"> ↔ Dévidage
             </label>
             <label class="test2-sub" id="sub_droit_${id}">
-              <input type="checkbox" id="flDroit_${id}" onchange="updateTest2Subs('${id}')"> ➡ Droit
+              <input type="checkbox" id="flDroit_${id}" aria-label="Test 2ᵉ bobineaux — bord droit conforme" onchange="updateTest2Subs('${id}')"> ➡ Droit
             </label>
             <label class="test2-nc" id="test2nc_${id}" style="margin-bottom:0;flex:1">
-              <input type="checkbox" id="flTest2nc_${id}" onchange="updateTest2Subs('${id}')"> ⚠ NC
+              <input type="checkbox" id="flTest2nc_${id}" aria-label="Test 2ᵉ bobineaux — non conforme" onchange="updateTest2Subs('${id}')"> ⚠ NC
             </label>
             <label class="nc-check ras sel" id="nc_ras_${id}" style="flex:1;justify-content:center;margin:0"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ R.A.S.</label>
           </div>
@@ -17328,9 +17338,6 @@ function addFicheLine(data){
           </div>
         </div>
       </div>
-      <details class="fl-more" id="flMore_${id}"><!-- [L107 · Phase 1 · F] zone Défaut REPLIÉE par défaut (aucune place prise) ; s'ouvre au tap, ou AUTO si NC / action requise (syncFlMore, toggleCoupee) -->
-        <summary>⚠ Défaut — NC · chutes/déchet <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary>
-        <div class="fl-more-body">
       <div class="field">
         <label>Problème constaté</label>
         <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts, ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
@@ -17358,10 +17365,10 @@ function addFicheLine(data){
         <label>Cumul bobineaux par laize</label>
         <div class="cumul-box" id="flCumul_${id}"><span style="color:var(--muted);font-size:13px">—</span></div>
       </div>
-      <button id="coupeeBtn_${id}" onclick="toggleCoupee('${id}')" aria-label="Marquer cette bobine comme coupée"
+      <button id="coupeeBtn_${id}" onclick="coupeeTapOne('${id}')" aria-label="Marquer cette bobine comme coupée — valide aussi le test 2ᵉ bobineaux"
         style="grid-column:1/-1;width:100%;margin-top:2px;padding:16px 18px;min-height:56px;border-radius:10px;border:2px solid var(--border2);background:#1a1a18;color:var(--muted);font-size:17px;font-weight:800;cursor:pointer;transition:background .2s,color .2s,border-color .2s,transform .14s ease-out,box-shadow .14s ease-out;white-space:nowrap">
-        ✂ Coupée
-      </button><!-- [L107 · Phase 1 · C] GROS bouton ✂ en bas — dernière action du flux (toggleCoupee/restore écrivent style+texte par id : inchangés) -->
+        ✂ Coupée — Test OK
+      </button><!-- [L107 · Phase 1 · C, révisé L307 · LOT 2] GROS bouton ✂ : le tap unique vaut AUSSI validation du test 2ᵉ (coupeeTapOne coche Dévidage/Droit puis toggleCoupee — chemin NC inchangé via ⚠ Défaut) -->
     </div>`;
   document.getElementById('ficheLines').appendChild(div);
   refreshPhotoZone(id);
@@ -17421,7 +17428,7 @@ function resetFicheBobines(){
     const btn=document.getElementById('coupeeBtn_'+id);
     if(line){ line.classList.remove('coupee'); delete line.dataset.cutAt; }   // [L76] cutAt nettoyé avec la classe (anti-rebond ✂ B40)
     { const _m=ficheLines.find(x=>x.id===id); if(_m) _m.cliParts=null; }   // [L97 · relecture #20] attribution client FIGÉE purgée : une bobine dé-marquée ne garde plus un client fantôme
-    if(btn){btn.style.borderColor='var(--border2)';btn.style.color='var(--muted)';btn.style.background='#1a1a18';btn.textContent='✂ Coupée';}
+    if(btn){btn.style.borderColor='var(--border2)';btn.style.color='var(--muted)';btn.style.background='#1a1a18';btn.textContent='✂ Coupée — Test OK';}
     try{ if(_shareCurrentDocId()&&_shareCutsLocal[idx]&&_shareCutsLocal[idx].u===_uid()) shareCutWrite(idx,false,id); }catch(e){}
   });
   updateAllCumuls();   // [L97 · relecture #20] compteurs clients recalculés sans les snapshots purgés
@@ -17440,6 +17447,44 @@ function _cutFeedback(line){
 // Couvre aussi le double-tap dont le 2e tap atterrit sur la bobine SUIVANTE remontée
 // sous le doigt quand le masquage des coupées est actif (reflow après display:none).
 let _lastCoupeeMarkMs=0;
+// [L307 · LOT 2 · §2.2 + décision Esteban 03/08 §6.1] TAP UNIQUE « ✂ Coupée — Test OK » : pour une bobine
+// SAINE (pas de NC test 2ᵉ cochée), le tap coche Dévidage (+ Droit hors FEBA — même règle que test2Resolved,
+// machine DE LA LIGNE) puis marque coupée. Si toggleCoupee refuse (chrono, gardes), on DÉ-coche ce qu'on
+// vient de cocher : aucun état fantôme « test validé sans coupe ». Chemin NC (⚠ Défaut) STRICTEMENT inchangé :
+// NC cochée → aucune coche auto, motif + action restent obligatoires. Le dé-marquage passe aussi tel quel.
+function coupeeTapOne(id){
+  const line=document.getElementById(id);
+  if(!line){ return; }
+  const already=line.classList.contains('coupee');
+  const ncEl=document.getElementById('flTest2nc_'+id);
+  // [L307 · fix audit ISO] « saine » = ni NC test 2ᵉ, NI motif NC dimensionnel coché (Angle/Casse/Larg./Qté) :
+  // une bobine déjà en flux défaut ne reçoit AUCUNE attestation automatique — l'opérateur coche lui-même.
+  const ncMotif=['larg','qty','casse','ang'].some(k=>{ const el=document.getElementById('nc_'+k+'_'+id); return el&&el.querySelector('input')&&el.querySelector('input').checked; });
+  let setD=false,setR=false,d=null,r=null;
+  if(!already && !(ncEl&&ncEl.checked) && !ncMotif){
+    d=document.getElementById('flDevi_'+id);
+    if(d&&!d.checked){ d.checked=true; setD=true; }
+    const feba=(typeof _flMachineOf==='function')?(_flMachineOf(id)==='feba'):false;
+    if(!feba){ r=document.getElementById('flDroit_'+id); if(r&&!r.checked){ r.checked=true; setR=true; } }
+    try{ updateTest2Subs(id); }catch(e){}
+  }
+  toggleCoupee(id);
+  const cutNow=line.classList.contains('coupee');
+  if((setD||setR)&&!cutNow){
+    // refus d'une garde (chrono, champ manquant…) → rollback des coches automatiques
+    if(setD&&d) d.checked=false;
+    if(setR&&r) r.checked=false;
+    try{ updateTest2Subs(id); }catch(e){}
+  }
+  if((setD||setR)&&cutNow){ try{ line.dataset.t2auto='1'; }catch(e){} }   // [L307 · fix audit ISO] trace « attestation posée par le tap » (pour la purge au dé-marquage)
+  if(already&&!cutNow&&line.dataset&&line.dataset.t2auto==='1'){
+    // [L307 · fix audit ISO] dé-marquage d'une coupe faite PAR ERREUR : l'attestation test 2ᵉ AUTO ne survit
+    // pas (elle n'a jamais été un geste physique). Les coches posées À LA MAIN, elles, restent.
+    try{ const _d=document.getElementById('flDevi_'+id); if(_d) _d.checked=false;
+         const _r=document.getElementById('flDroit_'+id); if(_r) _r.checked=false;
+         delete line.dataset.t2auto; updateTest2Subs(id); }catch(e){}
+  }
+}
 function toggleCoupee(id){
   const line=document.getElementById(id);
   const btn=document.getElementById('coupeeBtn_'+id);
@@ -17457,7 +17502,7 @@ function toggleCoupee(id){
         if(_idxU>=0) shareCutWrite(_idxU,false,id);
         const _lU=document.getElementById(id), _bU=document.getElementById('coupeeBtn_'+id);
         if(_lU){ _lU.classList.remove('coupee','coupee-other'); delete _lU.dataset.cutAt; }   // [L76] cutAt nettoyé avec la classe (anti-rebond ✂ B40)
-        if(_bU){ _bU.disabled=false; _bU.style.borderColor='var(--border2)'; _bU.style.color='var(--muted)'; _bU.style.background='#1a1a18'; _bU.textContent='✂ Coupée'; }
+        if(_bU){ _bU.disabled=false; _bU.style.borderColor='var(--border2)'; _bU.style.color='var(--muted)'; _bU.style.background='#1a1a18'; _bU.textContent='✂ Coupée — Test OK'; }
         updateCoupeeStatus();
       }catch(e){ console.warn('Levée de verrou :',e); }
       return;
@@ -17494,8 +17539,9 @@ function toggleCoupee(id){
     // Le test 2ème bobineaux doit être tranché : Conforme (Dévidage+Droit)
     // OU Non conforme avec au moins un motif (Dévidage ou Droit).
     if(!test2Resolved(id)){
-      // [L107 · Phase 1 · B] le test 2ᵉ est désormais VISIBLE sur la carte : plus d'ouverture
-      // auto du volet (qui ne contient plus que NC/photo/action) — le toast suffit.
+      // [L107 périmé → L307 · LOT 2 · fix audit] les puces test 2ᵉ vivent désormais DANS le volet ⚠ Défaut :
+      // on l'OUVRE au refus (symétrie avec la garde action NC), sinon le toast pointe des cases invisibles.
+      try{ const _det=document.getElementById('flMore_'+id); if(_det&&!_det.open){ _det.open=true; } }catch(e){}
       const elNC=document.getElementById('flTest2nc_'+id);
       const feba=(_flMachineOf(id)==='feba');   // [L65] machine de la ligne
       if(elNC&&elNC.checked){
@@ -17522,7 +17568,7 @@ function toggleCoupee(id){
   btn.style.borderColor=isCoupee?'var(--green)':'var(--border2)';
   btn.style.color=isCoupee?'var(--green)':'var(--muted)';
   btn.style.background=isCoupee?'#14371f':'#1a1a18';
-  btn.textContent=isCoupee?'✓ Coupée':'✂ Coupée';
+  btn.textContent=isCoupee?'✓ Coupée':'✂ Coupée — Test OK';
   if(isCoupee) _cutFeedback(line);   // [L102 · M2-D] flash + vibration + bip : enregistré, sans regarder
   updateCoupeeStatus();
   if(typeof _scheduleDriftCheck==='function') _scheduleDriftCheck();   // [L285 · demande Esteban] coche → re-vérifie la dérive/sur-coupe (bannière auto, non destructive)
@@ -17734,7 +17780,7 @@ function updateTest2Subs(id){
     if(rasL){ const both=feba?elDevi.checked:(elDevi.checked&&elDroit.checked); rasL.classList.toggle('t2ok',both&&!ncMode); } }
   const line=document.getElementById(id);
   if(line){ line.classList.toggle('test2-nc-flag',ncMode);
-    line.classList.toggle('t2-todo',!test2Resolved(id)); }   // [L267 · audit/choix Esteban] marque la bobine dont le test 2ᵉ n'est pas tranché → indice sur le ✂ AVANT le tap (évite un tap refusé)
+    const _t2nc=document.getElementById('flTest2nc_'+id)?.checked; line.classList.toggle('t2-todo',!!_t2nc&&!test2Resolved(id)); }   // [L267, révisé L307 · LOT 2] l'indice « test 2ᵉ à cocher » + fléchage ne restent QUE sur le chemin NC (motif manuel requis) — le chemin sain est auto-résolu par le tap unique
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] statut du volet « ⋯ Contrôles »
   updateCoupeeStatus();
 }
@@ -18623,7 +18669,7 @@ function applySharedCuts(cuts){
       btn.style.borderColor=isC?'var(--green)':'var(--border2)';
       btn.style.color=isC?'var(--green)':'var(--muted)';
       btn.style.background=isC?'#14371f':'#1a1a18';
-      btn.textContent=isC?'✓ Coupée':'✂ Coupée';
+      btn.textContent=isC?'✓ Coupée':'✂ Coupée — Test OK';
       changed=true;
     }
   });
