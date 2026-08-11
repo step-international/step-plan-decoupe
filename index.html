@@ -417,7 +417,10 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 .tab-bar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tab-bar::-webkit-scrollbar{display:none}
 .tab-btn{padding:12px 16px;background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;white-space:nowrap;flex-shrink:0;border-radius:8px 8px 0 0}
-.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);background:rgba(59,130,246,.08)}
+.tab-btn.active{color:var(--action);border-bottom-color:var(--action);background:#3a2e05}/* [L317 · LOT 16 · §2.16-B] actif AMBRE (l'aplat ambre de l'écran Données = l'onglet actif, maquette 19) */
+.tab-bar .tab-btn{min-height:52px}/* [L317 · LOT 16, fix audit] onglets 52px — spécificité 0,2,0 : la règle plancher 44px (plus tardive) battait la version 0,1,0 (CSS mort) */
+#page2 .btn-sm,#page2 select{min-height:50px}/* [L317 · LOT 16] vues + filtres 50px (au lieu de ~34-44) */
+#dataSummary{display:flex;align-items:center;flex-wrap:wrap;gap:2px;margin:0 0 10px;padding:6px 4px;border:1px solid var(--border);border-radius:10px;background:var(--card)}/* [L317 · LOT 16 · §2.16-B] ligne de résumé : chiffres DÉJÀ en mémoire, valeur absente = — , AUCUNE requête */
 .save-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
 .save-info{flex:1;min-width:0}
 .save-title{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1670,6 +1673,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
 </div>
 
 <div class="page" id="page2" role="tabpanel" aria-labelledby="tabBtn2">
+  <div id="dataSummary"></div><!-- [L317 · LOT 16 · §2.16-B] rempli par renderDataSummary (données en mémoire uniquement) -->
   <div class="tab-bar">
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
     <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] maquette admin/pilotage (applyRole) — ouverture à tous en ÉTAPE 2 -->
@@ -1979,7 +1983,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L316';
+const APP_VERSION='2026.08.12-L317';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2256,7 +2260,7 @@ function ensureFullHistory(){
       // [L73 · Lot 5 · B34] pagination complète par curseur (fini le plafond silencieux 1000/2000) ;
       // borne de sécurité 20 pages/collection (≈ 20 000 saves / 40 000 temps / 20 000 fiches).
       const r=await Promise.all([loadColAll('saves',1000,20),loadColAll('temps',2000,20),loadColAll('fiches',1000,20)]);
-      savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;if(typeof dujSamplesInvalidate==='function')dujSamplesInvalidate();
+      savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;try{ renderDataSummary(); }catch(e){}if(typeof dujSamplesInvalidate==='function')dujSamplesInvalidate();
       if(r.some(x=>x.truncated)){   // [L73 · Lot 5 · B34] borne atteinte : on ne prétend plus que c'est complet
         _fullHistoryTruncatedCount=savesCache.length+tempsCache.length+fichesCache.length;
         showToast('⚠ Historique tronqué à '+_fullHistoryTruncatedCount+' enregistrements (plafond de sécurité atteint)','err');
@@ -2324,7 +2328,7 @@ async function loadFirestoreData(){
     // Boot allégé : le quotidien n'a besoin que du récent (perf 4G + quota lectures Firestore).
     // L'historique complet se charge à la demande via le bouton 📥 dans Données.
     const r=await Promise.all([loadCol('saves',200),loadCol('temps',500),loadCol('fiches',200)]);
-    savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;if(typeof dujSamplesInvalidate==='function')dujSamplesInvalidate();   // [L73 · Lot 5 · B34] loadCol retourne désormais {rows,truncated,last} (troncature normale au boot : bandeau partiel géré par fullHistoryLoaded)
+    savesCache=r[0].rows;tempsCache=r[1].rows;fichesCache=r[2].rows;try{ renderDataSummary(); }catch(e){}if(typeof dujSamplesInvalidate==='function')dujSamplesInvalidate();   // [L73 · Lot 5 · B34] loadCol retourne désormais {rows,truncated,last} (troncature normale au boot : bandeau partiel géré par fullHistoryLoaded)
     try{ hygieneAutoSweep(); }catch(e){}   // [L115] nettoyage AUTO des plans déjà coupés du récent (fenêtre boot) — le reste au chargement complet
     if(!migrated && canManageData()) backfillDeleted();   // migration unique (admins/pilotage)
     if(canManageData() && _oncePerDay('step_corbeille_daily')) loadCorbeille(true);   // purge auto en arrière-plan, au plus 1×/jour/poste (l'ouverture de l'onglet reste toujours à jour)
@@ -4781,7 +4785,30 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,
   document.getElementById('ficheLines').appendChild(div);
 }
 
+// [L317 · LOT 16 · §2.16-B] Ligne de résumé de l'écran Données : UNIQUEMENT des chiffres déjà en mémoire
+// (fichesCache, bannière lame). Valeur non disponible localement → « — » (règle : AUCUNE requête nouvelle).
+// Planning du jour : pas de source mémoire fiable aujourd'hui → volontairement omis (noté au rapport).
+function renderDataSummary(){
+  try{
+    const el=document.getElementById('dataSummary'); if(!el) return;
+    const F=(typeof fichesCache!=='undefined'&&Array.isArray(fichesCache))?fichesCache.filter(function(f){return f&&!f.deleted;}):[];
+    const now=new Date(); const day=(now.getDay()+6)%7; const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-day);
+    let wk=0,wkKnown=false;
+    F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; if(!t) return; const d=new Date(t); if(!isNaN(d)){ wkKnown=true; if(d>=monday) wk++; } });
+    let noBL='—';
+    // [L317 · fix audit] borné à la SEMAINE (comme le 1er chip) : sinon le chiffre mesurait la profondeur du
+    // cache (200 fiches au boot, 20 000 après l'historique complet) au lieu d'un en-cours actionnable.
+    try{ if(typeof ficheBLs==='function'&&F.length) noBL=F.filter(function(f){ const t=f.date||f.ts||f.at; const d=t?new Date(t):null; if(!(d&&!isNaN(d)&&d>=monday)) return false; try{ return ficheBLs(f).length===0; }catch(e){ return false; } }).length; }catch(e){}
+    const lameEl=document.getElementById('lameAlertBanner');
+    const lame=(lameEl&&lameEl.style.display!=='none')?'à changer':'✓';
+    const chip=function(lbl,val,warn){ return '<span style="display:inline-flex;flex-direction:column;gap:1px;padding:4px 12px;border-right:1px solid var(--border)"><span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">'+lbl+'</span><b style="font-size:16px;font-variant-numeric:tabular-nums;'+(warn?'color:var(--orange)':'')+'">'+val+'</b></span>'; };
+    el.innerHTML=chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
+      +chip('BL à joindre',(noBL===0?'0':noBL),(typeof noBL==='number'&&noBL>0))
+      +chip('Lame',lame,lame!=='✓');
+  }catch(e){}
+}
 function switchTab(tab){
+  try{ renderDataSummary(); }catch(e){}   // [L317 · LOT 16] résumé rafraîchi à chaque entrée d'onglet (données mémoire)
   if(tab!=='planning'){ try{ if(typeof plnDisarm==='function') plnDisarm(); }catch(e){} }   // [L118 · audit #6] désarmer le Planning + retirer le fantôme/#plnHint en quittant l'onglet
   if(typeof updateTabBadges==='function') updateTabBadges();
   if(tab==='temps') tab='analyse';   // [L120] onglet Temps fusionné dans Analyse (rétro-compat des anciens appels/liens)

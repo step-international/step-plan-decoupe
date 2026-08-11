@@ -615,5 +615,12 @@ has(/function doRedo/,'L316 : ⟳ REFAIRE réutilise doLoad + ses gardes, vide n
 has(/⟳ Refaire \(nouveau n°\)/,'L316 : bouton dans la modale de chargement existante (pas un 4ᵉ chemin)');
 has(/le bouton DIT l'état : client · n° cmd/,'L316 : ▶ Reprendre explicite (client · cmd · n\/N coupées)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L316 présents dans index.html + sw.js');
+console.log('── L317 : REDESIGN LOT 16 — Données tactile (§2.16-B, structure d origine CONSERVÉE) ──');
+has(/id="tabSaves"/,'L317 : les onglets d origine sont TOUS là (aucune refonte en tuiles — §2.16-B annule §2.15)');
+has(/\.tab-btn\{min-height:52px\}/,'L317 : onglets 52px tactile');
+has(/#page2 \.btn-sm,#page2 select\{min-height:50px\}/,'L317 : vues + filtres 50px');
+has(/function renderDataSummary/,'L317 : ligne de résumé — données mémoire uniquement, valeur absente = —, AUCUNE requête');
+has(/\.tab-btn\.active\{color:var\(--action\)/,'L317 : onglet actif AMBRE (l aplat ambre de l écran Données, maquette 19)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L317 présents dans index.html + sw.js');
 process.exit(fail?1:0);
