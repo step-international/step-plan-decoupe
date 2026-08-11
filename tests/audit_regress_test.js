@@ -610,5 +610,10 @@ has(/pctCls=p=>p<PERTE_SEUIL_ORANGE/,'L315 : le seuil est branché sur la couleu
 has(/couleur:.*var\(--blue\)|\.useful-display\{font-size:16px;color:var\(--blue\)/,'L315 : LARGEUR UTILE = repère bleu (§2.17-B)');
 has(/#planResumeRow\{order:1\}/,'L315 : ordre portrait du Plan restauré explicitement');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L315 présents dans index.html + sw.js');
+console.log('── L316 : REDESIGN LOT 24 — optimisations parcours (§2.22, partiel assumé) ──');
+has(/function doRedo/,'L316 : ⟳ REFAIRE réutilise doLoad + ses gardes, vide n° cmd + date livraison');
+has(/⟳ Refaire \(nouveau n°\)/,'L316 : bouton dans la modale de chargement existante (pas un 4ᵉ chemin)');
+has(/le bouton DIT l'état : client · n° cmd/,'L316 : ▶ Reprendre explicite (client · cmd · n\/N coupées)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L316 présents dans index.html + sw.js');
 process.exit(fail?1:0);

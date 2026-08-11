@@ -1838,6 +1838,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     <div id="loadModalInfo" class="text-muted" style="margin-bottom:12px;font-size:14px"></div>
     <div class="modal-btns">
       <button class="btn btn-ghost btn-sm" onclick="closeLoadModal()">Annuler</button>
+      <button class="btn btn-blue btn-sm" onclick="doRedo()" title="Recharge client, références, laizes, cotes et emballage — mais VIDE le n° de commande et la date de livraison (nouvelle commande identique)">⟳ Refaire (nouveau n°)</button><!-- [L316 · LOT 24 · §2.22-1] réutilise doLoad et SES dialogues — pas un 4ᵉ chemin -->
       <button class="btn btn-green btn-sm" onclick="doLoad()">Charger</button>
     </div>
   </div>
@@ -1978,7 +1979,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L315';
+const APP_VERSION='2026.08.12-L316';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8254,6 +8255,17 @@ function updateSaveBtnLabel(){
   const b=document.getElementById('planSaveBtn');
   if(b) b.textContent=editingSaveId?'✏️ Modifier le plan':'💾 Sauvegarder';
 }
+// [L316 · LOT 24 · §2.22-1] « ⟳ REFAIRE » : le plus gros gain bureau (~20 taps) — recharge TOUT le plan
+// sauvegardé via doLoad (gardes partage/parcage INCLUSES) puis vide les 2 SEULES données qui changent :
+// n° de commande et date de livraison.
+async function doRedo(){
+  if(await doLoad()!==true) return;   // [L316 · fix audit] sortie sans chargement (partage, parcage, annulation…) → on ne touche à RIEN (la commande à l'écran garde son n°) ; sur le chemin parcage, ⟳ dégrade en simple « Charger » (assumé, non destructif)
+  try{
+    const n=document.getElementById('planNumCmd'); if(n) n.value='';
+    const d=document.getElementById('planDateLiv'); if(d) d.value='';
+    if(typeof showToast==='function') showToast('⟳ Plan rechargé — saisis le NOUVEAU n° de commande et la date de livraison.');
+  }catch(e){}
+}
 async function doLoad(){
   if(!loadTargetIdx) return;
   // [L103 · audit-max] chargement d'un plan pendant un partage actif : la nouvelle commande
@@ -8378,6 +8390,7 @@ async function doLoad(){
     _autosaveLastSig=_cur?JSON.stringify({plan:_st.plan,fiche:_st.fiche,lines:_st.lines}):'';
   }catch(e){}
   closeLoadModal();showPage(0);
+  return true;   // [L316 · fix audit] signal de SUCCÈS : doRedo ne vide n°/date QUE si le chargement a réellement eu lieu (6 chemins de sortie sans chargement sinon destructifs)
 }
 async function deleteSave(id){
   if(typeof canManageData==='function'&&!canManageData()){ showToast('Archivage d\'un plan réservé au pilotage et aux admins.','err'); return; }   // [L136 · audit #16] garde de rôle (règle Firestore saves.update) : hors-ligne un « archivage » d'op réapparaît en silence à la reconnexion
@@ -19656,7 +19669,16 @@ function updateResumeLastBtn(){
       const d=aid?loadDrafts().find(function(x){return x.id===aid;}):null;
       if(d && !d.consumed && d.state &&
          ((d.state.lines && d.state.lines.length) ||
-          (d.state.fiche && (d.state.fiche.client||d.state.fiche.ref)))) show=true;
+          (d.state.fiche && (d.state.fiche.client||d.state.fiche.ref)))){
+        show=true;
+        // [L316 · LOT 24 · §2.22-4] le bouton DIT l'état : client · n° cmd · n/N coupées (au lieu du libellé générique)
+        try{
+          const _f=d.state.fiche||{}, _p=d.state.plan||{};
+          const _cli=_f.client||_p.client||'', _cmd=_f.numCmd||_p.numCmd||'';
+          const _ls=d.state.lines||[]; const _cut=_ls.filter(function(l){return l&&l.coupee;}).length;
+          btn.textContent='▶ Reprendre — '+(_cli||'commande')+(_cmd?' · '+_cmd:'')+(_ls.length?' · '+_cut+'/'+_ls.length+' coupées':'');
+        }catch(e){ btn.textContent='▶ Reprendre ma dernière commande'; }
+      }
     }
     btn.classList.toggle('hidden', !show);
   }catch(e){}
