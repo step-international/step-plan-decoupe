@@ -1135,7 +1135,9 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     <div class="row2">
       <div class="field">
         <label for="planDateLiv">Date de livraison client</label>
-        <input type="date" id="planDateLiv">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="date" id="planDateLiv" style="flex:1;min-width:150px">
+          <button type="button" class="btn btn-ghost btn-sm" style="min-height:48px" onclick="bumpDateLiv(7)">+7 j</button>
+          <button type="button" class="btn btn-ghost btn-sm" style="min-height:48px" onclick="bumpDateLiv(14)">+14 j</button></div><!-- [L314 · LOT 4 · §2.4] 1 tap au lieu du picker ; le calendrier natif reste le secours -->
       </div>
       <div class="field">
         <label>📎 Fichiers commande client</label>
@@ -1949,7 +1951,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L313';
+const APP_VERSION='2026.08.11-L314';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4497,6 +4499,7 @@ function importPlanToFiche(opts){
   const auto=!!opts.auto;
   try{ dismissChutesRappel(); }catch(e){}   // [L306 · fix audit lot 3] nouvelle commande importée → l'éventuel bandeau chutes de la précédente disparaît (il re-sortira à SON premier départ si dû)
   try{ _fmmPrevOrder=null; document.getElementById('fmmUndoBar')?.remove(); }catch(e){}   // [L313 · fix audit] l'↩ Annuler d'un réordonnancement ne survit pas à un import/changement de commande
+  try{ applyOpOfDay(); }catch(e){}   // [L314 · LOT 4] initiales du jour pré-sélectionnées (jamais par-dessus une saisie)
   const _fromResume=_resumeAutoImportGuard; _resumeAutoImportGuard=false;   // [L218 · régression revue] consommé UNE fois quelle que soit la sortie (verrou partage / plan vide / oversize) pour ne pas fuir sur un import ultérieur
   // [L103 · audit-max] STRUCTURE FIGÉE pendant un partage (émetteur OU vue miroir) : régénérer
   // la fiche depuis le Plan décalerait les verrous cuts.<idx> (indexés par POSITION) chez tous
@@ -4911,6 +4914,17 @@ function onClientChange(){
   recalcPlan();
 }
 
+// [L314 · LOT 4 · §2.4] chips date : +N jours depuis AUJOURD'HUI (pas depuis la valeur — geste « livraison
+// sous N jours »), champ natif toujours éditable.
+function _localDay(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }   // [L314 · fix audit] date LOCALE (toISOString = UTC → off-by-one la nuit, équipe de nuit UTC+2)
+function bumpDateLiv(days){
+  try{
+    const d=new Date(); d.setDate(d.getDate()+days);
+    const el=document.getElementById('planDateLiv'); if(!el) return;
+    el.value=_localDay(d);
+    try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
+  }catch(e){}
+}
 function onRefChange(){
   const client=document.getElementById('planClient').value;
   const ref=document.getElementById('planRef').value;
@@ -5248,9 +5262,9 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli=
   div.className='order-row';
   if(rattrapage){div.dataset.rattrapage='1';div.style.borderLeft='3px solid var(--orange)';div.style.paddingLeft='6px';}
   div.innerHTML=`<span class="order-lbl">Qté</span>
-    <input type="text" data-type="qty" placeholder="400" value="${esc(qty)}" inputmode="numeric" oninput="debouncedRecalcPlan()" style="max-width:72px;text-align:center">
+    <input type="text" data-type="qty" placeholder="400" value="${esc(qty)}" inputmode="numeric" oninput="_maybeAutoRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:72px;text-align:center">
     <span class="order-lbl">× Larg.</span>
-    <input type="text" data-type="width" placeholder="80" value="${esc(width)}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:80px;text-align:center">
+    <input type="text" data-type="width" placeholder="80" value="${esc(width)}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));_maybeAutoRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:80px;text-align:center">
     <span class="order-lbl">mm</span><!-- [L104] steppers −/+ retirés (item L) : ils faisaient wrapper chaque largeur sur 3-4 lignes en mobile. Saisie clavier directe conservée ; Qté en inputmode numeric (pas de point décimal parasite) -->
     <span class="order-lbl carton-cell" style="display:none">· Carton</span>
     <input type="text" data-type="carton" placeholder="3" value="${esc(carton)}" inputmode="numeric" oninput="debouncedRecalcPlan()" class="carton-cell" style="max-width:70px;display:none">
@@ -5267,6 +5281,19 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli=
 function addOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli='A'){
   const first=document.querySelector('.ref-block .rb-rows');
   if(first){first.appendChild(makeOrderRow(qty,width,carton,rattrapage,mandrin,cli));updateCartonVisibility();}
+}
+// [L314 · LOT 4 · §2.4] LIGNE SUIVANTE AUTO : quand la DERNIÈRE ligne de SON bloc a Qté ET Largeur remplies,
+// une ligne vide s'ajoute toute seule (le bouton « + Ajouter une ligne » reste le plan B). Aucun texte d'aide (§2.20).
+function _maybeAutoRow(row){
+  try{
+    if(!row) return;
+    const cont=row.parentNode; if(!cont||!cont.classList||!cont.classList.contains('rb-rows')) return;
+    const rows=cont.querySelectorAll(':scope>.order-row');
+    if(rows[rows.length-1]!==row) return;
+    const q=(row.querySelector('input[data-type="qty"]')?.value||'').trim();
+    const w=(row.querySelector('input[data-type="width"]')?.value||'').trim();
+    if(q!==''&&w!==''){ cont.appendChild(makeOrderRow()); if(typeof updateCartonVisibility==='function') updateCartonVisibility(); }
+  }catch(e){}
 }
 // Ajoute une ligne au bloc réf qui contient le bouton cliqué.
 function addOrderRowTo(btn){
@@ -17174,6 +17201,19 @@ function updateUtile2(){
 function selectIni(v){
   document.getElementById('fInitiales').value=v;
   document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===v));
+  try{ localStorage.setItem('step_op_day',JSON.stringify({ini:v,date:_localDay()})); }catch(e){}   // [L314 · LOT 4 · §2.4] opérateur mémorisé pour LA JOURNÉE sur ce poste
+}
+// [L314 · LOT 4 · §2.4] pré-sélection des initiales du jour (re-tap seulement pour changer) — la garde
+// « initiales obligatoires à l'envoi » reste, on ne pré-remplit JAMAIS par-dessus une saisie.
+function applyOpOfDay(){
+  try{
+    const cur=(document.getElementById('fInitiales')?.value||'').trim(); if(cur) return;
+    const d=JSON.parse(localStorage.getItem('step_op_day')||'null');
+    if(d&&d.ini&&d.date===_localDay()){
+      document.getElementById('fInitiales').value=d.ini;
+      document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===d.ini));
+    }
+  }catch(e){}
 }
 function selectIni2(v){
   document.getElementById('fInitiales2').value=v;

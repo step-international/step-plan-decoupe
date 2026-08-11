@@ -594,5 +594,11 @@ has(/Ordre de coupe mis à jour/,'L313 : bandeau ↩ Annuler après dépose (8s)
 has(/\.fmm-drag-handle\{[^}]*touch-action:none/,'L313 : touch-action:none sur la POIGNÉE seule (scroll naturel ailleurs)');
 has(/\.fmm-order-btns \.btn\{min-width:52px;min-height:56px\}/,'L313 : ▲▼ secours agrandis 52×56');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L313 présents dans index.html + sw.js');
+console.log('── L314 : REDESIGN LOT 4 — Plan express (§2.4) ──');
+has(/bumpDateLiv\(7\)/,'L314 : chips +7j/+14j à côté de la date (1 tap, calendrier natif en secours)');
+has(/function _maybeAutoRow/,'L314 : ligne laize suivante auto quand la dernière du bloc est remplie');
+has(/step_op_day/,'L314 : initiales mémorisées pour la journée (selectIni) + pré-sélection applyOpOfDay');
+has(/jamais par-dessus une saisie/,'L314 : pré-remplissages JAMAIS par-dessus une saisie opérateur');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L314 présents dans index.html + sw.js');
 process.exit(fail?1:0);
