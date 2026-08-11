@@ -847,6 +847,14 @@ html.theme-light #chronoStartBtn:active,html.theme-light #chronoPauseBtn:active,
 body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
 #ficheLines:has(.fl-current) .fiche-line:not(.fl-current) button[onclick="recalcEcartsFromFiche()"]{display:none}   /* §2.13-B : ♻ seulement là où on l'utilise — mais si AUCUNE carte courante (chrono arrêté, flux corrections supporté), tous les ♻ restent visibles */
 @media(prefers-reduced-motion:no-preference){.fiche-line{transition:background .2s,opacity .2s,border-color .2s}}
+/* [L309 · LOT 5] HUD segmenté — un cran par bobine dans #coupeeBanner (≤40 bobines) */
+.fp-seg-wrap{display:flex;gap:2px;align-items:stretch}
+.fp-seg{flex:1;min-width:4px;height:12px;border-radius:2px;background:#3a3a37;border:1px solid #2a2a28}
+.fp-seg.ok{background:var(--green);border-color:#1e5c30}
+.fp-seg.nc{background:repeating-linear-gradient(45deg,#f65157 0 4px,#7a2222 4px 8px);border-color:#7a2222}
+.fp-seg.cur{background:var(--action);border-color:#b8860b;animation:segPulse 1.4s ease-in-out infinite}
+@keyframes segPulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media(prefers-reduced-motion:reduce){.fp-seg.cur{animation:none;outline:2px solid rgba(245,179,1,.5)}}
 /* D — confirmation forte au ✂ : flash vert bref sur la carte (+ vibration +
    bip togglable via _cutFeedback). Avec « Masquer les coupées » actif, la
    carte reste visible le temps du flash (:not(.flash-cut) sur la règle L62). */
@@ -1916,7 +1924,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L308';
+const APP_VERSION='2026.08.11-L309';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4379,7 +4387,7 @@ function showPage(i){
     if(typeof refreshEtiqPhotoZone==='function') refreshEtiqPhotoZone(); }   /* [L226 · ergo #14] vignettes étiquettes à jour en arrivant sur la Fiche (couvre doLoad/brouillon/reset) */
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
-  try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement
+  try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
   try{ localStorage.setItem('step_lastPage',String(i)); }catch(e){}   // [L243 · demande Esteban] mémorise la page courante → reprise au même endroit au rechargement/réouverture (pas de retour forcé à l'accueil)
 }
 // [L243 · demande Esteban] REPRISE DE NAVIGATION : au boot, revenir sur la dernière page consultée (Plan/Fiche/Données)
@@ -8413,7 +8421,7 @@ function chronoStart(){
   startAutosave();
   persistChronoLive();   // heure de début sauvegardée immédiatement (survit à la veille)
   acquireWakeLock();
-  try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B] chrono lancé → le « vif » passe au ✂ de la bobine en cours
+  try{ updateCoupeeStatus(); }catch(e){}   // [L102 · M2-A/B] chrono lancé → le « vif » passe au ✂ de la bobine en cours   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
 }
 function chronoPause(){
   if(!chronoRunning) return;
@@ -8433,7 +8441,7 @@ function chronoPause(){
   try{ autosaveDraftTick(true); }catch(_){}
   persistChronoLive();   // chrono à l'arrêt → efface la sauvegarde live
   releaseWakeLock();
-  try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B] chrono en pause → le « vif » revient sur ▶ Reprendre
+  try{ updateCoupeeStatus(); }catch(e){}   // [L102 · M2-A/B] chrono en pause → le « vif » revient sur ▶ Reprendre   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
 }
 function chronoReset(force){
   // [L65] Reset MANUEL (bouton ↺) : confirmation anti-glissé de doigt (relevé de prod perdu sinon).
@@ -8456,7 +8464,7 @@ function chronoReset(force){
   persistChronoLive();
   if(force){ try{ localStorage.removeItem(CHRONO_LS_KEY); _wroteChronoLive=false; }catch(e){} }   // [L103 · audit-max] frontière de commande (envoi / nouveau plan / reset site) : purge INCONDITIONNELLE — une clé périmée d'une session plantée ne doit jamais ressusciter (L79)
   releaseWakeLock();
-  try{ updateNextAction(); }catch(e){}   // [L102 · M2-A/B]
+  try{ updateCoupeeStatus(); }catch(e){}   // [L102 · M2-A/B]   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
 }
 // Au réveil du téléphone / retour d'onglet, recaler immédiatement l'affichage
 // (l'intervalle a pu être suspendu pendant la veille — chronoTick recalcule
@@ -8518,7 +8526,7 @@ function autoStopChrono(){
   // Rafraîchir le brouillon auto (wasRunning:false) → une réouverture ne proposera pas une reprise gonflée.
   try{ if(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length) autosaveDraftTick(true); }catch(e){}
   try{ showToast('⏸ Fin de journée — chrono mis en pause. Reprends-le pour des heures supplémentaires.','ok'); }catch(e){}
-  try{ updateNextAction(); }catch(e){}   // [L113 · audit U3] sinon la barre d'action + le ✂ ambre restaient figés sur « en cours » alors que le chrono est arrêté
+  try{ updateCoupeeStatus(); }catch(e){}   // [L113 · audit U3] sinon la barre d'action + le ✂ ambre restaient figés sur « en cours » alors que le chrono est arrêté   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
 }
 function chronoCatchUp(){ if(chronoRunning) chronoTick(); }
 // ── Robustesse veille / téléphone dans la poche ──────────────────────────────
@@ -17643,8 +17651,22 @@ function updateCoupeeStatus(){
   // classes .fp-* de l'ancien #ficheProgress, désormais globales.)
   const _nc=ficheLines.filter(({id})=>{const el=document.getElementById(id);const b=document.getElementById('badge_'+id);return el&&el.classList.contains('coupee')&&b&&b.classList.contains('badge-red');}).length;
   const _okN=Math.max(0,done-_nc), _pct=total?Math.round(done/total*100):0;
+  // [L309 · LOT 5 · §2.2 HUD] barre SEGMENTÉE : 1 cran par bobine (vert=coupée · hachures=NC · ambre pulsé=
+  // en cours · gris=restante), dans l'ORDRE des bobines. Au-delà de 40 bobines → barre continue historique
+  // (règle terrain n°5 : perfs iPad anciens). Chip SÉRIE → LOT 12 (G1, gamification).
+  let _bar;
+  if(total<=40){
+    const _curId=(function(){ const b=document.querySelector('.next-action[id^="coupeeBtn_"]'); return b?b.id.replace('coupeeBtn_',''):null; })();
+    _bar='<span class="fp-bar fp-seg-wrap">'+ficheLines.map(({id})=>{
+      const el=document.getElementById(id); if(!el) return '<i class="fp-seg"></i>';
+      if(el.classList.contains('coupee')){ const bd=document.getElementById('badge_'+id); return (bd&&bd.classList.contains('badge-red'))?'<i class="fp-seg nc"></i>':'<i class="fp-seg ok"></i>'; }
+      return (id===_curId)?'<i class="fp-seg cur"></i>':'<i class="fp-seg"></i>';
+    }).join('')+'</span>';
+  } else {
+    _bar='<span class="fp-bar"><i class="f-ok" style="flex:'+_okN+'"></i><i class="f-nc" style="flex:'+_nc+'"></i><i style="flex:'+Math.max(0,total-_okN-_nc)+'"></i></span>';
+  }
   const _fpRow='<span class="fp-num tabnum"><b>'+done+'</b><small> / '+total+' coupées</small></span>'
-    +'<span class="fp-bar"><i class="f-ok" style="flex:'+_okN+'"></i><i class="f-nc" style="flex:'+_nc+'"></i><i style="flex:'+Math.max(0,total-_okN-_nc)+'"></i></span>'
+    +_bar
     +'<span class="fp-pct tabnum">'+_pct+'%</span>'
     +(perRefStr?'<div style="flex-basis:100%;font-size:12px;font-weight:600;margin-top:4px;text-align:left">'+perRefStr+'</div>':'');
   // [L292 · demande Esteban 30/07] GUIDE DE PROCHAINE ACTION (T6/L288) RETIRÉ EN ENTIER : jugé inutile à l'usage
@@ -19819,7 +19841,7 @@ function restoreChrono(c){
     startAutosave();
     persistChronoLive();
     acquireWakeLock();
-    try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-A/B] reprise auto EN MARCHE → le « vif » passe au ✂ (pas ▶)
+    try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){}   // [L102 · M2-A/B] reprise auto EN MARCHE → le « vif » passe au ✂ (pas ▶)   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
     return;
   }
   // Sinon : remis en pause à la valeur figée.
@@ -19834,7 +19856,7 @@ function restoreChrono(c){
   document.getElementById('chronoStartBtn').textContent='▶ Reprendre';
   document.getElementById('chronoPauseBtn').classList.add('hidden');
   document.getElementById('chronoStatus').textContent='Repris du brouillon — '+fmtTimeFr(chronoSec)+' écoulé. Appuie sur Reprendre.';
-  try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(e){}   // [L102 · M2-A/B] repris en pause → « vif » sur ▶ Reprendre
+  try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){}   // [L102 · M2-A/B] repris en pause → « vif » sur ▶ Reprendre   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
 }
 function renderDrafts(){
   try{ renderSharedDraftsBlock(); }catch(e){}   // [Lot 3] section « Partagées avec moi » (indépendante des brouillons normaux)

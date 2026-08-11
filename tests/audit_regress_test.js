@@ -558,5 +558,11 @@ has(/\.fiche-line\.fl-current\{border-color:var\(--action\)/,'L308 : SEUL aplat 
 has(/\.fiche-line\.coupee:not\(\.flash-cut\)\{opacity:\.55\}/,'L308 : cartes coupées estompées (le flash de confirmation reste visible)');
 has(/#ficheLines:has\(\.fl-current\) \.fiche-line:not\(\.fl-current\) button/,'L308 : ♻ écarts visible seulement sur la carte en cours (§2.13-B)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L308 présents dans index.html + sw.js');
+console.log('── L309 : REDESIGN LOT 5 — HUD segmenté (1 cran/bobine, plafond 40) ──');
+has(/fp-seg-wrap/,'L309 : barre segmentée présente dans le HUD coupeeBanner');
+has(/total<=40/,'L309 : plafond 40 bobines → barre continue historique (perfs iPad, règle terrain 5)');
+has(/fp-seg nc/,'L309 : cran NC hachuré (jamais couleur seule)');
+has(/Chip SÉRIE → LOT 12/,'L309 : chip SÉRIE volontairement reportée au LOT 12 (G1)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L309 présents dans index.html + sw.js');
 process.exit(fail?1:0);
