@@ -508,5 +508,12 @@ console.log('── L303 : message offline honnête selon _persistenceOK ──'
 has(/mode hors-ligne indisponible sur ce poste/,'L303 : boundedWrite dit la vérité quand la file offline est indisponible (rechargement = perte) au lieu de « NE RE-SAISIS PAS » mensonger');
 has(/_persistenceOK\n    \?/,'L303 : le message est conditionné au drapeau _persistenceOK (enfin LU)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L303 présents dans index.html + sw.js');
+console.log('── L304 : REDESIGN LOT 1 — boutons arcade (CSS seul) ──');
+has(/REDESIGN LOT 1 .*LANGAGE « BOUTON ARCADE »/,'L304 : bloc CSS arcade présent (chant + enfoncement, mode A)');
+has(/@keyframes arcadePulse/,'L304 : halo pulsé ambre AVEC chant intégré aux keyframes (sinon écrasé)');
+has(/\.fiche-line\.coupee \[id\^="coupeeBtn_"\]\{box-shadow:none/,'L304 : bouton FAIT à plat (coupée = déjà enfoncé)');
+(function(){ const n=(src.match(/cursor:not-allowed/g)||[]).length; const okk=n<=2;
+  console.log((okk?'✅ ':'❌ ')+'L304 : aucune NOUVELLE occurrence cursor:not-allowed ('+n+'/2 pré-existantes, notées pour LOT 19)'); if(!okk)fail++; })();
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L304 présents dans index.html + sw.js');
 process.exit(fail?1:0);
