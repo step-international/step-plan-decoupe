@@ -870,6 +870,33 @@ body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
 .fmm-order-btns .btn{min-width:52px;min-height:56px}
 @media(prefers-reduced-motion:reduce){.fmm-order-row.fmm-dragging{transform:none}}
 /* ============================================================
+   [L315 · REDESIGN LOT 15 · §2.14 maquette 18] ÉCRAN PLAN : portrait identique (wrappers transparents +
+   ordre historique) ; paysage ≥1100px = saisie à gauche, colonne PLAN CALCULÉ sticky 376px à droite.
+   §2.17-B : exactement 2 repères colorés (largeur utile BLEUE · % perte vert/orange) + 1 ambre (Commencer).
+   ============================================================ */
+#page0.active{display:flex;flex-direction:column}
+#planLeft,#planRight{display:contents}
+#planResumeRow{order:1}
+#planClientSec{order:2}
+#cliSection{order:3}
+#refBlocks{order:4}
+#planLeft>.flex{order:5;margin-top:0}   /* [L315 · fix audit] flex ne fusionne plus les marges : compense (+8px sinon) */
+#planCondSec{order:6}
+#planResultSec{order:7}
+#btnStartCut{order:8}
+#btnStartCut{background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800;
+  animation:arcadePulse 1.8s ease-out infinite}
+#btnStartCut:active{transform:translateY(5px);animation:none;box-shadow:0 1px 0 #8a6400}
+@media(prefers-reduced-motion:reduce){#btnStartCut{animation:none;box-shadow:0 6px 0 #8a6400,0 0 0 3px rgba(245,179,1,.45)}}
+.useful-display{font-size:16px;color:var(--blue);margin-top:6px;font-weight:800;border:2px solid #2d5a9e;background:#16283d;border-radius:9px;padding:6px 10px;display:inline-block}/* [L315 · §2.17-B] LARGEUR UTILE = repère BLEU (le chiffre qu'on vérifie avant de lancer) */
+@media(min-width:1100px){
+  #page0.active{display:grid;grid-template-columns:minmax(0,1fr) 376px;gap:0 16px;align-items:start;max-width:1440px}
+  #planResumeRow{grid-column:1/-1;grid-row:1}
+  #planLeft{display:block;grid-column:1;grid-row:2;min-width:0}
+  #planRight{display:block;grid-column:2;grid-row:2;position:sticky;top:8px;align-self:start;
+    max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain}
+}
+/* ============================================================
    [L311 · REDESIGN LOT 9 · §2.7 maquette 17] FICHE EN TABLETTE PAYSAGE (≥1100px) : rail gauche sticky 336px
    (chrono XXL · machines/ordre de coupe · partage · étiquette solde) + colonne centrale (bandeau · en-têtes ·
    bobines en GRILLE 2 colonnes, carte en cours pleine largeur). EN DESSOUS de 1100px : wrappers transparents
@@ -1114,11 +1141,15 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
 
 <!-- ===== PAGE 1 : PLAN ===== -->
 <div class="page active" id="page0" role="tabpanel" aria-labelledby="tabBtn0">
-  <div class="plan-topbar" style="display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px">
+<!-- [L315 · LOT 15 · §2.14 maquette 18 · mode B ANNONCÉ] wrappers planLeft/planRight : portrait =
+     display:contents + ordre historique par `order` (identique) ; paysage ≥1100px = saisie à gauche,
+     colonne PLAN CALCULÉ sticky 376px à droite. Ids AJOUTÉS : planResumeRow, planLeft, planRight, btnStartCut. -->
+<div id="planResumeRow" class="plan-topbar" style="display:flex;justify-content:flex-end;gap:8px;margin:0 0 10px">
     <button id="resumeLastBtn" class="btn btn-green btn-sm hidden" style="margin-right:auto" onclick="resumeLastCommand()" title="Reprendre la commande en cours enregistrée automatiquement sur ce poste">▶ Reprendre ma dernière commande</button>
     <button class="btn btn-red btn-sm" onclick="resetSiteConfirm()" title="Vider entièrement le plan et la fiche en cours — repartir d'un site vierge">↺ Réinitialiser</button>
   </div>
-  <div class="section">
+<div id="planLeft">
+<div class="section" id="planClientSec">
     <div class="section-title">Client</div>
     <div class="row2">
       <div class="field">
@@ -1145,17 +1176,12 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
       </div>
     </div>
   </div>
-
-  <!-- [L64 · Lot 6] MULTI-CLIENTS : clients supplémentaires (B/C/D) de la même commande.
-       Le client A = les champs « Client » ci-dessus. Vide = mode mono-client (rien ne change). -->
-  <div class="section" id="cliSection">
+<div class="section" id="cliSection">
     <div class="section-title">👥 Multi-clients <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">— plusieurs clients sur la même commande (4 max)</span></div>
     <div id="cliPanel"></div>
     <button class="btn btn-green btn-sm" id="cliAddBtn" onclick="cliAdd()">＋ Ajouter un 2ᵉ client</button><!-- [L203 · demande Esteban] même gabarit que « + Ajouter une référence » (btn btn-X btn-sm), en VERT -->
   </div>
-
-  <!-- Blocs référence : chaque réf a sa largeur mère / pertes / film / longueur / lignes -->
-  <div id="refBlocks">
+<div id="refBlocks">
     <!-- BLOC RÉF #1 — garde les IDs historiques (rétro-compat save/fiche/print) -->
     <div class="ref-block" data-ref-idx="0">
       <div class="ref-block-head">
@@ -1233,12 +1259,12 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
       <div class="rb-recuts" data-rb="recuts"></div>
     </div>
   </div>
-
-  <div class="flex mt8" style="margin-bottom:14px">
+<div class="flex mt8" style="margin-bottom:14px">
     <button class="btn btn-violet btn-sm" onclick="addRefBlock()">+ Ajouter une référence</button>
   </div>
-
-  <div class="section">
+</div>
+<div id="planRight">
+<div class="section" id="planCondSec">
     <div class="section-title">📦 Conditionnement &amp; Packaging</div>
     <div class="row2">
       <div class="field">
@@ -1291,8 +1317,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     <div id="packagingAlert" class="hidden" style="margin-top:8px;padding:10px 14px;border-radius:8px;background:#3d2a00;border:1px solid #7a5200;font-size:12px;color:var(--orange);line-height:1.6"></div>
     <div class="text-muted" style="font-size:12px;margin-top:6px">Modifiable manuellement. Sauvegardé avec le plan.</div>
   </div>
-
-  <div class="section">
+<div class="section" id="planResultSec">
     <div class="section-title">Plan de découpe</div>
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
@@ -1302,9 +1327,11 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     <div id="planManualHint" style="display:none;font-size:12px;color:var(--orange);margin:0 0 8px">✏️ Édition manuelle · ⚠ = plan incomplet<!-- [L305 · LOT 21 · §2.20] pavé explicatif 4 phrases → une donnée (l'ancien texte expliquait le comportement de l'app) --></div>
     <div id="planCards"></div>
   </div>
+
+  <button id="btnStartCut" class="btn" style="width:100%;min-height:64px;font-size:19px;margin-top:10px" onclick="startCutFromPlan()">✂ Commencer à couper&nbsp;→</button><!-- [L315 · LOT 15 · §2.14] PAS une nouvelle fonction : le passage Plan→Fiche existant (showPage(1) → importPlanToFiche auto), rendu EXPLICITE ; refuse poliment si le plan est vide. SEUL élément ambre de l'écran Plan (§2.17-B). -->
+</div>
 </div>
 
-<!-- ===== PAGE 2 : FICHE ===== -->
 <div class="page" id="page1" role="tabpanel" aria-labelledby="tabBtn1">
 <!-- [L311 · LOT 9 · §2.7/§2.18 · mode B ANNONCÉ] deux wrappers ficheRail/ficheMain : en PORTRAIT ils sont
      display:contents et l ordre visuel HISTORIQUE est restauré par `order` (flex) — rendu identique ;
@@ -1951,7 +1978,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L314';
+const APP_VERSION='2026.08.11-L315';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3365,7 +3392,8 @@ const nrm=v=>String(v==null?'':v).trim().toLowerCase();   // [L87 · simpl.5] no
 const MACHINE_KEYS=['feba','maveg','cevenini'];            // [L98 · simpl.8] liste UNIQUE des machines (était dupliquée 9×)
 const MACHINE_LABELS=['FEBA','MAVEG','CEVENINI'];          // [L98 · simpl.8] libellés majuscules (KPI, exports)
 const normConf=c=>(c||'').replace(/x/gi,'×').replace(/\*/g,'×').replace(/(\d)\s+,(\d)/g,'$1.$2').replace(/(\d),(\d)/g,'$1.$2').replace(/\s*×\s*/g,'×').trim();   // [L92 · Audit #17] normalisation UNIQUE alignée sur parseConf : ×/x/*, virgule décimale → point, espaces autour de × — « 4×92,5 » ≡ « 4x92.5 » ≡ « 4 * 92,5 » sur TOUTES les comparaisons (isLineFrozen, NC, cumuls…)
-const pctCls=p=>p<3?'pct-green':p<8?'pct-orange':'pct-red';   // [L87 · simpl.9] couleur perte partagée
+const PERTE_SEUIL_ORANGE=2.5;   // [L315 · LOT 15 · §2.17-B] seuil VALIDÉ par Esteban (03/08) : au-delà, le % de perte passe ORANGE (signal « revoir les laizes avant de lancer »)
+const pctCls=p=>p<PERTE_SEUIL_ORANGE?'pct-green':p<8?'pct-orange':'pct-red';   // [L87 · simpl.9, seuil L315] couleur perte partagée
 const _ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 function esc(v){
   return String(v==null?'':v).replace(/[&<>"']/g,function(c){return _ESC_MAP[c];});
@@ -4917,6 +4945,17 @@ function onClientChange(){
 // [L314 · LOT 4 · §2.4] chips date : +N jours depuis AUJOURD'HUI (pas depuis la valeur — geste « livraison
 // sous N jours »), champ natif toujours éditable.
 function _localDay(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }   // [L314 · fix audit] date LOCALE (toISOString = UTC → off-by-one la nuit, équipe de nuit UTC+2)
+// [L315 · LOT 15 · §2.14] « Commencer à couper » = le passage Plan→Fiche EXISTANT rendu explicite.
+// Aucune nouvelle mécanique : showPage(1) déclenche importPlanToFiche({auto:true}) comme le tap sur l'onglet 📋
+// (qui reste cliquable). Refus POLI (toast) si le plan est vide — au lieu d'ouvrir une fiche bancale.
+function startCutFromPlan(){
+  try{
+    const g=(typeof getRefGroups==='function')?getRefGroups():[];
+    const hasRows=g.some(x=>((x.rows&&x.rows.length)||(x.rawRows&&x.rawRows.length)));
+    if(!hasRows){ showToast('⚠ Saisis d\'abord la commande (au moins une laize avec quantité) avant de lancer la coupe.','err'); return; }
+  }catch(e){}
+  showPage(1);
+}
 function bumpDateLiv(days){
   try{
     const d=new Date(); d.setDate(d.getDate()+days);

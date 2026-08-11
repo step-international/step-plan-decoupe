@@ -600,5 +600,15 @@ has(/function _maybeAutoRow/,'L314 : ligne laize suivante auto quand la dernièr
 has(/step_op_day/,'L314 : initiales mémorisées pour la journée (selectIni) + pré-sélection applyOpOfDay');
 has(/jamais par-dessus une saisie/,'L314 : pré-remplissages JAMAIS par-dessus une saisie opérateur');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L314 présents dans index.html + sw.js');
+console.log('── L315 : REDESIGN LOT 15 — écran Plan simplifié (§2.14/§2.17-B) ──');
+has(/id="planLeft"/,'L315 : wrapper saisie gauche présent');
+has(/id="planRight"/,'L315 : colonne PLAN CALCULÉ droite présente (sticky 376px paysage)');
+has(/id="btnStartCut"/,'L315 : bouton ✂ Commencer à couper (SEUL ambre de l écran Plan)');
+has(/function startCutFromPlan/,'L315 : passage Plan→Fiche EXISTANT rendu explicite + refus poli plan vide');
+has(/const PERTE_SEUIL_ORANGE=2\.5;/,'L315 : seuil perte orange 2,5% en CONSTANTE (validé Esteban 03/08)');
+has(/pctCls=p=>p<PERTE_SEUIL_ORANGE/,'L315 : le seuil est branché sur la couleur partagée');
+has(/couleur:.*var\(--blue\)|\.useful-display\{font-size:16px;color:var\(--blue\)/,'L315 : LARGEUR UTILE = repère bleu (§2.17-B)');
+has(/#planResumeRow\{order:1\}/,'L315 : ordre portrait du Plan restauré explicitement');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L315 présents dans index.html + sw.js');
 process.exit(fail?1:0);
