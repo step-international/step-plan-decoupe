@@ -570,5 +570,17 @@ has(/refDisp\(String\(r\.ref\)\)/,'L310 : nom produit via refDisp (sans code num
 has(/\.fmm-order-name\.foc-name\{white-space:normal/,'L310 : le nom produit passe à la ligne au lieu de tronquer');
 has(/Chip machine CONSERVÉE \(acquis L258/,'L310 : chip machine par réf conservée (acquis Esteban L258, prime sur §2.13-B)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L310 présents dans index.html + sw.js');
+console.log('── L311 : REDESIGN LOT 9 — fiche paysage rail+centre (§2.7) ──');
+has(/id="ficheRail"/,'L311 : wrapper rail présent (chrono+machines+partage+solde)');
+has(/id="ficheMain"/,'L311 : wrapper centre présent (bandeau+entêtes+chg+ficheRight+cliRecap)');
+has(/#ficheRail,#ficheMain\{display:contents\}/,'L311 : portrait = wrappers transparents + ordre historique par `order`');
+has(/#chutesRappelBanner\{order:1\}/,'L311 : ordre portrait restauré explicitement (12 enfants)');
+has(/grid-template-columns:336px minmax\(0,1fr\)/,'L311 : paysage ≥1100px = rail 336px sticky + centre');
+has(/#ficheLines\{display:grid;grid-template-columns:1fr 1fr/,'L311 : bobines en grille 2 colonnes en paysage');
+has(/\.fiche-line\.fl-current,#ficheLines \.fmm-block/,'L311 : carte en cours + blocs réf traversent (grid-column 1/-1)');
+has(/id="ficheChronoSec"/,'L311 : 3 ids AJOUTÉS (jamais renommés) — ficheChronoSec/ficheHeadSec/ficheChgSec');
+has(/<div id="actionBar">/,'L311 : wrapper #actionBar PRÉSENT (barre du pouce ≤1099px — perdu une fois par le réassemblage, plus jamais)');
+absent(/minmax\(400px,480px\)/,'L311 : ancien layout bureau L236 supprimé (il écrasait la grille paysage du lot 9)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L311 présents dans index.html + sw.js');
 process.exit(fail?1:0);

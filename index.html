@@ -861,6 +861,33 @@ body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
 .foc-ml{flex:none;white-space:nowrap;font-weight:800;font-size:13px;padding:2px 8px;border-radius:99px;background:transparent}
 .fmm-order-name.foc-name{white-space:normal;overflow:visible;text-overflow:clip;display:block;font-size:14px;line-height:1.3}
 .fmm-order-id{min-width:0;flex:1;display:flex;flex-direction:column}
+/* ============================================================
+   [L311 · REDESIGN LOT 9 · §2.7 maquette 17] FICHE EN TABLETTE PAYSAGE (≥1100px) : rail gauche sticky 336px
+   (chrono XXL · machines/ordre de coupe · partage · étiquette solde) + colonne centrale (bandeau · en-têtes ·
+   bobines en GRILLE 2 colonnes, carte en cours pleine largeur). EN DESSOUS de 1100px : wrappers transparents
+   (display:contents) + ordre visuel HISTORIQUE restauré par `order` → rendu portrait STRICTEMENT identique.
+   ============================================================ */
+#page1.active{display:flex;flex-direction:column}
+#ficheRail,#ficheMain{display:contents}
+#chutesRappelBanner{order:1}#ficheChronoSec{order:2}#fMachineMono{order:3}#fMachineMulti{order:4}
+#ficheHeadSec{order:5}#shareBlock{order:6}#ficheChgSec{order:7}#ficheRight{order:8}
+#etiquetteSoldeFiche{order:9}#cliRecapFiche{order:10}#actionBar{order:12}
+#page1.active #shareBlock{margin-top:0}   /* [L311 · fix audit] flex ne fusionne plus les marges : compense le collapse historique (10+8→10) */
+#page1.active #cliRecapFiche{margin-top:0 !important}   /* idem (10+6→10) — !important : marge inline */
+@media(min-width:1100px){
+  #page1.active{display:grid;grid-template-columns:336px minmax(0,1fr);gap:0 16px;align-items:start;max-width:1440px}
+  #ficheRail{display:block;grid-column:1;grid-row:1;position:sticky;top:8px;align-self:start;
+    max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain}
+  #ficheMain{display:block;grid-column:2;grid-row:1;min-width:0}
+  #actionBar{grid-column:2}
+  #ficheRail .chrono-display{font-size:64px}   /* §2.7 : chrono XXL — 64px mesuré, 72 déborde d'un rail de 336px */
+  body.atelier #ficheRail .chrono-display{font-size:64px}
+  /* bobines en grille 2 colonnes ; la carte EN COURS + les blocs réf/séparateurs traversent */
+  #ficheLines{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+  #ficheLines>*{margin-bottom:0}
+  #ficheLines .fiche-line.fl-current,#ficheLines .fmm-block,#ficheLines .fmm-inline-block,
+  #ficheLines .fiche-ref-sep{grid-column:1/-1}
+}
 /* D — confirmation forte au ✂ : flash vert bref sur la carte (+ vibration +
    bip togglable via _cutFeedback). Avec « Masquer les coupées » actif, la
    carte reste visible le temps du flash (:not(.flash-cut) sur la règle L62). */
@@ -915,9 +942,9 @@ body.atelier .fl-more>summary{font-size:15px;min-height:50px}
    liste des bobines + Confirmer à droite) — tout se voit sans défiler.
    ≥1100px uniquement ; en dessous, strictement aucun changement (règle L74). */
 @media(min-width:1100px){
-  #page1.active{display:grid;grid-template-columns:minmax(400px,480px) 1fr;gap:0 18px;align-items:start;align-content:start}
-  #page1.active>*{grid-column:1;min-width:0}
-  #page1.active>#ficheRight{grid-column:2;grid-row:1/span 41}/* [L236] colonne bobines = UN conteneur (suivi + Réf 1 + bobines) · [L259] contient AUSSI « Confirmer » (après les bobines) → plus de montage grid-row:41 séparé, plus de trou */
+  /* [L311 · fix audit lot 9] ancien layout bureau L79/L236 SUPPRIMÉ ici : il venait APRÈS le bloc paysage
+     du lot 9 dans la cascade et l'écrasait (rail superposé au centre, #ficheRight n'étant plus enfant direct
+     ses règles étaient mortes). Le layout ≥1100px vit désormais dans le bloc [L311 · REDESIGN LOT 9]. */
 }
 /* ===== [L117 · 📅 Planning — refonte design (skill redesign-existing-projects)] nav+calendrier
    en haut, liste en bas ; une seule couleur d'accent (--action), chiffres tabulaires, hover doux,
@@ -1261,20 +1288,12 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
 
 <!-- ===== PAGE 2 : FICHE ===== -->
 <div class="page" id="page1" role="tabpanel" aria-labelledby="tabBtn1">
-
-  <!-- [L306 · LOT 3 · §2.3] Rappel chutes/bobineaux NON bloquant : remplace le confirm() du 1er départ du
-       chrono. Affiché UNE fois par commande (mémorisé), fermable, n'empêche JAMAIS le geste. ORANGE
-       (= avertissement, §2.17) — pas ambre (réservé au prochain geste). -->
-  <div id="chutesRappelBanner" style="display:none;margin:0 0 10px;padding:10px 12px;border:2px solid #7a5200;border-radius:12px;background:#241905">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="flex:1;min-width:170px;font-size:14px;font-weight:700;color:var(--orange)">✂ Des bobineaux en stock ? Ajoute-les au plan avant de couper.</span>
-      <button class="btn btn-sm btn-orange" style="min-height:48px" onclick="dismissChutesRappel();showPage(0)">→ Ouvrir le plan</button>
-      <button class="btn btn-sm btn-ghost" style="min-height:48px;min-width:48px;justify-content:center" onclick="dismissChutesRappel()" aria-label="Fermer le rappel">✕</button>
-    </div>
-  </div>
-
-  <!-- CHRONO -->
-  <div class="section" style="padding:16px">
+<!-- [L311 · LOT 9 · §2.7/§2.18 · mode B ANNONCÉ] deux wrappers ficheRail/ficheMain : en PORTRAIT ils sont
+     display:contents et l ordre visuel HISTORIQUE est restauré par `order` (flex) — rendu identique ;
+     en PAYSAGE ≥1100px ils deviennent les 2 colonnes (rail sticky 336px · centre). AUCUN id renommé,
+     3 ids AJOUTÉS (ficheChronoSec/ficheHeadSec/ficheChgSec) sur des blocs anonymes. -->
+<div id="ficheRail">
+<div class="section" id="ficheChronoSec" style="padding:16px">
     <div class="section-title">⏱ Chronomètre commande</div>
     <div class="chrono-block">
       <div class="chrono-display" id="chronoDisplay">00:00:00</div>
@@ -1286,8 +1305,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
       <div class="chrono-status" id="chronoStatus"></div><!-- [L188] prompt « Prêt — appuie sur Démarrer… » retiré (demande Esteban : texte inutile) -->
     </div>
   </div>
-
-  <div class="section" id="fMachineMono">
+<div class="section" id="fMachineMono">
     <div class="section-title">Machine</div>
     <div class="machine-btns" style="margin-bottom:0">
       <button class="machine-btn-fiche sel-feba" id="fBtnFeba" onclick="pickFicheMachine('feba')">FEBA</button>
@@ -1314,17 +1332,55 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     </div>
     <div id="fPlanHint" style="font-size:14px;font-weight:600;margin-top:6px;color:var(--orange)">⚠ « 🔄 Changement plan » requis avant le chrono<!-- [L305 · LOT 21 · §2.20] raccourci — le toast de la garde chronoStart porte le détail à la demande --></div>
   </div>
-
-  <!-- Machine PAR RÉFÉRENCE (multi-réf) : chaque réf a sa propre bobine mère /
-       bords / lame, validée au moment où l'opérateur la coupe (progressive). -->
-  <div class="section" id="fMachineMulti" style="display:none">
+<div class="section" id="fMachineMulti" style="display:none">
     <div class="section-title">Ordre de coupe des références</div>
     <div id="fmmOrder" style="margin-bottom:6px"></div>
     <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="printFichePlan()">🖨️ Imprimer le plan complet</button>
     <div id="fmmHint" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
   </div>
+<div id="shareBlock" style="margin:8px 0 12px">
+    <button id="shareBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" onclick="toggleSharePanel(true)">🤝 Partager cette commande</button>
 
-  <div class="section">
+    <div id="sharePanel" class="share-modal" style="display:none;margin-top:10px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:2px">🤝 Partager le plan de coupe</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:10px">Choisis qui coupe cette commande avec toi (3 max). Chacun la verra dans ses brouillons.</div>
+      <div id="shareChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <div id="shareSummary" style="color:var(--muted);font-size:12px;margin:8px 0 10px">Aucun opérateur sélectionné.</div>
+      <button id="shareConfirmBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" disabled onclick="doShareLocal()">Partager</button>
+      <div style="text-align:center;margin-top:8px"><button class="btn btn-ghost btn-sm" style="border:none" onclick="toggleSharePanel(false)">Annuler</button></div>
+    </div>
+
+    <div id="shareActiveBox" style="display:none">
+      <div class="share-livebar"><span class="share-dot"></span> Commande <b>PARTAGÉE</b> · <span id="shareLiveNames"></span></div>
+      <div class="section" style="margin-bottom:0">
+        <div class="section-title">Partagée avec</div>
+        <div id="shareWithChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="stopShare()">✕ Arrêter le partage</button>
+      </div>
+    </div>
+  </div>
+<div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
+    <div class="section-title">🏷️ Étiquette solde — bobine mère restante</div>
+    <div id="etiquetteSoldeList"><div style="font-size:13px;color:var(--muted)">—</div></div>
+<!-- [L229 retiré → L307 · LOT 2 · §2.2 + décision Esteban 11/08 « laisse le truc photo en pied »] bloc PHOTOS ÉTIQ. unique en PIED rétabli : le 📷 par bobine sort de la carte. Réutilise l'infra L226 restée inerte : etiqPhotoInput → commandeFiles « Étiquette N » → alarme d'envoi _etiqCount (qui était devenue inalimentable depuis L229 !). Vignettes = refreshEtiqPhotoZone. -->
+    <div class="field" style="margin-top:10px;margin-bottom:0">
+      <label>📷 Photos étiquettes</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div id="etiqPhotoZone" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
+        <button class="btn btn-sm" style="min-height:48px;min-width:64px;justify-content:center" onclick="document.getElementById('etiqPhotoInput').click()" aria-label="Prendre ou ajouter une photo d'étiquette">📷＋</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="ficheMain">
+<div id="chutesRappelBanner" style="display:none;margin:0 0 10px;padding:10px 12px;border:2px solid #7a5200;border-radius:12px;background:#241905">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="flex:1;min-width:170px;font-size:14px;font-weight:700;color:var(--orange)">✂ Des bobineaux en stock ? Ajoute-les au plan avant de couper.</span>
+      <button class="btn btn-sm btn-orange" style="min-height:48px" onclick="dismissChutesRappel();showPage(0)">→ Ouvrir le plan</button>
+      <button class="btn btn-sm btn-ghost" style="min-height:48px;min-width:48px;justify-content:center" onclick="dismissChutesRappel()" aria-label="Fermer le rappel">✕</button>
+    </div>
+  </div>
+<div class="section" id="ficheHeadSec">
     <div class="section-title">En-tête fiche</div>
     <div class="row2 hdr-mini"><!-- [L79] Client/Réf auto depuis plan : affichage compact -->
       <div class="field">
@@ -1537,42 +1593,13 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     </div><!-- [L79] « Imprimer fiche » retiré de la barre (printFiche conservée, sans accès UI) -->
 
   </div>
-
-  <!-- [L59 · Lot 1] Commande partagée — UI (bouton + modale + badge). [L60 · Lot 2] Persistance Firestore (doc d_shared_<uid>_<ts>). -->
-  <div id="shareBlock" style="margin:8px 0 12px">
-    <button id="shareBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" onclick="toggleSharePanel(true)">🤝 Partager cette commande</button>
-
-    <div id="sharePanel" class="share-modal" style="display:none;margin-top:10px">
-      <div style="font-size:15px;font-weight:700;margin-bottom:2px">🤝 Partager le plan de coupe</div>
-      <div style="color:var(--muted);font-size:12px;margin-bottom:10px">Choisis qui coupe cette commande avec toi (3 max). Chacun la verra dans ses brouillons.</div>
-      <div id="shareChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-      <div id="shareSummary" style="color:var(--muted);font-size:12px;margin:8px 0 10px">Aucun opérateur sélectionné.</div>
-      <button id="shareConfirmBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" disabled onclick="doShareLocal()">Partager</button>
-      <div style="text-align:center;margin-top:8px"><button class="btn btn-ghost btn-sm" style="border:none" onclick="toggleSharePanel(false)">Annuler</button></div>
-    </div>
-
-    <div id="shareActiveBox" style="display:none">
-      <div class="share-livebar"><span class="share-dot"></span> Commande <b>PARTAGÉE</b> · <span id="shareLiveNames"></span></div>
-      <div class="section" style="margin-bottom:0">
-        <div class="section-title">Partagée avec</div>
-        <div id="shareWithChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="stopShare()">✕ Arrêter le partage</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- [L79] Bouton unique « Changements » : regroupe lame / machine op.1 / op.2 (2e opérateur). Les
-       sections (chgLame, chgMach, chgOp2) sont déplacées ici par JS à l'init — déplacement DOM, donc
-       tous les id/valeurs/handlers restent intacts (sérialisation brouillon/partage inchangée). « Voir
-       les bobines coupées » est rapproché à côté du bouton. -->
-  <div style="margin:0 0 12px">
+<div id="ficheChgSec" style="margin:0 0 12px">
     <div class="flex-wrap" id="chgBtnRow" style="gap:8px">
       <button id="chgBtn" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="toggleChangements()">🔧 Changements (machine · opérateur · lame)</button>
     </div>
     <div id="changementsZone" class="hidden" style="margin-top:10px"></div>
   </div>
-
-  <div id="ficheRight"><!-- [L236 · demande Esteban] colonne bobines UNIFIÉE : suivi → carte Réf 1 (insérée ici par renderFicheMachineBlocks) → bobines, sans trou (les hauteurs de lignes de la grille ne se couplent plus avec la colonne gauche) -->
+<div id="ficheRight"><!-- [L236 · demande Esteban] colonne bobines UNIFIÉE : suivi → carte Réf 1 (insérée ici par renderFicheMachineBlocks) → bobines, sans trou (les hauteurs de lignes de la grille ne se couplent plus avec la colonne gauche) -->
   <div id="coupeeBanner" style="display:none;position:sticky;top:calc(56px + env(safe-area-inset-top,0px));z-index:110;margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#1a1a18;border:1px solid var(--border2);font-size:14px;font-weight:600;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div><!-- [L259 · demande Esteban] progression UNIQUE, sticky, EN TÊTE de la colonne bobines. Fusionne l'ancien #ficheProgress (retiré) et l'ancien coupeeBanner qui vivait « en bas » (grid-row 41) → plus de doublon. [L142 · ergo #20] top intègre la safe-area iOS -->
   <div id="planDriftBanner" style="display:none"></div><!-- [L221 · bug Dominique] dérive plan→fiche rendue VISIBLE (machine/chute modifiées au plan après début de découpe) -->
   <div id="ficheLines"></div>
@@ -1586,41 +1613,17 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     </button>
   </div>
   </div>
-
-  <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
-    <div class="section-title">🏷️ Étiquette solde — bobine mère restante</div>
-    <div id="etiquetteSoldeList"><div style="font-size:13px;color:var(--muted)">—</div></div>
-<!-- [L229 retiré → L307 · LOT 2 · §2.2 + décision Esteban 11/08 « laisse le truc photo en pied »] bloc PHOTOS ÉTIQ. unique en PIED rétabli : le 📷 par bobine sort de la carte. Réutilise l'infra L226 restée inerte : etiqPhotoInput → commandeFiles « Étiquette N » → alarme d'envoi _etiqCount (qui était devenue inalimentable depuis L229 !). Vignettes = refreshEtiqPhotoZone. -->
-    <div class="field" style="margin-top:10px;margin-bottom:0">
-      <label>📷 Photos étiquettes</label>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <div id="etiqPhotoZone" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
-        <button class="btn btn-sm" style="min-height:48px;min-width:64px;justify-content:center" onclick="document.getElementById('etiqPhotoInput').click()" aria-label="Prendre ou ajouter une photo d'étiquette">📷＋</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- [L64 · Lot 6] Récap emballage PAR CLIENT (affiché uniquement en multi-clients) -->
-  <div class="section" id="cliRecapFiche" style="margin-top:6px;display:none">
+<div class="section" id="cliRecapFiche" style="margin-top:6px;display:none">
     <div class="section-title">👥 Récap emballage par client</div>
     <div id="cliRecapFicheList"></div>
   </div>
-
-  <!-- [L259 · demande Esteban] section « Confirmer la commande » + bannière progression DÉPLACÉES dans #ficheRight (juste après les bobines) : plus de trou de la grille row-41 ni de suivi dupliqué en bas -->
-
 </div>
-
-<!-- [L102 · Design M2-E] Barre d'action fixe en bas (téléphone, zone du pouce) :
-     l'action du moment y est collée — ▶ Démarrer / bobine en cours (défilement,
-     PAS de marquage à distance : le ✂ reste sur la carte avec ses contrôles) /
-     ✓ Confirmer. Gérée par _syncActionBar() via updateNextAction ; masquée hors
-     page Fiche et au-delà de 700px. -->
-<div id="actionBar">
+<div id="actionBar"><!-- [L311 · fix audit lot 9] wrapper RESTAURÉ (perdu par le réassemblage — tout le CSS position:fixed/has-actionbar le cible) -->
   <div class="cut-progress" id="abProgress" style="display:none;margin-top:0"><div id="abProgressFill" style="width:0%"></div></div>
   <button id="abBtn" onclick="actionBarTap()"></button>
 </div>
+</div>
 
-<!-- ===== PAGE 3 : DONNÉES ===== -->
 <div class="page" id="page2" role="tabpanel" aria-labelledby="tabBtn2">
   <div class="tab-bar">
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
@@ -1930,7 +1933,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L310';
+const APP_VERSION='2026.08.11-L311';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
