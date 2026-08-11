@@ -323,7 +323,9 @@ body.atelier .lame-card .lc-num{font-size:17px} body.atelier .lame-card .lc-act{
 /* [L62] Masquage des bobines coupées sur la fiche (moins de défilement pendant la coupe) */
 #ficheLines.hide-coupees .fiche-line.coupee:not(.flash-cut){display:none}   /* [L102 · M2-D] la carte reste visible le temps du flash de confirmation (~0,9 s) avant d'être masquée */
 /* [L105 · Phase 1 · E] chrono arrêté : indice rouge sur chaque ✂ non coupé (prévient avant le tap) */
-#ficheLines.chrono-off .fiche-line:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⏱ arrêté";color:var(--red);font-weight:800;font-size:.85em}
+/* [L306 · LOT 3] suffixe « ⏱ arrêté » RETIRÉ du ✂ : devenu FAUX avec le démarrage auto (§2.3, accord Q1) —
+   le tap démarre le chrono lui-même. La classe .chrono-off reste posée par updateNextAction (utilisée par
+   les indicateurs test 2ᵉ ci-dessous). */
 #ficheLines:not(.chrono-off) .fiche-line.t2-todo:not(.coupee) [id^="coupeeBtn_"]::after{content:" · ⚠ test 2ᵉ à cocher";color:var(--red);font-weight:800;font-size:.85em}   /* [L267 · audit/choix Esteban] le ✂ dit « test 2ᵉ à cocher » tant qu'il refuserait le tap (chrono tournant) */
 /* [L107 · Phase 1 · K] fiche : plus de largeur utile sur téléphone (marges réduites) */
 @media(max-width:700px){#page1{padding-left:8px;padding-right:8px}.fiche-line{padding:12px 10px}}
@@ -1230,6 +1232,17 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
 <!-- ===== PAGE 2 : FICHE ===== -->
 <div class="page" id="page1" role="tabpanel" aria-labelledby="tabBtn1">
 
+  <!-- [L306 · LOT 3 · §2.3] Rappel chutes/bobineaux NON bloquant : remplace le confirm() du 1er départ du
+       chrono. Affiché UNE fois par commande (mémorisé), fermable, n'empêche JAMAIS le geste. ORANGE
+       (= avertissement, §2.17) — pas ambre (réservé au prochain geste). -->
+  <div id="chutesRappelBanner" style="display:none;margin:0 0 10px;padding:10px 12px;border:2px solid #7a5200;border-radius:12px;background:#241905">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="flex:1;min-width:170px;font-size:14px;font-weight:700;color:var(--orange)">✂ Des bobineaux en stock ? Ajoute-les au plan avant de couper.</span>
+      <button class="btn btn-sm btn-orange" style="min-height:48px" onclick="dismissChutesRappel();showPage(0)">→ Ouvrir le plan</button>
+      <button class="btn btn-sm btn-ghost" style="min-height:48px;min-width:48px;justify-content:center" onclick="dismissChutesRappel()" aria-label="Fermer le rappel">✕</button>
+    </div>
+  </div>
+
   <!-- CHRONO -->
   <div class="section" style="padding:16px">
     <div class="section-title">⏱ Chronomètre commande</div>
@@ -1880,7 +1893,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L305';
+const APP_VERSION='2026.08.11-L306';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4426,6 +4439,7 @@ function importPlanToFiche(opts){
   // sinon : clic explicite sur le bouton (confirmations + bascule + toast)
   opts=opts||{};
   const auto=!!opts.auto;
+  try{ dismissChutesRappel(); }catch(e){}   // [L306 · fix audit lot 3] nouvelle commande importée → l'éventuel bandeau chutes de la précédente disparaît (il re-sortira à SON premier départ si dû)
   const _fromResume=_resumeAutoImportGuard; _resumeAutoImportGuard=false;   // [L218 · régression revue] consommé UNE fois quelle que soit la sortie (verrou partage / plan vide / oversize) pour ne pas fuir sur un import ultérieur
   // [L103 · audit-max] STRUCTURE FIGÉE pendant un partage (émetteur OU vue miroir) : régénérer
   // la fiche depuis le Plan décalerait les verrous cuts.<idx> (indexés par POSITION) chez tous
@@ -8287,6 +8301,24 @@ function _chronoPauseReminderCheck(){
     try{ showToast('⏱ Le chrono tourne depuis '+mins+' min sans nouvelle bobine coupée — pense à ⏸ Pause si tu as arrêté de couper (sinon ce temps mort est compté dans la durée).','err'); }catch(e){}
   }
 }
+// [L306 · LOT 3 · §2.3] Rappel « chutes/bobineaux sur la palette » : bandeau NON bloquant, une fois par
+// commande (clé n° cmd + client mémorisée en localStorage), à la place de l'ancien confirm() bloquant.
+function _chutesRappelKey(){ try{ const n=(document.getElementById('fNumCmd')?.value||'').trim(), c=(document.getElementById('fClient')?.value||'').trim(); let k=(n||'∅')+'¦'+(c||'∅'); if(!n) k+='¦'+new Date().toISOString().slice(0,10); return k; }catch(e){ return '∅¦∅¦'+new Date().toISOString().slice(0,10); } }   // [L306 · fix audit lot 3] sans n° de commande, la clé est datée du JOUR : deux commandes sans n° du même client ne s'étouffent pas mutuellement (re-rappel le lendemain au pire)
+function maybeShowChutesRappel(){
+  try{
+    const k=_chutesRappelKey();
+    let seen=[]; try{ seen=JSON.parse(localStorage.getItem('step_chutes_rappel_v2')||'[]'); if(!Array.isArray(seen)) seen=[]; }catch(e){ seen=[]; }
+    if(seen.includes(k)) return;   // déjà rappelé pour CETTE commande (mémoire = 8 dernières, pas mono-case : l'alternance A↔B ne re-déclenche pas)
+    const b=document.getElementById('chutesRappelBanner'); if(!b) return;
+    b.style.display='block';
+    // [L306 · fix audit lot 3] avec le démarrage AUTO, le 1er ✂ se fait souvent défilé LOIN sous le haut de
+    // page : le bandeau seul serait hors écran et le rappel jamais vu. Le toast (transitoire, pas un texte
+    // permanent — §2.20 respecté) porte le même message au moment du geste ; le bandeau reste consultable en haut.
+    try{ if(typeof showToast==='function') showToast('✂ Des bobineaux en stock ? Ajoute-les au plan — rappel en haut de la fiche.'); }catch(e){}
+    try{ seen.push(k); localStorage.setItem('step_chutes_rappel_v2',JSON.stringify(seen.slice(-8))); }catch(e){}   // mémorisé À L'AFFICHAGE : une fois par commande, même après rechargement
+  }catch(e){}
+}
+function dismissChutesRappel(){ try{ const b=document.getElementById('chutesRappelBanner'); if(b) b.style.display='none'; }catch(e){} }
 function chronoStart(){
   if(chronoRunning) return;
   const miss=ficheParamMissing();
@@ -8334,7 +8366,7 @@ function chronoStart(){
   // chrono jamais lancé) — plus à chaque reprise après pause (le plan est déjà lancé, on ne rajoute plus de
   // stock) : évite la confirmation-fatigue (« OK sans lire ») et redonne du poids au rappel du vrai démarrage.
   const _premierDepart=(countCoupees()===0)&&(typeof chronoSec!=='number'||chronoSec===0);
-  if(_premierDepart && typeof confirm==='function' && !confirm('Avez-vous des chutes ou des bobineaux SUR LA PALETTE (en stock) pour cette commande ?\n\nSi oui, ajoute-les au plan (✂ Bobineaux en stock / ♻ Chute) AVANT de démarrer.\n\nOK = démarrer · Annuler = les ajouter d\'abord')) return;   // [L80] libellé « sur la palette » (demande Esteban)
+  if(_premierDepart){ try{ maybeShowChutesRappel(); }catch(e){} }   // [L306 · LOT 3 · §2.3] l'ancien confirm() bloquant devient un bandeau orange NON bloquant, 1×/commande — indispensable avec le démarrage auto (un confirm surgissant au 1er ✂ aurait été bloquant en plein geste)
   chronoRunning=true;
   updateNumJourForToday();   // commande travaillée un nouveau jour → 152 → 152+153
   chronoStartTs=chronoStartTs||new Date().toISOString();
@@ -8342,7 +8374,12 @@ function chronoStart(){
   chronoRunStart=Date.now()-chronoSec*1000;
   // (Re)démarrage APRÈS l'heure de fin de journée = heures supp assumées :
   // on suspend l'arrêt auto pour le reste de ce jour-là.
-  { const _co=dayChronoCutoffMs(Date.now()); if(_co!=null && Date.now()>=_co) _chronoAutoStopOverride=_dateKey(Date.now()); }
+  { const _co=dayChronoCutoffMs(Date.now()); if(_co!=null && Date.now()>=_co){ const _dk=_dateKey(Date.now());
+      if(_chronoAutoStopOverride!==_dk){ _chronoAutoStopOverride=_dk;
+        // [L306 · fix audit lot 3] avec le démarrage AUTO, ce cas devenait SILENCIEUX (avant : l'opérateur
+        // devait consciemment taper ▶ après l'heure de coupure). Le toast rend le choix à nouveau visible.
+        try{ if(typeof showToast==='function') showToast('🌙 Démarrage après l\'heure de fin de journée — heures supp : l\'arrêt automatique est suspendu pour aujourd\'hui.'); }catch(e){}
+      } } }
   if(chronoInterval) clearInterval(chronoInterval);   // évite un double-tick (cf. AUDIT F8)
   chronoInterval=setInterval(chronoTick,1000);
   chronoTick();
@@ -10010,6 +10047,7 @@ function resetAll(){
 
   // Reset état bouton envoi
   document.getElementById('coupeeBanner').style.display='none';
+  try{ dismissChutesRappel(); }catch(e){}   // [L306 · fix audit lot 3] le bandeau chutes d'une VIEILLE commande ne survit pas au reset
   document.getElementById('sendPlanBtn').disabled=false;   // [L288 · T5 · zéro tap mort] cliquable même fiche vide → toast explicatif (garde confirmCommandeRecap)
   document.getElementById('sendPlanBtn').style.opacity='0.4';
   document.getElementById('sendPlanBtn').style.cursor='pointer';
@@ -17428,8 +17466,13 @@ function toggleCoupee(id){
     return;
   }
   if(!chronoRunning){
-    showToast('⏱ Le chronomètre doit être en marche pour marquer une bobine comme coupée.','err');
-    return;
+    // [L306 · LOT 3 · §2.3 · accord Esteban Q1 11/08] DÉMARRAGE AUTO : le 1er ✂ lance le chrono au lieu de
+    // refuser (l'erreur la plus fréquente de l'atelier). chronoStart() GARDE toutes ses gardes (champ
+    // manquant, plan non re-validé, réf multi non validée, reprise après crash) : s'il refuse, il l'explique
+    // lui-même (toast + surlignage + confirm de reprise) et on n'enregistre PAS la coupe. Le verrou « pas de
+    // coupe sans chrono » est INTACT — seul le tap manuel sur ▶ Démarrer devient optionnel.
+    try{ chronoStart(); }catch(e){}
+    if(!chronoRunning) return;   // refus de chronoStart → coupe NON enregistrée (son toast/surlignage a déjà expliqué)
   }
   const alreadyCoupee=line.classList.contains('coupee');
   if(alreadyCoupee){
@@ -17579,9 +17622,9 @@ function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.get
 function updateNextAction(){
   try{
     document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
-    // [L105 · Phase 1 · E] état chrono visible SUR le bouton ✂ : quand le chrono est arrêté,
-    // chaque ✂ non coupé affiche « · ⏱ arrêté » en rouge (CSS ::after) → l'opérateur voit
-    // AVANT de taper qu'il faut démarrer le chrono (avant : simple toast, chrono hors écran).
+    // [L105 · Phase 1 · E, révisé L306] la classe .chrono-off reste posée : elle pilote les indicateurs
+    // test 2ᵉ (::after « à cocher » + fléchage de la puce, visibles seulement chrono TOURNANT) et le mode
+    // 'start'. Le suffixe « · ⏱ arrêté » du ✂, lui, a été RETIRÉ en L306 : le ✂ démarre le chrono lui-même.
     document.getElementById('ficheLines')?.classList.toggle('chrono-off',!chronoRunning);
     const total=ficheLines.length;
     const done=total?countCoupees():0;

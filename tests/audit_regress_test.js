@@ -521,5 +521,17 @@ absent(/Mode édition manuelle — modifie les bobines/,'L305 : pavé explicatif
 absent(/Tu as modifié une dimension \(mère \/ bords \/ lame \/ chute\) — clique/,'L305 : message Changement plan raccourci (détail = toast de garde)');
 has(/id="sendPlanHint"><\/div>/,'L305 : le nœud sendPlanHint RESTE (le JS le pilote) — seul le texte est parti');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L305 présents dans index.html + sw.js');
+console.log('── L306 : REDESIGN LOT 3 — chrono auto + bandeau chutes (§2.3, accord Q1) ──');
+has(/DÉMARRAGE AUTO : le 1er ✂ lance le chrono/,'L306 : le ✂ appelle chronoStart() au lieu de refuser (gardes intactes)');
+has(/refus de chronoStart → coupe NON enregistrée/,'L306 : refus de chronoStart → la coupe N EST PAS enregistrée (ancre EXACTE du return, plus de branche morte)');
+has(/step_chutes_rappel_v2/,'L306 : mémoire du rappel chutes = liste bornée + clé datée sans n° (fix audit)');
+has(/le bandeau chutes d'une VIEILLE commande ne survit pas au reset/,'L306 : resetAll masque le bandeau chutes (fix audit : bandeau fantôme inter-commandes)');
+has(/arrêt automatique est suspendu pour aujourd/,'L306 : heures supp rendues VISIBLES (toast) — le cas devenait silencieux avec l auto-start');
+absent(/Avez-vous des chutes ou des bobineaux SUR LA PALETTE/,'L306 : confirm() bloquant du 1er départ SUPPRIMÉ');
+has(/id="chutesRappelBanner"/,'L306 : bandeau chutes NON bloquant présent (orange, 1×/commande)');
+has(/maybeShowChutesRappel/,'L306 : rappel mémorisé par commande (localStorage step_chutes_rappel)');
+absent(/content:" · ⏱ arrêté"/,'L306 : suffixe « ⏱ arrêté » retiré (faux avec l auto-start)');
+has(/Reprise de commande : le plan n/,'L306 : le confirm() de REPRISE après crash (L89) est CONSERVÉ (garde de sécurité)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L306 présents dans index.html + sw.js');
 process.exit(fail?1:0);
