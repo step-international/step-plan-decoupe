@@ -1824,7 +1824,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.03-L302';
+const APP_VERSION='2026.08.11-L303';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3259,7 +3259,14 @@ function boundedWrite(p,ms){
   // Firestore l'a MISE EN FILE (persistance offline) et la committera au retour réseau. Les appelants
   // doivent alors GARDER leur mise à jour optimiste (pas de rollback) et dire « ne re-saisis pas » —
   // un vrai rejet (permission, quota…) n'a pas ce drapeau et doit, lui, déclencher le retour arrière.
-  return Promise.race([p,new Promise((_,rej)=>{ setTimeout(()=>{ const e=new Error('⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.'); e.queued=true; rej(e); }, ms||10000); })]);
+  // [L303 · audit avant-redesign 🟠] le message dépend de l'état RÉEL de la file offline : _persistenceOK=false
+  // (Safari privé « unimplemented », 2ᵉ onglet « failed-precondition ») = l'écriture n'attend qu'EN MÉMOIRE —
+  // un rechargement la PERD. On garde e.queued=true dans les deux cas (l'optimiste reste : le SDK committera
+  // l'écriture si le réseau revient dans CETTE session — un rollback + re-saisie créerait un DOUBLON), mais
+  // « NE RE-SAISIS PAS » devient un avertissement honnête quand rien n'est durable.
+  return Promise.race([p,new Promise((_,rej)=>{ setTimeout(()=>{ const e=new Error(_persistenceOK
+    ? '⏳ Réseau lent/coupé — écriture mise en file (elle partira au retour du réseau). NE RE-SAISIS PAS.'
+    : '⚠ Réseau lent/coupé ET mode hors-ligne indisponible sur ce poste — l\'écriture ne partira que si le réseau revient SANS recharger l\'app. Si tu recharges avant : elle est PERDUE. Re-vérifie ta saisie au retour du réseau.'); e.queued=true; rej(e); }, ms||10000); })]);
 }
 // [L272 · audit #5 CRITIQUE] Pour une TRANSACTION (db.runTransaction) : contrairement à un add/set, Firestore ne
 // la met PAS en file hors-ligne (elle exige un aller-retour serveur pour relire l'état) et ne la rejouera JAMAIS

@@ -504,5 +504,9 @@ has(/aucun \.ref-block trouvé alors que #refBlocks contient des éléments/,'L3
 has(/_checkPersistIds\(\);   \/\/ \[L302\]/,'L302 : serializeFicheState vérifie les champs de persistance critiques (id renommé → brouillon amputé)');
 has(/affichage du chrono est cassé/,'L302 : chronoTick garde null sur #chronoDisplay (crash 1×/s évité)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L302 présents dans index.html + sw.js');
+console.log('── L303 : message offline honnête selon _persistenceOK ──');
+has(/mode hors-ligne indisponible sur ce poste/,'L303 : boundedWrite dit la vérité quand la file offline est indisponible (rechargement = perte) au lieu de « NE RE-SAISIS PAS » mensonger');
+has(/_persistenceOK\n    \?/,'L303 : le message est conditionné au drapeau _persistenceOK (enfin LU)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L303 présents dans index.html + sw.js');
 process.exit(fail?1:0);
