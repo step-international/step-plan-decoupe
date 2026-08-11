@@ -1983,7 +1983,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L317';
+const APP_VERSION='2026.08.12-L318';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2083,6 +2083,16 @@ if(db){
 }
 
 // Toast léger + capture des exceptions non gérées (sinon échec silencieux)
+// ============================================================
+// [L318 · REDESIGN LOT 8 · §3] MIGRATION confirmDlg — CONCLUSION DU RECENSEMENT (12/08) : ZÉRO migration.
+// Les ~20 confirm() natifs restants sont TOUS des gardes de SÉCURITÉ en chaîne SYNCHRONE
+// (if(!confirm) return; — anti double-découpe, anti-écrasement, hors-ligne, reset, envoi, manque-matière,
+// ré-étalement planning). Les convertir en confirmDlg (Promise) SANS refonte async de toute la chaîne
+// rendrait le return de sécurité inopérant (!Promise = toujours falsy) → double découpe silencieuse.
+// ⚠ INTOUCHABLE en particulier : le confirm de dé-marquage dans toggleCoupee — coupeeTapOne lit classList
+// APRÈS le retour SYNCHRONE (rollback L307). Le seul dialogue non-critique (récap d'envoi) = LOT 6.
+// Un marqueur d'audit fige ce choix : toute DISPARITION silencieuse d'un confirm de sécurité fait échouer la batterie.
+// ============================================================
 function showToast(msg,kind){
   let t=document.getElementById('globalToast');
   if(!t){

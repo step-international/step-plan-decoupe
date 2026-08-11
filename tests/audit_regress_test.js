@@ -622,5 +622,10 @@ has(/#page2 \.btn-sm,#page2 select\{min-height:50px\}/,'L317 : vues + filtres 50
 has(/function renderDataSummary/,'L317 : ligne de résumé — données mémoire uniquement, valeur absente = —, AUCUNE requête');
 has(/\.tab-btn\.active\{color:var\(--action\)/,'L317 : onglet actif AMBRE (l aplat ambre de l écran Données, maquette 19)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L317 présents dans index.html + sw.js');
+console.log('── L318 : REDESIGN LOT 8 — confirm() de sécurité GELÉS (zéro migration, doctrine) ──');
+has(/CONCLUSION DU RECENSEMENT \(12\/08\) : ZÉRO migration/,'L318 : recensement documenté dans le code (§6.7 : jamais supprimer un confirm de sécurité)');
+(function(){ const n=(src.match(/!confirm\(/g)||[]).length; const okk=n>=16;
+  console.log((okk?'✅ ':'❌ ')+'L318 : les confirm() de sécurité sont TOUS là ('+n+'/≥16) — toute disparition silencieuse échoue ici'); if(!okk)fail++; })();
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L318 présents dans index.html + sw.js');
 process.exit(fail?1:0);
