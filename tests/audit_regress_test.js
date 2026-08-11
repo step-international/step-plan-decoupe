@@ -552,5 +552,11 @@ has(/t2auto/,'L307b : attestation posée par le tap PURGÉE au dé-marquage (pas
 has(/id="etiqPhotoZone"/,'L307b : bloc PHOTOS ÉTIQ. rétabli en pied (alarme _etiqCount à nouveau alimentable)');
 has(/photoZone_\$\{id\}" style="margin-left:auto;display:none"/,'L307b : case 📷 par bobine masquée (nœud + infra conservés)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L307 présents dans index.html + sw.js');
+console.log('── L308 : REDESIGN LOT 14 — un seul aplat ambre (§2.17-A) ──');
+has(/fl-current/,'L308 : classe fl-current (carte en cours) posée par updateNextAction, retirée à chaque cycle');
+has(/\.fiche-line\.fl-current\{border-color:var\(--action\)/,'L308 : SEUL aplat ambre = la carte en cours');
+has(/\.fiche-line\.coupee:not\(\.flash-cut\)\{opacity:\.55\}/,'L308 : cartes coupées estompées (le flash de confirmation reste visible)');
+has(/#ficheLines:has\(\.fl-current\) \.fiche-line:not\(\.fl-current\) button/,'L308 : ♻ écarts visible seulement sur la carte en cours (§2.13-B)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L308 présents dans index.html + sw.js');
 process.exit(fail?1:0);

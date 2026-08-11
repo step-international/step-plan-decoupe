@@ -831,6 +831,22 @@ html.theme-light .btn:not(.btn-ghost):active,html.theme-light .machine-btn-fiche
 html.theme-light [id^="coupeeBtn_"]:active,html.theme-light #sendPlanBtn:active,html.theme-light #abBtn:active,
 html.theme-light #chronoStartBtn:active,html.theme-light #chronoPauseBtn:active,html.theme-light #manqueMatiereBtn:active{
   box-shadow:0 1px 0 rgba(255,255,255,.92)}
+/* ============================================================
+   [L308 · REDESIGN LOT 14 · §2.17-A maquette 15] UN SEUL APLAT AMBRE : la carte de la bobine EN COURS
+   (.fl-current, posée par updateNextAction — même cycle de vie que .next-action). Tout le reste recule :
+   cartes neutres, coupées estompées, ♻ visible SEULEMENT sur la carte en cours, config en cours en GROS.
+   La bordure gauche machine (--mc) et les états NC (test2-nc-flag) restent — repères existants.
+   ============================================================ */
+.fiche-line.fl-current{border-color:var(--action);border-left-color:var(--mc,var(--action));border-width:3px;background:#2b2205;
+  box-shadow:0 8px 22px rgba(0,0,0,.38)}
+.fiche-line.fl-current .cumul-box{border:1px solid #6a5200;background:#1f1804}   /* le cumul appartient à la bobine en cours → il en prend la teinte (§2.17-A) */
+.fiche-line.coupee:not(.flash-cut){opacity:.55}   /* FAIT : la carte recule (§2.1) */
+.fiche-line:not(.fl-current):not(.coupee){background:#1a1a18}
+.fiche-line:not(.fl-current) [id^="flConf_"]{font-size:15px}
+.fl-current [id^="flConf_"]{font-size:22px;font-weight:700}   /* échelle §2.13-C : la config qu'on lit à 3 m = celle qu'on coupe */
+body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
+#ficheLines:has(.fl-current) .fiche-line:not(.fl-current) button[onclick="recalcEcartsFromFiche()"]{display:none}   /* §2.13-B : ♻ seulement là où on l'utilise — mais si AUCUNE carte courante (chrono arrêté, flux corrections supporté), tous les ♻ restent visibles */
+@media(prefers-reduced-motion:no-preference){.fiche-line{transition:background .2s,opacity .2s,border-color .2s}}
 /* D — confirmation forte au ✂ : flash vert bref sur la carte (+ vibration +
    bip togglable via _cutFeedback). Avec « Masquer les coupées » actif, la
    carte reste visible le temps du flash (:not(.flash-cut) sur la règle L62). */
@@ -1900,7 +1916,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L307';
+const APP_VERSION='2026.08.11-L308';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -17668,6 +17684,7 @@ function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.get
 function updateNextAction(){
   try{
     document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
+    document.querySelectorAll('.fl-current').forEach(c=>c.classList.remove('fl-current'));   // [L308 · LOT 14] une seule carte « en cours » à la fois
     // [L105 · Phase 1 · E, révisé L306] la classe .chrono-off reste posée : elle pilote les indicateurs
     // test 2ᵉ (::after « à cocher » + fléchage de la puce, visibles seulement chrono TOURNANT) et le mode
     // 'start'. Le suffixe « · ⏱ arrêté » du ✂, lui, a été RETIRÉ en L306 : le ✂ démarre le chrono lui-même.
@@ -17680,7 +17697,7 @@ function updateNextAction(){
     if(total){ if(done===total) mode=_viewingSharedId?'none':'confirm'; else if(!chronoRunning) mode='start'; else mode='cut'; }
     if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
     else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); }
-    else if(mode==='cut'){ const l=_nextUncutLine(); if(l) document.getElementById('coupeeBtn_'+l.id)?.classList.add('next-action'); }
+    else if(mode==='cut'){ const l=_nextUncutLine(); if(l){ const _b=document.getElementById('coupeeBtn_'+l.id); if(_b){ _b.classList.add('next-action'); _b.closest('.fiche-line')?.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } }   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
     _syncActionBar(mode,done,total);
   }catch(e){}
 }
