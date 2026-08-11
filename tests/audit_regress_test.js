@@ -515,5 +515,11 @@ has(/\.fiche-line\.coupee \[id\^="coupeeBtn_"\]\{box-shadow:none/,'L304 : bouton
 (function(){ const n=(src.match(/cursor:not-allowed/g)||[]).length; const okk=n<=2;
   console.log((okk?'✅ ':'❌ ')+'L304 : aucune NOUVELLE occurrence cursor:not-allowed ('+n+'/2 pré-existantes, notées pour LOT 19)'); if(!okk)fail++; })();
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L304 présents dans index.html + sw.js');
+console.log('── L305 : REDESIGN LOT 21 — nettoyage du texte en surplus (§2.20) ──');
+absent(/Marque toutes les bobines comme Coupées/,'L305 : phrase permanente sous Confirmer retirée (garde au tap suffit)');
+absent(/Mode édition manuelle — modifie les bobines/,'L305 : pavé explicatif du mode manuel réduit à une donnée');
+absent(/Tu as modifié une dimension \(mère \/ bords \/ lame \/ chute\) — clique/,'L305 : message Changement plan raccourci (détail = toast de garde)');
+has(/id="sendPlanHint"><\/div>/,'L305 : le nœud sendPlanHint RESTE (le JS le pilote) — seul le texte est parti');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L305 présents dans index.html + sw.js');
 process.exit(fail?1:0);
