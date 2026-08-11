@@ -582,5 +582,9 @@ has(/id="ficheChronoSec"/,'L311 : 3 ids AJOUTÉS (jamais renommés) — ficheChr
 has(/<div id="actionBar">/,'L311 : wrapper #actionBar PRÉSENT (barre du pouce ≤1099px — perdu une fois par le réassemblage, plus jamais)');
 absent(/minmax\(400px,480px\)/,'L311 : ancien layout bureau L236 supprimé (il écrasait la grille paysage du lot 9)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L311 présents dans index.html + sw.js');
+console.log('── L312 : REDESIGN LOT 17 — barre d action sticky paysage (§2.18) ──');
+has(/#sendPlanWrap\{position:sticky;bottom:0/,'L312 : Confirmer/Manque matière ancrés en bas du centre (sticky, PAS un overlay)');
+has(/border-top:3px solid var\(--action\)/,'L312 : filet ambre 3px + ombre + dégradé « la liste continue derrière »');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L312 présents dans index.html + sw.js');
 process.exit(fail?1:0);
