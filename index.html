@@ -861,6 +861,14 @@ body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
 .foc-ml{flex:none;white-space:nowrap;font-weight:800;font-size:13px;padding:2px 8px;border-radius:99px;background:transparent}
 .fmm-order-name.foc-name{white-space:normal;overflow:visible;text-overflow:clip;display:block;font-size:14px;line-height:1.3}
 .fmm-order-id{min-width:0;flex:1;display:flex;flex-direction:column}
+/* [L313 · LOT 10 · §2.8] glisser-déposer : poignée ⠿ (touch-action:none sur ELLE seule — le scroll de la
+   liste reste naturel), carte soulevée, cible en pointillé ambre, ▲▼ secours agrandis 52×56. */
+.fmm-drag-handle{flex:none;width:44px;min-height:48px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;color:var(--muted);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.fmm-order-row.fmm-dragging{transform:scale(1.03) rotate(-1.2deg);box-shadow:0 12px 28px rgba(0,0,0,.5);position:relative;z-index:5}
+.fmm-order-row.fmm-drop-hint{outline:2px dashed var(--action);outline-offset:2px}
+.fmm-order-btns .btn{min-width:52px;min-height:56px}
+@media(prefers-reduced-motion:reduce){.fmm-order-row.fmm-dragging{transform:none}}
 /* ============================================================
    [L311 · REDESIGN LOT 9 · §2.7 maquette 17] FICHE EN TABLETTE PAYSAGE (≥1100px) : rail gauche sticky 336px
    (chrono XXL · machines/ordre de coupe · partage · étiquette solde) + colonne centrale (bandeau · en-têtes ·
@@ -1941,7 +1949,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.11-L312';
+const APP_VERSION='2026.08.11-L313';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4488,6 +4496,7 @@ function importPlanToFiche(opts){
   opts=opts||{};
   const auto=!!opts.auto;
   try{ dismissChutesRappel(); }catch(e){}   // [L306 · fix audit lot 3] nouvelle commande importée → l'éventuel bandeau chutes de la précédente disparaît (il re-sortira à SON premier départ si dû)
+  try{ _fmmPrevOrder=null; document.getElementById('fmmUndoBar')?.remove(); }catch(e){}   // [L313 · fix audit] l'↩ Annuler d'un réordonnancement ne survit pas à un import/changement de commande
   const _fromResume=_resumeAutoImportGuard; _resumeAutoImportGuard=false;   // [L218 · régression revue] consommé UNE fois quelle que soit la sortie (verrou partage / plan vide / oversize) pour ne pas fuir sur un import ultérieur
   // [L103 · audit-max] STRUCTURE FIGÉE pendant un partage (émetteur OU vue miroir) : régénérer
   // la fiche depuis le Plan décalerait les verrous cuts.<idx> (indexés par POSITION) chez tous
@@ -16478,6 +16487,99 @@ function fmmGenOrder(computed){
   return fmmCutOrder().map(idx=>posByIdx[idx]).filter(k=>k!=null);
 }
 // Déplace une réf dans l'ordre de coupe (▲ dir=-1 / ▼ dir=+1).
+// [L313 · LOT 10 · §2.8 + règle terrain n°3] GLISSER-DÉPOSER de l'ordre de coupe. Pointer Events, prise
+// après 150 ms sur la POIGNÉE seule (touch-action:none sur elle, jamais la carte → le scroll reste naturel).
+// Les GARDES sont STRICTEMENT celles de fmmMoveRef (partage actif · production engagée · étiquettes saisies).
+// Dépose = fmmMoveRefTo (splice) + bandeau « ↩ Annuler » 8 s + vibration 60 ms. ▲▼ restent le plan B.
+let _fmmDrag=null,_fmmPrevOrder=null;
+function _fmmOrderGuardsOk(){
+  if(typeof _shareCurrentDocId==='function' && _shareCurrentDocId()){
+    showToast('🔒 Commande PARTAGÉE : réordonne AVANT de partager (arrête le partage d\'abord).','err'); return false; }
+  if(typeof isFicheUntouched==='function' && !isFicheUntouched()){
+    showToast('🔒 Ordre de découpe FIGÉ : une bobine est déjà engagée (coupée, NC, photo ou test 2ᵉ).','err'); return false; }
+  return true;
+}
+function fmmMoveRefTo(idx,toPos){
+  if(!_fmmOrderGuardsOk()) return false;
+  const _typed=ficheLines.some(({id})=>((document.getElementById('flLabel_'+id)?.value||'').trim()!==''));
+  if(_typed && !confirm('Changer l\'ordre va RÉGÉNÉRER les bobines et effacer les n° d\'étiquette bobine mère déjà saisis.\n\nContinuer ?')) return false;
+  const order=fmmCutOrder();
+  const from=order.indexOf(idx);
+  if(from<0||toPos<0||toPos>=order.length||from===toPos) return false;
+  const _prevLocal=order.slice();
+  order.splice(toPos,0,order.splice(from,1)[0]);
+  ficheRefOrder=order;
+  importPlanToFiche({keepRefValidation:true});
+  renderFicheMachineBlocks();
+  _fmmPrevOrder=_prevLocal;   // [L313 · fix audit] posé APRÈS l'import (qui purge l'undo) : l'↩ ne peut jamais s'appliquer à une AUTRE commande
+  try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
+  _fmmShowUndo();
+  return true;
+}
+function _fmmShowUndo(){
+  try{
+    document.getElementById('fmmUndoBar')?.remove();
+    const el=document.getElementById('fmmOrder'); if(!el||!el.parentNode) return;
+    const b=document.createElement('div'); b.id='fmmUndoBar';
+    b.style.cssText='display:flex;align-items:center;gap:10px;margin:8px 0;padding:8px 10px;border:1px solid var(--border2);border-radius:9px;background:#1a1a18;font-size:13px;font-weight:600';
+    b.innerHTML='<span style="flex:1">Ordre de coupe mis à jour</span><button class="btn btn-sm" style="min-height:48px" onclick="fmmUndoOrder()">↩ Annuler</button>';
+    el.parentNode.insertBefore(b,el);
+    setTimeout(function(){ try{ b.remove(); }catch(e){} },8000);
+  }catch(e){}
+}
+function fmmUndoOrder(){
+  if(!_fmmPrevOrder||!_fmmOrderGuardsOk()) return;
+  ficheRefOrder=_fmmPrevOrder.slice(); _fmmPrevOrder=null;
+  try{ document.getElementById('fmmUndoBar')?.remove(); }catch(e){}
+  importPlanToFiche({keepRefValidation:true});
+  renderFicheMachineBlocks();
+}
+function fmmDragStart(ev,idx){
+  if(ev.pointerType==='mouse' && ev.button!==0) return;
+  if(_fmmDrag) return;                       // [L313 · fix audit] UNE prise à la fois (2ᵉ doigt/paume ignoré)
+  if(ev.isPrimary===false) return;           // [L313 · fix audit] pointeur secondaire ignoré
+  if(!_fmmOrderGuardsOk()) return;
+  const handle=ev.currentTarget, row=handle.closest('.fmm-order-row');
+  if(!row) return;
+  const pid=ev.pointerId;
+  // [L313 · fix audit] capture IMMÉDIATE (pas au bout des 150 ms) : au tactile elle est implicite, mais à la
+  // SOURIS/stylet un relâchement hors poignée <150 ms laissait le timer armer une PRISE FANTÔME (listeners
+  // qui fuient + un tap suivant déplaçait la mauvaise réf). Avec la capture, `up` tire TOUJOURS sur la poignée.
+  try{ handle.setPointerCapture(pid); }catch(e){}
+  const t=setTimeout(function(){
+    _fmmDrag={idx:idx,row:row};
+    row.classList.add('fmm-dragging');
+    try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
+  },150);
+  const clearHints=()=>{ document.querySelectorAll('.fmm-drop-hint').forEach(x=>x.classList.remove('fmm-drop-hint')); };
+  const move=e=>{
+    if(!_fmmDrag) return;
+    e.preventDefault();
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const target=el&&el.closest?el.closest('.fmm-order-row'):null;
+    clearHints();
+    if(target&&target!==row) target.classList.add('fmm-drop-hint');
+  };
+  const up=e=>{
+    clearTimeout(t);
+    handle.removeEventListener('pointermove',move);
+    handle.removeEventListener('pointerup',up);
+    handle.removeEventListener('pointercancel',up);
+    if(!_fmmDrag) return;
+    const drag=_fmmDrag; _fmmDrag=null;
+    drag.row.classList.remove('fmm-dragging');
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const target=el&&el.closest?el.closest('.fmm-order-row'):null;
+    clearHints();
+    if(e.type==='pointercancel'||!target||target===drag.row) return;
+    const rows=Array.prototype.slice.call(document.querySelectorAll('#fmmOrder .fmm-order-row'));
+    const toPos=rows.indexOf(target);
+    if(toPos>=0) fmmMoveRefTo(drag.idx,toPos);
+  };
+  handle.addEventListener('pointermove',move);
+  handle.addEventListener('pointerup',up);
+  handle.addEventListener('pointercancel',up);
+}
 function fmmMoveRef(idx,dir){
   // [L113 · audit U11] partage actif : refuser AVANT toute mutation de ficheRefOrder — sinon
   // l'ordre était échangé PUIS importPlanToFiche refusait (garde L103) → ordre affiché/poussé
@@ -16604,6 +16706,7 @@ function renderFicheMachineBlocks(opts){
       const _tagsNoMl=tags.filter(t=>!/ ml$/.test(t));
       const _nm=(typeof refDisp==='function')?esc(refDisp(String(r.ref))):esc(String(r.ref));
       oh+='<div class="fmm-order-row" style="border-left:5px solid '+rc+';align-items:flex-start">'
+        +'<span class="fmm-drag-handle" onpointerdown="fmmDragStart(event,'+r.idx+')" title="Glisser pour réordonner" aria-hidden="true">⠿</span>'
         +'<span class="fmm-order-num" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">'+(pos+1)+'</span>'
         +'<span class="fmm-order-id">'
         +'<span class="foc-l1">'+_mlTag+_omChip+_noBobChip+'</span>'

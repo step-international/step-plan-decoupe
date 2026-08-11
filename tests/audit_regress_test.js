@@ -586,5 +586,13 @@ console.log('── L312 : REDESIGN LOT 17 — barre d action sticky paysage (§
 has(/#sendPlanWrap\{position:sticky;bottom:0/,'L312 : Confirmer/Manque matière ancrés en bas du centre (sticky, PAS un overlay)');
 has(/border-top:3px solid var\(--action\)/,'L312 : filet ambre 3px + ombre + dégradé « la liste continue derrière »');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L312 présents dans index.html + sw.js');
+console.log('── L313 : REDESIGN LOT 10 — glisser-déposer de l ordre de coupe (§2.8) ──');
+has(/function fmmDragStart/,'L313 : drag Pointer Events présent (prise 150ms, poignée seule)');
+has(/function fmmMoveRefTo/,'L313 : dépose via fmmMoveRefTo — mêmes gardes que fmmMoveRef');
+has(/_fmmOrderGuardsOk/,'L313 : gardes partagées (partage actif · production engagée) AVANT toute prise');
+has(/Ordre de coupe mis à jour/,'L313 : bandeau ↩ Annuler après dépose (8s)');
+has(/\.fmm-drag-handle\{[^}]*touch-action:none/,'L313 : touch-action:none sur la POIGNÉE seule (scroll naturel ailleurs)');
+has(/\.fmm-order-btns \.btn\{min-width:52px;min-height:56px\}/,'L313 : ▲▼ secours agrandis 52×56');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L313 présents dans index.html + sw.js');
 process.exit(fail?1:0);
