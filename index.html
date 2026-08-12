@@ -420,6 +420,8 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 .tab-btn.active{color:var(--action);border-bottom-color:var(--action);background:#3a2e05}/* [L317 · LOT 16 · §2.16-B] actif AMBRE (l'aplat ambre de l'écran Données = l'onglet actif, maquette 19) */
 .tab-bar .tab-btn{min-height:52px}/* [L317 · LOT 16, fix audit] onglets 52px — spécificité 0,2,0 : la règle plancher 44px (plus tardive) battait la version 0,1,0 (CSS mort) */
 #page2 .btn-sm,#page2 select{min-height:50px}/* [L317 · LOT 16] vues + filtres 50px (au lieu de ~34-44) */
+.victory-big{font-size:44px;font-weight:800;font-family:var(--f-head);font-variant-numeric:tabular-nums;display:inline-block;animation:victoryPop .5s ease-out}
+@keyframes victoryPop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
 #dataSummary{display:flex;align-items:center;flex-wrap:wrap;gap:2px;margin:0 0 10px;padding:6px 4px;border:1px solid var(--border);border-radius:10px;background:var(--card)}/* [L317 · LOT 16 · §2.16-B] ligne de résumé : chiffres DÉJÀ en mémoire, valeur absente = — , AUCUNE requête */
 .save-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
 .save-info{flex:1;min-width:0}
@@ -1892,6 +1894,19 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
 <!-- input fichier caché pour les photos -->
 <input type="file" id="photoFileInput" accept="image/*" capture="environment" style="display:none">
 <input type="file" id="efPhotoFileInput" accept="image/*" capture="environment" style="display:none">
+<!-- [L319 · LOT 6 · §2.5 maquette 2d] VOLET DE CLÔTURE-VICTOIRE : remplace le confirm() natif du récap
+     d'envoi (le SEUL dialogue non critique — cf. L318). Toutes les gardes restent AVANT ; « Enregistrer »
+     RE-DÉROULE toutes les gardes au tap réel (drapeau armé) — plus sûr que l'ancien confirm. ≤4s, pas de son. -->
+<div class="modal-overlay" id="victoryOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="victoryTitle">
+    <h3 id="victoryTitle" style="margin-bottom:4px">📤 Fiche terminée</h3><button class="modal-x" aria-label="Fermer" onclick="victoryClose()">✕</button>
+    <div id="victoryBody"></div>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="btn btn-ghost" style="min-height:56px" onclick="victoryClose()">Revoir</button>
+      <button class="btn" id="victoryGo" style="min-height:56px;flex:1;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800" onclick="victoryConfirm()">✅ Enregistrer &amp; nouvelle commande</button>
+    </div>
+  </div>
+</div>
 <input type="file" id="blFileInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
 <input type="file" id="commandeFilesInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple style="display:none">
 <input type="file" id="etiqPhotoInput" accept="image/*" capture="environment" multiple style="display:none"><!-- [L226 · ergo #14] caméra étiquettes -->
@@ -1983,7 +1998,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L318';
+const APP_VERSION='2026.08.12-L319';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8967,6 +8982,7 @@ function _commitRace(batch,ms){
 // I1 — Récapitulatif de confirmation avant l'écriture irréversible + reset du Plan.
 // N'appelle confirmCommande() (inchangé) qu'après validation explicite de l'opérateur.
 function confirmCommandeRecap(){
+  const _armed=_victoryArmed; _victoryArmed=false;   // [L319 · fix audit] drapeau CONSOMMÉ EN TÊTE : tout return de garde pendant un run armé le désarme aussi — plus d'« armé fantôme » qui sauterait le volet à un envoi ultérieur
   // [L282 · audit boutons — plainte Esteban « même en appuyant, le système reste bloqué »] l'envoi réseau dure
   // jusqu'à ~8 s ; un re-tap sur le bouton pulsant pendant ce temps tombait sur un return MUET → l'opérateur
   // croyait le bouton mort et re-tapait en boucle. On DIT désormais pourquoi + quoi faire (attendre).
@@ -9039,26 +9055,42 @@ function confirmCommandeRecap(){
     MACHINE_KEYS.forEach(m=>{ if(el.classList.contains(m)) machSet.add(getMachineLabel(m)); });
   });
   const machStr=machSet.size?[...machSet].join(', '):'—';
-  let msg='📤 Confirmer l\'envoi de la commande ?\n\n';
-  msg+='• '+total+' bobine(s) coupée(s)\n';
-  msg+='• Machine(s) : '+machStr+'\n';
-  msg+='• Non-conformités : '+(ncCount?ncCount+' NC déclarée(s)':'aucune')+'\n';
-  // [L165 · audit #1] chrono à zéro alors que des bobines sont coupées (reset manuel après découpe) :
-  // AUCUN temps ne sera enregistré (perdu pour l'Analyse/KPI/traçabilité ISO). On l'annonce dans le récap.
-  if(total>0 && !(chronoSec>0)) msg+='• ⚠ CHRONO À ZÉRO → aucun temps ne sera enregistré pour cette commande.\n';
-  msg+='\n⚠ L\'envoi enregistre la fiche définitivement et vide le plan. Action irréversible.';
-  // [L243 · demande Esteban] ALARME PHOTO ÉTIQUETTES à la validation : si aucune photo d'étiquette n'est jointe,
-  // on l'annonce EN ROUGE tout en haut du récap (le confirm() natif ne stylise pas → toast rouge + question dans le récap).
+  // [L319 · LOT 6] valeurs du récap (mêmes calculs que l'ancien confirm) + alarme étiquettes L243 conservée
   const _etiqCount=(commandeFiles||[]).filter(f=>f&&/^Étiquette /.test(f.name||'')).length;
   if(!_etiqCount){
     showToast('🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ? Aucune photo d\'étiquette jointe à cette commande.','err');
-    msg='🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?\n(Aucune photo d\'étiquette n\'est jointe — bouton 📷＋ « Photos étiquettes » en pied de fiche, ou confirme quand même.)\n\n'+msg;
-  }else{
-    msg='✅ '+_etiqCount+' photo(s) d\'étiquette jointe(s).\n\n'+msg;
   }
-  if(!confirm(msg)) return;
-  confirmCommande();
+  if(_armed){ confirmCommande(); return; }   // [L319] tap « Enregistrer » du volet : TOUTES les gardes ci-dessus viennent d'être re-déroulées (drapeau déjà consommé en tête) → envoi réel
+  _openVictory({total:total,machStr:machStr,nc:ncCount,etiq:_etiqCount,chronoZero:(total>0&&!(chronoSec>0))});
 }
+// [L319 · LOT 6 · §2.5] Volet de clôture : affichage pur (aucune écriture). « Enregistrer » ré-appelle
+// confirmCommandeRecap ARMÉ → toutes les gardes se re-déroulent à l'instant du vrai tap (état frais),
+// puis confirmCommande() (ses propres gardes + verrou _sendingFiche en aval, inchangés).
+let _victoryArmed=false;
+function _openVictory(p){
+  try{
+    const body=document.getElementById('victoryBody'); if(!body){ _victoryArmed=true; confirmCommandeRecap(); return; }
+    const cli=(document.getElementById('fClient')?.value||'').trim();
+    const cmd=(document.getElementById('fNumCmd')?.value||'').trim();
+    const lame=(document.getElementById('fNumLame')?.value||'').trim();
+    const op=(document.getElementById('fInitiales')?.value||'').trim();
+    const t=(typeof chronoSec==='number'&&chronoSec>0&&typeof fmtTime==='function')?fmtTime(chronoSec):null;
+    const row=function(l,v,color){ return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--muted)">'+l+'</span><b style="text-align:right;'+(color?('color:'+color):'')+'">'+v+'</b></div>'; };
+    body.innerHTML=
+      (p.etiq?'' : '<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #7a2222;border-radius:9px;background:#2a1212;color:var(--red);font-weight:800;font-size:14px">🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?<div style="font-weight:600;font-size:12.5px;margin-top:3px;color:#fca5a5">Aucune photo jointe — bouton 📷＋ « Photos étiquettes » en pied de fiche, ou confirme quand même.</div></div>')
+      +'<div style="text-align:center;margin:6px 0 10px"><span class="victory-big">'+p.total+'/'+p.total+' <span style="color:var(--green)">✓</span></span>'
+      +(cli||cmd?'<div style="color:var(--muted);font-size:13px;margin-top:2px">'+esc(cli)+(cmd?' · '+esc(cmd):'')+'</div>':'')+'</div>'
+      +row('Temps', t?t:'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?null:'var(--red)')
+      +row('Non-conformités', p.nc?(p.nc+' NC déclarée(s)'):'0 NC ✓', p.nc?'var(--red)':'var(--green)')
+      +row('Machine(s)', esc(p.machStr))
+      +row('Lame · Opérateur', esc(lame||'—')+' · '+esc(op||'—'))
+      +(p.etiq?row('Photos étiquettes', p.etiq+' jointe(s) ✓','var(--green)'):'')
+      +'<div style="margin-top:10px;font-size:12px;color:var(--muted)">L\'envoi enregistre la fiche définitivement et vide le plan — action irréversible.</div>';
+    document.getElementById('victoryOverlay')?.classList.add('open');
+  }catch(e){ _victoryArmed=true; try{ confirmCommandeRecap(); }catch(_){} }   // repli ultime : jamais un envoi bloqué par le volet
+}
+function victoryClose(){ try{ document.getElementById('victoryOverlay')?.classList.remove('open'); }catch(e){} }
+function victoryConfirm(){ victoryClose(); _victoryArmed=true; confirmCommandeRecap(); }
 
 async function confirmCommande(){
   if(_shareBlockSend()) return;   // [L63 · Lot 5] destinataire d'un partage : envoi réservé à l'émetteur

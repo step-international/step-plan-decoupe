@@ -627,5 +627,13 @@ has(/CONCLUSION DU RECENSEMENT \(12\/08\) : ZÉRO migration/,'L318 : recensement
 (function(){ const n=(src.match(/!confirm\(/g)||[]).length; const okk=n>=16;
   console.log((okk?'✅ ':'❌ ')+'L318 : les confirm() de sécurité sont TOUS là ('+n+'/≥16) — toute disparition silencieuse échoue ici'); if(!okk)fail++; })();
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L318 présents dans index.html + sw.js');
+console.log('── L319 : REDESIGN LOT 6 — volet de clôture-victoire (§2.5, maquette 2d) ──');
+has(/id="victoryOverlay"/,'L319 : volet de clôture présent (remplace le confirm récap — SEUL dialogue non critique)');
+has(/const _armed=_victoryArmed; _victoryArmed=false;/,'L319 : drapeau armé CONSOMMÉ EN TÊTE (fix audit : plus d armé fantôme) — les gardes se re-déroulent au tap réel');
+has(/AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES \?<div/,'L319 : alarme étiquettes L243 reprise en BANDEAU ROUGE dans le volet');
+has(/CHRONO À ZÉRO — aucun temps enregistré/,'L319 : avertissement chrono à zéro conservé dans le volet');
+has(/jamais un envoi bloqué par le volet/,'L319 : repli ultime — le volet ne peut JAMAIS bloquer un envoi (fallback armé)');
+absent(/if\(!confirm\(msg\)\) return;/,'L319 : le confirm() natif du récap a bien disparu (remplacé, pas supprimé de flux)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L319 présents dans index.html + sw.js');
 process.exit(fail?1:0);
