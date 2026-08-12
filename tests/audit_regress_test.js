@@ -672,5 +672,10 @@ has(/function openMonTableau/,'L325 : overlay lecture seule (fichesCache + local
 has(/re-tap sur SES initiales/,'L325 : ouverture par re-tap sur ses initiales (sélection inchangée sinon)');
 has(/Rien n\\'est enregistré/,'L325 : mention lecture seule affichée');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L325 présents dans index.html + sw.js');
+console.log('── L326 : REDESIGN LOT 11 — qui coupe quoi (§2.9, affichage pur) ──');
+has(/id="shareWhoGrid"/,'L326 : grille dans le bloc partage actif');
+has(/function renderShareWho/,'L326 : rendu DEPUIS le DOM — mécanique/verrous de partage INTOUCHÉS');
+has(/toi, maintenant/,'L326 : la bobine du ✂ vif désignée');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L326 présents dans index.html + sw.js');
 process.exit(fail?1:0);

@@ -1428,6 +1428,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
       <div class="section" style="margin-bottom:0">
         <div class="section-title">Partagée avec</div>
         <div id="shareWithChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div id="shareWhoGrid" style="display:none;margin-top:8px"></div><!-- [L326 · LOT 11 · §2.9] « qui coupe quoi » — rendu DEPUIS le DOM (classes coupee/coupee-other/next-action), mécanique de partage INTOUCHÉE -->
         <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="stopShare()">✕ Arrêter le partage</button>
       </div>
     </div>
@@ -2030,7 +2031,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L325';
+const APP_VERSION='2026.08.12-L326';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -18070,6 +18071,30 @@ function maybeWelcome(force){
 // RÉACTIVABLE par l'opérateur (bouton 🎓 de l'accueil « ? »), jamais imposé. localStorage seul, jamais en base.
 // [L325 · LOT 7 · §2.5] MON TABLEAU — overlay LECTURE SEULE (fichesCache en mémoire + localStorage).
 // Zéro écriture, hors-ligne complet, fermeture ✕. Initiales sans historique → état vide propre.
+// [L326 · LOT 11 · §2.9] QUI COUPE QUOI — affichage PUR depuis le DOM (aucune lecture doc, aucun verrou
+// touché) : ✓ moi (coupee) · 🔒 INI (coupee-other, initiales lues sur le bouton verrouillé) · TOI MAINTENANT
+// (le ✂ vif) · libre. Rendu dans le bloc partage actif, rafraîchi avec le hub.
+function renderShareWho(){
+  try{
+    const g=document.getElementById('shareWhoGrid'); if(!g) return;
+    const on=((typeof _shareActive!=='undefined'&&_shareActive)||(typeof _viewingSharedId!=='undefined'&&_viewingSharedId));
+    if(!on||!(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length)){ g.style.display='none'; g.innerHTML=''; return; }
+    let done=0;
+    const rows=ficheLines.map(function(l,ix){
+      const el=document.getElementById(l.id); if(!el) return '';
+      const conf=(document.getElementById('flConf_'+l.id)?.value||'').trim();
+      let st='<span style="color:var(--muted)">libre</span>';
+      if(el.classList.contains('coupee-other')){ done++;
+        const b=document.getElementById('coupeeBtn_'+l.id); const m=((b&&b.textContent)||'').match(/·\s*(\S+)\s*$/);
+        st='<b style="color:#7dbcff">🔒 '+esc(m?m[1]:'collègue')+'</b>';
+      } else if(el.classList.contains('coupee')){ done++; st='<b style="color:var(--green)">✓ moi</b>'; }
+      else { const b=document.getElementById('coupeeBtn_'+l.id); if(b&&b.classList.contains('next-action')) st='<b style="color:#ffd45e">toi, maintenant</b>'; }
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums">'+(ix+1)+' · '+esc(conf||'—')+'</span>'+st+'</div>';
+    }).join('');
+    g.innerHTML='<div style="font-size:10px;letter-spacing:.08em;color:var(--muted);font-weight:800;margin-bottom:4px">QUI COUPE QUOI · '+done+'/'+ficheLines.length+'</div>'+rows;
+    g.style.display='block';
+  }catch(e){}
+}
 function openMonTableau(ini){
   try{
     // [L325 · fix audit LOT 7] Échap global (handler .modal-overlay.open) ne retire que la classe .open :
@@ -18178,7 +18203,7 @@ function updateNextAction(){
     if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
     else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); }
     else if(mode==='cut'){ const l=_nextUncutLine(); if(l){ const _b=document.getElementById('coupeeBtn_'+l.id); if(_b){ _b.classList.add('next-action'); _b.closest('.fiche-line')?.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } }
-    try{ renderFlow(); renderNowBar(); hintCoupeeApply(); }catch(e){}   // [L320 · LOT 18 + L322 · LOT 20] signalétique + indice débutant rafraîchis avec le « vif »   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
+    try{ renderFlow(); renderNowBar(); hintCoupeeApply(); renderShareWho(); }catch(e){}   // [L320/L322/L326] signalétique + indice + qui-coupe-quoi rafraîchis avec le « vif »   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
     _syncActionBar(mode,done,total);
   }catch(e){}
 }
