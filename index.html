@@ -426,6 +426,8 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 #flow .st+.st{border-left:2px solid var(--border2)}
 #flow .st.done{color:var(--green)}
 #flow .st.now{background:#3a2e05;color:#ffd45e;flex:1.15}
+.hint-cut{position:relative}
+.hint-cut::after{content:"👆 1 tap = coupée + test OK";position:absolute;right:10px;top:-13px;background:#fff;color:#141310;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.4);pointer-events:none}
 #nowBar{order:1;display:flex;align-items:center;gap:10px;border:2px solid var(--action);border-radius:10px;background:var(--card);padding:10px 12px;margin:0 0 10px}
 #nowBar .btn{border-color:#b8860b;color:var(--action)}
 .victory-big{font-size:44px;font-weight:800;font-family:var(--f-head);font-variant-numeric:tabular-nums;display:inline-block;animation:victoryPop .5s ease-out}
@@ -1140,6 +1142,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
   <button id="tabBtn2" role="tab" aria-selected="false" aria-controls="page2" onclick="showPage(2)">📊 Données</button>
   <div style="display:flex;align-items:center;padding:0 8px;gap:4px;flex-shrink:0">
     <span id="verTag" style="font-size:10px;color:#8f8f8a;white-space:nowrap" title="Version de l'application"></span>
+    <button id="welcomeHelpBtn" onclick="if(typeof chronoRunning!=='undefined'&&chronoRunning){showToast('⏱ Découpe en cours — l\u2019accueil s\u2019ouvrira hors coupe.','err');}else{try{localStorage.removeItem('step_welcome_v1');}catch(e){};maybeWelcome(true);}" title="Revoir l'accueil" aria-label="Revoir l'accueil" style="background:none;border:1px solid var(--border);border-radius:99px;width:26px;height:26px;color:var(--muted);font-size:13px;font-weight:800;cursor:pointer;padding:0">?</button><!-- [L322 · LOT 20 · §2.19-4] réaffichage à la demande -->
     <span id="roleTag"></span>
     <button id="themeBtn" onclick="toggleTheme()" title="Basculer mode clair / mode sombre" aria-label="Basculer mode clair / mode sombre">☀️</button><!-- [L155 · demande Esteban] thème clair/sombre -->
     <button id="atelierBtn" onclick="toggleAtelier()" title="Mode atelier : gros boutons et police agrandie">🔍 Atelier</button>
@@ -2023,7 +2026,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L321';
+const APP_VERSION='2026.08.12-L322';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4506,6 +4509,7 @@ function showPage(i){
 // que showPage/switchTab/les gardes de rôle existent ; les gardes de rôle re-basculent proprement si l'accès a changé.
 function restoreLastNav(){
   try{ renderFlow(); }catch(e){}   // [L320 · fix audit note 2b] le fil s'allume même quand on reste sur le Plan au boot
+  try{ setTimeout(maybeWelcome,800); }catch(e){}   // [L322 · LOT 20] accueil UNE fois, jamais pendant une coupe (garde chronoRunning dedans)
   try{
     const p=parseInt(localStorage.getItem('step_lastPage'),10);
     if(!(p>=0&&p<=2)) return;
@@ -17816,6 +17820,7 @@ function coupeeTapOne(id){
     try{ updateTest2Subs(id); }catch(e){}
   }
   if((setD||setR)&&cutNow){ try{ line.dataset.t2auto='1'; }catch(e){} }   // [L307 · fix audit ISO] trace « attestation posée par le tap » (pour la purge au dé-marquage)
+  if(!already&&cutNow){ try{ hintCoupeeCount(); }catch(e){} }   // [L322 · LOT 20] une coupe réussie de plus au compteur débutant
   if(already&&!cutNow&&line.dataset&&line.dataset.t2auto==='1'){
     // [L307 · fix audit ISO] dé-marquage d'une coupe faite PAR ERREUR : l'attestation test 2ᵉ AUTO ne survit
     // pas (elle n'a jamais été un geste physique). Les coches posées À LA MAIN, elles, restent.
@@ -18019,6 +18024,46 @@ let _abMode='none';
 function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.getElementById(id);return el&&!el.classList.contains('coupee');})||null; }
 // [L292] _guideGo supprimé avec le guide T6 (demande Esteban 30/07).
 // [L320 · LOT 18 · §2.19-1/2] Signalétique du parcours — AFFICHAGE PUR (lit l'état existant, n'écrit rien).
+// [L322 · LOT 20 · §2.19-4] ACCUEIL 3 CARTES : une seule fois (step_welcome_v1), JAMAIS pendant une coupe,
+// fermeture 1 tap, réaffichable via le « ? » de l'en-tête. Aucune écriture réseau.
+function maybeWelcome(force){
+  try{
+    if(!force){ try{ if(localStorage.getItem('step_welcome_v1')) return; }catch(e){ return; } }
+    if(typeof chronoRunning!=='undefined'&&chronoRunning) return;
+    if(document.getElementById('welcomeOverlay')) return;
+    const o=document.createElement('div');
+    o.id='welcomeOverlay';
+    o.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(10,10,9,.94);display:flex;align-items:center;justify-content:center;padding:24px';
+    const card=function(ic,t,sub,hot){ return '<div style="flex:1;border:2px solid '+(hot?'var(--action)':'var(--border2)')+';border-radius:9px;background:'+(hot?'#1f1804':'#161615')+';padding:10px"><div style="font-size:24px">'+ic+'</div><b style="display:block;margin:5px 0 3px;font-family:var(--f-head);color:'+(hot?'#ffd45e':'var(--text)')+'">'+t+'</b><span style="font-size:12px;color:var(--muted)">'+sub+'</span></div>'; };
+    o.innerHTML='<div style="max-width:620px;width:100%;border:2px solid var(--border2);border-radius:12px;background:var(--card);padding:20px">'
+      +'<div style="font-weight:800;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-bottom:12px;font-family:var(--f-head)">3 ÉCRANS, C\'EST TOUT</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+      +card('✂','PLAN','je saisis la commande',false)
+      +card('📋','FICHE','je coupe, ici',true)
+      +card('📊','DONNÉES','je retrouve mes fiches',false)
+      +'</div>'
+      +'<div style="font-size:14px;color:var(--muted);margin-bottom:14px">Cherche toujours <b style="color:#ffd45e">le bouton JAUNE</b> : c\'est le geste à faire.</div>'
+      +'<button id="welcomeOk" class="btn" style="width:100%;min-height:56px;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800">J\'ai compris →</button></div>';
+    document.body.appendChild(o);
+    const ok=o.querySelector('#welcomeOk');
+    if(ok) ok.onclick=function(){ try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); };
+  }catch(e){}
+}
+// [L322 · LOT 20 · §2.19-5] INDICE AUTO-EFFAÇABLE sur le ✂ : les 3 PREMIÈRES bobines de la vie de
+// l'opérateur (compteur par initiales), puis plus jamais. Dégradation silencieuse si localStorage plein.
+function _hintCutKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_hint_cut_'+ini; }
+function hintCoupeeApply(){
+  try{
+    const b=document.querySelector('.next-action[id^="coupeeBtn_"]');
+    document.querySelectorAll('.hint-cut').forEach(function(x){ if(x!==b) x.classList.remove('hint-cut'); });
+    if(!b) return;
+    let n=0; try{ n=parseInt(localStorage.getItem(_hintCutKey())||'0',10)||0; }catch(e){}
+    const apprenti=(typeof _apprentiOn==='function')?_apprentiOn():false;
+    const _t2=b.closest('.fiche-line')?.classList.contains('t2-todo');   // [L322 · fix audit] chemin NC : le ::after « test 2ᵉ à cocher » (signal ISO) garde la main — et « 1 tap » serait un mauvais conseil ici
+    b.classList.toggle('hint-cut', (n<3||apprenti)&&!_t2);
+  }catch(e){}
+}
+function hintCoupeeCount(){ try{ const k=_hintCutKey(); const n=(parseInt(localStorage.getItem(k)||'0',10)||0)+1; localStorage.setItem(k,String(n)); }catch(e){} }
 function renderFlow(){
   try{
     const set=(id,cls,html)=>{ const e=document.getElementById(id); if(e){ e.className='st '+cls; e.innerHTML=html; } };
@@ -18070,7 +18115,7 @@ function updateNextAction(){
     if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
     else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); }
     else if(mode==='cut'){ const l=_nextUncutLine(); if(l){ const _b=document.getElementById('coupeeBtn_'+l.id); if(_b){ _b.classList.add('next-action'); _b.closest('.fiche-line')?.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } }
-    try{ renderFlow(); renderNowBar(); }catch(e){}   // [L320 · LOT 18] signalétique rafraîchie avec le « vif »   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
+    try{ renderFlow(); renderNowBar(); hintCoupeeApply(); }catch(e){}   // [L320 · LOT 18 + L322 · LOT 20] signalétique + indice débutant rafraîchis avec le « vif »   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
     _syncActionBar(mode,done,total);
   }catch(e){}
 }

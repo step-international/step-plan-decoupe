@@ -647,5 +647,11 @@ absent(/cursor:not-allowed/,'L321 : plus AUCUN cursor:not-allowed dans l app');
 absent(/ disabled onclick="doShareLocal/,'L321 : Partager jamais disabled (garde parlante existante)');
 has(/btn\.disabled=false; btn\.style\.opacity=\(n===0\)/,'L321 : « pas prêt » = estompé, le tap explique');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L321 présents dans index.html + sw.js');
+console.log('── L322 : REDESIGN LOT 20 — accueil 3 cartes + indice débutant (§2.19-4/5) ──');
+has(/function maybeWelcome/,'L322 : accueil une seule fois (step_welcome_v1), JAMAIS si chronoRunning, réaffichable via ?');
+has(/id="welcomeHelpBtn"/,'L322 : « ? » discret dans l en-tête');
+has(/step_hint_cut_/,'L322 : indice « 1 tap = coupée + test OK » sur les 3 premières bobines de la VIE de l opérateur (par initiales)');
+has(/hintCoupeeCount/,'L322 : compté UNIQUEMENT sur coupe réussie (pas les refus)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L322 présents dans index.html + sw.js');
 process.exit(fail?1:0);
