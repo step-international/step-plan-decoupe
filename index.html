@@ -420,6 +420,14 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 .tab-btn.active{color:var(--action);border-bottom-color:var(--action);background:#3a2e05}/* [L317 · LOT 16 · §2.16-B] actif AMBRE (l'aplat ambre de l'écran Données = l'onglet actif, maquette 19) */
 .tab-bar .tab-btn{min-height:52px}/* [L317 · LOT 16, fix audit] onglets 52px — spécificité 0,2,0 : la règle plancher 44px (plus tardive) battait la version 0,1,0 (CSS mort) */
 #page2 .btn-sm,#page2 select{min-height:50px}/* [L317 · LOT 16] vues + filtres 50px (au lieu de ~34-44) */
+#flow{display:flex;border:2px solid var(--border2);border-radius:9px;overflow:hidden;margin:8px 12px 0;max-width:820px}
+@media(min-width:1100px){#flow{margin:8px auto 0;max-width:1440px}}
+#flow .st{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 8px;min-height:48px;background:#161615;color:var(--muted);font-weight:800;font-size:13px;letter-spacing:.03em;white-space:nowrap;font-family:var(--f-head)}
+#flow .st+.st{border-left:2px solid var(--border2)}
+#flow .st.done{color:var(--green)}
+#flow .st.now{background:#3a2e05;color:#ffd45e;flex:1.15}
+#nowBar{order:1;display:flex;align-items:center;gap:10px;border:2px solid var(--action);border-radius:10px;background:var(--card);padding:10px 12px;margin:0 0 10px}
+#nowBar .btn{border-color:#b8860b;color:var(--action)}
 .victory-big{font-size:44px;font-weight:800;font-family:var(--f-head);font-variant-numeric:tabular-nums;display:inline-block;animation:victoryPop .5s ease-out}
 @keyframes victoryPop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
 #dataSummary{display:flex;align-items:center;flex-wrap:wrap;gap:2px;margin:0 0 10px;padding:6px 4px;border:1px solid var(--border);border-radius:10px;background:var(--card)}/* [L317 · LOT 16 · §2.16-B] ligne de résumé : chiffres DÉJÀ en mémoire, valeur absente = — , AUCUNE requête */
@@ -958,6 +966,7 @@ body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
    Étendue aux TABLETTES (≤1099px) ; le layout bureau 2 colonnes ≥1100px (pilotage/admin) reste intact. */
 @media(max-width:1099px){
   body.has-actionbar #actionBar{display:block}
+  body.has-actionbar #nowBar{display:none!important}/* [L320 · LOT 18 · fix audit] ≤1099 la barre d'action porte déjà « Aller à la bobine » (même geste que Y ALLER) — un seul point d'entrée, précédent L222 ergo #15 ; !important requis (renderNowBar pose display:flex inline) */
   body.has-actionbar #page1{padding-bottom:calc(126px + env(safe-area-inset-bottom,0px))}/* [L113 · audit U22] suit la safe-area comme la barre (sinon dernier élément masqué sur iPhone à encoche) */
   body.has-actionbar #globalToast{bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
   body.has-actionbar #dbLoadingBanner{bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
@@ -1137,6 +1146,13 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
     <button id="logoutBtn" onclick="doLogout()">↩ Quitter</button>
   </div>
 </nav>
+<!-- [L320 · LOT 18 · §2.19-1] FIL DU PARCOURS : signalétique permanente 1·2·3 (première personne), AUCUNE
+     logique métier — renderFlow lit la page active + la progression existante. Cibles ≥48px. -->
+<div id="flow" role="list" aria-label="Étapes du parcours">
+  <span class="st" id="flowPlan" role="listitem">1 · COMMANDE</span>
+  <span class="st" id="flowCoupe" role="listitem">2 · JE COUPE</span>
+  <span class="st" id="flowSend" role="listitem">3 · J'ENVOIE</span>
+</div>
 
 <!-- [L61 · Lot 3] Commande partagée — réception : bandeau global (visible sur toutes les pages).
      sharedWithMeBar = commandes qu'on m'a partagées (bouton Ouvrir) · sharedViewingBar = vue miroir live en cours.
@@ -1423,6 +1439,15 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
   </div>
 </div>
 <div id="ficheMain">
+<!-- [L320 · LOT 18 · §2.19-2] bannière MAINTENANT : désigne LA bobine à couper + Y ALLER (défile/surligne).
+     S'appuie sur .next-action déjà posé par updateNextAction ; masquée quand rien à couper. Le bouton est
+     BORDÉ ambre, pas plein : l'aplat ambre vif reste le ✂ de la carte (doctrine un-seul-ambre — déviation
+     maquette Q2 assumée et notée). -->
+<div id="nowBar" style="display:none">
+  <span style="font-size:22px" aria-hidden="true">👉</span>
+  <span style="flex:1;min-width:140px"><b style="display:block;font-size:10px;letter-spacing:.08em;color:var(--muted)">MAINTENANT</b><b id="nowTxt" style="font-size:14px"></b></span>
+  <button class="btn btn-sm" style="min-height:48px" onclick="gotoNextCut()">Y aller →</button>
+</div>
 <div id="chutesRappelBanner" style="display:none;margin:0 0 10px;padding:10px 12px;border:2px solid #7a5200;border-radius:12px;background:#241905">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="flex:1;min-width:170px;font-size:14px;font-weight:700;color:var(--orange)">✂ Des bobineaux en stock ? Ajoute-les au plan avant de couper.</span>
@@ -1998,7 +2023,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L319';
+const APP_VERSION='2026.08.12-L320';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4462,6 +4487,7 @@ function _applyPlanDriftFix(opts){
 }
 function showPage(i){
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
+  try{ renderFlow(); }catch(e){}   // [L320 · LOT 18] le fil du parcours suit la page
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
   document.querySelectorAll('#nav [role="tab"]').forEach((b,idx)=>b.setAttribute('aria-selected',idx===i?'true':'false'));
   // Au passage sur la Fiche : import auto depuis le Plan (silencieux, ne touche pas si déjà travaillé).
@@ -4479,6 +4505,7 @@ function showPage(i){
 // et, pour Données, le dernier onglet — au lieu de repartir systématiquement sur le Plan. Robuste : appelée après
 // que showPage/switchTab/les gardes de rôle existent ; les gardes de rôle re-basculent proprement si l'accès a changé.
 function restoreLastNav(){
+  try{ renderFlow(); }catch(e){}   // [L320 · fix audit note 2b] le fil s'allume même quand on reste sur le Plan au boot
   try{
     const p=parseInt(localStorage.getItem('step_lastPage'),10);
     if(!(p>=0&&p<=2)) return;
@@ -17991,6 +18018,41 @@ function updateCoupeeStatus(){
 let _abMode='none';
 function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.getElementById(id);return el&&!el.classList.contains('coupee');})||null; }
 // [L292] _guideGo supprimé avec le guide T6 (demande Esteban 30/07).
+// [L320 · LOT 18 · §2.19-1/2] Signalétique du parcours — AFFICHAGE PUR (lit l'état existant, n'écrit rien).
+function renderFlow(){
+  try{
+    const set=(id,cls,html)=>{ const e=document.getElementById(id); if(e){ e.className='st '+cls; e.innerHTML=html; } };
+    const total=(typeof ficheLines!=='undefined'&&ficheLines)?ficheLines.length:0;
+    const cut=total?((typeof countCoupees==='function')?countCoupees():0):0;
+    const pg=document.querySelector('.page.active');
+    const onFiche=!!(pg&&pg.id==='page1');
+    const allDone=total>0&&cut>=total;
+    set('flowPlan', onFiche?'done':'now', (onFiche?'✓ ':'')+'1 · COMMANDE');
+    set('flowCoupe', !onFiche?(total?'':'todo'):(allDone?'done':'now'), (onFiche&&allDone?'✓ ':'')+'2 · JE COUPE'+(total?' '+cut+'/'+total:''));
+    set('flowSend', (onFiche&&allDone)?'now':'todo', '3 · J\'ENVOIE');
+  }catch(e){}
+}
+function renderNowBar(){
+  try{
+    const bar=document.getElementById('nowBar'); if(!bar) return;
+    const b=document.querySelector('.next-action[id^="coupeeBtn_"]');
+    if(!b){ bar.style.display='none'; return; }
+    const id=b.id.replace('coupeeBtn_','');
+    const pos=(document.getElementById('pos_'+id)?.textContent||'').trim();
+    const conf=(document.getElementById('flConf_'+id)?.value||'').trim();
+    const t=document.getElementById('nowTxt');
+    if(t) t.textContent='Coupe la bobine '+(pos?pos.split('/')[0]:'')+(conf?' : '+conf:'');
+    bar.style.display='flex';
+  }catch(e){}
+}
+function gotoNextCut(){
+  try{
+    const b=document.querySelector('.next-action[id^="coupeeBtn_"]'); if(!b) return;
+    const card=b.closest('.fiche-line')||b;
+    card.scrollIntoView({behavior:'smooth',block:'center'});
+    card.classList.add('fl-spot'); setTimeout(function(){ try{ card.classList.remove('fl-spot'); }catch(e){} },2200);
+  }catch(e){}
+}
 function updateNextAction(){
   try{
     document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
@@ -18007,7 +18069,8 @@ function updateNextAction(){
     if(total){ if(done===total) mode=_viewingSharedId?'none':'confirm'; else if(!chronoRunning) mode='start'; else mode='cut'; }
     if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
     else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); }
-    else if(mode==='cut'){ const l=_nextUncutLine(); if(l){ const _b=document.getElementById('coupeeBtn_'+l.id); if(_b){ _b.classList.add('next-action'); _b.closest('.fiche-line')?.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } }   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
+    else if(mode==='cut'){ const l=_nextUncutLine(); if(l){ const _b=document.getElementById('coupeeBtn_'+l.id); if(_b){ _b.classList.add('next-action'); _b.closest('.fiche-line')?.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } }
+    try{ renderFlow(); renderNowBar(); }catch(e){}   // [L320 · LOT 18] signalétique rafraîchie avec le « vif »   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
     _syncActionBar(mode,done,total);
   }catch(e){}
 }

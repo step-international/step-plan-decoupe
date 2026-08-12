@@ -635,5 +635,12 @@ has(/CHRONO À ZÉRO — aucun temps enregistré/,'L319 : avertissement chrono �
 has(/jamais un envoi bloqué par le volet/,'L319 : repli ultime — le volet ne peut JAMAIS bloquer un envoi (fallback armé)');
 absent(/if\(!confirm\(msg\)\) return;/,'L319 : le confirm() natif du récap a bien disparu (remplacé, pas supprimé de flux)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L319 présents dans index.html + sw.js');
+console.log('── L320 : REDESIGN LOT 18 — fil du parcours + bannière MAINTENANT (§2.19-1/2) ──');
+has(/id="flow" role="list"/,'L320 : fil 1·COMMANDE / 2·JE COUPE n\/T / 3·J ENVOIE sous la nav (≥48px)');
+has(/function renderFlow/,'L320 : renderFlow = affichage pur (page active + progression existante, zéro logique métier)');
+has(/id="nowBar"/,'L320 : bannière MAINTENANT en tête de fiche (bord ambre, PAS d aplat — déviation maquette assumée)');
+has(/function gotoNextCut/,'L320 : Y ALLER → défile + surligne la carte .next-action (fl-spot)');
+has(/#nowBar\{order:1;/,'L320 : order flex EXPLICITE (leçon des audits : jamais d enfant sans order)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L320 présents dans index.html + sw.js');
 process.exit(fail?1:0);
