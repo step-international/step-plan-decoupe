@@ -659,5 +659,13 @@ has(/_apprentiTick\(ncCount\)/,'L323 : extinction auto — décrément à chaque
 has(/apprentiRearm/,'L323 : réactivable par l opérateur (accueil 🎓), jamais imposé');
 absent(/step_appr.*firestore|collection\('step_appr/,'L323 : localStorage SEUL — jamais en base');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L323 présents dans index.html + sw.js');
+console.log('── L324 : REDESIGN LOT 12 — gamification G1 série sans NC (§2.5) ──');
+has(/step_streak_/,'L324 : série par initiales, localStorage SEUL (jamais en base)');
+has(/step_gamif_off/,'L324 : désactivable par poste (chip masquée, compteurs gelés)');
+has(/streakBump\(\)/,'L324 : +1 par coupe SAINE (jamais la vitesse — règle d or)');
+has(/streakReset\(\)/,'L324 : NC sur bobine coupée → série à 0, sans message culpabilisant');
+has(/SÉRIE ×/,'L324 : chip SÉRIE dans le HUD (dès ×2, intensité ×5/×10/×25)');
+has(/G2 \(objectif du jour\) et G4/,'L324 : G2/G4 REPORTÉS documentés (dépendance planning)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L324 présents dans index.html + sw.js');
 process.exit(fail?1:0);

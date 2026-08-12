@@ -426,6 +426,10 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 #flow .st+.st{border-left:2px solid var(--border2)}
 #flow .st.done{color:var(--green)}
 #flow .st.now{background:#3a2e05;color:#ffd45e;flex:1.15}
+.fp-streak{flex:none;font-size:11px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:99px;border:1px solid var(--border2);color:var(--muted);font-family:var(--f-head)}
+.fp-streak.s5{border-color:#7a5f10;color:#ffd45e}
+.fp-streak.s10{border-color:#b8860b;color:#ffd45e;background:#241d05}
+.fp-streak.s25{border-color:var(--action);color:#ffd45e;background:#241d05;box-shadow:0 0 8px rgba(245,179,1,.35)}
 .hint-cut{position:relative}
 .hint-cut::after{content:"👆 1 tap = coupée + test OK";position:absolute;right:10px;top:-13px;background:#fff;color:#141310;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.4);pointer-events:none}
 #nowBar{order:1;display:flex;align-items:center;gap:10px;border:2px solid var(--action);border-radius:10px;background:var(--card);padding:10px 12px;margin:0 0 10px}
@@ -2026,7 +2030,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L323';
+const APP_VERSION='2026.08.12-L324';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -17820,7 +17824,8 @@ function coupeeTapOne(id){
     try{ updateTest2Subs(id); }catch(e){}
   }
   if((setD||setR)&&cutNow){ try{ line.dataset.t2auto='1'; }catch(e){} }   // [L307 · fix audit ISO] trace « attestation posée par le tap » (pour la purge au dé-marquage)
-  if(!already&&cutNow){ try{ hintCoupeeCount(); }catch(e){} }   // [L322 · LOT 20] une coupe réussie de plus au compteur débutant
+  if(!already&&cutNow){ try{ hintCoupeeCount(); }catch(e){}
+    try{ if(!(ncEl&&ncEl.checked)&&!ncMotif&&line.dataset.stkc!=='1'){ line.dataset.stkc='1'; streakBump(); } }catch(e){} }   // [L322 LOT 20 + L324 LOT 12·G1 + fixes audit] +1 par coupe SAINE, UNE fois par bobine (anti-gonflage par re-marquage) ; la NC d'un COLLÈGUE ne reset pas MA série
   if(already&&!cutNow&&line.dataset&&line.dataset.t2auto==='1'){
     // [L307 · fix audit ISO] dé-marquage d'une coupe faite PAR ERREUR : l'attestation test 2ᵉ AUTO ne survit
     // pas (elle n'a jamais été un geste physique). Les coches posées À LA MAIN, elles, restent.
@@ -17985,9 +17990,11 @@ function updateCoupeeStatus(){
   } else {
     _bar='<span class="fp-bar"><i class="f-ok" style="flex:'+_okN+'"></i><i class="f-nc" style="flex:'+_nc+'"></i><i style="flex:'+Math.max(0,total-_okN-_nc)+'"></i></span>';
   }
+  let _stk='';
+  try{ if(typeof _gamifOff==='function'&&!_gamifOff()){ const _sn=streakGet(); if(_sn>=2) _stk='<span class="fp-streak'+(_sn>=25?' s25':_sn>=10?' s10':_sn>=5?' s5':'')+'">SÉRIE ×'+_sn+(_sn>=25?' ⭐':_sn>=10?' 🔥':'')+'</span>'; } }catch(e){}   // [L324 · LOT 12·G1] chip discrète dès ×2, intensité ×5/×10/×25 — jamais la vitesse
   const _fpRow='<span class="fp-num tabnum"><b>'+done+'</b><small> / '+total+' coupées</small></span>'
     +_bar
-    +'<span class="fp-pct tabnum">'+_pct+'%</span>'
+    +'<span class="fp-pct tabnum">'+_pct+'%</span>'+_stk
     +(perRefStr?'<div style="flex-basis:100%;font-size:12px;font-weight:600;margin-top:4px;text-align:left">'+perRefStr+'</div>':'');
   // [L292 · demande Esteban 30/07] GUIDE DE PROCHAINE ACTION (T6/L288) RETIRÉ EN ENTIER : jugé inutile à l'usage
   // (« ce texte est inutile ») — les boutons pulsés (.next-action), la barre d'action et les toasts zéro-tap-mort
@@ -18063,6 +18070,16 @@ function _apprentiKey(){ const ini=(document.getElementById('fInitiales')?.value
 function _apprentiOn(){ try{ const k=_apprentiKey(); const v=localStorage.getItem(k); if(v===null){ localStorage.setItem(k,'5'); return true; } return (parseInt(v,10)||0)>0; }catch(e){ return false; } }
 function _apprentiTick(nc){ try{ const k=_apprentiKey(); const v=parseInt(localStorage.getItem(k)||'0',10)||0; if(v>0&&!nc) localStorage.setItem(k,String(v-1)); }catch(e){} }
 function apprentiRearm(){ try{ localStorage.setItem(_apprentiKey(),'5'); }catch(e){} try{ showToast('🎓 Mode apprenti réactivé — indices affichés pendant tes 5 prochaines fiches sans NC.'); }catch(e){} }
+// [L324 · LOT 12 · §2.5/G1] GAMIFICATION — SÉRIE SANS NC par initiales. RÈGLE D'OR : qualité/constance,
+// JAMAIS la vitesse. localStorage seul (rien en base, données non probantes). Désactivable par poste :
+// localStorage step_gamif_off = '1' → chip masquée, compteurs gelés. Intensité : ×5 liseré · ×10 🔥 · ×25 ⭐.
+// G2 (objectif du jour) et G4 (journée en 10 s) : REPORTÉS — dépendent du planning (pas de source mémoire sûre).
+function _gamifOff(){ try{ return localStorage.getItem('step_gamif_off')==='1'; }catch(e){ return true; } }
+function _streakKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_streak_'+ini; }
+function streakGet(){ try{ return parseInt(localStorage.getItem(_streakKey())||'0',10)||0; }catch(e){ return 0; } }
+function streakBump(){ if(_gamifOff()) return; try{ const k=_streakKey(); const n=streakGet()+1; localStorage.setItem(k,String(n));
+  const rk=k+'_rec'; const r=parseInt(localStorage.getItem(rk)||'0',10)||0; if(n>r) localStorage.setItem(rk,String(n)); }catch(e){} }
+function streakReset(){ if(_gamifOff()) return; try{ localStorage.setItem(_streakKey(),'0'); }catch(e){} }
 function _hintCutKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_hint_cut_'+ini; }
 function hintCoupeeApply(){
   try{
@@ -18272,6 +18289,7 @@ function updateNC(id){
     const el=document.getElementById('nc_'+k+'_'+id);
     return el&&el.querySelector('input').checked;
   });
+  try{ const _ln=document.getElementById(id); if(hasNC&&_ln&&_ln.classList.contains('coupee')&&!_ln.classList.contains('coupee-other')) streakReset(); }catch(e){}   // [L324 · LOT 12·G1] NC déclarée sur une bobine DÉJÀ coupée → série remise à 0 (jamais de message culpabilisant)
   rasCb.checked=!hasNC;
   rasEl.classList.toggle('sel',!hasNC);
   ['larg','qty','casse','ang'].forEach(k=>{
