@@ -677,5 +677,19 @@ has(/id="shareWhoGrid"/,'L326 : grille dans le bloc partage actif');
 has(/function renderShareWho/,'L326 : rendu DEPUIS le DOM — mécanique/verrous de partage INTOUCHÉS');
 has(/toi, maintenant/,'L326 : la bobine du ✂ vif désignée');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L326 présents dans index.html + sw.js');
+console.log('── L327 : REDESIGN LOT 25 — mode ENTRAÎNEMENT (§2.19-7, garantie ISO) ──');
+has(/let _trainingMode=false/,'L327 : flag entraînement + trainingGuard() unique');
+has(/if\(trainingGuard\(\)\)\{ try\{ showToast\('🎓 ENTRAÎNEMENT — fiche NON envoyée/,'L327 : saveCommandeFiche (point de sortie unique) gardé EN TÊTE');
+(function(){ const n=(src.match(/if\(trainingGuard\(\)\)/g)||[]).length; const okk=n>=9;
+  console.log((okk?'✅ ':'❌ ')+'L327 : trainingGuard branché sur TOUS les points d écriture ('+n+'/≥9 : envoi, brouillons auto+manuel, plan, chrono, audit, partage, photos×2)'); if(!okk)fail++; })();
+has(/#trainingBanner/,'L327 : bandeau permanent RIEN N EST ENVOYÉ + hachures bleues plein écran');
+has(/function stopTraining/,'L327 : sortie propre (flag off + resetAll)');
+has(/function persistDrafts\(arr\)\{\n  if\(trainingGuard\(\)\) return false;/,'L327 : persistDrafts gardé (fix audit : fuite solde manque-matière en base)');
+has(/if\(trainingGuard\(\)&&i===2\)/,'L327 : écran Données bloqué en entraînement (ferme la surface d écriture admin : stock/lames/validation/BL)');
+has(/function stopManqueMatiere\(\)\{\n  if\(trainingGuard\(\)\)/,'L327 : ⛔ manque matière gardé en tête (fix audit)');
+has(/body\.training #actionBar\{bottom:calc/,'L327 : barre d action remontée au-dessus du bandeau (fix audit : geste inatteignable iPad)');
+has(/function shareCutWrite\(idx,coupee,lineId\)\{\n  if\(trainingGuard\(\)\) return;/,'L327 : shareCutWrite gardé (fix contre-revue : miroir RÉCEPTEUR écrivait chez un collègue)');
+has(/function openSharedCommand\(id\)\{\n  if\(trainingGuard\(\)\)/,'L327 : openSharedCommand bloqué en entraînement');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L327 présents dans index.html + sw.js');
 process.exit(fail?1:0);

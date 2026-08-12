@@ -426,6 +426,11 @@ body.atelier .photo-zone-hd .photo-btn{padding:10px 12px;min-height:46px;font-si
 #flow .st+.st{border-left:2px solid var(--border2)}
 #flow .st.done{color:var(--green)}
 #flow .st.now{background:#3a2e05;color:#ffd45e;flex:1.15}
+body.training::before{content:"";position:fixed;inset:0;z-index:8000;pointer-events:none;background:repeating-linear-gradient(45deg,rgba(79,157,242,.08) 0 22px,rgba(79,157,242,.16) 22px 44px)}
+#trainingBanner{position:fixed;left:0;right:0;bottom:0;z-index:8001;display:flex;align-items:center;justify-content:center;gap:12px;background:#16283d;border-top:3px solid var(--blue);color:#dbeafe;font-weight:800;font-size:14px;padding:10px 12px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+#trainingBanner button{min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid var(--blue);background:#1e3a5f;color:#dbeafe;font-weight:800;cursor:pointer}
+body.training #actionBar{bottom:calc(64px + env(safe-area-inset-bottom,0px)) !important}/* [L327 · fix audit LOT 25] la barre d'action du pouce remonte AU-DESSUS du bandeau (sinon recouverte, geste inatteignable sur iPad) */
+@media(min-width:1100px){body.training #sendPlanWrap{bottom:64px}}
 .fp-streak{flex:none;font-size:11px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:99px;border:1px solid var(--border2);color:var(--muted);font-family:var(--f-head)}
 .fp-streak.s5{border-color:#7a5f10;color:#ffd45e}
 .fp-streak.s10{border-color:#b8860b;color:#ffd45e;background:#241d05}
@@ -2031,7 +2036,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L326';
+const APP_VERSION='2026.08.12-L327';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2638,6 +2643,7 @@ function parseClientRef(details){
   return {client:c,ref:r};
 }
 async function logAudit(action,collection,docId,details,ctx){
+  if(trainingGuard()) return;   // [L327 · LOT 25] aucune trace ISO en entraînement
   if(!db) return;
   // Contexte commande (ISO traçabilité) : client / référence / date de commande.
   // Fourni explicitement par l'appelant (ctx) sinon déduit du texte details.
@@ -3760,6 +3766,7 @@ if(typeof window!=='undefined' && window.addEventListener) window.addEventListen
 // On RÉESSAIE aussi périodiquement (toutes les 45 s) tant que la file n'est pas vide.
 if(typeof window!=='undefined') setInterval(function(){ try{ if(_pendingLocalPhotos && Object.keys(_pendingLocalPhotos).length) flushPendingLocalPhotos(); }catch(e){} }, 45000);
 function triggerPhoto(lineId){
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — photos désactivées.'); }catch(e){} return; }   // [L327 · LOT 25]
   photoTargetId=lineId;
   const input=document.getElementById('photoFileInput');
   input.value='';
@@ -4105,6 +4112,7 @@ document.getElementById('commandeFilesInput').addEventListener('change',async fu
 // commandeFiles (nom « Étiquette N ») → même cycle de vie que les fichiers commande : sauvegardées avec le
 // plan (L7019), ARCHIVÉES avec la fiche (saveCommandeFiche), visibles au détail + PDF (L14177), brouillons OK.
 document.getElementById('etiqPhotoInput').addEventListener('change',async function(){
+  if(trainingGuard()){ this.value=''; try{ showToast('🎓 Entraînement — photos désactivées.'); }catch(e){} return; }   // [L327 · LOT 25]
   const files=Array.from(this.files||[]); this.value='';
   if(!files.length) return;
   const z=document.getElementById('etiqPhotoZone');
@@ -4494,6 +4502,7 @@ function _applyPlanDriftFix(opts){
   }
 }
 function showPage(i){
+  if(trainingGuard()&&i===2){ try{ showToast('🎓 Entraînement — écran Données indisponible (aucune écriture possible).'); }catch(e){} return; }   // [L327 · fix audit LOT 25] ferme la surface d'écriture admin
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
   try{ renderFlow(); }catch(e){}   // [L320 · LOT 18] le fil du parcours suit la page
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
@@ -7979,6 +7988,7 @@ function openSaveModal(){
 }
 function closeSaveModal(){document.getElementById('saveModal').classList.remove('open');}
 async function doSave(){
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — sauvegarde de plan désactivée.'); }catch(e){} return; }   // [L327 · LOT 25]
   // [L62 · Fix bug D] anti double-appui : sans verrou, un double-tap lançait deux
   // écritures concurrentes → 2 plans créés (et en édition, la 1re passe remettait
   // editingSaveId à null → la 2e partait en CRÉATION = doublon aussi). Même
@@ -8732,6 +8742,7 @@ const CHRONO_LS_KEY='step_chrono_live';
 const CHRONO_MIR_LS_KEY='step_chrono_mir';   // [L298 · revue P1] temps d'une VUE MIROIR : clé SÉPARÉE — le chrono perso (reprise de brouillon, ▶) ne peut plus écraser le temps du récepteur en attente de réouverture du partage
 let _wroteChronoLive=false;   // [L103 · audit-max] CET onglet a-t-il écrit la clé live ? (2 onglets même tablette)
 function persistChronoLive(){
+  if(trainingGuard()) return;   // [L327 · LOT 25]
   try{
     if(chronoRunning && chronoRunStart!=null && (typeof _viewingSharedId!=='undefined'&&_viewingSharedId)){
       // [L298 · revue P1] chrono d'une VUE MIROIR : clé DÉDIÉE (jamais la clé perso — sinon la reprise d'un
@@ -8799,6 +8810,7 @@ function buildPlanName(){
 // avec le flag manqueMatiere:true.
 // ============================================================
 async function stopManqueMatiere(){
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — « manque matière » simulé, rien n\'est enregistré.'); }catch(e){} try{ resetAll(); }catch(e){} return; }   // [L327 · fix audit LOT 25]
   if(_shareBlockSend()) return;   // [L63 · Lot 5] l'arrêt manque matière crée aussi une fiche : réservé à l'émetteur
   // [L73 · Lot 5 · B39] re-tap pendant l'envoi : saveCommandeFiche early-returnait en silence
   // (verrou _sendingFiche) → _ficheId undefined → un SECOND brouillon « ⛔ Solde » orphelin
@@ -9718,7 +9730,51 @@ function recalcEcartsFromFiche(opts){
 // Applique la déduction d'un surplus sur les bobines NON coupées du plan (P1)
 
 // Enregistre la fiche confirmée dans Firestore (sans mail), puis reset → Plan vierge
+// ============================================================
+// [L327 · REDESIGN LOT 25 · §2.19-7 · VALIDÉ Esteban] MODE ENTRAÎNEMENT (bac à sable). GARANTIE ISO :
+// AUCUNE écriture en base. Un verrou unique trainingGuard() garde EN TÊTE tous les points d'écriture
+// Firestore (envoi, brouillons auto+manuel, plan, chrono, audit, partage, photos) — pas seulement l'envoi
+// (réserve Q6 : l'autosave brouillon écrit indépendamment). Hachures bleues plein écran + bandeau permanent
+// « RIEN N'EST ENVOYÉ ». localStorage NON touché non plus (séries/apprenti gelés le temps de l'entraînement).
+// ============================================================
+let _trainingMode=false, _trainingLsBak=null;
+function trainingGuard(){ return _trainingMode; }
+function startTraining(){
+  try{
+    if(_trainingMode) return;
+    const hasWork=(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length)||(typeof planHasContent==='function'&&planHasContent());   // [L327 · fix audit] planHasContent couvre AUSSI réf/n°/laizes saisies sans client
+    if(hasWork && typeof confirm==='function' && !confirm('🎓 Passer en mode ENTRAÎNEMENT ?\n\nLa commande en cours à l\'écran sera remplacée par un exemple. Rien de ce que tu feras en entraînement ne sera enregistré.')) return;
+    try{ resetAll(); }catch(e){}   // [L327 · fix audit] resetAll AVANT d'armer le mode : le cleanup d'entrée (fin de partage éventuel) est une action RÉELLE légitime, jamais une écriture « sous couvert d'entraînement »
+    _trainingMode=true;
+    document.body.classList.add('training');
+    if(!document.getElementById('trainingBanner')){
+      const b=document.createElement('div'); b.id='trainingBanner';
+      b.innerHTML='🎓 <b>MODE ENTRAÎNEMENT</b> — RIEN N\'EST ENVOYÉ <button onclick="stopTraining()">Quitter</button>';
+      document.body.appendChild(b);
+    }
+    // commande d'exemple (remplissage best-effort, non critique)
+    try{
+      const set=(id,v)=>{ const e=document.getElementById(id); if(e){ e.value=v; e.dispatchEvent(new Event('input',{bubbles:true})); } };
+      set('planClient','ENTRAÎNEMENT'); set('planRef','DEMO-1'); set('planLongueur','1000');
+      set('motherWidth','2200'); set('edgeLoss','10'); set('bladeWidth','5');
+      const rows=document.querySelector('.ref-block .rb-rows');
+      if(rows && typeof makeOrderRow==='function'){ rows.innerHTML=''; rows.appendChild(makeOrderRow('9','502')); rows.appendChild(makeOrderRow('3','612')); rows.appendChild(makeOrderRow('65','157')); }
+      if(typeof recalcPlan==='function') recalcPlan();
+    }catch(e){}
+    try{ showToast('🎓 Entraînement : entraîne-toi librement, rien n\'est enregistré. « Quitter » en haut pour sortir.'); }catch(e){}
+  }catch(e){}
+}
+function stopTraining(){
+  try{
+    _trainingMode=false;
+    document.body.classList.remove('training');
+    document.getElementById('trainingBanner')?.remove();
+    try{ resetAll(); }catch(e){}
+    try{ showToast('Entraînement terminé — retour au travail réel.'); }catch(e){}
+  }catch(e){}
+}
 async function saveCommandeFiche(rows,useful,blade,opts){
+  if(trainingGuard()){ try{ showToast('🎓 ENTRAÎNEMENT — fiche NON envoyée (rien en base). Remise à zéro.'); }catch(e){} try{ resetAll(); }catch(e){} return null; }
   // ── Verrou anti double-clic : un double-tap tablette pendant le commit
   //    créait fiche + temps EN DOUBLE. Le bouton est désactivé pour de vrai.
   if(_sendingFiche) return;
@@ -18054,12 +18110,15 @@ function maybeWelcome(force){
       +'</div>'
       +'<div style="font-size:14px;color:var(--muted);margin-bottom:14px">Cherche toujours <b style="color:#ffd45e">le bouton JAUNE</b> : c\'est le geste à faire.</div>'
       +'<button id="welcomeOk" class="btn" style="width:100%;min-height:56px;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800">J\'ai compris →</button>'
-      +'<button id="welcomeAppr" class="btn btn-ghost btn-sm" style="width:100%;min-height:48px;margin-top:8px">🎓 Réactiver le mode apprenti (indices)</button></div>';
+      +'<button id="welcomeAppr" class="btn btn-ghost btn-sm" style="width:100%;min-height:48px;margin-top:8px">🎓 Réactiver le mode apprenti (indices)</button>'
+      +'<button id="welcomeTrain" class="btn btn-ghost btn-sm" style="width:100%;min-height:48px;margin-top:6px">🎓 Mode entrainement (rien n est envoye)</button></div>';
     document.body.appendChild(o);
     const ok=o.querySelector('#welcomeOk');
     if(ok) ok.onclick=function(){ try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); };
     const ap=o.querySelector('#welcomeAppr');
     if(ap) ap.onclick=function(){ apprentiRearm(); try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); try{ hintCoupeeApply(); }catch(e){} };
+    const tr=o.querySelector('#welcomeTrain');
+    if(tr) tr.onclick=function(){ try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); startTraining(); };
   }catch(e){}
 }
 // [L322 · LOT 20 · §2.19-5] INDICE AUTO-EFFAÇABLE sur le ✂ : les 3 PREMIÈRES bobines de la vie de
@@ -18127,7 +18186,7 @@ function openMonTableau(ini){
 }
 function _apprentiKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_appr_'+ini; }
 function _apprentiOn(){ try{ const k=_apprentiKey(); const v=localStorage.getItem(k); if(v===null){ localStorage.setItem(k,'5'); return true; } return (parseInt(v,10)||0)>0; }catch(e){ return false; } }
-function _apprentiTick(nc){ try{ const k=_apprentiKey(); const v=parseInt(localStorage.getItem(k)||'0',10)||0; if(v>0&&!nc) localStorage.setItem(k,String(v-1)); }catch(e){} }
+function _apprentiTick(nc){ if(trainingGuard()) return; try{ const k=_apprentiKey(); const v=parseInt(localStorage.getItem(k)||'0',10)||0; if(v>0&&!nc) localStorage.setItem(k,String(v-1)); }catch(e){} }
 function apprentiRearm(){ try{ localStorage.setItem(_apprentiKey(),'5'); }catch(e){} try{ showToast('🎓 Mode apprenti réactivé — indices affichés pendant tes 5 prochaines fiches sans NC.'); }catch(e){} }
 // [L324 · LOT 12 · §2.5/G1] GAMIFICATION — SÉRIE SANS NC par initiales. RÈGLE D'OR : qualité/constance,
 // JAMAIS la vitesse. localStorage seul (rien en base, données non probantes). Désactivable par poste :
@@ -18136,9 +18195,9 @@ function apprentiRearm(){ try{ localStorage.setItem(_apprentiKey(),'5'); }catch(
 function _gamifOff(){ try{ return localStorage.getItem('step_gamif_off')==='1'; }catch(e){ return true; } }
 function _streakKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_streak_'+ini; }
 function streakGet(){ try{ return parseInt(localStorage.getItem(_streakKey())||'0',10)||0; }catch(e){ return 0; } }
-function streakBump(){ if(_gamifOff()) return; try{ const k=_streakKey(); const n=streakGet()+1; localStorage.setItem(k,String(n));
+function streakBump(){ if(_gamifOff()||trainingGuard()) return; try{ const k=_streakKey(); const n=streakGet()+1; localStorage.setItem(k,String(n));
   const rk=k+'_rec'; const r=parseInt(localStorage.getItem(rk)||'0',10)||0; if(n>r) localStorage.setItem(rk,String(n)); }catch(e){} }
-function streakReset(){ if(_gamifOff()) return; try{ localStorage.setItem(_streakKey(),'0'); }catch(e){} }
+function streakReset(){ if(_gamifOff()||trainingGuard()) return; try{ localStorage.setItem(_streakKey(),'0'); }catch(e){} }
 function _hintCutKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_hint_cut_'+ini; }
 function hintCoupeeApply(){
   try{
@@ -18151,7 +18210,7 @@ function hintCoupeeApply(){
     b.classList.toggle('hint-cut', (n<3||apprenti)&&!_t2);
   }catch(e){}
 }
-function hintCoupeeCount(){ try{ const k=_hintCutKey(); const n=(parseInt(localStorage.getItem(k)||'0',10)||0)+1; localStorage.setItem(k,String(n)); }catch(e){} }
+function hintCoupeeCount(){ if(trainingGuard()) return; try{ const k=_hintCutKey(); const n=(parseInt(localStorage.getItem(k)||'0',10)||0)+1; localStorage.setItem(k,String(n)); }catch(e){} }
 function renderFlow(){
   try{
     const set=(id,cls,html)=>{ const e=document.getElementById(id); if(e){ e.className='st '+cls; e.innerHTML=html; } };
@@ -18635,6 +18694,7 @@ function renderShareChips(){
   if(btn){ btn.disabled=false; btn.style.opacity=(n===0)?'.55':'1'; btn.textContent=n===0?'Partager':('Partager avec '+n+' opérateur'+(n>1?'s':'')); }   // [L321 · LOT 19] « pas prêt » = estompé, JAMAIS disabled (le tap explique)
 }
 function doShareLocal(){
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — partage désactivé.'); }catch(e){} return; }   // [L327 · LOT 25]
   // [L103 · audit-max] récepteur en vue MIROIR : partager « sa » commande partagerait en fait
   // celle du collègue sous un 2e doc (verrous cuts alternant entre les deux). Garde symétrique
   // d'openSharedCommand (qui bloque déjà l'inverse).
@@ -18927,6 +18987,7 @@ function _shareCloneForReceiver(state){
   return st;
 }
 function openSharedCommand(id){
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — impossible d\'ouvrir la commande partagée d\'un collègue (rien ne doit s\'écrire).'); }catch(e){} return; }   // [L327 · fix contre-revue LOT 25] bloque le miroir RÉCEPTEUR à la source
   // [L67 · Audit] j'ÉMETS déjà un partage : ouvrir la commande d'un collègue remplacerait
   // mon écran, et mon push 10 s écraserait MON doc partagé avec SA commande.
   if(_shareActive){
@@ -19127,6 +19188,7 @@ function _shareQualityApply(id,q){
   }
 }
 function shareCutWrite(idx,coupee,lineId){
+  if(trainingGuard()) return;   // [L327 · fix contre-revue LOT 25] BACKSTOP : jamais d'écriture cuts.<idx> sur le brouillon d'un collègue en entraînement (miroir RÉCEPTEUR)
   const docId=_shareCurrentDocId();
   if(!db||!docId||idx<0) return;
   const upd={};
@@ -19465,6 +19527,7 @@ function loadDrafts(){ return Array.isArray(brouillonsCache)?brouillonsCache.fil
 // Écriture : diff cache → Firestore (set des modifiés, delete des disparus).
 // On ne réécrit PAS les brouillons inchangés (évite un write par tick d'auto-save).
 function persistDrafts(arr){
+  if(trainingGuard()) return false;   // [L327 · fix audit LOT 25] point d'écriture brouillons (solde manque-matière inclus) — RIEN en base en entraînement
   if(!db) return false;
   try{
     const next=Array.isArray(arr)?arr:[];
@@ -19564,6 +19627,7 @@ function serializeFicheState(){
 }
 let _savingDraftManual=false;   // [L73 · Lot 5 · B41] verrou anti double-tap « 💾 Brouillon »
 async function saveDraftManual(){
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — brouillon désactivé.'); }catch(e){} return; }   // [L327 · LOT 25]
   if(ficheLines.length===0){showToast('Aucune bobine à enregistrer en brouillon.','err');return;}
   if(_viewingSharedId){ showToast('🔒 Vue miroir (commande d\'un collègue) : le doc partagé EST déjà la sauvegarde — pas de brouillon perso ici.','err'); return; }   // [L113 · audit #17] sinon un 💾 côté récepteur CONSOMMAIT le brouillon de l'émetteur (L109 sans garde propriétaire)
   // [L138 · audit #7] copie locale d'un partage terminé : parquer en brouillon « propre » (owner=récepteur, sans
@@ -19729,6 +19793,7 @@ async function flushDraftFallbacks(){
 let _autosaveTimer=null;
 let _autosaveLastSig='';
 function autosaveDraftTick(force){
+  if(trainingGuard()) return;   // [L327 · LOT 25] pas de brouillon auto (réserve Q6)
   if(!ficheLines.length) return;
   // [L67 · Audit] vue MIROIR d'une commande partagée : pas de brouillon perso — le doc
   // partagé EST la sauvegarde. Sinon la commande resurgissait chez l'invité comme brouillon
@@ -19983,6 +20048,7 @@ function planHasContent(){
   return false;
 }
 function planAutosaveTick(){
+  if(trainingGuard()) return;   // [L327 · LOT 25]
   if(!planHasContent()) return;
   // [L67 · Audit] vue miroir : pas de brouillon plan perso · [L138 · audit #6] AUSSI la COPIE LOCALE qui
   // survit à la fin du partage (_localCopyFromShare) — trou jumeau de celui bouché pour l'autosave fiche :
