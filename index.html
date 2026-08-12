@@ -112,7 +112,7 @@ button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:
 .btn-sm{padding:9px 12px;font-size:13px;border-radius:7px;min-height:44px}
 /* [L59 · Lot 1] Commande partagée (rose depuis L62) — mêmes codes visuels que les autres boutons de l'app */
 .btn-shared{background:var(--shared-bg);color:var(--shared);border:1px solid #8a2857}.btn-shared:hover{background:#42152b}
-.btn-shared:disabled{opacity:.45;cursor:not-allowed}
+/* [L321 · LOT 19] .btn-shared:disabled SUPPRIMÉ (dernier vestige anti zéro-tap-mort) : le bouton Partager n'est plus jamais disabled — estompé + garde parlante */
 .share-modal{background:var(--card);border:1px solid var(--shared);border-radius:12px;padding:13px 14px}
 .share-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border-radius:20px;border:1px solid var(--border2);background:#1a1a18;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;min-height:44px}
 .share-chip .av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#111}
@@ -1412,7 +1412,7 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
       <div style="color:var(--muted);font-size:12px;margin-bottom:10px">Choisis qui coupe cette commande avec toi (3 max). Chacun la verra dans ses brouillons.</div>
       <div id="shareChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       <div id="shareSummary" style="color:var(--muted);font-size:12px;margin:8px 0 10px">Aucun opérateur sélectionné.</div>
-      <button id="shareConfirmBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" disabled onclick="doShareLocal()">Partager</button>
+      <button id="shareConfirmBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" onclick="doShareLocal()">Partager</button><!-- [L321 · LOT 19 · zéro tap mort] jamais disabled : la garde de doShareLocal explique (« choisis au moins un opérateur ») -->
       <div style="text-align:center;margin-top:8px"><button class="btn btn-ghost btn-sm" style="border:none" onclick="toggleSharePanel(false)">Annuler</button></div>
     </div>
 
@@ -2023,7 +2023,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L320';
+const APP_VERSION='2026.08.12-L321';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7917,14 +7917,14 @@ function refreshEtiquetteSolde(){
         <label>N° de référence <span style="color:var(--muted);font-weight:400">— imprimé sur l'étiquette (digital)</span></label>
         <input type="text" id="etiqRefNum_${d.key}" value="" placeholder="ex : GHX173A"><!-- [L292 · demande Esteban 30/07] case VIERGE : le pré-remplissage avec la réf commande (L281) faisait imprimer un n° faux si l'opérateur ne le remplaçait pas — il saisit le n° réel ou laisse la case du papier à remplir au feutre -->
       </div>
-      <button class="btn btn-orange" id="etiqPrintBtn_${d.key}" style="width:100%;justify-content:center;opacity:.4;cursor:not-allowed" onclick="printEtiquetteSolde('${d.key}')">🖨️ Imprimer l'étiquette solde</button>
+      <button class="btn btn-orange" id="etiqPrintBtn_${d.key}" style="width:100%;justify-content:center;opacity:.4" onclick="printEtiquetteSolde('${d.key}')">🖨️ Imprimer l'étiquette solde</button>
     </div>`).join('');<!-- [L191] hint « Saisis le n° de la bobine mère… » retiré (demande Esteban) -->
 }
 function updateEtiquetteBtn(key){
   const btn=document.getElementById('etiqPrintBtn_'+key),hint=document.getElementById('etiqHint_'+key);
   const num=(document.getElementById('etiqNumMere_'+key)?.value||'').trim();
   const ready=!!num;
-  if(btn){btn.style.opacity=ready?'1':'.4';btn.style.cursor=ready?'pointer':'not-allowed';}
+  if(btn){btn.style.opacity=ready?'1':'.4';btn.style.cursor='pointer';}   // [L321 · LOT 19] toujours tapable — printEtiquetteSolde explique (« saisis le n° de la bobine mère »)
   if(hint) hint.style.display=ready?'none':'block';
 }
 function printEtiquetteSolde(key){
@@ -18498,7 +18498,7 @@ function renderShareChips(){
     if(n===0){ sum.textContent='Aucun opérateur sélectionné.'; }
     else{ sum.innerHTML='Sélectionnés : <b style="color:var(--shared)">'+Array.from(_shareSel).map(function(u){return esc(_nomOf(u));}).join(', ')+'</b> (+ toi = '+(n+1)+' / '+SHARE_MAX_TOTAL+')'; }
   }
-  if(btn){ btn.disabled=(n===0); btn.textContent=n===0?'Partager':('Partager avec '+n+' opérateur'+(n>1?'s':'')); }
+  if(btn){ btn.disabled=false; btn.style.opacity=(n===0)?'.55':'1'; btn.textContent=n===0?'Partager':('Partager avec '+n+' opérateur'+(n>1?'s':'')); }   // [L321 · LOT 19] « pas prêt » = estompé, JAMAIS disabled (le tap explique)
 }
 function doShareLocal(){
   // [L103 · audit-max] récepteur en vue MIROIR : partager « sa » commande partagerait en fait

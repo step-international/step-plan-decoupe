@@ -512,8 +512,8 @@ console.log('── L304 : REDESIGN LOT 1 — boutons arcade (CSS seul) ──')
 has(/REDESIGN LOT 1 .*LANGAGE « BOUTON ARCADE »/,'L304 : bloc CSS arcade présent (chant + enfoncement, mode A)');
 has(/@keyframes arcadePulse/,'L304 : halo pulsé ambre AVEC chant intégré aux keyframes (sinon écrasé)');
 has(/\.fiche-line\.coupee \[id\^="coupeeBtn_"\]\{box-shadow:none/,'L304 : bouton FAIT à plat (coupée = déjà enfoncé)');
-(function(){ const n=(src.match(/cursor:not-allowed/g)||[]).length; const okk=n<=2;
-  console.log((okk?'✅ ':'❌ ')+'L304 : aucune NOUVELLE occurrence cursor:not-allowed ('+n+'/2 pré-existantes, notées pour LOT 19)'); if(!okk)fail++; })();
+(function(){ const n=(src.match(/cursor:not-allowed/g)||[]).length; const okk=n===0;
+  console.log((okk?'✅ ':'❌ ')+'L304→L321 : cursor:not-allowed = ZÉRO ('+n+') — les 2 pré-existants soldés par le LOT 19'); if(!okk)fail++; })();
 
 console.log('── L305 : REDESIGN LOT 21 — nettoyage du texte en surplus (§2.20) ──');
 absent(/Marque toutes les bobines comme Coupées/,'L305 : phrase permanente sous Confirmer retirée (garde au tap suffit)');
@@ -642,5 +642,10 @@ has(/id="nowBar"/,'L320 : bannière MAINTENANT en tête de fiche (bord ambre, PA
 has(/function gotoNextCut/,'L320 : Y ALLER → défile + surligne la carte .next-action (fl-spot)');
 has(/#nowBar\{order:1;/,'L320 : order flex EXPLICITE (leçon des audits : jamais d enfant sans order)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L320 présents dans index.html + sw.js');
+console.log('── L321 : REDESIGN LOT 19 — zéro tap mort soldé (§2.19-3) ──');
+absent(/cursor:not-allowed/,'L321 : plus AUCUN cursor:not-allowed dans l app');
+absent(/ disabled onclick="doShareLocal/,'L321 : Partager jamais disabled (garde parlante existante)');
+has(/btn\.disabled=false; btn\.style\.opacity=\(n===0\)/,'L321 : « pas prêt » = estompé, le tap explique');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L321 présents dans index.html + sw.js');
 process.exit(fail?1:0);
