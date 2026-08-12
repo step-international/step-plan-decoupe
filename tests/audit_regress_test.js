@@ -699,5 +699,11 @@ console.log('── L329 : grosse audit — 7e fuite entraînement (upload Fichi
 has(/function triggerCommandeFiles\(\)\{\n  if\(trainingGuard\(\)\)/,'L329 : triggerCommandeFiles gardé (fuite Storage prod trouvée par la grosse audit)');
 has(/if\(trainingGuard\(\)\)\{ this\.value=''; return; \}   \/\/ \[L329/,'L329 : backstop sur le change handler commandeFilesInput');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L329 présents dans index.html + sw.js');
+console.log('── L330 : correctifs grosse audit (cascade/paysage) ──');
+has(/#page1\.active #shareBlock\{margin-top:0 !important\}/,'L330 : +8px portrait corrigé (marge inline → !important)');
+has(/#ficheRail\{display:block;grid-column:1;grid-row:1;position:sticky;top:64px/,'L330 : rail paysage dégagé de la nav (top 8→64px, chrono XXL plus tronqué)');
+has(/body\.training \.modal-overlay\{z-index:8100\}/,'L330 : modales au-dessus des hachures d entraînement');
+has(/body:has\(#page2\.active\) #flow\{display:none\}/,'L330 : fil du parcours masqué sur l écran Données');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L330 présents dans index.html + sw.js');
 process.exit(fail?1:0);
