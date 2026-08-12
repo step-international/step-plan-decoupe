@@ -653,5 +653,11 @@ has(/id="welcomeHelpBtn"/,'L322 : « ? » discret dans l en-tête');
 has(/step_hint_cut_/,'L322 : indice « 1 tap = coupée + test OK » sur les 3 premières bobines de la VIE de l opérateur (par initiales)');
 has(/hintCoupeeCount/,'L322 : compté UNIQUEMENT sur coupe réussie (pas les refus)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L322 présents dans index.html + sw.js');
+console.log('── L323 : REDESIGN LOT 22 — mode APPRENTI (§2.19-6, interprétation minimale) ──');
+has(/step_appr_/,'L323 : apprenti par initiales, ON par défaut pour des initiales inconnues (compteur 5)');
+has(/_apprentiTick\(ncCount\)/,'L323 : extinction auto — décrément à chaque envoi validé SANS NC');
+has(/apprentiRearm/,'L323 : réactivable par l opérateur (accueil 🎓), jamais imposé');
+absent(/step_appr.*firestore|collection\('step_appr/,'L323 : localStorage SEUL — jamais en base');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L323 présents dans index.html + sw.js');
 process.exit(fail?1:0);

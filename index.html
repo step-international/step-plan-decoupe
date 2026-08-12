@@ -2026,7 +2026,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L322';
+const APP_VERSION='2026.08.12-L323';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9091,7 +9091,7 @@ function confirmCommandeRecap(){
   if(!_etiqCount){
     showToast('🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ? Aucune photo d\'étiquette jointe à cette commande.','err');
   }
-  if(_armed){ confirmCommande(); return; }   // [L319] tap « Enregistrer » du volet : TOUTES les gardes ci-dessus viennent d'être re-déroulées (drapeau déjà consommé en tête) → envoi réel
+  if(_armed){ try{ _apprentiTick(ncCount); }catch(e){} confirmCommande(); return; }   // [L319 + L323 · LOT 22] envoi validé → tick apprenti (fiche sans NC = -1) puis envoi réel
   _openVictory({total:total,machStr:machStr,nc:ncCount,etiq:_etiqCount,chronoZero:(total>0&&!(chronoSec>0))});
 }
 // [L319 · LOT 6 · §2.5] Volet de clôture : affichage pur (aucune écriture). « Enregistrer » ré-appelle
@@ -18043,14 +18043,26 @@ function maybeWelcome(force){
       +card('📊','DONNÉES','je retrouve mes fiches',false)
       +'</div>'
       +'<div style="font-size:14px;color:var(--muted);margin-bottom:14px">Cherche toujours <b style="color:#ffd45e">le bouton JAUNE</b> : c\'est le geste à faire.</div>'
-      +'<button id="welcomeOk" class="btn" style="width:100%;min-height:56px;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800">J\'ai compris →</button></div>';
+      +'<button id="welcomeOk" class="btn" style="width:100%;min-height:56px;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800">J\'ai compris →</button>'
+      +'<button id="welcomeAppr" class="btn btn-ghost btn-sm" style="width:100%;min-height:48px;margin-top:8px">🎓 Réactiver le mode apprenti (indices)</button></div>';
     document.body.appendChild(o);
     const ok=o.querySelector('#welcomeOk');
     if(ok) ok.onclick=function(){ try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); };
+    const ap=o.querySelector('#welcomeAppr');
+    if(ap) ap.onclick=function(){ apprentiRearm(); try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); try{ hintCoupeeApply(); }catch(e){} };
   }catch(e){}
 }
 // [L322 · LOT 20 · §2.19-5] INDICE AUTO-EFFAÇABLE sur le ✂ : les 3 PREMIÈRES bobines de la vie de
 // l'opérateur (compteur par initiales), puis plus jamais. Dégradation silencieuse si localStorage plein.
+// [L323 · LOT 22 · §2.19-6] MODE APPRENTI par initiales (step_appr_<INI>) : ON PAR DÉFAUT pour des
+// initiales inconnues (compteur 5). EFFET (interprétation minimale documentée au rapport) : les indices
+// débutant (hint « 1 tap ») RESTENT affichés tant que le mode est actif. EXTINCTION AUTO : décrément à
+// chaque fiche ENVOYÉE SANS NC (cumulatif — pas de remise à 5 sur NC, choix doux documenté) ; à 0 → off.
+// RÉACTIVABLE par l'opérateur (bouton 🎓 de l'accueil « ? »), jamais imposé. localStorage seul, jamais en base.
+function _apprentiKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_appr_'+ini; }
+function _apprentiOn(){ try{ const k=_apprentiKey(); const v=localStorage.getItem(k); if(v===null){ localStorage.setItem(k,'5'); return true; } return (parseInt(v,10)||0)>0; }catch(e){ return false; } }
+function _apprentiTick(nc){ try{ const k=_apprentiKey(); const v=parseInt(localStorage.getItem(k)||'0',10)||0; if(v>0&&!nc) localStorage.setItem(k,String(v-1)); }catch(e){} }
+function apprentiRearm(){ try{ localStorage.setItem(_apprentiKey(),'5'); }catch(e){} try{ showToast('🎓 Mode apprenti réactivé — indices affichés pendant tes 5 prochaines fiches sans NC.'); }catch(e){} }
 function _hintCutKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_hint_cut_'+ini; }
 function hintCoupeeApply(){
   try{
