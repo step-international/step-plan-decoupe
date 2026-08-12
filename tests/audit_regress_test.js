@@ -695,5 +695,9 @@ console.log('── L328 : REDESIGN LOT 28 — agent de test 24h/24 (§2.23-C, H
 (function(){ const ok=require('fs').existsSync(__dirname+'/agent.mjs'); console.log((ok?'✅ ':'❌ ')+'L328 : tests/agent.mjs présent (Node+Playwright, hors le fichier unique)'); if(!ok)fail++; })();
 absent(/agent\.mjs/,'L328 : agent.mjs n est PAS référencé dans index.html (l app installée ne grossit pas)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L328 présents dans index.html + sw.js');
+console.log('── L329 : grosse audit — 7e fuite entraînement (upload Fichiers commande client) ──');
+has(/function triggerCommandeFiles\(\)\{\n  if\(trainingGuard\(\)\)/,'L329 : triggerCommandeFiles gardé (fuite Storage prod trouvée par la grosse audit)');
+has(/if\(trainingGuard\(\)\)\{ this\.value=''; return; \}   \/\/ \[L329/,'L329 : backstop sur le change handler commandeFilesInput');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L329 présents dans index.html + sw.js');
 process.exit(fail?1:0);

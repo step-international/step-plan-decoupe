@@ -2036,7 +2036,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L328';
+const APP_VERSION='2026.08.12-L329';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4082,12 +4082,14 @@ function fileIcon(type){
   return type==='image'?'🖼':type==='pdf'?'📄':type==='doc'?'📝':type==='xls'?'📊':'📎';
 }
 function triggerCommandeFiles(){
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — pièces jointes désactivées.'); }catch(e){} return; }   // [L329 · fix grosse audit] fuite Storage (7e point) : l'upload « Fichiers commande client » écrivait dans le bucket de PROD en entraînement
   const input=document.getElementById('commandeFilesInput');
   if(!input) return;
   input.value='';
   input.click();
 }
 document.getElementById('commandeFilesInput').addEventListener('change',async function(){
+  if(trainingGuard()){ this.value=''; return; }   // [L329 · fix grosse audit] BACKSTOP : jamais d'upload Storage en entraînement
   const files=Array.from(this.files||[]);
   if(!files.length) return;
   const zone=document.getElementById('commandePhotoZone');
@@ -9735,7 +9737,7 @@ function recalcEcartsFromFiche(opts){
 // AUCUNE écriture en base. Un verrou unique trainingGuard() garde EN TÊTE tous les points d'écriture
 // Firestore (envoi, brouillons auto+manuel, plan, chrono, audit, partage, photos) — pas seulement l'envoi
 // (réserve Q6 : l'autosave brouillon écrit indépendamment). Hachures bleues plein écran + bandeau permanent
-// « RIEN N'EST ENVOYÉ ». localStorage NON touché non plus (séries/apprenti gelés le temps de l'entraînement).
+// « RIEN N'EST ENVOYÉ ». Les compteurs PROBANTS (séries/apprenti/hint) sont gelés ; des prefs locales non probantes (step_op_day, welcome) peuvent encore s'écrire — SANS incidence base/ISO.
 // ============================================================
 let _trainingMode=false, _trainingLsBak=null;
 function trainingGuard(){ return _trainingMode; }
