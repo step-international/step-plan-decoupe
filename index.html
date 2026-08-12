@@ -2030,7 +2030,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L324';
+const APP_VERSION='2026.08.12-L325';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -17355,6 +17355,8 @@ function updateUtile2(){
   if(el) el.textContent=(m>0)?fmt(u):'—';
 }
 function selectIni(v){
+  // [L325 · LOT 7 · §2.5] re-tap sur SES initiales déjà sélectionnées → « Mon tableau » (lecture seule)
+  try{ if((document.getElementById('fInitiales')?.value||'').trim()===v){ openMonTableau(v); return; } }catch(e){}
   document.getElementById('fInitiales').value=v;
   document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===v));
   try{ localStorage.setItem('step_op_day',JSON.stringify({ini:v,date:_localDay()})); }catch(e){}   // [L314 · LOT 4 · §2.4] opérateur mémorisé pour LA JOURNÉE sur ce poste
@@ -18066,6 +18068,38 @@ function maybeWelcome(force){
 // débutant (hint « 1 tap ») RESTENT affichés tant que le mode est actif. EXTINCTION AUTO : décrément à
 // chaque fiche ENVOYÉE SANS NC (cumulatif — pas de remise à 5 sur NC, choix doux documenté) ; à 0 → off.
 // RÉACTIVABLE par l'opérateur (bouton 🎓 de l'accueil « ? »), jamais imposé. localStorage seul, jamais en base.
+// [L325 · LOT 7 · §2.5] MON TABLEAU — overlay LECTURE SEULE (fichesCache en mémoire + localStorage).
+// Zéro écriture, hors-ligne complet, fermeture ✕. Initiales sans historique → état vide propre.
+function openMonTableau(ini){
+  try{
+    // [L325 · fix audit LOT 7] Échap global (handler .modal-overlay.open) ne retire que la classe .open :
+    // le nœud RESTAIT dans le DOM et ce garde bloquait toute réouverture jusqu'au reload. Nœud fantôme → purgé.
+    const prev=document.getElementById('monTableauOverlay');
+    if(prev){ if(prev.classList.contains('open')) return; prev.remove(); }
+    const F=(typeof fichesCache!=='undefined'&&Array.isArray(fichesCache))?fichesCache.filter(function(f){return f&&!f.deleted&&(f.ini===ini);}):[];
+    const now=new Date(); const day=(now.getDay()+6)%7; const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-day);
+    let wkF=0,wkB=0,allB=0;
+    F.forEach(function(f){ const b=parseInt(f.totalBobines,10)||0; allB+=b; const d=f.date?new Date(f.date):null; if(d&&!isNaN(d)&&d>=monday){ wkF++; wkB+=b; } });
+    let stk=0,rec=0; try{ stk=parseInt(localStorage.getItem('step_streak_'+ini)||'0',10)||0; rec=parseInt(localStorage.getItem('step_streak_'+ini+'_rec')||'0',10)||0; }catch(e){}
+    const jalon=allB>=10000?'🏆 10 000 bobines':allB>=5000?'🥇 5 000 bobines':allB>=1000?'🥈 1 000 bobines':null;
+    const off=(typeof _gamifOff==='function')?_gamifOff():true;
+    const row=function(l,v){ return '<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--muted)">'+l+'</span><b style="font-variant-numeric:tabular-nums">'+v+'</b></div>'; };
+    const o=document.createElement('div');
+    o.id='monTableauOverlay'; o.className='modal-overlay open';
+    o.innerHTML='<div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtTitle">'
+      +'<h3 id="mtTitle">📊 Mon tableau — '+esc(ini)+'</h3><button class="modal-x" aria-label="Fermer">✕</button>'
+      +row('Fiches cette semaine',wkF)
+      +row('Bobines cette semaine',wkB)
+      +(off?'':row('Série sans NC en cours','×'+stk))
+      +(off?'':row('Record de série','×'+rec))
+      +row('Bobines (historique chargé)',allB)
+      +(jalon?row('Jalon',jalon):'')
+      +'<div style="margin-top:10px;font-size:11.5px;color:var(--muted)">Lecture seule — compté sur l\'historique chargé de ce poste. Rien n\'est enregistré.</div></div>';
+    document.body.appendChild(o);
+    const x=o.querySelector('.modal-x'); if(x) x.onclick=function(){ o.remove(); };
+    o.addEventListener('click',function(ev){ if(ev.target===o) o.remove(); });
+  }catch(e){}
+}
 function _apprentiKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_appr_'+ini; }
 function _apprentiOn(){ try{ const k=_apprentiKey(); const v=localStorage.getItem(k); if(v===null){ localStorage.setItem(k,'5'); return true; } return (parseInt(v,10)||0)>0; }catch(e){ return false; } }
 function _apprentiTick(nc){ try{ const k=_apprentiKey(); const v=parseInt(localStorage.getItem(k)||'0',10)||0; if(v>0&&!nc) localStorage.setItem(k,String(v-1)); }catch(e){} }

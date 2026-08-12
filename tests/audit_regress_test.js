@@ -667,5 +667,10 @@ has(/streakReset\(\)/,'L324 : NC sur bobine coupée → série à 0, sans messag
 has(/SÉRIE ×/,'L324 : chip SÉRIE dans le HUD (dès ×2, intensité ×5/×10/×25)');
 has(/G2 \(objectif du jour\) et G4/,'L324 : G2/G4 REPORTÉS documentés (dépendance planning)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L324 présents dans index.html + sw.js');
+console.log('── L325 : REDESIGN LOT 7 — Mon tableau (§2.5) ──');
+has(/function openMonTableau/,'L325 : overlay lecture seule (fichesCache + localStorage, zéro écriture)');
+has(/re-tap sur SES initiales/,'L325 : ouverture par re-tap sur ses initiales (sélection inchangée sinon)');
+has(/Rien n\\'est enregistré/,'L325 : mention lecture seule affichée');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L325 présents dans index.html + sw.js');
 process.exit(fail?1:0);
