@@ -691,5 +691,9 @@ has(/body\.training #actionBar\{bottom:calc/,'L327 : barre d action remontée au
 has(/function shareCutWrite\(idx,coupee,lineId\)\{\n  if\(trainingGuard\(\)\) return;/,'L327 : shareCutWrite gardé (fix contre-revue : miroir RÉCEPTEUR écrivait chez un collègue)');
 has(/function openSharedCommand\(id\)\{\n  if\(trainingGuard\(\)\)/,'L327 : openSharedCommand bloqué en entraînement');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L327 présents dans index.html + sw.js');
+console.log('── L328 : REDESIGN LOT 28 — agent de test 24h/24 (§2.23-C, HORS index.html) ──');
+(function(){ const ok=require('fs').existsSync(__dirname+'/agent.mjs'); console.log((ok?'✅ ':'❌ ')+'L328 : tests/agent.mjs présent (Node+Playwright, hors le fichier unique)'); if(!ok)fail++; })();
+absent(/agent\.mjs/,'L328 : agent.mjs n est PAS référencé dans index.html (l app installée ne grossit pas)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L328 présents dans index.html + sw.js');
 process.exit(fail?1:0);
