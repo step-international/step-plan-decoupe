@@ -166,6 +166,22 @@ service cloud.firestore {
                     && request.resource.data.machine.size() <= 20;
     }
 
+    // ===== REMONTÉE TERRAIN [L332 · lots 26/27] — collection « mail » lue par l'extension Trigger Email =====
+    // Un poste CONNU peut CRÉER un signalement (bulle) ou une erreur auto. Jamais lire/modifier/supprimer
+    // (l'extension Trigger Email écrit son champ « delivery » via le SDK admin, hors règles). Borné :
+    // destinataires FIGÉS côté serveur (hasOnly = aucune autre adresse possible → pas de relais spam) + taille + champs requis.
+    match /mail/{id} {
+      allow create: if isKnown()
+                    && request.resource.data.to is list
+                    && request.resource.data.to.hasOnly(['esterozier42480@gmail.com','sales@step-international.com'])
+                    && request.resource.data.to.size() <= 2
+                    && request.resource.data.message.subject is string
+                    && request.resource.data.message.subject.size() <= 300
+                    && request.resource.data.message.html is string
+                    && request.resource.data.message.html.size() <= 20000;
+      allow read, update, delete: if false;
+    }
+
     // ===== Refus par défaut =====
     match /{document=**} {
       allow read, write: if false;

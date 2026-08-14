@@ -710,5 +710,14 @@ has(/function promptOperatorTakeover/,'L331 : à la reprise, demande « changeme
 has(/function _pickTakeover/,'L331 : la liste des opérateurs active op.2 « à partir de la bobine en cours »');
 has(/setTimeout\(promptOperatorTakeover,400\)/,'L331 : branché sur ▶ Reprendre ET reprise de brouillon');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L331 présents dans index.html + sw.js');
+console.log('── L332 : LOTS 26/27 — bulle de signalement + mail auto (§2.23) ──');
+has(/id="reportBubble"/,'L332 : bulle permanente bas-droite (grise, jamais ambre)');
+has(/REPORT_RECIPIENTS=\['esterozier42480@gmail\.com','sales@step-international\.com'\]/,'L332 : mail auto aux 2 adresses Esteban');
+has(/collection\('mail'\)\.add/,'L332 : écrit dans la collection « mail » (extension Trigger Email) via boundedWrite (file hors-ligne)');
+has(/function reportAuto/,'L332 : erreurs JS remontées auto (regroupement 1\/h\/signature, silence sur refus métier)');
+has(/reportAuto\(\(e\.error&&e\.error\.message\)/,'L332 : greffé sur window.error SANS changer son comportement (console+toast conservés)');
+has(/if\(typeof trainingGuard==='function' && trainingGuard\(\)\) return Promise\.resolve\(false\)/,'L332 : aucun signalement en entraînement');
+(function(){ try{ const r=require('fs').readFileSync(__dirname+'/../firestore.rules','utf8'); const ok=/to\.hasOnly\(\['esterozier42480@gmail\.com','sales@step-international\.com'\]\)/.test(r); console.log((ok?'✅ ':'❌ ')+'L332 : firestore.rules fige les destinataires (anti-relais spam, fix audit)'); if(!ok)fail++; }catch(e){ console.log('⚠ firestore.rules non lu'); } })();
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L332 présents dans index.html + sw.js');
 process.exit(fail?1:0);

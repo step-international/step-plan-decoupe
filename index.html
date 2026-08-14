@@ -428,6 +428,14 @@ body:has(#page2.active) #flow{display:none}/* [L330 · fix grosse audit] fil du 
 #flow .st.done{color:var(--green)}
 #flow .st.now{background:#3a2e05;color:#ffd45e;flex:1.15}
 body.training::before{content:"";position:fixed;inset:0;z-index:8000;pointer-events:none;background:repeating-linear-gradient(45deg,rgba(79,157,242,.08) 0 22px,rgba(79,157,242,.16) 22px 44px)}
+#reportBubble{position:fixed;right:16px;bottom:16px;z-index:2900;width:56px;height:56px;border-radius:50%;
+  border:1px solid var(--border2);background:#20242c;color:var(--muted);font-size:24px;cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:0}
+#reportBubble:hover{border-color:var(--text);color:var(--text)}
+body.has-actionbar #reportBubble{bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+body.training #reportBubble{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+body:has(.modal-overlay.open) #reportBubble{display:none}
+.rep-choice{font-weight:800}
 #trainingBanner{position:fixed;left:0;right:0;bottom:0;z-index:8001;display:flex;align-items:center;justify-content:center;gap:12px;background:#16283d;border-top:3px solid var(--blue);color:#dbeafe;font-weight:800;font-size:14px;padding:10px 12px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 body.training .modal-overlay{z-index:8100}/* [L330 · fix grosse audit] volet victoire / Mon tableau AU-DESSUS des hachures (z8000) et du bandeau (z8001) en entraînement */
 #trainingBanner button{min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid var(--blue);background:#1e3a5f;color:#dbeafe;font-weight:800;cursor:pointer}
@@ -1937,6 +1945,24 @@ details[open] > .dbx-sum .dbx-chev,details.ana-fold[open] > summary .dbx-chev{tr
 <!-- [L319 · LOT 6 · §2.5 maquette 2d] VOLET DE CLÔTURE-VICTOIRE : remplace le confirm() natif du récap
      d'envoi (le SEUL dialogue non critique — cf. L318). Toutes les gardes restent AVANT ; « Enregistrer »
      RE-DÉROULE toutes les gardes au tap réel (drapeau armé) — plus sûr que l'ancien confirm. ≤4s, pas de son. -->
+<!-- [L332 · LOT 26/27 · §2.23-A/B] REMONTÉE TERRAIN : bulle de signalement permanente + panneau 3 choix.
+     Écrit dans la collection Firestore « mail » (format extension Firebase « Trigger Email ») -> mail auto aux
+     destinataires. GRISE (jamais ambre). File d'attente hors-ligne via boundedWrite. Bloquée en entraînement. -->
+<button id="reportBubble" onclick="openReport()" aria-label="Signaler un problème ou une idée" title="Signaler un problème ou une idée">💬</button>
+<div class="modal-overlay" id="reportOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+    <h3 id="reportTitle">Dire quelque chose à l'équipe</h3><button class="modal-x" aria-label="Fermer" onclick="closeReport()">✕</button>
+    <div style="display:flex;flex-direction:column;gap:8px;margin:6px 0">
+      <button type="button" class="btn rep-choice" data-k="bug" style="min-height:58px;justify-content:flex-start;border:1px solid #7a2222;color:var(--red);background:#241010" onclick="_repPick('bug')">⚠ Ça ne marche pas</button>
+      <button type="button" class="btn rep-choice" data-k="idee" style="min-height:58px;justify-content:flex-start;border:1px solid #2d5a9e;color:var(--blue);background:#16283d" onclick="_repPick('idee')">💡 J'ai une idée</button>
+      <button type="button" class="btn rep-choice" data-k="question" style="min-height:58px;justify-content:flex-start" onclick="_repPick('question')">❓ Je ne comprends pas</button>
+    </div>
+    <textarea id="reportText" rows="2" placeholder="Un mot de plus si tu veux… (facultatif)" style="width:100%;min-height:48px;margin:4px 0"></textarea>
+    <div id="reportCtx" style="font-size:11px;color:var(--muted);line-height:1.5;border-top:1px solid var(--border);padding-top:6px;margin-top:2px"></div>
+    <div class="modal-btns" style="margin-top:10px"><button class="btn btn-ghost" onclick="closeReport()">Annuler</button>
+      <button class="btn" id="reportSendBtn" style="flex:1;min-height:56px;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800" onclick="reportSubmit()">Envoyer</button></div>
+  </div>
+</div>
 <div class="modal-overlay" id="victoryOverlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="victoryTitle">
     <h3 id="victoryTitle" style="margin-bottom:4px">📤 Fiche terminée</h3><button class="modal-x" aria-label="Fermer" onclick="victoryClose()">✕</button>
@@ -2038,7 +2064,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.14-L331';
+const APP_VERSION='2026.08.14-L332';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -2148,6 +2174,73 @@ if(db){
 // APRÈS le retour SYNCHRONE (rollback L307). Le seul dialogue non-critique (récap d'envoi) = LOT 6.
 // Un marqueur d'audit fige ce choix : toute DISPARITION silencieuse d'un confirm de sécurité fait échouer la batterie.
 // ============================================================
+// [L332 · LOT 26/27 · §2.23] REMONTÉE TERRAIN — un seul canal : collection Firestore « mail » (format de
+// l'extension Firebase « Trigger Email ») -> envoi auto aux destinataires. Zéro donnée sensible (identifiants +
+// contexte technique, jamais de photo/BL). File hors-ligne via boundedWrite. Bloqué en entraînement.
+var REPORT_RECIPIENTS=['esterozier42480@gmail.com','sales@step-international.com'];
+var _repTrail=[], _lastJsError=null, _reportAutoAt={}, _repKind='bug';
+function _pushTrail(s){ try{ _repTrail.push(s); if(_repTrail.length>3) _repTrail.shift(); }catch(e){} }
+function _reportCtx(){
+  var g=function(id){ try{ return (document.getElementById(id)?.value||'').trim(); }catch(e){ return ''; } };
+  var page=''; try{ page=(document.querySelector('.page.active')?.id)||''; }catch(e){}
+  var ecran={page0:'Plan',page1:'Fiche',page2:'Données'}[page]||page||'?';
+  var bob=''; try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length){ bob=((typeof countCoupees==='function')?countCoupees():0)+'/'+ficheLines.length; } }catch(e){}
+  var mach=''; try{ mach=(typeof ficheMachine!=='undefined'&&ficheMachine)?ficheMachine:((typeof currentMachine!=='undefined'&&currentMachine)||''); }catch(e){}
+  var poste=''; try{ poste=(typeof currentUser!=='undefined'&&currentUser&&(currentUser.email||currentUser.uid))||''; }catch(e){}
+  return {
+    poste:poste, ini:g('fInitiales')||g('planClient')&&''||'', version:(typeof APP_VERSION!=='undefined'?APP_VERSION:''),
+    ecran:ecran, machine:mach, numCmd:g('fNumCmd')||g('planNumCmd'), client:g('fClient')||g('planClient'),
+    bobine:bob, gestes:_repTrail.slice(-3), online:(typeof navigator!=='undefined'?navigator.onLine:true),
+    ua:(typeof navigator!=='undefined'?String(navigator.userAgent).slice(0,140):''), at:(typeof isoNow==='function'?isoNow():new Date().toISOString())
+  };
+}
+function _repHtml(kind,texte,ctx,err){
+  var esc2=(typeof esc==='function')?esc:function(x){return String(x==null?'':x);};
+  var lbl={bug:'⚠ Ça ne marche pas',idee:'💡 Idée',question:'❓ Incompréhension',auto:'⚠ Erreur technique automatique'}[kind]||kind;
+  var rows=[['Type',lbl],['Poste',ctx.poste],['Opérateur',ctx.ini],['Version',ctx.version],['Écran',ctx.ecran],
+    ['Machine',ctx.machine],['Commande',(ctx.client||'')+(ctx.numCmd?(' · '+ctx.numCmd):'')],['Bobine',ctx.bobine],
+    ['En ligne',ctx.online?'oui':'NON (hors-ligne au moment du signalement)'],['3 derniers gestes',(ctx.gestes||[]).join(' → ')],
+    ['Erreur',err||'—'],['Appareil',ctx.ua],['Horodatage',ctx.at]];
+  var trs=rows.map(function(r){ return '<tr><td style="color:#888;padding:3px 10px 3px 0;vertical-align:top">'+esc2(r[0])+'</td><td style="padding:3px 0"><b>'+esc2(r[1]||'—')+'</b></td></tr>'; }).join('');
+  return '<div style="font-family:system-ui,Arial,sans-serif;font-size:14px;color:#111">'
+    +'<h2 style="margin:0 0 6px">STEP · '+esc2(lbl)+'</h2>'
+    +(texte?'<p style="background:#f4f4f5;padding:10px 12px;border-radius:8px;white-space:pre-wrap"><b>Message :</b> '+esc2(texte)+'</p>':'')
+    +'<table style="border-collapse:collapse;font-size:13px">'+trs+'</table></div>';
+}
+function _reportWrite(kind,texte,err){
+  try{
+    if(typeof trainingGuard==='function' && trainingGuard()) return Promise.resolve(false);   // pas d'incident en entraînement
+    if(!db) return Promise.resolve(false);
+    var ctx=_reportCtx();
+    var lbl={bug:'⚠ Ça ne marche pas',idee:'💡 Idée',question:'❓ Incompréhension',auto:'⚠ Erreur technique'}[kind]||kind;
+    var subj='STEP '+lbl+' · '+(ctx.ecran||'')+(ctx.ini?(' · '+ctx.ini):'')+' · '+(ctx.version||'');
+    var doc={ to:REPORT_RECIPIENTS, message:{ subject:subj, html:_repHtml(kind,texte,ctx,err) },
+      kind:kind, poste:ctx.poste, ini:ctx.ini, version:ctx.version, ecran:ctx.ecran, machine:ctx.machine,
+      numCmd:ctx.numCmd, client:ctx.client, bobine:ctx.bobine, err:(err||''), at:ctx.at };
+    return boundedWrite(db.collection('mail').add(doc),10000).then(function(){return true;}).catch(function(e){ return !!(e&&e.queued); });
+  }catch(e){ return Promise.resolve(false); }
+}
+// signalement MANUEL (bulle)
+function openReport(){ try{ _repKind='bug'; document.querySelectorAll('.rep-choice').forEach(function(b){ b.style.outline=''; }); var t=document.getElementById('reportText'); if(t) t.value=''; var c=document.getElementById('reportCtx'); if(c){ var x=_reportCtx(); c.textContent='Joint automatiquement : '+x.ecran+' · '+(x.machine||'—')+' · '+(x.client||'sans commande')+(x.numCmd?(' '+x.numCmd):'')+(x.bobine?(' · bobine '+x.bobine):'')+' · '+x.version; } document.getElementById('reportOverlay')?.classList.add('open'); }catch(e){} }
+function closeReport(){ try{ document.getElementById('reportOverlay')?.classList.remove('open'); }catch(e){} }
+function _repPick(k){ _repKind=k; try{ document.querySelectorAll('.rep-choice').forEach(function(b){ b.style.outline=(b.dataset.k===k)?'2px solid var(--action)':''; }); }catch(e){} }
+function reportSubmit(){
+  var txt=''; try{ txt=(document.getElementById('reportText')?.value||'').trim().slice(0,500); }catch(e){}
+  closeReport();
+  _reportWrite(_repKind,txt,null).then(function(ok){ try{ showToast(ok?'✓ Merci — ton signalement est parti (ou partira au retour du réseau).':'⚠ Signalement non envoyé (réessaie).', ok?'ok':'err'); }catch(e){} });
+}
+// signalement AUTOMATIQUE (erreurs) — regroupement 1/heure/signature, silence si refus métier normal
+function reportAuto(msg,where){
+  try{
+    if(typeof trainingGuard==='function' && trainingGuard()) return;
+    var sig=String(msg||'').slice(0,80)+'|'+(where||'');
+    var t=(typeof isoNow==='function')?Date.parse(isoNow()):Date.now();
+    if(_reportAutoAt[sig] && (t-_reportAutoAt[sig])<3600000) return;   // <1 h depuis la même erreur -> pas de doublon
+    _reportAutoAt[sig]=t;
+    _lastJsError=(where?(where+' : '):'')+String(msg||'');
+    _reportWrite('auto','',_lastJsError);
+  }catch(e){}
+}
 function showToast(msg,kind){
   let t=document.getElementById('globalToast');
   if(!t){
@@ -2209,9 +2302,11 @@ function confirmDlg(message,opts){
 window.addEventListener('error',function(e){
   console.error('Erreur non gérée :',e.error||e.message);
   showToast('⚠ Une erreur est survenue. Si ça persiste, recharge la page.','err');
+  try{ reportAuto((e.error&&e.error.message)||e.message, e.filename?((''+e.filename).split('/').pop()+':'+e.lineno):'error'); }catch(_){}   // [L332 · LOT 26]
 });
 window.addEventListener('unhandledrejection',function(e){
   console.error('Promesse rejetée :',e.reason);
+  try{ reportAuto((e.reason&&e.reason.message)||e.reason,'promise'); }catch(_){}   // [L332 · LOT 26]
 });
 // Protection contre la fermeture/rechargement accidentel pendant une commande.
 // Tant que le chrono tourne, une fiche est en cours : on avertit avant de quitter.
@@ -4506,6 +4601,7 @@ function _applyPlanDriftFix(opts){
   }
 }
 function showPage(i){
+  try{ _pushTrail('page '+({0:'Plan',1:'Fiche',2:'Données'}[i]||i)); }catch(e){}
   if(trainingGuard()&&i===2){ try{ showToast('🎓 Entraînement — écran Données indisponible (aucune écriture possible).'); }catch(e){} return; }   // [L327 · fix audit LOT 25] ferme la surface d'écriture admin
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
   try{ renderFlow(); }catch(e){}   // [L320 · LOT 18] le fil du parcours suit la page
@@ -17887,7 +17983,7 @@ function coupeeTapOne(id){
     try{ updateTest2Subs(id); }catch(e){}
   }
   if((setD||setR)&&cutNow){ try{ line.dataset.t2auto='1'; }catch(e){} }   // [L307 · fix audit ISO] trace « attestation posée par le tap » (pour la purge au dé-marquage)
-  if(!already&&cutNow){ try{ hintCoupeeCount(); }catch(e){}
+  if(!already&&cutNow){ try{ _pushTrail('coupé '+id); }catch(e){} try{ hintCoupeeCount(); }catch(e){}
     try{ if(!(ncEl&&ncEl.checked)&&!ncMotif&&line.dataset.stkc!=='1'){ line.dataset.stkc='1'; streakBump(); } }catch(e){} }   // [L322 LOT 20 + L324 LOT 12·G1 + fixes audit] +1 par coupe SAINE, UNE fois par bobine (anti-gonflage par re-marquage) ; la NC d'un COLLÈGUE ne reset pas MA série
   if(already&&!cutNow&&line.dataset&&line.dataset.t2auto==='1'){
     // [L307 · fix audit ISO] dé-marquage d'une coupe faite PAR ERREUR : l'attestation test 2ᵉ AUTO ne survit
