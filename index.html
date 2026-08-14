@@ -1414,6 +1414,19 @@ body.atelier .stat-tile b{font-size:36px}
 }
 /* [L337 · §2.14 maquette 18] part de bobine des laizes (23 % / 28 %…) — affichage pur posé par recalcPlan */
 .row-share{margin-left:auto;font-family:var(--f-head);font-weight:700;font-size:13px;color:var(--text3);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* ============================================================
+   [L338 · maquettes 17/18 · §2.13-B/§2.14] TIROIRS ⚙ OUTILS (≥1100px) — les outils regroupés
+   quittent l'écran EN PAYSAGE seulement (portrait strictement inchangé) ; tiroir = ≤2 taps.
+   ============================================================ */
+.outils-badge{margin-left:auto;background:#2e2e2b;border:1px solid var(--border2);border-radius:8px;padding:2px 10px;font-size:14px;color:var(--muted)}
+#outilsFicheDlg .modal .btn,#outilsPlanDlg .modal .btn{width:100%;min-height:56px;justify-content:flex-start;text-align:left}
+@media(min-width:1100px){
+  #outilsFicheBtn{display:inline-flex!important;order:4}
+  #outilsPlanBtn{display:inline-flex!important}
+  #page1 .flex-wrap:has(#hideCoupeesBtn){display:none}   /* ligne manuelle · masquer · brouillon → tiroir */
+  #planSaveBtn,#planEditBtn{display:none}                /* 💾 · ✏️ → tiroir */
+  #planResumeRow .btn-red{display:none}                  /* ↺ réinitialiser → tiroir (▶ Reprendre reste en tête) */
+}
 </style>
 </head>
 <body>
@@ -1656,6 +1669,7 @@ body.atelier .stat-tile b{font-size:36px}
     <div class="section-title">Plan de découpe</div>
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
+      <button type="button" class="btn" id="outilsPlanBtn" onclick="openOutilsDlg('outilsPlanDlg')" style="display:none;min-height:56px;justify-content:space-between;flex:1">⚙ Outils <span class="outils-badge">5</span></button><!-- [L338 · §2.14 maquette 18] tiroir OUTILS du Plan (≥1100px) -->
       <button class="btn btn-blue btn-sm" id="planSaveBtn" onclick="openSaveModal()">💾 Sauvegarder</button>
       <button class="btn btn-ghost btn-sm" id="planEditBtn" onclick="togglePlanManual()">✏️ Modifier à la main</button><!-- [L121 · T4-A1] doublon « 🆕 Nouveau plan » retiré (= « ↺ Réinitialiser » rouge, plus haut) -->
     </div>
@@ -1740,6 +1754,7 @@ body.atelier .stat-tile b{font-size:36px}
       </div>
     </div>
   </div>
+<button type="button" class="btn" id="outilsFicheBtn" onclick="openOutilsDlg('outilsFicheDlg')" style="display:none;width:100%;min-height:56px;justify-content:space-between">⚙ Outils <span class="outils-badge">6</span></button><!-- [L338 · §2.13-B maquette 17] tiroir OUTILS du rail (≥1100px) -->
 <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
     <div class="section-title">🏷️ Étiquette solde</div><!-- [L333 · §2.20] suffixe explicatif retiré (maquette 17) -->
     <div id="etiquetteSoldeList"><div style="font-size:13px;color:var(--muted)">—</div></div>
@@ -2222,6 +2237,34 @@ body.atelier .stat-tile b{font-size:36px}
   </div>
 </div>
 
+<!-- [L338 · §2.13-B/§2.14 · maquettes 17/18] TIROIRS ⚙ OUTILS — pur AFFICHAGE : chaque entrée appelle le
+     handler EXISTANT (gardes, training, partage inchangés) ou fait défiler vers la section existante.
+     Rien n'est supprimé : tout reste atteignable en ≤2 taps (check-list §2.10). -->
+<div class="modal-overlay" id="outilsFicheDlg">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="outilsFicheTitle">
+    <h3 id="outilsFicheTitle">⚙ Outils fiche</h3><button class="modal-x" aria-label="Fermer" onclick="closeOutilsDlg('outilsFicheDlg')">✕</button>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#fLameChg')">🔧 Changements — machine · lame · op.2</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');addFicheLine()">＋ Ligne manuelle</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');toggleHideCoupees()">🙈 Masquer / afficher les coupées</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');saveDraftManual()">💾 Brouillon</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche','#fPalette')">📥 Récap emballage · conditionnement</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');stopManqueMatiere()">⛔ Arrêt — manque de matière</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="outilsPlanDlg">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="outilsPlanTitle">
+    <h3 id="outilsPlanTitle">⚙ Outils plan</h3><button class="modal-x" aria-label="Fermer" onclick="closeOutilsDlg('outilsPlanDlg')">✕</button>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');outilsReveal('#cliSection')">👥 Multi-clients</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');addRefBlock()">＋ Ajouter une référence</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');togglePlanManual()">✏️ Modifier le plan à la main</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button>
+      <button class="btn btn-red" onclick="closeOutilsDlg('outilsPlanDlg');resetSiteConfirm()">↺ Réinitialiser</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="op2RefModal">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="op2RefTitle">
     <h3 id="op2RefTitle">Opérateur 2 — quelle référence ?</h3><button class="modal-x" aria-label="Fermer" onclick="closeOp2RefModal()">✕</button>
@@ -2358,7 +2401,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.14-L337';
+const APP_VERSION='2026.08.14-L338';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -19014,6 +19057,18 @@ document.addEventListener('click',function(e){
     if(mq.addEventListener) mq.addEventListener('change',place); else if(mq.addListener) mq.addListener(place);
   }catch(_){}
 })();
+// [L338 · maquettes 17/18] tiroirs ⚙ OUTILS — ouverture/fermeture + « révéler » une section existante
+// (défilement + halo ambre). PUR AFFICHAGE : aucun handler métier modifié.
+function openOutilsDlg(id){ try{ document.getElementById(id).classList.add('open'); }catch(_){} }
+function closeOutilsDlg(id){ try{ document.getElementById(id).classList.remove('open'); }catch(_){} }
+function outilsReveal(sel,alt){ try{
+  let el=document.querySelector(sel);
+  if(el&&getComputedStyle(el).display==='none'&&alt) el=document.querySelector(alt)||el;
+  if(!el) return;
+  const box=el.closest('.section')||el;
+  box.scrollIntoView({behavior:'smooth',block:'center'});
+  try{ box.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); }catch(_){}
+}catch(_){} }
 // [L64 · Lot 6] Récap emballage PAR CLIENT en bas de la fiche : qui reçoit quoi,
 // avec son n° de commande, sa date de livraison et son packaging. Masqué en mono-client.
 function renderCliRecapFiche(){
