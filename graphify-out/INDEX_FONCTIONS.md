@@ -1,0 +1,730 @@
+# Carte des fonctions — index.html (L273, 726 fonctions)
+
+Index navigable : nom · ligne · but (1re ligne de commentaire). Interroger AVANT de relire le fichier.
+
+- **_acSetHTML** · L13553 — on les restaure après le innerHTML — même bénéfice qu'un rendu partiel, sans refactorer les blocs (R4 le fera)
+- **_activeDataTab** · L9361 — ============================================================
+- **_activeLameIn** · L12089 — gagne (elle réactive). Prend le cache en paramètre (lameAlerts passe le sien).
+- **_anaChartsHTML** · L13452 — du Débit — un temps moyen par tranche de 10 mm sans normalisation par le nb de laizes se lisait mal.
+- **_anaFiltered** · L13348
+- **_anaFold** · L13390
+- **_anaFoldSave** · L13389
+- **_anaFoldState** · L13388 — QUESTIONS dirigeant : on ouvre le bloc qui répond à la question qu'on se pose.
+- **_applyAnalyseScope** · L3167
+- **_applyOp2WithRefKey** · L16040
+- **_applyPlanDriftFix** · L3995 — plan » (conserve les coupées, régénère machine + rouleaux chute du reliquat), avec confirmation.
+- **_atipEl** · L10655 — (handlers inline onmouse*/onclick). Fonctionne au tactile via onclick.
+- **_atipHide** · L10665
+- **_atipMove** · L10664
+- **_atipShow** · L10663
+- **_bkKwToIso** · L11844 — Semaine ISO 2026 (« KW 28 » / « KW25 ») → lundi de la semaine, midi UTC (stable toutes timezones).
+- **_bkNum** · L11857 — Nombre tolérant : « 100.800 » (milliers allemands), « 617,17 » (décimale virgule), espaces.
+- **_bkParseTable** · L11865 — Parse CSV (guillemets gérés) OU collage Excel (tabulations). Ligne d'en-tête matno/typ/... optionnelle.
+- **_bobineSelLid** · L16244 — bobine (op.2 / changement de lame), pour survivre à un réordonnancement au recalcul.
+- **_bobineSelRestore** · L16253 — Bobine disparue (reliquat re-empaqueté) -> on efface la sélection périmée.
+- **_bobSelLabel** · L16240 — [L70 · Audit B20] libellé humain d'un select bobine (toasts).
+- **_canonStringify** · L14248
+- **_capSessionCache** · L2048 — le tableau : les 4 appelants font simplement `cache=_capSessionCache(cache,N)` (fini le rituel tuple en 3 temp
+- **_clearSharedLocks** · L17680 — Retire tous les 🔒 (fin de partage / sortie de vue) — les marquages « coupée » restent.
+- **_cliKeyTables** · L4613
+- **_cliLineEntries** · L4668 — [L71] entrées d'attribution des lignes fiche courantes (réf + clé + conf + figé/déchet).
+- **_cliLineKey** · L4620
+- **_cliQKey** · L4612 — ni _refIdKey ni le refIdKey persisté des lignes (repli homonymes B13/B22 intact).
+- **_commitRace** · L8148 — (l'écriture reste en file d'attente Firestore et partira au retour réseau).
+- **_confAutoH** · L3572 — [L230] hauteur AUTO du champ conf (Nb bob. × Largeur) : 1 ligne par défaut, passe sur 2+ lignes quand le texte
+- **_confIllisible** · L5645 — écarts ET l'arrêt manque matière (le solde était calculé sur des confs illisibles sans garde).
+- **_consumeSupersededDrafts** · L18070 — archive froide. N'introduit AUCUN champ Firestore nouveau : consumed/consumedAt = déjà Phase 4C.
+- **_cutFeedback** · L16504 — inutile en atelier). On garde flash + vibration.
+- **_dateKey** · L7821 — suspendu pour le reste du jour, cf. chronoStart).
+- **_dbErrCopyFallback** · L3250
+- **_dbErrTap** · L3241 — copier (tout clic fermait la bannière). Sans UID affiché : comportement historique (fermer).
+- **_deviceId** · L17758
+- **_downloadFullBackupInner** · L15308
+- **_draftDelete** · L17844
+- **_draftFallbackLoad** · L18090
+- **_draftFallbackPush** · L18092
+- **_draftFallbackRemove** · L18093
+- **_draftFallbackSave** · L18091
+- **_draftSet** · L17840
+- **_draftStrip** · L17811
+- **_dujAddSamples** · L12932
+- **_dupRefKeyOf** · L5993
+- **_ficheEditSig** · L14253
+- **_fichePlanDriftCheck** · L3945 — chemin ÉPROUVÉ recalcEcartsFromFiche (conserve les coupées, régénère le reliquat avec machine + chutes).
+- **_ficheStripHeavyPhotos** · L17831 — renvoie le nombre de photos retirées pour pouvoir alerter l'opérateur.
+- **_ficheValidBlockReason** · L14017 — (autoritaire : un opérateur a pu dé-couper une bobine ou détacher un BL entre-temps).
+- **_flMachineOf** · L16315 — [L65] Machine effective d'une LIGNE (multi-réf / changement machine op.1) — repli fiche.
+- **_flReveal** · L3234 — Partagé par confirmCommandeRecap et stopManqueMatiere (était copié-collé).
+- **_flSetMachine** · L16299
+- **_halfFilledRows** · L5973 — confirmCommande (confirm bloquant).
+- **_hygienePlansToArchive** · L16183 — EXCLUS : plans supprimés, et « ♻ RESTE manque matière » (reste/resteFromFiche) — le solde reste à couper.
+- **_ini** · L17037 — même valeur qu'avant) : la branche fInitiales ne sert QUE quand currentUser.ini est vide (compte machine).
+- **_iniOf** · L17089
+- **_inPeriod** · L13236
+- **_isDataTabVisible** · L9368 — Sert à éviter de reconstruire des listes cachées sur un événement de fond (ex : snapshot brouillons d'un autre
+- **_isQueuedWrite** · L3229 — [L272] un txTimeout n'est PAS une écriture en file (voir boundedTx) → _isQueuedWrite reste false, l'appelant t
+- **_isSharedDoc** · L17881 — mais ne sont pas des brouillons — invisibles dans l'onglet, ignorés par la reprise et les purges.
+- **_joursFeriesFR** · L9867
+- **_kpiFicheRowHTML** · L13169 — computeMonthAggregate, filtre précis mois local côté client) — jamais un listing partiel silencieux.
+- **_kpiFichesRender** · L13179
+- **_kpiFichesToggle** · L13191
+- **_l79ChgActive** · L18812
+- **_l79SetupChangements** · L18800
+- **_l79SyncChgBtn** · L18813
+- **_laizeSortExcluded** · L6085 — legacy la référencerait ; à supprimer complètement quand plus aucun plan KX1046/47 ne circule.
+- **_lameEvent** · L12493 — deleted/createdBy — sinon exclusion par where('deleted','==',false)).
+- **_lameStatsMonths** · L13260 — Mois disponibles (union des dates fiches/temps/maintenance), récents d'abord.
+- **_loadMachineUids** · L17082
+- **_localYM** · L10722 — [L98 · #13] mois LOCAL (une fiche de 00h30 le 1er ne part plus dans le mois UTC précédent)
+- **_lsqSolve** · L12945 — Résout A·x=b (n×n) par Gauss-Jordan (pivot partiel). null si singulier.
+- **_machinePostName** · L17040 — sans le préfixe « Poste ». '' si session normale. Sert à préfixer l'auteur d'un brouillon → « CEVENINI / JF ».
+- **_machineProfileOf** · L1753 — initiales dans la fiche (le chrono refuse de démarrer sans, cf. ficheParamMissing).
+- **_manualFocusRestore** · L6682
+- **_manualFocusSnapshot** · L6676 — et le focus retombe sur le body, cassant la navigation clavier.
+- **_mcol** · L13235
+- **_ncActionCue** · L16857 — mais rien ne le signalait à la saisie. On passe le libellé « Action » en « ⚠ requise » tant que c'est le cas.
+- **_newCmdClearLiveFiche** · L7509 — ou l'opérateur a choisi de l'effacer (erase).
+- **_nextUncutLine** · L16679
+- **_nomOf** · L17090
+- **_oncePerDay** · L2215 — mensuels). Idempotentes et time-based → une passe quotidienne suffit largement.
+- **_op2BobCue** · L16102 — des indices « Détail »/« Action » de la partie NC : label « ⚠ à choisir » + bordure orange sur le select.
+- **_op2PickRef** · L16033
+- **_opColor** · L17091
+- **_openNcRegistre** · L13221
+- **_openTempsBox** · L13216 — [L252 · R4b reporté] DRILL-DOWN Débit : ouvre le bloc Relevés de temps (tempsBox, même modèle que ncBox).
+- **_palBobines** · L5807 — Reconstruit la liste plate des bobines dans l'ordre FINAL des motifs (même multiset que le moteur).
+- **_palRepack** · L5719 — FERME toutes ses palettes avant la phase suivante (pic ≤ taille de phase ≤ 4).
+- **_palSplitSolde** · L5810 — qu'une seule bobine porte le solde : on éclate le dernier groupe en (count−1) + 1.
+- **_periodLabel** · L13237
+- **_pgW** · L5664
+- **_pilotToggle** · L13161 — [L249 · R4b] DRILL-DOWN Pilotage : déplie une liste à la fois (retards / à planifier).
+- **_planGroupsByLaize** · L6125
+- **_planHeadMachine** · L6117 — (manuel puis blocs), plus currentMachine qui pouvait être périmée.
+- **_plnAddCal** · L9770
+- **_plnAddOkForPlanning** · L9782 — badge de buildDebitToolbox — deux copies divergeaient sous des commentaires jurant qu'elles étaient identiques
+- **_plnAutoScroll** · L10233 — [L118 · audit #12] défilement automatique de la page pendant un glisser près des bords haut/bas.
+- **_plnCleanupGhost** · L10205 — ── Glisser-déposer Pointer Events (souris : direct ; tactile : maintien ~250 ms) ──
+- **_plnDateLivMin** · L9725 — Livraison la plus proche (multi-clients : min des dateLiv par client — ISO triable)
+- **_plnDays** · L9862 — jours OUVRÉS occupés à partir de plannedDate, sur la même machine. Les ISO occupés :
+- **_plnDebit** · L9775
+- **_plnDejaCoupe** · L9718 — RESTE manque matière : jamais (le solde reste à couper).
+- **_plnH** · L9859
+- **_plnHoursAuto** · L9828
+- **_plnHoursOn** · L9799
+- **_plnHoursPart** · L9783
+- **_plnIso** · L9696
+- **_plnIsoWeekNum** · L9695
+- **_plnLift** · L10215
+- **_plnMonday** · L9694
+- **_plnPlanMeters** · L9734 — un faux chiffre : dujDebit en repli « global » est refusé).
+- **_plnSentKeys** · L9703 — sans jamais être archivé (impasse). Avant, les 3 détections divergeaient.
+- **_plnSpanIsos** · L9883
+- **_plnTouchedParts** · L9850 — machines touchées (le trou majeur de L212 : on ne vérifiait QUE la cible → une part fantôme débordait).
+- **_pmComputedForArchive** · L6092 — le plan AUTO écarté (PDF d'historique faux, écart terrain/plan mensonger).
+- **_pmFindEntry** · L6488
+- **_pmFindGroup** · L6469
+- **_pmSameJob** · L6463 — Sert à n'appliquer le repli positionnel mono-réf (et à ne sauter la purge) QUE pour un vrai renommage.
+- **_pmSortBobinesOnce** · L6106
+- **_rearmResume** · L18198 — consommé (sinon aucune consommation croisée). Rend durable le « reprise = consommer l'ancien » à travers un re
+- **_refIdKey** · L5460 — double lors du recalcul. Robuste au ré-ordonnancement (aucun index positionnel).
+- **_registerMachineUid** · L17074
+- **_resteGroupsFromFiche** · L13800 — Fonction pure (testable) : renvoie les refGroups du reste, prêts pour un plan.
+- **_restoreRefGroupsBody** · L5538
+- **_restoreSharedApply** · L17264 — [L75] corps extrait de restoreSharedFromCache — appelé depuis le cache live OU la requête de secours.
+- **_sanStoredRows** · L3362 — de TROP vs la commande affichée (2.7 → 3). Moteur intouché : garde à la frontière, comme MAX_USEFUL_MM.
+- **_seqMinPalettes** · L5683 — du moteur) épinglé en dernier ; `prefix` = motifs FIGÉS en tête (rouleaux à recouper).
+- **_seqPeak** · L5666 — Pic de palettes ouvertes d'une séquence complète de motifs.
+- **_seqPeakPartial** · L5674 — Pic PARTIEL d'un préfixe placé, les largeurs de `future` restant à couper (palette forcément encore ouverte).
+- **_shareBlockSend** · L17651 — partagée » transforme le miroir en copie locale indépendante (cas 2ᵉ partie).
+- **_shareCloneForReceiver** · L17394 — la fiche réservée par l'émetteur (même doc id) → chacun renverra sous son propre id.
+- **_shareCurrentDocId** · L17530 — gagne (fenêtre de quelques secondes, physiquement les deux ont coupé de toute façon).
+- **_shareCutInfoFor** · L17639 — d'attribution à tort). Sert à embarquer qui a coupé quoi dans la fiche archivée.
+- **_sharedViewEnded** · L17468 — [L73 · Lot 5 · B10] fin de partage AVÉRÉE (doc supprimé ou consumed) — extrait de syncSharedView.
+- **_sharedWithMe** · L17383 — direct par startBrouillons → aucune lecture Firestore supplémentaire).
+- **_shareEmitterEnded** · L17370 — (il n'existe plus, ou son repli consumed est déjà posé par l'autre poste).
+- **_shareLabel** · L17200 — ============================================================
+- **_shareLineIndex** · L17531
+- **_shareLineLabel** · L17532
+- **_shareOtherUids** · L17092
+- **_shareQualityApply** · L17546 — Application IDEMPOTENTE côté émetteur (la bobine est coupee-other, verrouillée → aucun conflit avec sa saisie)
+- **_shareQualityRead** · L17537 — = perte de traçabilité ISO + déchet non décompté). Lecture côté celui qui coupe.
+- **_shareSig** · L17293 — n'est pas synchronisé entre postes.
+- **_shareWriteDoc** · L17207 — lourdes (limite Firestore 1 Mo/doc) — même traitement que les brouillons.
+- **_stripDataOverBudget** · L17781
+- **_supersededManualDrafts** · L18029 — (fromSend) SAUF s'ils sont justement celui repris.
+- **_syncActionBar** · L16705
+- **_syncSharedApply** · L17482 — (appelé depuis le cache live OU depuis le get() de vérification hors fenêtre).
+- **_syncThemeBtn** · L4053
+- **_syncTopBanner** · L4070 — F2 — état de décalage des bannières fixes (nouvelle version / alerte lame) pour ne pas masquer la nav.
+- **_tempsIniOpts** · L9505 — rafraîchir. NB : un mois déjà FIGÉ (agrégat) n'est pas recalculé (snapshot ISO).
+- **_uid** · L17033
+- **_updBanner** · L1804
+- **_warnPersistenceFailed** · L1876
+- **acquireWakeLock** · L7904
+- **actionBarTap** · L16727 — sur la carte, avec ses gardes test 2ᵉ / NC — sécurité inchangée).
+- **adaptPlanManualToInputs** · L6507
+- **addFicheLine** · L16321
+- **addManualBobine** · L6697
+- **addOrderRow** · L4832 — Ajoute une ligne au premier bloc réf (rétro-compat appels existants).
+- **addOrderRowTo** · L4837 — Ajoute une ligne au bloc réf qui contient le bouton cliqué.
+- **addPlanChuteTo** · L4856
+- **addPlanRecutTo** · L4879
+- **addRefBlock** · L4889
+- **addToColdArchive** · L2329 — Archive froide locale : stocke les items purgés dans localStorage (JSON), récupérables via téléchargement.
+- **allKnownRefs** · L11204
+- **analyseFilterBar** · L13351
+- **annulStockMouvement** · L11651 — Lot 6 — correction tracée : annule un mouvement par contre-écriture liée, sans rien détruire
+- **applyFichePlanChange** · L15954 — Bloqué si le découpage a déjà commencé (protège le travail terrain).
+- **applyFicheRefPlanChange** · L15899 — marque la réf validée et débloque la suivante.
+- **applyMachChg** · L16305
+- **applyOp2PlanChange** · L16006 — coupées sont conservées. En multi-réf, l'op.2 reprend la réf choisie.
+- **applyPackagingRules** · L3107
+- **applyRole** · L2517
+- **applySavedClient** · L5486 — Retourne le nom de client effectivement sélectionné (pour la suite).
+- **applySavedRef** · L5509 — sauvegardée pour ne jamais perdre la réf affichée.
+- **applySharedCuts** · L17593 — coupées par les collègues (🔒 + initiales), déverrouille celles qui ne le sont plus.
+- **archiveStockArticle** · L11630 — ce qui préserve la traçabilité comptable.
+- **assignChutesForDisplay** · L5274 — (toute la demande de cette largeur venait du stock).
+- **auditApplyFilters** · L14621
+- **auditFilter** · L14539
+- **auditRefresh** · L14670
+- **autofillLegrandAll** · L5074
+- **autofillLegrandRow** · L5063 — Auto-remplit code mandrin + nb/carton d'une ligne de commande Legrand France depuis la table.
+- **autoLoadHistoryThenRerender** · L4363 — pour que ces vues ISO ne portent jamais durablement sur des données partielles.
+- **autosaveDraftTick** · L18142
+- **autosaveId** · L17770
+- **autoStopChrono** · L7857
+- **avgArr** · L10515
+- **backfillDeleted** · L2177 — conserve le repli client .filter(x=>!x.deleted) → aucune donnée masquée.
+- **bestPattern** · L5108 — début de bobine pour que (somme des slots) <= (useful+blade).
+- **betterState** · L5139
+- **bkAnalyseImport** · L11934
+- **bkFillSample** · L11892
+- **bkRemplacerParXls** · L11896
+- **bkRunImport** · L12009
+- **blCardBlock** · L3733 — Pour les autres : statut en lecture seule.
+- **boundedTx** · L3224 — classique (les 4 appelants posent leur mise à jour optimiste APRÈS le await → un timeout ne laisse aucun état)
+- **boundedWrite** · L3212
+- **buildAuditCsv** · L14553
+- **buildCounts** · L5089
+- **buildDebitToolbox** · L12804
+- **buildFicheAnalytics** · L10551
+- **buildFicheBobineOptions** · L16109
+- **buildFichePrintHTML** · L14905 — Rendu HTML de la fiche imprimée (séparé du calcul — S4). Sortie identique.
+- **buildKpiMoisBlock** · L10960
+- **buildMonthlyKpi** · L10723
+- **buildNcRows** · L14503 — === REGISTRE DES NON-CONFORMITÉS (consolidé toutes fiches) ===
+- **buildPilotageBlock** · L13093 — MÊME que celui de plnAutoFill (machine posée + parts fantômes, coupées exclues) — cohérent avec la grille.
+- **buildPlanName** · L7921 — ============================================================
+- **buildPlanPrintHTML** · L6844 — notesEmb, cmdInfoHtml}. Toutes les valeurs texte sont échappées.
+- **buildTendancesBlock** · L11074 — Blocs titrés en QUESTIONS dirigeant (rapport Phase 0, section e).
+- **calcStats** · L5094
+- **canAccessMaintenance** · L3141 — La suppression d'entrées reste réservée à canManageData().
+- **canManageData** · L3135 — admin (ER, CH) + pilotage (DC) : gèrent données, export, corbeille, NC, validation
+- **canPermanentDelete** · L3149 — Suppression DÉFINITIVE : admin + pilotage uniquement (les opérateurs archivent seulement)
+- **canValidate** · L3145 — Validation hiérarchique : pilotage (DC) + admins
+- **canViewAnalyse** · L3153 — Onglet Analyse : admins uniquement (DC = tout sauf Analyse)
+- **canViewAudit** · L3185 — Onglet Piste d'audit : admins uniquement (aligné sur la règle Firestore read:isAdmin)
+- **canViewPilotage** · L3160 — dirigeant (KPI mensuels, tendances, débit, taux NC) restent admin (canViewAnalyse).
+- **canViewStock** · L11168
+- **cartonRatioStr** · L13597 — Construit la chaîne "3×80mm/C · 5×50mm/C" depuis cartonByWidth d'une fiche (rétrocompat : ancien champ bobParC
+- **checkAppUpdate** · L1839
+- **chronoAutoStopCheck** · L7846
+- **chronoCatchUp** · L7874
+- **chronoCrossDaySec** · L7838 — manuelle depuis Brouillons (restoreChrono) — mêmes chiffres partout.
+- **chronoPause** · L7770
+- **chronoReset** · L7790
+- **chronoStart** · L7715
+- **chronoTick** · L7706 — ============================================================
+- **chutePrintConfig** · L6779 — Config imprimable avec annotation chute (option B) : avant barré → après.
+- **chutePrintRecap** · L6791 — Récap chutes imprimable pour une réf (chutes utilisées = prélevées). Vide si aucune.
+- **clampBlade** · L4432
+- **clampQ** · L3358 — dizaines de milliers d'itérations dans le moteur de découpe. Cf. AUDIT F7.
+- **clampUseful** · L4431
+- **clearCurrentDraft** · L17908
+- **clearFiches** · L15289
+- **clearPlanAutosaveDraft** · L18385
+- **clearTemps** · L9609
+- **cliAdd** · L4680
+- **cliAllocHtml** · L4584 — Libellé HTML coloré d'une attribution de bobine : « 6×100 Ⓐ + 4×120 Ⓑ ».
+- **cliAllocText** · L4588 — Libellé TEXTE (impressions N&B) : « 6×100 [A] + 4×120 [B] ».
+- **cliAttribute** · L4568 — pas de tableaux imbriqués) : [ par bobine : [{w,c,q}] dans l'ordre des pièces ].
+- **cliBuildQueues** · L4547 — Files de demande par largeur pour UNE réf : ordre = ordre de saisie des lignes.
+- **cliColor** · L4522
+- **cliConsume** · L4556 — Consomme qty pièces de la file d'une largeur → [{cli,qty}] ('+' = hors demande).
+- **cliConsumeFor** · L4629 — SES lignes) — sert à pré-consommer les files avec les attributions figées au ✂.
+- **cliCycleRow** · L4760 — Pastille d'une ligne de commande : tap → client suivant parmi les clients définis.
+- **cliDotHtml** · L4543 — Pastille (lecture seule) : couleur + lettre.
+- **cliEdit** · L4708
+- **cliFreeSlot** · L4679
+- **cliIds** · L4521
+- **cliLegendHtml** · L4786 — Légende clients (chips) — plan et fiche.
+- **cliListFull** · L4531 — Champs A lus FICHE d'abord (même règle L31 que l'archivage).
+- **cliMulti** · L4520 — ============================================================
+- **cliNom** · L4524 — Nom affichable d'un client ('A' = champs historiques).
+- **cliOfAlloc** · L4578 — Clients distincts d'une bobine (hors surplus '+').
+- **cliPaintRow** · L4770 — Peint la pastille d'une ligne selon son client.
+- **cliPartsFromGroups** · L4638 — amont ne réattribue plus rétroactivement les bobines déjà coupées. [B54] dechet → [].
+- **cliRefreshRows** · L4778 — Repeint toutes les pastilles ; une ligne d'un client retiré repasse au client A.
+- **cliRemove** · L4686
+- **cliStockByRef** · L4592 — Stock de chutes par réf normalisée {rk:{width:qty}} — même règle que le cumul.
+- **cliSyncBody** · L4678 — ── UI : panneau « Multi-clients » (page Plan) + pastilles par ligne ─────────
+- **closeLameInstallModal** · L12398
+- **closeLoadModal** · L7487
+- **closeNewCmdConflictModal** · L7502
+- **closeOp2RefModal** · L16032
+- **closePhotoViewer** · L3601
+- **closeSaveModal** · L7216
+- **colorVekaSelects** · L5469 — Colore chaque <select> VEKA à la saisie selon son choix.
+- **compressImage** · L3427 — Garde l'ancienne version pour compatibilité (impression, etc.)
+- **compressImageBlob** · L3402 — ============================================================
+- **computeChutesUsed** · L5248 — par la demande de chaque largeur (≤ laize utile). Renvoie {width:qty}.
+- **computeMonthAggregate** · L10813 — Fige un mois : requête datée DIRECTE (indépendante du cache boot allégé), filtre deleted client.
+- **computePerteChute** · L14871 — Retourne { perteMm, chuteStockMm } (en mm cumulés de laize).
+- **computePlanAggregate** · L5901 — Décision en attente : laquelle fait foi ISO + unifier le vocabulaire opérateur (cf. rapport d'audit).
+- **computePlanDelay** · L5865 — d'atelier. Fonction pure (testable hors DOM).
+- **configHtmlWithChute** · L5303 — Libellé HTML d'une config avec annotation chute « avant → après » (option B).
+- **confirmCommande** · L8239
+- **confirmCommandeRecap** · L8161 — N'appelle confirmCommande() (inchangé) qu'après validation explicite de l'opérateur.
+- **confirmDlg** · L1919 — un chevauchement est impossible en pratique ; le dernier appel gagnerait).
+- **confirmLameInstall** · L12399
+- **confirmStockSortie** · L14090
+- **countCoupees** · L3231 — [L85 · Audit #27] Comptage des bobines cochées ✂ Coupée — était copié-collé 7 fois.
+- **createRemainingPlan** · L13956
+- **csvCell** · L3202 — Cellule CSV sûre : neutralise l'injection de formule Excel + échappe les guillemets
+- **csvMetaLine** · L9630 — seulement la boîte de dialogue au moment de l'export). Préfixée « # » : lisible, ignorée à l'import.
+- **currentMonthYM** · L10712 — ============================================================
+- **dayChronoCutoffMs** · L7822
+- **debouncedAuditApplyFilters** · L14620
+- **debouncedFicheSearch** · L13607
+- **debouncedRecalcPlan** · L5874
+- **debouncedRenderSaves** · L7337
+- **deleteBLFiche** · L3698
+- **deleteCommandeFile** · L3886
+- **deleteDraft** · L18403
+- **deleteFiche** · L15251
+- **deleteFichePhotos** · L2366 — Supprime toutes les photos Storage référencées par une fiche (best-effort)
+- **deletePhoto** · L3585
+- **deletePhotoFromStorage** · L3441
+- **deleteSave** · L7691
+- **deleteTempo** · L9490
+- **doLoad** · L7582
+- **doLogin** · L2448
+- **doLogout** · L2486
+- **doSave** · L7217
+- **doShareLocal** · L17124
+- **downloadBlob** · L3210 — fera partir l'écriture au retour du réseau — d'où le message « mise en file, ne re-saisis pas ».
+- **downloadColdArchive** · L2356 — Télécharge l'archive froide complète en JSON
+- **downloadFullBackup** · L15304
+- **dujCalibrateAdditive** · L12958 — Calibration (moindres carrés) des coefficients additifs pour une machine (repli global si trop peu).
+- **dujCapacite** · L13073
+- **dujDebit** · L12792 — Débit médian (m/h) : opérateur sur machine > machine > global
+- **dujEstAddRow** · L12917
+- **dujEstimate** · L13004
+- **dujEstimateAdditive** · L12993 — Estimation additive d'une commande (secondes) — coefficients calibrés OU surcharge manuelle.
+- **dujEstimateD** · L13003
+- **dujEstMachineDefaults** · L12919 — À la sélection d'une machine : applique ses pertes bords/lame par défaut.
+- **dujEstRefChange** · L12898 — [L106 · Phase 1 · P] choix d'une référence : laize mère standard (catalogue) + métrage (ml).
+- **dujEstRowHTML** · L12908 — Une ligne "nb × largeur" de l'estimateur (façon plan).
+- **dujMachKey** · L12759
+- **dujMedian** · L12760
+- **dujPctile** · L12761
+- **dujSamples** · L12770
+- **dujSamplesInvalidate** · L12769 — Invalidation EXPLICITE au funnel commun des mutations (refreshAnalyseIfPresent) + aux rechargements de cache.
+- **dujSecToTxt** · L12762
+- **dujStatsByMachine** · L12798
+- **dujTab** · L12890
+- **editFicheConfigs** · L14261 — Édition du plan de découpe par Dominique : modifie en-tête + configuration des bobines
+- **editSavedPlan** · L7563 — écrasera ce plan au lieu d'en créer un nouveau (voir doSave).
+- **efAddBob** · L14363
+- **efDeletePhoto** · L14345
+- **efOpenPhoto** · L14352
+- **efRemoveBob** · L14380
+- **efRenderPhoto** · L14327 — Rendu de la zone photo d'une bobine dans l'éditeur (orig = index d'origine ou 'new').
+- **efRenumber** · L14358
+- **efTriggerPhoto** · L14339
+- **ensureFullHistory** · L2055
+- **ensureMonthlyAggregates** · L10839 — Boot (ER/CH) : fige le dernier mois clos s'il ne l'est pas encore. Idempotent.
+- **enterPlanManual** · L6426
+- **esc** · L3198
+- **expandDemand** · L5084 — ============================================================
+- **exportAudit** · L14653
+- **exportDashboardCsv** · L10905 — Ligne de méta en tête (date, auteur, périmètre, filtre Analyse actif) : le fichier se suffit à lui-même.
+- **exportFiches** · L15521
+- **exportMaintenance** · L12730
+- **exportNc** · L14849
+- **exportTemps** · L9641
+- **ficheBLComplete** · L3628 — La fiche est-elle couverte par un BL ? (global OU toutes les réfs couvertes)
+- **ficheBLs** · L3616 — Liste normalisée des BL d'une fiche.
+- **ficheParamMissing** · L15609 — Vérifie que les 4 champs machine sont remplis. Retourne le 1er manquant ou null.
+- **ficheRefList** · L3623 — Liste des réfs d'une fiche (depuis refGroups si multi, sinon la réf simple).
+- **fileIcon** · L3801
+- **fileKind** · L3792
+- **fileToBase64** · L3652
+- **fillBobineSelect** · L16122
+- **filmAttrStr** · L5450 — Chaîne lisible des attributs film d'une réf (ex. "Imprimé · VEKA"). Vide si rien.
+- **flushDraftFallbacks** · L18129 — (réseau/droits revenus). Idempotent : même id → set écrase, pas de doublon.
+- **flushPendingLocalPhotos** · L3450
+- **fmmActiveIdx** · L15707 — Index de la réf « en cours » = 1re réf non encore validée (ordre plan).
+- **fmmCutOrder** · L15653 — les nouveaux index (réfs ajoutées) en fin. Robuste aux changements de plan.
+- **fmmGenOrder** · L15667 — Sert à générer les bobines dans l'ordre de coupe SANS casser l'index planManual.
+- **fmmGetRefs** · L15661 — Réfs productives dans l'ordre de COUPE (utilisé par l'affichage / le gating).
+- **fmmIsMulti** · L15705
+- **fmmMoveRef** · L15674 — Déplace une réf dans l'ordre de coupe (▲ dir=-1 / ▼ dir=+1).
+- **fmmRawRefs** · L15636 — Liste BRUTE des réfs productives (avec lignes), dans l'ordre du PLAN.
+- **fmmRefTags** · L15644 — des autres dans la liste d'ordre et dans l'en-tête de son bloc machine.
+- **fmt** · L3355
+- **fmtHm** · L10717
+- **fmtTime** · L3386
+- **fmtTimeFr** · L3390
+- **getBlade** · L4434
+- **getDayOfYear** · L3369
+- **getEtiquetteSoldeList** · L7073 — Si la fiche est vide, repli sur le pack de la commande (mono-réf).
+- **getFicheLinesData** · L9327
+- **getMachineLabel** · L16316
+- **getOrderAggregate** · L5843 — Évite l'ancien biais (pack sur la 1re réf uniquement) qui sous-comptait les bobines.
+- **getOrderRows** · L4796 — getOrderRows() : lignes du PREMIER bloc réf (rétro-compat save/fiche/print mono-réf).
+- **getPlanChutesUsedByWidth** · L5315 — Total chutes utilisées, agrégé par largeur sur toutes les réfs (pour écarts/PDF).
+- **getPlanHTML** · L6964
+- **getRefGroups** · L5382 — champs historiques (planRef, motherWidth, edgeLoss, planLongueur, .order-row).
+- **getUseful** · L4433
+- **getWeekKey** · L10496 — ============================================================
+- **groupBobines** · L5226
+- **groupBobinesWithChutes** · L5292 — Regroupe les bobines en gardant à part celles qui portent une chute (count=1).
+- **groupRecutRolls** · L5355 — Regroupe les rouleaux identiques (même laize + même config) pour l'affichage.
+- **groupsFromDetail** · L14392 — (exact en mono-réf ; chute approximée en multi-réf, configs toujours exactes).
+- **hygieneApply** · L16219
+- **hygieneAutoSweep** · L16192
+- **hygieneDryRun** · L16153 — ============================================================
+- **importFullBackup** · L15338 — puis update valide/valideBy/valideAt — permis isManage).
+- **importPlanToFiche** · L4096
+- **initAtelier** · L4058
+- **initClientDropdown** · L4445 — ============================================================
+- **initDefaultRows** · L5079
+- **initPlanAutosave** · L18394
+- **initTheme** · L4047
+- **insertFicheRefSeparator** · L4311 — (validation) + unvalidateFicheRef (ré-ouverture).
+- **invalidateFichePlan** · L15593 — l'opérateur n'a pas recliqué « Changement plan ».
+- **isFicheUntouched** · L4077 — Ne touche PAS la fiche si l'opérateur a déjà commencé (lignes présentes) — protège le travail terrain
+- **isLegrandFrName** · L5480 — renommage du catalogue CLIENT_DATA.
+- **isLineFrozen** · L5026 — Les bobines NON figées (plan pas encore réalisé) sont ré-optimisables.
+- **isoNow** · L3367
+- **kpiMoisInnerHTML** · L10979
+- **lameActiveForMachine** · L12099
+- **lameAffuter** · L12178 — la même lame datée d'aujourd'hui (réidentifiée neuve). Atomique via batch.
+- **lameAffuterHorsMachine** · L12207 — elle reviendra et sera posée, le flux de pose normal créera la trace d'install.
+- **lameAffuterSeule** · L12574 — plus sur la machine). La machine d'origine est conservée dans la trace (ISO).
+- **lameAgeState** · L12251
+- **lameAlerts** · L12265 — cache et le now en paramètre pour être testable.
+- **lameBobineauxPerBlade** · L13299 — 4) Bobineaux moyen par lame = total bobineaux machine ÷ nombre de poses machine.
+- **lameBobineauxPerDay** · L13293 — 3) Bobineaux/jour moyen par machine (somme par jour ÷ jours travaillés).
+- **lameBobineauxSince** · L12104 — niveau fiche ; on retient machine OU machine de chaque refGroup si présent.
+- **lameChangesByMachine** · L13267 — 1) Changements de lame par machine (poses 'installation', affûtage inclus).
+- **lameClasseurEtat** · L12444 — Fonction PURE (testée par harnais Node).
+- **lameDaysSince** · L12258 — Nb de jours entiers depuis une date ISO jusqu'à "now" (ms, injectable pour test).
+- **lameDetectOnFiche** · L12232
+- **lameEnvoyerAffutage** · L12504
+- **lameInstall** · L12125 — opts.dateInstall : ISO de la date de pose (antidatable). Défaut = maintenant.
+- **lameInstallPrompt** · L12388 — Prompt manuel de pose/changement de lame depuis l'encart.
+- **lameMonterDepuisStock** · L12637 — a une, bascule automatiquement « à affûter » au prochain état dérivé — cycle demandé par Esteban).
+- **lameNcByBlade** · L13273 — 2) NC par lame : rattachée à la lame active de la bobine (avant/après lameChgBob).
+- **lameNcByMachine** · L13283 — des ficheDetail, mais groupé par la machine de la fiche.
+- **lameNewRewriteWarn** · L16270 — traçabilité SANS avertissement. On prévient et on oriente vers le registre (pose manuelle).
+- **lameRetirerDuSuivi** · L12560 — La même lame sur une AUTRE machine n'est pas touchée (clé machine|num).
+- **lameRetourStock** · L12508
+- **lameSeedInventaire** · L12523
+- **lameSeedStock** · L12512
+- **lameSeuilChange** · L12250
+- **lastClosedYM** · L10714
+- **leaveSharedView** · L17423
+- **legrandPkg** · L5061
+- **legrandRefCode** · L5060
+- **loadAgregats** · L10833
+- **loadAudit** · L14532 — donc loadCol ne convient pas). Aucun index composite requis.
+- **loadCol** · L1987
+- **loadColAll** · L2018 — ET qu'une sonde confirme qu'il reste au moins un document derrière le curseur. [L77 · B34-bis]
+- **loadCorbeille** · L2219
+- **loadDrafts** · L17882
+- **loadFirestoreData** · L2125
+- **loadFullHistory** · L2102 — Bouton Données : recharge l'historique complet à la demande (le boot ne charge que le récent)
+- **loadMaintenance** · L12312
+- **loadStock** · L11208
+- **logAudit** · L2389
+- **machineCls** · L16318 — Classe CSS de couleur selon la machine (feba/maveg/cevenini), '' si inconnue.
+- **maintCatLabel** · L12073
+- **maintDelete** · L12677 — machine via lameInstallPrompt/lameInstall. (m_filterMachine — le filtre de liste — est conservé.)
+- **maintFilteredRows** · L12689
+- **maintRenderList** · L12697
+- **maintViewHTML** · L12413 — [L83 · Audit #24] maintRespOpts supprimée (morte — le formulaire « Installer/déclarer une lame » a été retiré 
+- **makeLabel** · L5098
+- **makeOrderRow** · L4811 — Crée le HTML d'une ligne de découpe (sans l'insérer).
+- **makePlanChuteRow** · L4845 — Demande 2 : saisie quantité D'ABORD, puis largeur en mm.
+- **makePlanRecutRow** · L4867 — Lot 1 : UI + sérialisation uniquement — la prise en compte moteur arrive au lot 2.
+- **maybeResumePlan** · L18288 — LE JOUR MÊME si rien d'autre (fiche/chrono) n'a été repris.
+- **maybeResumeRunningChrono** · L18205
+- **mergeDuplicateRefBlocks** · L6001
+- **mergeDupRefNow** · L6032 — clic fusionnait TOUS les groupes de doublons d'un coup, y compris un groupe non arbitré (re-fusion silencieuse
+- **migrateCommandePhoto** · L3778 — Rétro-compat : un ancien commandePhoto (string) est migré en 1er fichier image.
+- **monthLabelFr** · L10716
+- **ncArchiveFiche** · L14751
+- **ncOpenTreat** · L14764 — Stocké sur la bobine ficheDetail[bobIdx] — write-back du tableau complet.
+- **ncSaveTreat** · L14798
+- **newCmdErase** · L7544
+- **newCmdPark** · L7524
+- **nextYM** · L10713
+- **onClientChange** · L4474
+- **onFicheConfChange** · L16896
+- **onFmmMachineBtn** · L15725 — choisi (sel-<machine>, comme le bloc mono) et applique les pertes bords/lame par défaut de la machine.
+- **onFmmMachineChange** · L15714 — la machine DANS CE BLOC uniquement (l'opérateur peut ensuite les corriger).
+- **onParamChange** · L4435
+- **onRefChange** · L4495
+- **onRefChangeBlock** · L5011 — Auto-remplit largeur mère + longueur d'un bloc réf "extra" quand on choisit une réf.
+- **onRefMachineChange** · L4408 — bords/lame de cette machine à CE bloc uniquement, puis recalcule.
+- **onStockArticleRef** · L11523
+- **onStockArticleSurface** · L11527
+- **onStockEditSurface** · L11597
+- **onStockMvtRefChange** · L11697
+- **onStockRollsInput** · L11698
+- **openCommandeFileViewer** · L3901
+- **openFileOverlay** · L3914 — Bouton « ↗ Navigateur » = ouverture externe explicite (au choix de l'opérateur) si l'iframe ne rend pas le for
+- **openLoadModal** · L7480
+- **openNewCmdConflictModal** · L7493 — le Plan ne soit écrasé (capture cohérente Plan+Fiche au parking).
+- **openPhotoViewer** · L3595
+- **openPrintWindow** · L6712 — ============================================================
+- **openSaveModal** · L7208 — ============================================================
+- **openSharedCommand** · L17403
+- **openStockArticleEdit** · L11565 — Lot 6 — édition d'un article stock (la référence reste la clé de jointure, non modifiable)
+- **openTempsEdit** · L9512
+- **pack** · L5199
+- **packagingRecapHTML** · L6754 — tous clients confondus (carton libre + mandrin Legrand).
+- **packRecutRolls** · L5335 — {rolls:[{pattern,rollW}], remaining:[largeurs restantes], unusedRolls:n}
+- **packRefGroups** · L5585 — [{ref, useful, blade, longueur, rows, bobines, planGroups, oversize, stats}, ...]
+- **packRefGroupsPal** · L5817 — ENVELOPPE UNIQUE des sites d'appel : plan moteur → ordre/phases « palettes ».
+- **parseClientRef** · L2380 — pour ne pas stocker un faux client. Renvoie {client,ref} (vides si non sûr).
+- **parseConf** · L16876
+- **parseNum** · L3347 — ============================================================
+- **parseWidthsFromEntry** · L10502
+- **partialDataBanner** · L2092 — tant que l'historique complet n'est pas chargé (traçabilité 9001).
+- **permanentDelete** · L15495
+- **permanentDeleteAll** · L15416
+- **persistChronoLive** · L7883
+- **persistDrafts** · L17885 — On ne réécrit PAS les brouillons inchangés (évite un write par tick d'auto-save).
+- **pickFicheMachine** · L15545 — simple changement de machine. Les appels programmatiques / de restauration passent par selectFicheMachine.
+- **planAutosaveId** · L17771
+- **planAutosaveTick** · L18366
+- **planCoherenceText** · L6576 — Formate les écarts de cohérence en texte court (manque / surplus).
+- **planHasContent** · L18359
+- **planManualCoherence** · L6531 — écart (diff>0 = manque ; diff<0 = surplus / HORS PLAN).
+- **planManualStats** · L6589 — Recalcule les totaux d'un plan manuel (perte/chute) à l'affichage.
+- **plnArm** · L10132
+- **plnAutoFill** · L9923
+- **plnCanEdit** · L9693
+- **plnCardTap** · L10157
+- **plnCellTap** · L10147
+- **plnDisarm** · L10125 — ── Tap-pour-poser ──
+- **plnGotoSave** · L10198
+- **plnNav** · L9697
+- **plnOpenCard** · L10169 — ── Mini-popup d'une carte ──
+- **plnPointerCancel** · L10290
+- **plnPointerDown** · L10206
+- **plnPointerMove** · L10252
+- **plnPointerUp** · L10272
+- **plnPoolTap** · L10152
+- **plnResetAll** · L9912 — « À planifier ». Passe par le GARDIEN plnSetPlan(sid,null) (seul point de pose/retrait autorisé).
+- **plnSetDays** · L10119 — [L119] étaler / resserrer une commande posée sur N jours (même date de début, même machine).
+- **plnSetPlan** · L10031
+- **plnSetSort** · L9684
+- **plnTogglePool** · L9685
+- **prevMonthsYM** · L10715
+- **printEtiquette** · L7026
+- **printEtiquetteSolde** · L7176
+- **printFiche** · L18732
+- **printFichePlan** · L15981 — valeurs machine réelles de la fiche (n'affecte ni les bobines ni le verrou chrono).
+- **printKpiMois** · L10868 — Passe par l'overlay openPrintWindow (pas de window.open → pas d'éjection Safari sur PWA iOS).
+- **printPlan** · L7186
+- **printSavedPlan** · L6991 — sur des données figées, donc sans toucher au plan en cours.
+- **proposeStockSortie** · L14035 — ============================================================
+- **purgeExpiredBrouillons** · L2295 — dormir 4 mois et plus.
+- **purgeExpiredItems** · L2249 — Avant toute suppression définitive, l'item est sauvegardé dans une archive froide locale (JSON).
+- **push** · L10516
+- **readChronoLive** · L7902
+- **readCommandeFiles** · L3786 — gère le nouveau tableau commandeFiles ET l'ancien champ commandePhoto (string).
+- **recalcEcartsFromFiche** · L8352 — Ré-exécutable sans doublon.
+- **recalcMois** · L10859
+- **recalcPlan** · L6132
+- **recutPrintRecap** · L6819 — Récap rouleaux imprimable pour une réf (utilisés + inutilisés). Vide si aucun.
+- **recutPrintRows** · L6800 — turquoise clair, config en gras, laize du rouleau (pas celle de la mère).
+- **reduceItemsByChutes** · L5263 — Réduit la liste d'items (largeurs expansées) en retirant les chutes utilisées.
+- **refColor** · L1773
+- **refreshAllTest2** · L16816 — Réapplique la règle FEBA (masquage « Droit » + conformité) sur toutes les bobines.
+- **refreshAnalyseIfPresent** · L9622 — Analyse (débit m/h + KPI + graphiques) pour ne plus afficher un temps supprimé.
+- **refreshAppCheckToken** · L2585
+- **refreshCommandePhotoZone** · L3864
+- **refreshEtiqPhotoZone** · L3851
+- **refreshEtiquetteSolde** · L7143
+- **refreshFicheParams** · L15996 — Recopie les champs plan -> champs fiche (affichage à jour à l'ouverture de la fiche).
+- **refreshOp2BobineList** · L16241
+- **refreshPhotoZone** · L3573
+- **refreshShareReception** · L17729
+- **refStdMother** · L5935 — bobine mère saisie s'écarte fortement du standard (cause du sur-comptage de bobines).
+- **rehabFiche** · L14133 — habituels). Évite qu'un tap sur un bouton vert « ✓ Valider » réhabilite une fiche rejetée qualité sans trace.
+- **releaseWakeLock** · L7907
+- **removeFicheLine** · L16461
+- **removeManualBobine** · L6702
+- **removeRefBlock** · L4984
+- **renderAffutageList** · L12595 — cases + l'input « hors machine » (submitAffutage/lameAffuterHorsMachine conservés en code, sans UI).
+- **renderAnalyse** · L13397
+- **renderAudit** · L14565
+- **renderCliPanel** · L4718
+- **renderCliRecapFiche** · L16998 — avec son n° de commande, sa date de livraison et son packaging. Masqué en mono-client.
+- **renderCorbeille** · L15369 — ============================================================
+- **renderDataPage** · L9374
+- **renderDrafts** · L18706
+- **renderFicheMachineBlocks** · L15745
+- **renderFiches** · L13611
+- **renderKpiMois** · L10978
+- **renderLameAlertBanner** · L12284
+- **renderLameEtat** · L12350 — courante, ancienneté depuis la pose, et nb de bobineaux coupés depuis.
+- **renderLameStats** · L13307
+- **renderMaintenance** · L12332
+- **renderNc** · L14678
+- **renderPlanManual** · L6604
+- **renderPlanning** · L10303 — ── RENDU ──
+- **renderSaves** · L7338
+- **renderShareChips** · L17107
+- **renderSharedDraftsBlock** · L17735 — Section « Partagées avec moi » en tête de l'onglet Données > Brouillons.
+- **renderSharedInbox** · L17691 — ── DESTINATAIRE : rendu des bandeaux ───────────────────────────────────────
+- **renderSharedViewBar** · L17711
+- **renderStock** · L11307
+- **renderTemps** · L9417
+- **renumberFicheLines** · L16448
+- **renumberRefBlocks** · L5004
+- **reprendreCommandeManque** · L13748 — Lien direct par fromFicheId, repli par client + n° de commande.
+- **resetAll** · L9216
+- **resetAnalyseFilter** · L13350
+- **resetFicheBobines** · L16482
+- **resetSaveFilters** · L7474
+- **resetSiteConfirm** · L9196 — L34 — Bouton "Nouveau plan" (Plan) : vide plan + fiche pour repartir de zéro.
+- **resetTempsFilters** · L9393
+- **restoreChrono** · L18655 — le téléphone éteint.
+- **restoreFicheLineFromData** · L18476
+- **restoreFicheState** · L18504
+- **restoreItem** · L15439
+- **restoreLastNav** · L4025 — que showPage/switchTab/les gardes de rôle existent ; les gardes de rôle re-basculent proprement si l'accès a c
+- **restoreRefGroups** · L5528 — Le bloc #1 réutilise les champs historiques ; les suivants sont des blocs "extra".
+- **restoreSharedFromCache** · L17234
+- **resumeDraft** · L18419
+- **resumeLastCommand** · L18333
+- **safeUrl** · L3365 — blob: et data:image sont autorisés (bloque javascript:, etc.). Cf. AUDIT F2/F5.
+- **saveCommandeFiche** · L8767 — Enregistre la fiche confirmée dans Firestore (sans mail), puis reset → Plan vierge
+- **saveDraftFromSendReliable** · L18094
+- **saveDraftManual** · L17977
+- **saveFicheConfigs** · L14406
+- **saveStockArticle** · L11531
+- **saveStockArticleEdit** · L11601
+- **saveStockMouvement** · L11705
+- **saveTempsEdit** · L9568
+- **selectFicheMachine** · L15550
+- **selectFicheMachine2** · L16050
+- **selectIni** · L16085
+- **selectIni2** · L16089
+- **selectMachine** · L4380
+- **serializeFicheState** · L17956
+- **serializeRefGroups** · L5444 — Sérialise les blocs réf pour la sauvegarde (structure persistée).
+- **setAnalyseFilter** · L13349
+- **setLameStatsPeriod** · L13306
+- **setStockMvtLoc** · L11193
+- **setStockMvtType** · L11686
+- **setTabBadge** · L13580 — Badges compteurs sur les onglets Données (fiches à valider, NC ouvertes).
+- **shareAutosaveTick** · L17299
+- **shareCutByOther** · L17585 — Verrou consulté par toggleCoupee : entrée cuts si la bobine est coupée par un COLLÈGUE.
+- **shareCutWrite** · L17563
+- **shareEndAfterSend** · L17661 — d_shared_* restait en base pour toujours.
+- **showFicheDetail** · L15000
+- **showForgotPassword** · L2419
+- **showPage** · L4007
+- **showToast** · L1893 — Toast léger + capture des exceptions non gérées (sinon échec silencieux)
+- **startAppCheckRefreshLoop** · L2596
+- **startAutosave** · L18184
+- **startBrouillons** · L17850 — rafraîchit la liste si elle est affichée.
+- **startLameAlertCycle** · L12308
+- **startPlanAutosave** · L18381
+- **startShareAutosave** · L17354
+- **stkEl** · L11167
+- **stockArticleCardHTML** · L11317
+- **stockBalancesByLoc** · L11180 — en valeur absolue mais le solde doit se cumuler avec le sens du mouvement.
+- **stockForecastRender** · L11241 — [L83 · Audit #23] stockConsoPerDay supprimée (morte — la conso 90 j est calculée en un passage dans stockForec
+- **stockForecastRenderDebounced** · L11306 — PERF-1 : l'input horizon déclenchait un recalcul O(mouvements) à chaque frappe.
+- **stockLocTotal** · L11191
+- **stockMvtLocKey** · L11176
+- **stockRefInfo** · L11200
+- **stockSelectedArticle** · L11696
+- **stockSetFilter** · L11165
+- **stockSoldeM2** · L11199
+- **stockSurfaceUnit** · L11198
+- **stockViewHTML** · L11347
+- **stopAppCheckRefreshLoop** · L2603
+- **stopAutosave** · L18189
+- **stopBrouillons** · L17877
+- **stopManqueMatiere** · L7942 — ============================================================
+- **stopShare** · L17154
+- **stopShareAutosave** · L17358
+- **submitAffutage** · L12644
+- **submitAffutageHorsMachine** · L12223
+- **svgBars** · L13239 — Graphique à barres générique (suivi des lames).
+- **svgHBars** · L10536
+- **svgLineChart** · L10673
+- **svgPie** · L10518
+- **switchTab** · L4333
+- **syncFicheParams** · L15582 — puis recalcule. Les deux jeux de champs restent synchronisés.
+- **syncFlMore** · L16803 — d'alarmant ne reste replié. Le statut du test 2ᵉ n'y figure plus : il est VISIBLE sur la carte.
+- **syncHideCoupeesUi** · L16753
+- **syncSharedView** · L17438 — arrêté ou produit la commande), on prévient et on garde la copie locale à l'écran.
+- **tempsShareParts** · L9405 — divergence possible entre l'écran Temps, le KPI figé et les débits machines.
+- **test2Resolved** · L16820 — Vrai si le test 2ème bobineaux est tranché (donc Coupée autorisée côté test).
+- **today** · L3366
+- **todayISO** · L3368
+- **toggleAction** · L16864
+- **toggleAtelier** · L4035 — Mode atelier : gros boutons / police agrandie. Réglage mémorisé par appareil.
+- **toggleChangements** · L18819
+- **toggleCoupee** · L16512
+- **toggleHideCoupees** · L16748
+- **toggleLameChg** · L16262
+- **toggleMachChg** · L16288
+- **toggleOp2** · L16093
+- **toggleOp2Machine** · L16067
+- **togglePendingOnly** · L13573 — Filtre « À valider » (fiches en attente, valide==null).
+- **togglePlanManual** · L6422 — ===== Édition manuelle du plan (onglet Plan) =====
+- **toggleShareOp** · L17099
+- **toggleSharePanel** · L17093
+- **toggleStockArticleForm** · L11522
+- **toggleTheme** · L4042 — persistée PAR APPAREIL (localStorage). Sombre par défaut (comportement historique de l'atelier).
+- **toggleValidatedFiches** · L13566
+- **triggerBLFiche** · L3638 — Dominique clique « joindre » : ref=null pour global, sinon la réf.
+- **triggerCommandeFiles** · L3804
+- **triggerPhoto** · L3489
+- **unvalidateFicheRef** · L15740 — [L217] « recorriger » depuis le résumé compact d'une réf validée → dé-valide cette réf et ré-affiche sa carte 
+- **updateAllCumuls** · L16897
+- **updateCartonVisibility** · L5048 — Affiche/masque la case "Carton" par ligne selon le type de conditionnement (Carton)
+- **updateCoupeeStatus** · L16610
+- **updateEtiquetteBtn** · L7169
+- **updateFPlanHint** · L15598 — Met à jour le message d'aide sous les boutons machine.
+- **updateMandrinVisibility** · L5054 — Affiche/masque la case "Code mandrin" (4 chiffres) — uniquement pour Legrand France.
+- **updateManualBobine** · L6689
+- **updateNC** · L16833
+- **updateNextAction** · L16680
+- **updateNumJourForToday** · L3378 — le quantième du jour au champ : 152 → 152+153. Idempotent (pas de doublon).
+- **updateResumeLastBtn** · L18317 — couvre QUE le cas « chrono qui tournait » ; ce bouton couvre « en pause ».
+- **updateSaveBtnLabel** · L7578 — Met le libellé du bouton "Sauvegarder/Modifier" de la page Plan selon le mode.
+- **updateShareUi** · L17175
+- **updateTabBadges** · L13587
+- **updateTest2Subs** · L16761
+- **updateUtile2** · L16078
+- **updateVekaVisibility** · L4452 — Affiche le menu "VEKA" (Profilé / VEKA) uniquement pour le client VEKA.
+- **updDismiss** · L1814
+- **updReload** · L1815
+- **uploadBLToStorage** · L3645
+- **uploadCommandeFile** · L3857
+- **uploadPhotoToStorage** · L3434
+- **validateFiche** · L14147
+- **vekaClass** · L5455 — VEKA : classe couleur selon la valeur (Profilé = cyan, VEKA = magenta).
