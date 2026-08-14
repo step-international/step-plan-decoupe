@@ -705,5 +705,10 @@ has(/#ficheRail\{display:block;grid-column:1;grid-row:1;position:sticky;top:64px
 has(/body\.training \.modal-overlay\{z-index:8100\}/,'L330 : modales au-dessus des hachures d entraînement');
 has(/body:has\(#page2\.active\) #flow\{display:none\}/,'L330 : fil du parcours masqué sur l écran Données');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L330 présents dans index.html + sw.js');
+console.log('── L331 : changement d opérateur à la reprise (résout le HAUT op-du-jour) ──');
+has(/function promptOperatorTakeover/,'L331 : à la reprise, demande « changement d opérateur ? »');
+has(/function _pickTakeover/,'L331 : la liste des opérateurs active op.2 « à partir de la bobine en cours »');
+has(/setTimeout\(promptOperatorTakeover,400\)/,'L331 : branché sur ▶ Reprendre ET reprise de brouillon');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L331 présents dans index.html + sw.js');
 process.exit(fail?1:0);

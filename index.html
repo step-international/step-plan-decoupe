@@ -2038,7 +2038,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.12-L330';
+const APP_VERSION='2026.08.14-L331';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -20018,6 +20018,60 @@ function updateResumeLastBtn(){
     btn.classList.toggle('hidden', !show);
   }catch(e){}
 }
+// [L331 · demande Esteban 14/08 · resout le HAUT « op-du-jour »] CHANGEMENT D'OPERATEUR A LA REPRISE.
+// Quand on REPREND une commande (tablette rallumee / brouillon / « reprendre la commande en cours »), on
+// demande « changement d'operateur ? ». Si oui -> liste des operateurs -> active le mecanisme EXISTANT
+// « Operateur 2 - repris a partir de la bobine N » (deja serialise dans fiche/PDF/exports). Trace ISO :
+// la production du 1er operateur reste a lui, la suite au repreneur. Ferme le trou « fiche sous les
+// mauvaises initiales » signale par la grosse audit.
+function promptOperatorTakeover(){
+  try{
+    if(typeof trainingGuard==='function' && trainingGuard()) return;
+    if(!(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length)) return;   // pas de fiche -> rien
+    const cur=(document.getElementById('fInitiales')?.value||'').trim();
+    if(!cur) return;                                   // aucun operateur pose -> le repreneur tapera ses initiales (garde d'envoi)
+    if(document.getElementById('fOp2Active')?.checked) return;   // op.2 deja actif (3e operateur) -> ne pas empiler
+    try{ if(typeof _nextUncutLine==='function' && !_nextUncutLine()) return; }catch(e){}   // [L331 · fix audit] tout deja coupe -> aucune bobine a attribuer au repreneur, pas de prompt
+    if(typeof confirm!=='function') return;
+    if(!confirm('👤 Changement d\'operateur ?\n\nCette commande etait a « '+cur+' ».\nEst-ce QUELQU\'UN D\'AUTRE qui reprend la decoupe maintenant ?\n\nOK = oui, choisir qui reprend · Annuler = c\'est toujours '+cur)) return;
+    _openTakeoverPicker(cur);
+  }catch(e){}
+}
+function _openTakeoverPicker(cur){
+  try{
+    document.getElementById('takeoverOverlay')?.remove();
+    const ops=Array.prototype.slice.call(document.querySelectorAll('#initBtns .ini-btn')).map(function(b){return (b.textContent||'').trim();}).filter(Boolean);
+    const o=document.createElement('div'); o.id='takeoverOverlay'; o.className='modal-overlay open';
+    o.innerHTML='<div class="modal" role="dialog" aria-modal="true" aria-labelledby="tkTitle">'
+      +'<h3 id="tkTitle">👤 Qui reprend la decoupe ?</h3>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">'
+      +ops.map(function(v){ return '<button class="btn'+(v===cur?' btn-ghost':'')+'" style="min-height:58px;min-width:74px;font-weight:800" onclick="_pickTakeover(\''+v+'\')">'+esc(v)+(v===cur?' (moi)':'')+'</button>'; }).join('')
+      +'</div>'
+      +'<div style="font-size:12px;color:var(--muted)">Trace : « Operateur 2 - a partir de la bobine en cours » (fiche, PDF, exports). '+esc(cur)+' garde sa production.</div>'
+      +'<div class="modal-btns" style="margin-top:12px"><button class="btn btn-ghost" onclick="document.getElementById(\'takeoverOverlay\')?.remove()">Annuler</button></div></div>';
+    document.body.appendChild(o);
+    o.addEventListener('click',function(e){ if(e.target===o) o.remove(); });
+  }catch(e){}
+}
+function _pickTakeover(v){
+  try{
+    document.getElementById('takeoverOverlay')?.remove();
+    const cb=document.getElementById('fOp2Active');
+    if(cb && !cb.checked){ cb.checked=true; if(typeof toggleOp2==='function') toggleOp2(); }   // toggleOp2 peuple le select des bobines
+    if(typeof selectIni2==='function') selectIni2(v);
+    // bobine de reprise = 1re NON coupee (repli : nb coupees + 1)
+    let pos='';
+    try{ const nx=(typeof _nextUncutLine==='function')?_nextUncutLine():null; if(nx){ const i=ficheLines.findIndex(function(l){return l.id===nx.id;}); if(i>=0) pos=String(i+1); } }catch(e){}
+    if(!pos){ const dn=(typeof countCoupees==='function')?countCoupees():0; pos=String(Math.min(dn+1,ficheLines.length)); }
+    const sel=document.getElementById('fOp2Bobine');
+    if(sel){ sel.value=pos; try{ sel.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+    try{ if(typeof refreshOp2BobineList==='function') refreshOp2BobineList(); }catch(e){}
+    try{ if(typeof _op2BobCue==='function') _op2BobCue(); }catch(e){}
+    try{ showToast('👤 '+v+' reprend a partir de la bobine '+(sel?sel.value:'?')+' - enregistre (operateur 2).'); }catch(e){}
+    // amener l operateur sur le bloc op.2 pour verifier (bobine de reprise)
+    try{ document.getElementById('op2Zone')?.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }catch(e){}
+}
 async function resumeLastCommand(){
   try{
     const aid=(typeof autosaveId==='function')?autosaveId():null;
@@ -20033,6 +20087,7 @@ async function resumeLastCommand(){
     showPage(1);
     updateResumeLastBtn();
     try{ showToast('Commande reprise','ok'); }catch(e){}
+    try{ setTimeout(promptOperatorTakeover,400); }catch(e){}   // [L331] proposer le changement d'opérateur à la reprise
   }catch(e){ console.warn('resumeLastCommand:',e); }
 }
 // ============================================================
@@ -20174,6 +20229,7 @@ function resumeDraft(id){
     _resumeAutoImportGuard=true;   // [L218 · régression revue] la reprise déclenche un import auto (showPage 1) : il ne doit PAS désarmer la passation qu'on vient d'armer (sinon brouillon de l'autre poste non purgé → double découpe)
     showPage(1);
     showToast('Brouillon chargé — vérifie les bobines puis envoie','ok');
+    try{ setTimeout(promptOperatorTakeover,400); }catch(e){}   // [L331] proposer le changement d'opérateur à la reprise d'un brouillon
   }
 }
 function restoreFicheLineFromData(ld){
