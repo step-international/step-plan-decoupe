@@ -576,7 +576,7 @@ has(/id="ficheMain"/,'L311 : wrapper centre présent (bandeau+entêtes+chg+fiche
 has(/#ficheRail,#ficheMain\{display:contents\}/,'L311 : portrait = wrappers transparents + ordre historique par `order`');
 has(/#chutesRappelBanner\{order:1\}/,'L311 : ordre portrait restauré explicitement (12 enfants)');
 has(/grid-template-columns:320px minmax\(0,1fr\)/,'L311→L333 : paysage ≥1100px = rail 320px sticky + centre (§2.18/§2.21 — 336→320 au lot fidélité)');
-has(/#ficheLines\{display:grid;grid-template-columns:1fr 1fr/,'L311 : bobines en grille 2 colonnes en paysage');
+has(/#ficheLines\{display:grid;grid-template-columns:1fr;/,'L311\u2192L334 : bobines en COLONNE UNIQUE pleine largeur en paysage (maquette 17 supers\u00e8de la grille 2 col \u00a72.7)');
 has(/\.fiche-line\.fl-current,#ficheLines \.fmm-block/,'L311 : carte en cours + blocs réf traversent (grid-column 1/-1)');
 has(/id="ficheChronoSec"/,'L311 : 3 ids AJOUTÉS (jamais renommés) — ficheChronoSec/ficheHeadSec/ficheChgSec');
 has(/<div id="actionBar">/,'L311 : wrapper #actionBar PRÉSENT (barre du pouce ≤1099px — perdu une fois par le réassemblage, plus jamais)');
