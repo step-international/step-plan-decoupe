@@ -1423,7 +1423,8 @@ body.atelier .stat-tile b{font-size:36px}
 @media(min-width:1100px){
   #outilsFicheBtn{display:inline-flex!important;order:4}
   #outilsPlanBtn{display:inline-flex!important}
-  #page1 .flex-wrap:has(#hideCoupeesBtn){display:none}   /* ligne manuelle · masquer · brouillon → tiroir */
+  #page1 .flex-wrap:has(#btnDraftManual){display:none}   /* ligne manuelle · brouillon → tiroir — [fix L339 · audit BLOQUANT] ancrage sur #btnDraftManual (stable) : #hideCoupeesBtn est DÉPLACÉ au boot dans #chgBtnRow par _l79SetupChangements → le :has() masquait la rangée 🔧 Changements (accès lame/machine/op.2 perdu !) */
+  #hideCoupeesBtn{display:none}                          /* masquer les coupées → tiroir (le bouton vit dans #chgBtnRow, qu'on ne masque JAMAIS) */
   #planSaveBtn,#planEditBtn{display:none}                /* 💾 · ✏️ → tiroir */
   #planResumeRow .btn-red{display:none}                  /* ↺ réinitialiser → tiroir (▶ Reprendre reste en tête) */
 }
@@ -2244,11 +2245,11 @@ body.atelier .stat-tile b{font-size:36px}
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="outilsFicheTitle">
     <h3 id="outilsFicheTitle">⚙ Outils fiche</h3><button class="modal-x" aria-label="Fermer" onclick="closeOutilsDlg('outilsFicheDlg')">✕</button>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#fLameChg')">🔧 Changements — machine · lame · op.2</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');outilsChangements()">🔧 Changements — machine · lame · op.2</button><!-- [L339 · audit] ouvre VRAIMENT la zone (elle est repliée .hidden) -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');addFicheLine()">＋ Ligne manuelle</button>
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');toggleHideCoupees()">🙈 Masquer / afficher les coupées</button>
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');saveDraftManual()">💾 Brouillon</button>
-      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche','#fPalette')">📥 Récap emballage · conditionnement</button>
+      <button class="btn" id="outilsRecapBtn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche')">📥 Récap emballage par client</button><!-- [L339 · audit] visible seulement en multi-clients (openOutilsDlg) — en mono la cible n'existe pas à l'écran -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');stopManqueMatiere()">⛔ Arrêt — manque de matière</button>
     </div>
   </div>
@@ -2259,7 +2260,7 @@ body.atelier .stat-tile b{font-size:36px}
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');outilsReveal('#cliSection')">👥 Multi-clients</button>
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');addRefBlock()">＋ Ajouter une référence</button>
-      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');togglePlanManual()">✏️ Modifier le plan à la main</button>
+      <button class="btn" id="outilsPmBtn" onclick="closeOutilsDlg('outilsPlanDlg');togglePlanManual()">✏️ Modifier le plan à la main</button><!-- [L339 · audit] libellé dynamique : dit « revenir en auto » quand le plan manuel est actif -->
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button>
       <button class="btn btn-red" onclick="closeOutilsDlg('outilsPlanDlg');resetSiteConfirm()">↺ Réinitialiser</button>
     </div>
@@ -2401,7 +2402,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.14-L338';
+const APP_VERSION='2026.08.14-L339';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7226,6 +7227,7 @@ function recalcPlan(){
     adaptPlanManualToInputs();
     if(document.getElementById('usefulDisplay'))
       document.getElementById('usefulDisplay').innerHTML='<i class="ud-l">Largeur utile</i><b class="ud-v">'+fmt(getUseful())+' <small>mm</small></b>';   /* [L336 · maquette 18 · §2.17-B] tuile bleue : label au-dessus, valeur 32px */
+    try{ _updateRowShares(0); }catch(_){}   /* [L339 · audit] plan manuel : les % de part se vident (sinon valeurs périmées) */
     renderPlanManual();
     return;
   }
@@ -7321,6 +7323,7 @@ function recalcPlan(){
     planOversize=[];
     if(statsEl) statsEl.innerHTML='';
     if(cardsEl) cardsEl.innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
+    try{ _updateRowShares(0); }catch(_){}   /* [L339 · audit] plan vidé : % de part vidés aussi */
     return;
   }
 
@@ -7356,17 +7359,9 @@ function recalcPlan(){
     ${resteRouleauxMm>0?`<div class="stat-chip" style="border-color:#115e52;background:#06231c">♻ Reste rouleaux <span style="color:#5eead4">${fmt(resteRouleauxMm)} mm</span></div>`:''}
     <div class="stat-chip">✂ Chute stock <span style="font-weight:700;color:var(--orange)">${fmt(chuteStockMm)} mm</span></div><!-- [L146 · audit ergo #12] « Chute stock » unifié en ORANGE (convention ✂ chute partout, CSS 192-215) — était vert ici vs orange ailleurs pour la même notion -->
     ${recutCountAll>0?`<div class="stat-chip" style="border-color:#115e52;background:#06231c">♻ <span style="color:#5eead4">${recutCountAll} rouleau${recutCountAll>1?'x':''} chute recoupé${recutCountAll>1?'s':''}</span></div>`:''}`;
-  // [L337 · §2.14 · maquette 18] part de bobine par ligne de laize (largeur / utile, « 23 % ») — affichage pur,
-  // mono-réf seulement (en multi chaque bloc a son utile propre → pas de % plutôt qu'un % faux).
-  try{
-    const _uShare=multi?0:(((computed.find(c=>(c.rows||[]).length)||computed[0]||{}).useful)||0);
-    document.querySelectorAll('#page0 .order-row').forEach(function(row){
-      let s=row.querySelector('.row-share');
-      const w=parseFloat((row.querySelector('input[data-type="width"]')||{}).value);
-      if(!s){ s=document.createElement('span'); s.className='row-share'; row.appendChild(s); }
-      s.textContent=(_uShare>0&&w>0)?Math.round(w/_uShare*100)+' %':'';
-    });
-  }catch(_){}
+  // [L337, helper L339 · §2.14 · maquette 18] part de bobine par ligne de laize (largeur / utile, « 23 % ») —
+  // affichage pur, mono-réf seulement (en multi chaque bloc a son utile propre → pas de % plutôt qu'un % faux).
+  try{ _updateRowShares(multi?0:(((computed.find(c=>(c.rows||[]).length)||computed[0]||{}).useful)||0)); }catch(_){}
 
   // Rendu des cartes, réf par réf, avec bande de changement entre réfs.
   let html='';
@@ -19057,17 +19052,45 @@ document.addEventListener('click',function(e){
     if(mq.addEventListener) mq.addEventListener('change',place); else if(mq.addListener) mq.addListener(place);
   }catch(_){}
 })();
-// [L338 · maquettes 17/18] tiroirs ⚙ OUTILS — ouverture/fermeture + « révéler » une section existante
-// (défilement + halo ambre). PUR AFFICHAGE : aucun handler métier modifié.
-function openOutilsDlg(id){ try{ document.getElementById(id).classList.add('open'); }catch(_){} }
+// [L338, durci L339 · maquettes 17/18] tiroirs ⚙ OUTILS — ouverture/fermeture + « révéler » une section
+// existante (défilement + halo ambre). PUR AFFICHAGE : aucun handler métier modifié.
+function openOutilsDlg(id){ try{
+  document.getElementById(id).classList.add('open');
+  if(id==='outilsFicheDlg'){   /* [L339 · audit] l'entrée récap n'apparaît qu'en multi-clients (en mono la cible n'existe pas à l'écran) */
+    const rb=document.getElementById('outilsRecapBtn');
+    if(rb) rb.style.display=(typeof cliMulti==='function'&&cliMulti())?'':'none';
+  }
+  if(id==='outilsPlanDlg'){    /* [L339 · audit] l'entrée plan manuel dit ce que fera le tap (bascule sans surprise) */
+    const pb=document.getElementById('outilsPmBtn');
+    if(pb) pb.textContent=(typeof planManual!=='undefined'&&planManual)?'↩ Revenir au plan automatique (les modifs manuelles seront recalculées)':'✏️ Modifier le plan à la main';
+  }
+}catch(_){} }
 function closeOutilsDlg(id){ try{ document.getElementById(id).classList.remove('open'); }catch(_){} }
 function outilsReveal(sel,alt){ try{
   let el=document.querySelector(sel);
-  if(el&&getComputedStyle(el).display==='none'&&alt) el=document.querySelector(alt)||el;
+  const _hidden=function(n){ return !n||n.getClientRects().length===0; };   /* [L339 · audit] détecte AUSSI le masquage par ancêtre */
+  if(_hidden(el)&&alt) el=document.querySelector(alt)||el;
   if(!el) return;
-  const box=el.closest('.section')||el;
+  let box=el.closest('.section')||el.closest('[id]')||el;
+  if(_hidden(box)) box=el.closest('.section:not([style*="display:none"])')||box;
   box.scrollIntoView({behavior:'smooth',block:'center'});
   try{ box.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); }catch(_){}
+}catch(_){} }
+// [L339 · audit] entrée 🔧 Changements : OUVRE réellement la zone (toggleChangements) puis défile —
+// le simple scroll vers une checkbox cachée ne faisait rien.
+function outilsChangements(){ try{
+  const z=document.getElementById('changementsZone');
+  if(z&&z.classList.contains('hidden')&&typeof toggleChangements==='function') toggleChangements();
+  outilsReveal('#ficheChgSec');
+}catch(_){} }
+// [L339 · audit] helper % de part de bobine (appelé aussi par les early-returns de recalcPlan pour VIDER)
+function _updateRowShares(uShare){ try{
+  document.querySelectorAll('#page0 .order-row').forEach(function(row){
+    let s=row.querySelector('.row-share');
+    const w=(typeof parseNum==='function')?parseNum((row.querySelector('input[data-type="width"]')||{}).value):parseFloat((row.querySelector('input[data-type="width"]')||{}).value);   /* parseNum : même frontière que le moteur (92,5 · lettre O) */
+    if(!s){ s=document.createElement('span'); s.className='row-share'; row.appendChild(s); }
+    s.textContent=(uShare>0&&w>0)?Math.round(w/uShare*100)+' %':'';
+  });
 }catch(_){} }
 // [L64 · Lot 6] Récap emballage PAR CLIENT en bas de la fiche : qui reçoit quoi,
 // avec son n° de commande, sa date de livraison et son packaging. Masqué en mono-client.
