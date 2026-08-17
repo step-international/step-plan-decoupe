@@ -719,5 +719,25 @@ has(/reportAuto\(\(e\.error&&e\.error\.message\)/,'L332 : greffé sur window.err
 has(/if\(typeof trainingGuard==='function' && trainingGuard\(\)\) return Promise\.resolve\(false\)/,'L332 : aucun signalement en entraînement');
 (function(){ try{ const r=require('fs').readFileSync(__dirname+'/../firestore.rules','utf8'); const ok=/to\.hasOnly\(\['esterozier42480@gmail\.com','sales@step-international\.com'\]\)/.test(r); console.log((ok?'✅ ':'❌ ')+'L332 : firestore.rules fige les destinataires (anti-relais spam, fix audit)'); if(!ok)fail++; }catch(e){ console.log('⚠ firestore.rules non lu'); } })();
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L332 présents dans index.html + sw.js');
+console.log('── L340 : fidélité maquette 17 — fiche paysage « premier écran = HUD + bobine en cours » ──');
+has(/#ficheHeadSec:not\(\.reveal\),#ficheChgSec:not\(\.reveal\)\{display:none\}/,'L340 : en-tête fiche + 🔧 changements REPLIÉS par défaut en paysage (≥1100px seulement)');
+has(/#ficheRail>#fMachineMono:not\(\.reveal\)\{display:none\}/,'L340 : bloc machine/mère/bords/changement plan replié dans le rail (paysage)');
+has(/function renderFicheHeadPills/,'L340 : rangée de pastilles d en-tête (client · réf courte · machine · mère · bords · lame · jour · op) — tap = déplier');
+has(/function toggleFicheHead/,'L340 : dépliage/repli des 3 sections en un geste');
+has(/Element\.prototype\.scrollIntoView=wrapped/,'L340 : filet « jamais pointer un élément caché » — toute garde qui défile vers une section repliée la déplie (paysage seulement)');
+has(/function renderSoldeSummary/,'L340 : carte 🏷️ ÉTIQUETTE SOLDE repliée avec résumé « n mm conservés » (formulaire au tap)');
+has(/sendBtn\.dataset\.reste=String\(Math\.max\(0,total-done\)\)/,'L340 : RESTE n porté en data-attribut (pastille CSS ::after, §2.13-D)');
+has(/#sendPlanBtn\.not-ready\{background:#14371f!important;border:1px solid #2a5c2a!important;color:#8fe0ab!important/,'L340 : CONFIRMER en VERT jamais grisé en paysage (§2.13-D / maquette 17)');
+has(/<div class="cc-t">LAIZE \$\{p\.width\} mm<\/div>/,'L340 : « LAIZE n mm » — capitales dans la chaîne, plus d uppercase CSS (mm restait MM)');
+absent(/\.cc-t\{[^}]*text-transform:uppercase/,'L340 : aucun uppercase CSS sur le titre de laize (unité)');
+has(/\.fh-pills,#soldeSummary,\.fl-chute\{display:none\}/,'L340 : portrait STRICTEMENT inchangé (pastilles + résumé solde + chip CHUTE inexistants <1100px)');
+has(/try\{ _l340SetupFichePills\(\); \}catch\(e\)\{\}   \/\/ \[L340/,'L340 : initialisation APRÈS _l79SetupChangements (leçon L339 : nœuds déplacés au boot)');
+has(/el\.closest\('#ficheHeadSec,#fMachineMono,#ficheChgSec'\)&&!\(typeof fmmIsMulti==='function'&&fmmIsMulti\(\)&&el\.closest\('#fMachineMono'\)\)\)\{ try\{ toggleFicheHead\(true\); \}catch\(_\)\{\} \}/,'L340 fix audit : garde chrono (initiales/lame manquantes) DÉPLIE l en-tête replié au lieu de surligner la carte de réf (multi-réf paysage)');
+has(/function _l340SyncOrderStates/,'L340 fix : états ✓ FINI / EN COURS / À VENIR de l ordre de coupe dérivés des BOBINES coupées (validée ≠ finie), resynchronisés à chaque coche');
+has(/function _l340RenderChuteChip/,'L340 : chip « CHUTE n mm » de la carte en cours (utile − laizes − lames, calcStats en lecture seule)');
+has(/height:auto!important;pointer-events:none\}   \/\* \[fix audit\] height:auto/,'L340 fix audit : config compacte = résumé (tap déplie, plus de clavier) + hauteur du textarea jamais figée');
+has(/#coupeeBanner\{top:calc\(65px \+ env\(safe-area-inset-top,0px\)\)!important\}/,'L340 fix audit : HUD sticky OPAQUE sous la nav dans tous les états (il se superposait au ✂ en défilant)');
+has(/#sendPlanWrap #manqueMatiereBtn\{display:none!important\}/,'L340 : ⛔ manque matière hors de la barre en paysage (entrée ⚙ OUTILS conservée)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L340 présents dans index.html + sw.js');
 process.exit(fail?1:0);
