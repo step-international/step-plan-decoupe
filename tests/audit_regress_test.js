@@ -739,5 +739,20 @@ has(/height:auto!important;pointer-events:none\}   \/\* \[fix audit\] height:aut
 has(/#coupeeBanner\{top:calc\(65px \+ env\(safe-area-inset-top,0px\)\)!important\}/,'L340 fix audit : HUD sticky OPAQUE sous la nav dans tous les états (il se superposait au ✂ en défilant)');
 has(/#sendPlanWrap #manqueMatiereBtn\{display:none!important\}/,'L340 : ⛔ manque matière hors de la barre en paysage (entrée ⚙ OUTILS conservée)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L340 présents dans index.html + sw.js');
+console.log('── L341 : fidélité maquette 18 — plan paysage (cartes de saisie, 3 cotes, outils, emballage résumé) ──');
+has(/function _l341PlanPolish/,'L341 : tuile LARGEUR UTILE déplacée dans .row3 en paysage (nœud unique #usefulDisplay, remis dans son champ en portrait)');
+has(/function _l341RenderCondSummary/,'L341 : 📦 emballage en carte-résumé (tap = détail) — selects/notes/handlers inchangés');
+has(/#cliSection:not\(\.reveal\):not\(:has\(#cliPanel>\*\)\)\{display:none\}/,'L341 : multi-clients replié en paysage SAUF actif (2e client) ou déplié via ⚙ OUTILS');
+has(/#planLeft>\.flex\.mt8>button\[onclick="addRefBlock\(\)"\]\{display:none\}/,'L341 : « + Ajouter une référence » → ⚙ OUTILS en paysage (entrée existante)');
+has(/\.ref-block \.flex\.mt8 \.btn\.btn-orange,\.ref-block \.flex\.mt8 \.btn\.btn-recut\{background:linear-gradient/,'L341 : ✂ bobineaux / ♻ chute NEUTRES en paysage (§2.16-A)');
+has(/#planCards \.bobine-card \.card-sub:has\(>\.v\)\{display:none\}/,'L341 : plan ligne par ligne sans sous-ligne « utilisé / utile » (maquette 18) — données intactes');
+has(/class="stat-chip sc-utile"/,'L341 : chip utile classée (masquée en paysage : doublon de la tuile bleue)');
+has(/\.cond-summary\{display:none\}/,'L341 : portrait STRICTEMENT inchangé (résumé emballage inexistant <1100px)');
+has(/try\{ _l341SetupPlan\(\); \}catch\(e\)\{\}/,'L341 : initialisation au boot + rotation (matchMedia) — reparentage réversible');
+absent(/#planLeft \.field>label\{[^}]*text-transform:uppercase/,'L341 : aucun uppercase global sur les labels du plan (unités (mm)/(m) préservées)');
+has(/#statsBar \.stat-tile\{flex:1 1 150px;min-width:0\}/,'L341 fix audit : tuiles du plan jamais écrasées par les chips (multi-réf / multi-clients)');
+has(/#planCondSec\.cond-has-alert\{border-color:#59584f;background:#1a1a18\}/,'L341 fix audit design : carte emballage NEUTRE même avec alerte (§2.17-B : pas de 3e orange sur le Plan)');
+has(/const f=e\.target\.closest\('\.field'\); if\(!f\|\|!pl\.contains\(f\)\) return;/,'L341 fix audit : tap sur la carte de saisie (libellé/marge) → focus du champ (plus de bande morte)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L341 présents dans index.html + sw.js');
 process.exit(fail?1:0);
