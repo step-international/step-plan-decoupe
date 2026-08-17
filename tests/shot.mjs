@@ -22,7 +22,7 @@ async function waitPort() { for (let i = 0; i < 100; i++) { try { const r = awai
 // ---- scènes : setup JS exécuté dans la page (session simulée + mode entraînement = zéro écriture) ----
 const SETUP = {
   common: `
-    currentRole='operateur'; currentUser={role:'operateur',ini:'TB',nom:'Taïeb'}; applyRole();
+    window.confirm=function(){ return true; }; window.alert=function(){}; currentRole='operateur'; currentUser={role:'operateur',ini:'TB',nom:'Taïeb'}; applyRole();
     startTraining();
     (function(){ const st=document.createElement('style'); st.id='__auditNoHatch'; st.textContent='body.training::before,body.training::after{display:none!important} #trainingBanner{display:none!important} .toast,#globalToast{display:none!important} body.training #sendPlanWrap{bottom:0!important} body.training #actionBar{bottom:0!important}'; document.head.appendChild(st); })();
     window.__set=(id,v)=>{const e=document.getElementById(id); if(e){e.value=v; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true}));}};

@@ -1712,6 +1712,41 @@ body.atelier .stat-tile b{font-size:36px}
   .ref-block .flex.mt8 #outilsPlanBtn{min-height:48px;font-size:15px}
   #btnStartCut{min-height:84px!important;font-size:29px!important}   /* geste n°1 de l'écran : un cran au-dessus de tout le reste */
 }
+/* ============================================================
+   [L345 · RETOURS ESTEBAN n°2 (17/08 soir)] (1) raccourcis +7 J / +14 J retirés ; (2) code couleur MACHINE sur le Plan ;
+   (3) colonne droite du Plan = hauteur écran, SEULES les lignes du plan défilent (tuiles · emballage · COMMENCER toujours
+   visibles) ; (5) ✎ MODIFIER et ♻ ÉCARTS = UN bouton (« ♻ RECALCULER » quand la config a changé, ✂ refusé tant que non
+   recalculé) ; (6) 🔧 Changements = 3 choix compacts, le détail ne s'ouvre que pour le choix coché.
+   ============================================================ */
+button[onclick^="bumpDateLiv"]{display:none!important}   /* (1) partout : le calendrier natif suffit */
+.fl-edit-chip.need-recalc{background:linear-gradient(#ffc21a,#f5b301)!important;color:#141310!important;border-color:#b8860b!important;animation:arcadePulse 1.8s ease-out infinite}
+@media(prefers-reduced-motion:reduce){.fl-edit-chip.need-recalc{animation:none}}
+@media(min-width:1100px){
+  /* (2) carte MACHINE teintée par la machine choisie */
+  #planLeft .field[data-mach="feba"]{border-color:var(--feba)} #planLeft .field[data-mach="feba"]>select{color:var(--feba)}
+  #planLeft .field[data-mach="maveg"]{border-color:var(--maveg)} #planLeft .field[data-mach="maveg"]>select{color:var(--maveg)}
+  #planLeft .field[data-mach="cevenini"]{border-color:var(--cevenini)} #planLeft .field[data-mach="cevenini"]>select{color:var(--cevenini)}
+  /* (3) colonne droite : hauteur écran, lignes du plan qui défilent, emballage + COMMENCER toujours visibles */
+  #planRight{height:calc(100dvh - 89px);max-height:none!important;overflow:hidden!important;display:flex;flex-direction:column}
+  body.training #planRight{height:calc(100dvh - 153px)}
+  #planRight>#planResultSec{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;order:1}
+  #planResultSec>.section-title,#planResultSec>#statsBar,#planResultSec>.action-bar,#planResultSec>#planManualHint{flex:none}
+  #planResultSec>#planCards{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+  #planRight>#planCondSec{flex:none;order:2;max-height:32vh;overflow-y:auto}
+  #planRight>#btnStartCut{flex:none;order:3;margin-top:10px}
+  /* (5) ✎ MODIFIER = vrai bouton 48px (le ♻ ÉCARTS du titre CUMUL se replie : même geste, un seul bouton) */
+  .fl-current .fl-edit-chip{pointer-events:auto;cursor:pointer;min-height:44px;padding:0 14px;font-size:15px;background:#241d05;color:#ffd45e;border:1px solid #b8860b;border-radius:9px}
+  .fl-current .fiche-grid>.field:has(.cumul-box) button[onclick="recalcEcartsFromFiche()"]{display:none}
+  .fiche-line.conf-dirty [id^="coupeeBtn_"].next-action{background:linear-gradient(#33332f,#2e2e2b)!important;color:var(--text)!important;border-color:#59584f!important;animation:none;box-shadow:0 6px 0 #0c0c0b}   /* config modifiée : le ✂ recule, le seul ambre = ♻ RECALCULER */
+  /* (6) 🔧 Changements : 3 cartes compactes côte à côte ; le choix coché s'étale seul */
+  #changementsZone{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #changementsZone .chg-section{margin:0;padding:8px 12px;min-height:56px}
+  #changementsZone .chg-section>label{min-height:40px;align-items:center}
+  #changementsZone .chg-section>label span{font-size:15px}
+  #changementsZone .chg-section>label input[type=checkbox]{width:22px!important;height:22px!important}
+  #changementsZone .chg-section:has(input[type=checkbox]:checked){grid-column:1/-1;border-color:#b06a00}
+  #chgBtnRow{margin-bottom:6px}
+}
 
 </style>
 </head>
@@ -2687,7 +2722,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.17-L344';
+const APP_VERSION='2026.08.17-L345';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5597,7 +5632,13 @@ function renderDataSummary(){
     const lame=(lameEl&&lameEl.style.display!=='none')?'à changer':'✓';
     const chip=function(lbl,val,warn){ return '<span style="display:inline-flex;flex-direction:column;gap:1px;padding:6px 18px;border-right:1px solid var(--border)"><span style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-family:var(--f-head);font-weight:700">'+lbl+'</span><b style="font-size:24px;font-variant-numeric:tabular-nums;font-family:var(--f-head);font-weight:800;'+(warn?'color:#ffb968':'')+'">'+val+'</b></span>'; };   /* [L333 · maquette 19] label 13px (plancher §2.13-C) + valeur 24px Condensed, orange avertissement #ffb968 (§2.16-A) */
     const _blf=document.getElementById('btnLoadFull'); const _blfIn=!!(_blf&&el.contains(_blf)); if(_blfIn) el.removeChild(_blf);   // [L342] le bouton vit dans le bandeau en paysage : on le sort AVANT de réécrire le HTML (sinon détruit)
+    // [L345 · œil chef d'entreprise] bobines coupées + perte matière moyenne de la semaine (champs déjà en cache : totalBobines, pct)
+    let wkBob=0, wkPctSum=0, wkPctN=0;
+    try{ F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; const d=t?new Date(t):null; if(!(d&&!isNaN(d)&&d>=monday)) return; const nb=parseInt(f.totalBobines,10); if(nb>0) wkBob+=nb; const pc=parseFloat(String(f.pct||'').replace(',','.')); if(!isNaN(pc)){ wkPctSum+=pc; wkPctN++; } }); }catch(e){}
+    const wkPct=wkPctN?(wkPctSum/wkPctN):null;
     el.innerHTML=chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
+      +chip('Bobines',(wkKnown&&wkBob>0)?String(wkBob):'—',false)
+      +chip('Perte moy.',(wkPct!=null)?(wkPct.toFixed(1).replace('.',',')+' %'):'—',(wkPct!=null&&wkPct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5)))
       +chip('Planning du jour','—',false)   /* [L336 · maquette 19 · §2.16-B] chip présent, valeur « — » (aucune source mémoire fiable — AUCUNE requête, règle L317) */
       +chip('BL à joindre',(noBL===0?'0':noBL),(typeof noBL==='number'&&noBL>0))
       +chip('Lame',lame,lame!=='✓');
@@ -9282,14 +9323,16 @@ function maybeShowChutesRappel(){
     const k=_chutesRappelKey();
     let seen=[]; try{ seen=JSON.parse(localStorage.getItem('step_chutes_rappel_v2')||'[]'); if(!Array.isArray(seen)) seen=[]; }catch(e){ seen=[]; }
     if(seen.includes(k)) return;   // déjà rappelé pour CETTE commande (mémoire = 8 dernières, pas mono-case : l'alternance A↔B ne re-déclenche pas)
-    const b=document.getElementById('chutesRappelBanner'); if(!b) return;
-    b.style.display='block';
-    // [L306 · fix audit lot 3] avec le démarrage AUTO, le 1er ✂ se fait souvent défilé LOIN sous le haut de
-    // page : le bandeau seul serait hors écran et le rappel jamais vu. Le toast (transitoire, pas un texte
-    // permanent — §2.20 respecté) porte le même message au moment du geste ; le bandeau reste consultable en haut.
-    try{ if(typeof showToast==='function') showToast('✂ Des bobineaux en stock ? Ajoute-les au plan — rappel en haut de la fiche.'); }catch(e){}
-    try{ seen.push(k); localStorage.setItem('step_chutes_rappel_v2',JSON.stringify(seen.slice(-8))); }catch(e){}   // mémorisé À L'AFFICHAGE : une fois par commande, même après rechargement
-  }catch(e){}
+    // [L345 · demande Esteban 17/08] la question revient AVANT le chrono, en confirm natif SYNCHRONE (fonctionne aussi dans le
+    // démarrage auto au 1er ✂) : OK = rien en stock, on démarre · Annuler = ouvrir le plan pour ajouter bobineaux/chutes (chrono NON lancé).
+    // Mémorisée à la RÉPONSE (une fois par commande). Le bandeau L306 ne s'affiche plus (doublon).
+    try{ seen.push(k); localStorage.setItem('step_chutes_rappel_v2',JSON.stringify(seen.slice(-8))); }catch(e){}
+    if(typeof confirm==='function'){
+      const ok=confirm('Des BOBINEAUX ou CHUTES en stock à ajouter au plan ?\n\nOK = non, je démarre la coupe\nAnnuler = ouvrir le plan pour les ajouter');
+      if(!ok){ try{ showPage(0); }catch(e){} return false; }
+    }
+    return true;
+  }catch(e){ return true; }
 }
 function dismissChutesRappel(){ try{ const b=document.getElementById('chutesRappelBanner'); if(b) b.style.display='none'; }catch(e){} }
 function chronoStart(){
@@ -9342,7 +9385,7 @@ function chronoStart(){
   // chrono jamais lancé) — plus à chaque reprise après pause (le plan est déjà lancé, on ne rajoute plus de
   // stock) : évite la confirmation-fatigue (« OK sans lire ») et redonne du poids au rappel du vrai démarrage.
   const _premierDepart=(countCoupees()===0)&&(typeof chronoSec!=='number'||chronoSec===0);
-  if(_premierDepart){ try{ maybeShowChutesRappel(); }catch(e){} }   // [L306 · LOT 3 · §2.3] l'ancien confirm() bloquant devient un bandeau orange NON bloquant, 1×/commande — indispensable avec le démarrage auto (un confirm surgissant au 1er ✂ aurait été bloquant en plein geste)
+  if(_premierDepart){ let _go=true; try{ _go=(maybeShowChutesRappel()!==false); }catch(e){} if(!_go) return; }   // [L345 · demande Esteban] question stock AVANT le chrono (confirm natif) ; Annuler → plan, chrono non lancé — [L306]  avec le démarrage auto (un confirm surgissant au 1er ✂ aurait été bloquant en plein geste)
   chronoRunning=true;
   updateNumJourForToday();   // commande travaillée un nouveau jour → 152 → 152+153
   chronoStartTs=chronoStartTs||new Date().toISOString();
@@ -18481,10 +18524,10 @@ function addFicheLine(data){
       </div>
       <div class="field" style="grid-column:1/-1"><label>Nb bob. × Largeur</label>
         <div style="display:flex;gap:8px;align-items:stretch"><!-- [L230 · demande Esteban] conf RÉTRÉCIE + bouton ♻ JAUNE au BOUT de la ligne ; conf longue → passe sur 2 lignes (textarea auto-hauteur, Enter bloqué) -->
-          <textarea id="flConf_${id}" rows="1" placeholder="5×80 + 3×50" style="flex:1;min-width:0;resize:none;overflow:hidden;min-height:44px;font-size:16px;line-height:1.4"
+          <textarea id="flConf_${id}" rows="1" placeholder="5×80 + 3×50" data-conf0="${esc(data.conf||'')}" style="flex:1;min-width:0;resize:none;overflow:hidden;min-height:44px;font-size:16px;line-height:1.4"
             oninput="if(this.value.indexOf('\\n')>-1)this.value=this.value.replace(/\\n/g,' ');onFicheConfChange('${id}');_confAutoH(this)"
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(data.conf||'')}</textarea>
-          <span class="fl-edit-chip" aria-hidden="true">✎ MODIFIER</span><!-- [L334 · maquette 17] affordance d'édition de la config (le tap va dans le textarea) — visible sur la carte EN COURS ≥1100px ; le ♻ Écarts a rejoint le titre CUMUL (maquette) -->
+          <button type="button" class="fl-edit-chip" onclick="_l345EditChip('${id}')">✎ MODIFIER</button><!-- [L345 · demande Esteban] MODIFIER et ÉCARTS = UN bouton : tap = éditer la config ; config modifiée → il devient « ♻ RECALCULER » (le ✂ refuse tant que ce n'est pas fait) --><!-- [L334 · maquette 17] affordance d'édition de la config (le tap va dans le textarea) — visible sur la carte EN COURS ≥1100px ; le ♻ Écarts a rejoint le titre CUMUL (maquette) -->
         </div>
         ${data.chuteNote?`<div class="fiche-chute-note">${esc(data.chuteNote)}</div>`:''}
       </div>
@@ -18631,6 +18674,12 @@ let _lastCoupeeMarkMs=0;
 function coupeeTapOne(id){
   const line=document.getElementById(id);
   if(!line){ return; }
+  // [L345 · demande Esteban] config MODIFIÉE et pas recalculée → pas de coupe : le plan (écarts) doit d'abord être recalculé
+  if(typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)){
+    showToast('♻ Config modifiée : recalcule les écarts avant de couper (bouton « ♻ RECALCULER » sur la bobine).','err');
+    try{ const c=line.querySelector('.fl-edit-chip'); if(c){ c.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
+    return;
+  }
   const already=line.classList.contains('coupee');
   const ncEl=document.getElementById('flTest2nc_'+id);
   // [L307 · fix audit ISO] « saine » = ni NC test 2ᵉ, NI motif NC dimensionnel coché (Angle/Casse/Larg./Qté) :
@@ -18856,6 +18905,7 @@ function updateCoupeeStatus(){
   try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){}   // [L340] rangée de pastilles d'en-tête (paysage) suit le hub
   try{ if(typeof _l340RenderChuteChip==='function') _l340RenderChuteChip(); }catch(e){}   // [L340] chip CHUTE n mm de la carte en cours
   try{ if(typeof _l340SyncOrderStates==='function') _l340SyncOrderStates(); }catch(e){}   // [L340] états ✓ FINI / EN COURS / À VENIR de l'ordre de coupe suivent les coches
+  try{ if(typeof _l345SyncEditChips==='function') _l345SyncEditChips(); }catch(e){}   // [L345]
 }
 // ============================================================
 // [L102 · Design M2 A/B/E] « ACTION DU MOMENT » — un seul bouton vif à la fois.
@@ -19347,6 +19397,7 @@ function updateAllCumuls(){
   });
   try{ renderCliRecapFiche(); }catch(e){}   // [L64 · Lot 6] récap emballage par client (bas de fiche)
   try{ if(typeof _l340RenderChuteChip==='function') _l340RenderChuteChip(); }catch(e){}   // [L340] chip CHUTE n mm suit la config saisie
+  try{ if(typeof _l345SyncEditChips==='function') _l345SyncEditChips(); }catch(e){}   // [L345] MODIFIER ↔ RECALCULER suit la config saisie
 }
 // [L334 · maquette 17] cartes en attente COMPACTES (≥1100px) : une ligne n° + config + pastille d'état.
 // Tap sur la carte → .fl-expand révèle les contrôles complets (couper hors ordre, corriger une NC — AUCUN
@@ -19538,6 +19589,16 @@ function _l340SetupFichePills(){ try{
   try{ window.addEventListener('resize',function(){ try{ _l343SyncFicheTop(); }catch(_){} });
     if(window.ResizeObserver){ const ro=new ResizeObserver(function(){ try{ _l343SyncFicheTop(); }catch(_){} }); ['sharedViewingBar','sharedWithMeBar','lameAlertBanner','nav'].forEach(function(id){ const el=document.getElementById(id); if(el) ro.observe(el); }); } }catch(e){}
 }catch(e){} }
+// [L345 · demande Esteban] UN bouton MODIFIER/RECALCULER par bobine : la config saisie (data-conf0 = valeur posée à la création de la
+// ligne, donc après chaque recalcul) diffère → la ligne est « à recalculer » : le bouton devient ♻ RECALCULER et le ✂ refuse (coupeeTapOne).
+function _l345ConfDirty(id){ try{ const t=document.getElementById('flConf_'+id); if(!t) return false; const c0=String(t.dataset.conf0||'').trim(); if(!c0) return false; return String(t.value||'').trim()!==c0; }catch(e){ return false; } }
+function _l345SyncEditChips(){ try{
+  document.querySelectorAll('.fiche-line').forEach(function(line){ const chip=line.querySelector('.fl-edit-chip'); if(!chip) return; const d=_l345ConfDirty(line.id); line.classList.toggle('conf-dirty',d); chip.textContent=d?'♻ RECALCULER':'✎ MODIFIER'; chip.classList.toggle('need-recalc',d); });
+}catch(e){} }
+function _l345EditChip(id){ try{
+  if(_l345ConfDirty(id)){ if(typeof recalcEcartsFromFiche==='function') recalcEcartsFromFiche(); return; }
+  const t=document.getElementById('flConf_'+id); if(t){ t.focus(); try{ t.setSelectionRange(0,t.value.length); }catch(e){} }
+}catch(e){} }
 // [L340 · fix audit design · maquette 17] chip « CHUTE n mm » sur la carte EN COURS = utile − (Σ laizes + lames), lecture seule
 // (calcStats en lecture, aucun calcul moteur modifié) ; recalculée au changement de config (fin de updateAllCumuls) et au hub.
 function _l340RenderChuteChip(){ try{
@@ -19603,6 +19664,8 @@ function _l341PlanPolish(){ try{
   }
   // 3) résumé emballage
   _l341RenderCondSummary();
+  // 4) [L345 · demande Esteban] code couleur machine sur la carte MACHINE du plan (FEBA bleu · MAVEG vert · CEVENINI violet)
+  try{ document.querySelectorAll('#planLeft [data-rb="machine"]').forEach(function(sel){ const f=sel.closest('.field'); if(f) f.dataset.mach=sel.value||''; }); }catch(e){}
 }catch(e){} }
 function _l341RenderCondSummary(){ try{
   const sec=document.getElementById('planCondSec'); if(!sec) return;
@@ -19631,6 +19694,7 @@ function _l341SetupPlan(){ try{
   const pc=document.getElementById('planClient'); if(pc) pc.addEventListener('change',function(){ setTimeout(_l341RenderCondSummary,50); });
   // [L341 · fix audit] la carte de saisie se lit comme UN objet : un tap sur son libellé/sa marge focalise le champ (plus de bande morte)
   const pl=document.getElementById('planLeft');
+  if(pl) pl.addEventListener('change',function(e){ try{ const sel=e.target&&e.target.closest&&e.target.closest('[data-rb="machine"]'); if(sel){ const f=sel.closest('.field'); if(f) f.dataset.mach=sel.value||''; } }catch(_){} });   // [L345] couleur machine immédiate
   if(pl) pl.addEventListener('click',function(e){ try{
     if(!_isLandscapeFiche()) return;
     const f=e.target.closest('.field'); if(!f||!pl.contains(f)) return;

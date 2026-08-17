@@ -782,5 +782,17 @@ has(/<span class="cs-auto">✓<\/span>/,'L344 : « AUTO ✓ » → « ✓ » (§
 has(/#btnStartCut\{min-height:84px!important;font-size:29px!important\}/,'L344 : COMMENCER À COUPER = geste n°1 du Plan, un cran au-dessus de tout');
 has(/#planLeft #planClient\{font-size:30px\}/,'L344 : CLIENT en avant ; n° commande / livraison / fichier en retrait ; mère/bords en dessous de la largeur utile');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L344 présents dans index.html + sw.js');
+console.log('── L345 : retours Esteban n°2 (17/08 soir) ──');
+has(/button\[onclick\^="bumpDateLiv"\]\{display:none!important\}/,'L345 : raccourcis +7 J / +14 J retirés (calendrier natif suffit)');
+has(/if\(f\) f\.dataset\.mach=sel\.value\|\|'';/,'L345 : code couleur MACHINE sur la carte du plan (FEBA bleu · MAVEG vert · CEVENINI violet)');
+has(/#planResultSec>#planCards\{flex:1 1 auto;min-height:0;overflow-y:auto/,'L345 : colonne droite du plan = hauteur écran, seules les lignes défilent (emballage + COMMENCER toujours visibles)');
+has(/const ok=confirm\('Des BOBINEAUX ou CHUTES en stock à ajouter au plan \?/,'L345 : question stock AVANT le chrono (confirm natif synchrone, 1×/commande, Annuler = ouvrir le plan)');
+has(/if\(_premierDepart\)\{ let _go=true; try\{ _go=\(maybeShowChutesRappel\(\)!==false\); \}catch\(e\)\{\} if\(!_go\) return; \}/,'L345 : chrono NON lancé si l opérateur choisit d ouvrir le plan');
+has(/function _l345ConfDirty/,'L345 : MODIFIER et ÉCARTS = un bouton ; config modifiée → « ♻ RECALCULER »');
+has(/if\(typeof _l345ConfDirty==='function'&&_l345ConfDirty\(id\)\)\{/,'L345 : garde ✂ — pas de coupe tant que les écarts ne sont pas recalculés après modification (toast + halo)');
+has(/data-conf0="\$\{esc\(data\.conf\|\|''\)\}"/,'L345 : config de référence posée à la création de la ligne (donc après chaque recalcul)');
+has(/#changementsZone\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:8px\}/,'L345 : 🔧 Changements = 3 choix compacts, le détail s ouvre pour le choix coché seulement (paysage)');
+has(/chip\('Perte moy\.'/,'L345 : bandeau Données « chef » — bobines + perte moyenne de la semaine (données en cache, aucune requête)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L345 présents dans index.html + sw.js');
 process.exit(fail?1:0);
