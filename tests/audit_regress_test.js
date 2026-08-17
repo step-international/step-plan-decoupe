@@ -732,7 +732,7 @@ has(/<div class="cc-t">LAIZE \$\{p\.width\} mm<\/div>/,'L340 : « LAIZE n mm » 
 absent(/\.cc-t\{[^}]*text-transform:uppercase/,'L340 : aucun uppercase CSS sur le titre de laize (unité)');
 has(/\.fh-pills,#soldeSummary,\.fl-chute\{display:none\}/,'L340 : portrait STRICTEMENT inchangé (pastilles + résumé solde + chip CHUTE inexistants <1100px)');
 has(/try\{ _l340SetupFichePills\(\); \}catch\(e\)\{\}   \/\/ \[L340/,'L340 : initialisation APRÈS _l79SetupChangements (leçon L339 : nœuds déplacés au boot)');
-has(/el\.closest\('#ficheHeadSec,#fMachineMono,#ficheChgSec'\)&&!\(typeof fmmIsMulti==='function'&&fmmIsMulti\(\)&&el\.closest\('#fMachineMono'\)\)\)\{ try\{ toggleFicheHead\(true\); \}catch\(_\)\{\} \}/,'L340 fix audit : garde chrono (initiales/lame manquantes) DÉPLIE l en-tête replié au lieu de surligner la carte de réf (multi-réf paysage)');
+has(/el\.closest\('#ficheHeadSec,#fMachineMono,#ficheChgSec'\)&&!\(typeof fmmIsMulti==='function'&&fmmIsMulti\(\)&&el\.closest\('#fMachineMono'\)\)\)\{ try\{ _l340RevealBox\(el\.closest\('#ficheHeadSec,#fMachineMono,#ficheChgSec'\)\); \}catch\(_\)\{\} \}/,'L340 fix audit : garde chrono (initiales/lame manquantes) DÉPLIE la section repliée qui contient le champ au lieu de surligner la carte de réf (multi-réf paysage) — L343 : une seule section');
 has(/function _l340SyncOrderStates/,'L340 fix : états ✓ FINI / EN COURS / À VENIR de l ordre de coupe dérivés des BOBINES coupées (validée ≠ finie), resynchronisés à chaque coche');
 has(/function _l340RenderChuteChip/,'L340 : chip « CHUTE n mm » de la carte en cours (utile − laizes − lames, calcStats en lecture seule)');
 has(/height:auto!important;pointer-events:none\}   \/\* \[fix audit\] height:auto/,'L340 fix audit : config compacte = résumé (tap déplie, plus de clavier) + hauteur du textarea jamais figée');
@@ -761,5 +761,17 @@ has(/#fichesList \.fiche-card:not\(\.fc-open\)\{display:flex;flex-direction:row/
 has(/card\.classList\.toggle\('fc-open'\)/,'L342 : dépliage au tap sur la carte, jamais sur un contrôle');
 has(/try\{ _l342SetupDonnees\(\); \}catch\(e\)\{\}/,'L342 : initialisation au boot + rotation (matchMedia)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L342 présents dans index.html + sw.js');
+console.log('── L343 : demandes Esteban 17/08 — fil retiré, barre fiche IMMOBILE, textes courts ──');
+has(/#flow\{display:none!important\}/,'L343 : fil « 1·COMMANDE / 2·JE COUPE / 3·J ENVOIE » retiré de l écran (nœud + renderFlow conservés)');
+has(/#ficheMain\{display:flex!important;flex-direction:column;height:calc\(100dvh - var\(--fiche-top,89px\)/,'L343 : fiche paysage = colonne centrale à la hauteur de l écran (barre immobile en bas), hauteur pilotée par la position réelle');
+has(/#ficheRight>#ficheLines\{flex:1 1 auto;min-height:0;overflow-y:auto/,'L343 : seule la pile de bobines défile');
+has(/#ficheMain>#ficheRight\{flex:1 1 auto;min-height:280px/,'L343 fix audit BLOQUANT : HUD + carte + barre toujours visibles même en-tête dépliée');
+has(/function _l340RevealBox/,'L343 fix audit : une garde / ⚙ OUTILS déplie UNE seule section (pas les 3)');
+has(/function _l343SyncFicheTop/,'L343 fix audit : bandeaux en flux (miroir partage, réception, lame) ne poussent plus la barre sous le bord');
+has(/const _fl0=document\.getElementById\('ficheLines'\); const _flTop=_fl0\?_fl0\.scrollTop:0;/,'L343 fix audit : le récepteur du miroir garde sa position dans la liste');
+has(/#cliRecapFiche:not\(\.reveal\)\{display:none\}/,'L343 fix audit : récap emballage par client replié en paysage (⚙ OUTILS → 📥 le déplie)');
+has(/<label for="planDateLiv">Livraison<\/label>/,'L343 : libellés d écran courts (Livraison, Référence, Film, Machine, Bords, Laizes, + Ligne, Joindre, Temps, Partager, Cumul, Changements)');
+has(/row\.style\.display=_empty\?'none':'';/,'L343 : pastilles d en-tête masquées sur fiche vide');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L343 présents dans index.html + sw.js');
 process.exit(fail?1:0);

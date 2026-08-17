@@ -1652,6 +1652,32 @@ body.atelier .stat-tile b{font-size:36px}
   #fichesList .fiche-card.fc-open{cursor:pointer}
   #tabContentSaves>.flex-wrap:not(:has(#btnLoadFull)):not(:has(#backupBtnZone:not([style*="none"]))){margin-bottom:0}   /* [fix audit] rangée vidée : plus de marge fantôme */
 }
+/* ============================================================
+   [L343 · DEMANDES ESTEBAN 17/08] (1) fil « 1·COMMANDE / 2·JE COUPE / 3·J'ENVOIE » RETIRÉ de l'écran (jugé inutile —
+   le nœud #flow reste dans le DOM, renderFlow continue d'écrire dedans, aucun handler touché) ; (2) FICHE PAYSAGE : la
+   barre [📷 · 🖨 IMPRIMER · ✓ CONFIRMER] est IMMOBILE en bas de l'écran — la colonne centrale prend la hauteur de
+   l'écran, seule la pile de bobines défile (§2.18 tel qu'écrit : flex column + liste overflow + barre en bas), fiche
+   vide comprise ; (3) textes d'écran allégés (libellés courts, jamais les sorties papier). Portrait/téléphone intacts.
+   ============================================================ */
+#flow{display:none!important}
+@media(min-width:1100px){
+  /* colonne centrale = hauteur écran ; en-tête (bandeaux, pastilles, HUD) fixe en haut, bobines qui défilent, barre en bas */
+  #page1.active{align-items:stretch;padding-bottom:0}
+  #ficheMain{display:flex!important;flex-direction:column;height:calc(100dvh - var(--fiche-top,89px) - env(safe-area-inset-bottom,0px));min-height:0;overflow-y:auto;overscroll-behavior:contain}   /* --fiche-top = position réelle du haut de la colonne (JS _l343SyncFicheTop ; défaut 89 = nav 65 + marge 16 + 8) ; overflow-y:auto = filet si l'en-tête dépliée dépasse */
+  body.training #ficheMain{height:calc(100dvh - var(--fiche-top,89px) - 64px - env(safe-area-inset-bottom,0px))}   /* bandeau entraînement en bas */
+  #ficheMain>*{flex:none}
+  #ficheMain>#ficheRight{flex:1 1 auto;min-height:280px;display:flex;flex-direction:column}   /* [fix audit BLOQUANT] HUD + 1 carte + barre TOUJOURS visibles, même en-tête dépliée */
+  #ficheRight>#coupeeBanner{position:static!important;flex:none;margin-bottom:8px}   /* le HUD n'a plus besoin d'être sticky : il est hors de la zone qui défile */
+  #ficheRight>#planDriftBanner{flex:none}
+  #ficheRight>.fmm-inline-block{flex:0 1 auto;max-height:40vh;overflow-y:auto}   /* multi-réf : bloc « valider la bobine mère » plafonné */
+  #ficheRight>#ficheLines{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 4px 12px;align-content:start}
+  #ficheRight>#sendPlanWrap{position:relative;flex:none;margin-top:0}   /* relative (pas static) : le ::before « la liste continue » garde son ancrage */
+  #ficheRight>#sendPlanWrap::before{top:-24px}
+  #ficheHeadSec.reveal{max-height:38vh;overflow-y:auto}   /* en-tête dépliée : ne chasse pas la liste hors écran */
+  #ficheChgSec.reveal{max-height:30vh;overflow-y:auto}
+  #cliRecapFiche:not(.reveal){display:none}   /* [fix audit] récap emballage par client (multi-clients) : au tap ⚙ OUTILS → 📥, sinon il écrasait la liste */
+  #cliRecapFiche.reveal{max-height:24vh;overflow-y:auto}
+}
 </style>
 </head>
 <body>
@@ -1738,14 +1764,14 @@ body.atelier .stat-tile b{font-size:36px}
     </div>
     <div class="row2">
       <div class="field">
-        <label for="planDateLiv">Date de livraison client</label>
+        <label for="planDateLiv">Livraison</label><!-- [L343 · demande Esteban] libellé court -->
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="date" id="planDateLiv" style="flex:1;min-width:150px">
           <button type="button" class="btn btn-ghost btn-sm" style="min-height:48px" onclick="bumpDateLiv(7)">+7 j</button>
           <button type="button" class="btn btn-ghost btn-sm" style="min-height:48px" onclick="bumpDateLiv(14)">+14 j</button></div><!-- [L314 · LOT 4 · §2.4] 1 tap au lieu du picker ; le calendrier natif reste le secours -->
       </div>
       <div class="field">
-        <label>📎 Fichiers commande client</label>
-        <div id="commandePhotoZone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="photo-btn" onclick="triggerCommandeFiles()">📎 Ajouter fichier</button></div>
+        <label>📎 Commande client (PDF)</label><!-- [L343] libellé court -->
+        <div id="commandePhotoZone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="photo-btn" onclick="triggerCommandeFiles()">📎 Joindre</button></div>
       </div>
     </div>
   </div>
@@ -1762,7 +1788,7 @@ body.atelier .stat-tile b{font-size:36px}
       </div>
       <div class="row2">
         <div class="field">
-          <label for="planRef">Référence / Film</label>
+          <label for="planRef">Référence</label><!-- [L343] libellé court -->
           <select id="planRef" data-rb="ref" aria-label="Référence / Film" onchange="onRefChange()">
             <option value="">— Référence —</option>
           </select>
@@ -1774,7 +1800,7 @@ body.atelier .stat-tile b{font-size:36px}
       </div>
       <div class="row2">
         <div class="field">
-          <label>Type de film</label>
+          <label>Film</label>
           <select data-rb="film" aria-label="Type de film" onchange="debouncedRecalcPlan()"> <!-- [L76 · B51] saisie débouncée : anti-gel -->
             <option value="">— Aucun —</option>
             <option value="Imprimé">Imprimé</option>
@@ -1786,7 +1812,7 @@ body.atelier .stat-tile b{font-size:36px}
           </select>
         </div>
         <div class="field">
-          <label>Machine de cette référence</label>
+          <label>Machine</label>
           <select data-rb="machine" aria-label="Machine de cette référence" onchange="onRefMachineChange(this)">
             <option value="">— choisir —</option>
             <option value="feba">FEBA</option>
@@ -1812,7 +1838,7 @@ body.atelier .stat-tile b{font-size:36px}
           <div class="useful-display" id="usefulDisplay"></div>
         </div>
         <div class="field">
-          <label for="edgeLoss">Perte bords (mm)</label>
+          <label for="edgeLoss">Bords (mm)</label>
           <input type="text" id="edgeLoss" data-rb="edge" value="10" oninput="onParamChange()" inputmode="decimal">
         </div>
         <div class="field">
@@ -1821,10 +1847,10 @@ body.atelier .stat-tile b{font-size:36px}
         </div>
       </div>
       <input type="hidden" id="planLargeur" data-rb="largeur">
-      <div class="section-title" style="margin:12px 0 8px">3 · Laizes à découper</div><!-- [L336 · maquette 18] -->
+      <div class="section-title" style="margin:12px 0 8px">3 · Laizes</div><!-- [L336 · maquette 18] -->
       <div class="rb-rows" data-rb="rows"></div>
       <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ajouter une ligne</button>
+        <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ligne</button>
         <button class="btn btn-orange btn-sm" onclick="addPlanChuteTo(this)" title="Bobineaux déjà en stock à la bonne largeur — déduits de la commande">✂ Bobineaux en stock</button>
         <button class="btn btn-recut btn-sm" onclick="addPlanRecutTo(this)" title="Chute : rouleau résiduel d'une autre laize — recoupé en 1er dans le plan, optimiseur chute mini">♻ Chute</button>
       </div>
@@ -1913,7 +1939,7 @@ body.atelier .stat-tile b{font-size:36px}
      3 ids AJOUTÉS (ficheChronoSec/ficheHeadSec/ficheChgSec) sur des blocs anonymes. -->
 <div id="ficheRail">
 <div class="section" id="ficheChronoSec" style="padding:16px">
-    <div class="section-title">⏱ Temps de la commande</div><!-- [L333] libellé maquette 17 -->
+    <div class="section-title">⏱ Temps</div><!-- [L343 · demande Esteban] court --><!-- [L333] libellé maquette 17 -->
     <div class="chrono-block">
       <div class="chrono-display" id="chronoDisplay">00:00:00</div>
       <div class="chrono-btns">
@@ -1937,7 +1963,7 @@ body.atelier .stat-tile b{font-size:36px}
         <input type="text" id="fMother" inputmode="decimal" oninput="syncFicheParams('mother')">
       </div>
       <div class="field">
-        <label for="fEdge">Perte bords (mm)</label>
+        <label for="fEdge">Bords (mm)</label>
         <input type="text" id="fEdge" inputmode="decimal" oninput="syncFicheParams('edge')">
       </div>
       <div class="field">
@@ -1958,7 +1984,7 @@ body.atelier .stat-tile b{font-size:36px}
     <div id="fmmHint" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
   </div>
 <div id="shareBlock" style="margin:8px 0 12px">
-    <button id="shareBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" onclick="toggleSharePanel(true)">🤝 Partager cette commande</button>
+    <button id="shareBtn" class="btn btn-shared btn-sm" style="width:100%;justify-content:center" onclick="toggleSharePanel(true)">🤝 Partager</button>
 
     <div id="sharePanel" class="share-modal" style="display:none;margin-top:10px">
       <div style="font-size:15px;font-weight:700;margin-bottom:2px">🤝 Partager le plan de coupe</div>
@@ -2005,7 +2031,7 @@ body.atelier .stat-tile b{font-size:36px}
 </div>
 <div id="chutesRappelBanner" style="display:none;margin:0 0 10px;padding:10px 12px;border:2px solid #7a5200;border-radius:12px;background:#241905">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="flex:1;min-width:170px;font-size:14px;font-weight:700;color:var(--orange)">✂ Des bobineaux en stock ? Ajoute-les au plan avant de couper.</span>
+      <span style="flex:1;min-width:170px;font-size:14px;font-weight:700;color:var(--orange)">✂ Bobineaux en stock ? Ajoute-les au plan.</span>
       <button class="btn btn-sm btn-orange" style="min-height:48px" onclick="dismissChutesRappel();showPage(0)">→ Ouvrir le plan</button>
       <button class="btn btn-sm btn-ghost" style="min-height:48px;min-width:48px;justify-content:center" onclick="dismissChutesRappel()" aria-label="Fermer le rappel">✕</button>
     </div>
@@ -2147,7 +2173,7 @@ body.atelier .stat-tile b{font-size:36px}
               <input type="text" id="fMother2" inputmode="decimal" oninput="updateUtile2();invalidateFichePlan()">
             </div>
             <div class="field">
-              <label>Perte bords (mm)</label>
+              <label>Bords (mm)</label>
               <input type="text" id="fEdge2" inputmode="decimal" oninput="updateUtile2();invalidateFichePlan()">
             </div>
             <div class="field">
@@ -2225,7 +2251,7 @@ body.atelier .stat-tile b{font-size:36px}
   </div>
 <div id="ficheChgSec" style="margin:0 0 12px">
     <div class="flex-wrap" id="chgBtnRow" style="gap:8px">
-      <button id="chgBtn" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="toggleChangements()">🔧 Changements (machine · opérateur · lame)</button>
+      <button id="chgBtn" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="toggleChangements()">🔧 Changements</button>
     </div>
     <div id="changementsZone" class="hidden" style="margin-top:10px"></div>
   </div>
@@ -2317,7 +2343,7 @@ body.atelier .stat-tile b{font-size:36px}
       <span id="archivesModeChip" style="display:none;align-items:center;background:#14371f;border:1px solid #2a5c2a;border-radius:10px;padding:8px 14px;font-size:13px;color:#4ade80"><strong>Mode archives</strong>&nbsp;— fiches validées par Dominique, sorties du flux quotidien.</span><!-- [L207 · demande Esteban] la phrase vit À CÔTÉ d'Exporter CSV (plus de bannière sous la recherche) -->
       <!-- [L79] « Tout archiver » retiré (action de masse dangereuse) — clearFiches conservée sans accès UI -->
     </div>
-    <input type="text" id="ficheSearch" aria-label="Rechercher une fiche" oninput="debouncedFicheSearch()" placeholder="🔍 Rechercher (client, n° commande, réf, nom)…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
+    <input type="text" id="ficheSearch" aria-label="Rechercher une fiche" oninput="debouncedFicheSearch()" placeholder="🔍 Rechercher…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
     <div id="fichesList"></div>
     <div id="fichesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune fiche enregistrée.</div>
   </div>
@@ -2626,7 +2652,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.17-L342';
+const APP_VERSION='2026.08.17-L343';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4822,7 +4848,7 @@ function refreshCommandePhotoZone(){
       </div>`;
     }
   });
-  html+=`<button class="photo-btn" onclick="triggerCommandeFiles()">📎 Ajouter fichier</button>`;
+  html+=`<button class="photo-btn" onclick="triggerCommandeFiles()">📎 Joindre</button>`;
   zone.innerHTML=html;
 }
 let _deletingCommandeFile=false;
@@ -6170,7 +6196,7 @@ function addRefBlock(){
     </div>
     <div class="row2">
       <div class="field">
-        <label>Référence / Film</label>
+        <label>Référence</label>
         <select data-rb="ref" onchange="onRefChangeBlock(this)">${refOpts}</select>
       </div>
       <div class="field">
@@ -6180,7 +6206,7 @@ function addRefBlock(){
     </div>
     <div class="row2">
       <div class="field">
-        <label>Type de film</label>
+        <label>Film</label>
         <select data-rb="film" onchange="debouncedRecalcPlan()">
           <option value="">— Aucun —</option>
           <option value="Imprimé">Imprimé</option>
@@ -6192,7 +6218,7 @@ function addRefBlock(){
         </select>
       </div>
       <div class="field">
-        <label>Machine de cette référence</label>
+        <label>Machine</label>
         <select data-rb="machine" onchange="onRefMachineChange(this)">
           <option value="">— choisir —</option>
           <option value="feba">FEBA</option>
@@ -6217,7 +6243,7 @@ function addRefBlock(){
         <input type="text" data-rb="mother" value="2100" oninput="debouncedRecalcPlan()" inputmode="decimal">
       </div>
       <div class="field">
-        <label>Perte bords (mm)</label>
+        <label>Bords (mm)</label>
         <input type="text" data-rb="edge" value="10" oninput="debouncedRecalcPlan()" inputmode="decimal">
       </div>
       <div class="field">
@@ -6229,7 +6255,7 @@ function addRefBlock(){
     <div class="section-title" style="margin:12px 0 8px">Largeurs à découper</div>
     <div class="rb-rows" data-rb="rows"></div>
     <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
-      <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ajouter une ligne</button>
+      <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ligne</button>
       <button class="btn btn-orange btn-sm" onclick="addPlanChuteTo(this)" title="Bobineaux déjà en stock à la bonne largeur — déduits de la commande">✂ Bobineaux en stock</button>
       <button class="btn btn-recut btn-sm" onclick="addPlanRecutTo(this)" title="Chute : rouleau résiduel d'une autre laize — recoupé en 1er dans le plan, optimiseur chute mini">♻ Chute</button>
     </div>
@@ -9240,7 +9266,7 @@ function chronoStart(){
     // lame vivent dans #fMachineMono (display:none) → rediriger le surlignage vers le bloc réf ACTIF visible.
     // [L340 · fix audit] la redirection ne vaut que pour les champs de #fMachineMono (caché en multi) : en paysage l'en-tête
     // (#initBtns/#fNumLame) est REPLIÉ (pas absent) → on le déplie d'abord, sinon la garde surlignait la carte de réf.
-    if(el&&el.offsetParent===null&&typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()&&el.closest('#ficheHeadSec,#fMachineMono,#ficheChgSec')&&!(typeof fmmIsMulti==='function'&&fmmIsMulti()&&el.closest('#fMachineMono'))){ try{ toggleFicheHead(true); }catch(_){} }
+    if(el&&el.offsetParent===null&&typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()&&el.closest('#ficheHeadSec,#fMachineMono,#ficheChgSec')&&!(typeof fmmIsMulti==='function'&&fmmIsMulti()&&el.closest('#fMachineMono'))){ try{ _l340RevealBox(el.closest('#ficheHeadSec,#fMachineMono,#ficheChgSec')); }catch(_){} }   // [L343] une seule section
     if(el&&el.offsetParent===null){ const _blk=document.querySelector('.fmm-block.active')||document.querySelector('.fmm-inline-block.active'); if(_blk) el=_blk; }
     if(el){ try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){} try{el.focus({preventScroll:true});}catch(_){ try{el.focus();}catch(__){} } el.style.borderColor='var(--red)'; el.style.outline='2px solid var(--red)'; setTimeout(()=>{el.style.borderColor='';el.style.outline='';},2500); }   // [L152] outline en plus (les conteneurs sans bordure — ex. #initBtns · [L340] scroll AVANT focus (le champ peut être dans une section repliée : le focus sur un display:none était un no-op) — restaient invisibles) + défilement vers le champ
     showToast('⚠ Renseigne '+miss.label+' avant de démarrer.','err');
@@ -9271,7 +9297,7 @@ function chronoStart(){
       return;
     } else {
       showToast('⚠ Tu as modifié une dimension (mère / bords) — clique « 🔄 Changement plan » avant de démarrer le chrono.','err');
-      const _h=document.getElementById('fPlanHint'); if(_h){ try{ if(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()) toggleFicheHead(true); }catch(e){} try{ _h.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} _h.style.color='var(--red)'; setTimeout(function(){ if(typeof updateFPlanHint==='function') updateFPlanHint(); },3000); }   // [L340 · fix audit] en paysage le bouton « Changement plan » vit dans le bloc REPLIÉ → déplier + défiler (jamais pointer un élément caché)
+      const _h=document.getElementById('fPlanHint'); if(_h){ try{ if(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()) _l340RevealBox(document.getElementById('fMachineMono')); }catch(e){} try{ _h.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} _h.style.color='var(--red)'; setTimeout(function(){ if(typeof updateFPlanHint==='function') updateFPlanHint(); },3000); }   // [L340 · fix audit] en paysage le bouton « Changement plan » vit dans le bloc REPLIÉ → déplier + défiler (jamais pointer un élément caché)
       return;
     }
   }
@@ -17715,12 +17741,12 @@ function renderFicheMachineBlocks(opts){
       // au lieu d'un <select> peu lisible. Un input caché data-fmm="machine" conserve EXACTEMENT la lecture
       // de applyFicheRefPlanChange (validation inchangée) ; les boutons le renseignent via onFmmMachineBtn.
       const mbtn=m=>`<button type="button" class="machine-btn-fiche${r.machine===m?' sel-'+m:''}" onclick="onFmmMachineBtn(this,'${m}')">${getMachineLabel(m)}</button>`;
-      body='<div class="field" style="margin-bottom:10px"><label>Machine de cette référence</label>'
+      body='<div class="field" style="margin-bottom:10px"><label>Machine</label>'
         +'<input type="hidden" data-fmm="machine" value="'+V(r.machine)+'">'
         +'<div class="machine-btns" style="margin-bottom:0">'+MACHINE_KEYS.map(mbtn).join('')+'</div></div>'
         +'<div class="row3">'
         +'<div class="field"><label>Bobine mère (mm)</label><input type="text" data-fmm="mother" inputmode="decimal" value="'+V(r.mother)+'"></div>'
-        +'<div class="field"><label>Perte bords (mm)</label><input type="text" data-fmm="edge" inputmode="decimal" value="'+V(r.edge)+'"></div>'
+        +'<div class="field"><label>Bords (mm)</label><input type="text" data-fmm="edge" inputmode="decimal" value="'+V(r.edge)+'"></div>'
         +'<div class="field"><label>Perte lame (mm)</label><input type="text" data-fmm="blade" inputmode="decimal" value="'+V(r.blade)+'"></div>'
         +'</div>'
         +'<button class="btn btn-blue" style="width:100%;margin-top:10px" onclick="applyFicheRefPlanChange('+r.idx+')">🔄 Valider la bobine mère — '+esc(String(r.ref))+'</button>';
@@ -18472,7 +18498,7 @@ function addFicheLine(data){
         </div>
       </details>
       <div class="field" style="grid-column:1/-1;margin-bottom:0;margin-top:6px"><!-- [L177 · demande Esteban] cumul par laize JUSTE AU-DESSUS du bouton ✂ Coupée -->
-        <div class="cumul-head"><label>Cumul des bobineaux</label><!-- [L333] libellé maquette 17 -->
+        <div class="cumul-head"><label>Cumul</label><!-- [L333] libellé maquette 17 -->
           <button type="button" class="btn btn-sm btn-ghost" style="flex-shrink:0;min-height:44px;font-weight:700" onclick="recalcEcartsFromFiche()" title="Recalcule les écarts de cette bobine (rattrapage / surplus) — les bobines coupées sont toujours conservées">♻ Écarts</button><!-- [L334 · maquette 17] le ♻ vit à côté du titre CUMUL (il appartient au bloc cumul §2.17-A) ; handler/garde L882 inchangés -->
         </div>
         <div class="cumul-box" id="flCumul_${id}"><span style="color:var(--muted);font-size:13px">—</span></div>
@@ -19344,9 +19370,10 @@ function outilsChangements(){ try{
 // gardent leurs id, leurs handlers et leur sérialisation ; en portrait (<1100px) rien ne change (pastilles
 // masquées, sections visibles comme avant). Décision Esteban 31/07 : « en-tête en pastilles, tap = ouvrir ».
 // ============================================================
-const _FICHE_COLLAPSIBLE=['ficheHeadSec','fMachineMono','ficheChgSec','etiquetteSoldeFiche','cliSection','planCondSec'];   // [L341] + Plan : multi-clients et emballage repliés en paysage
+const _FICHE_COLLAPSIBLE=['ficheHeadSec','fMachineMono','ficheChgSec','etiquetteSoldeFiche','cliSection','planCondSec','cliRecapFiche'];   // [L341] + Plan : multi-clients et emballage repliés en paysage · [L343] + récap emballage par client (fiche)
 function _isLandscapeFiche(){ try{ return window.matchMedia('(min-width:1100px)').matches; }catch(e){ return false; } }
-function ficheHeadRevealed(){ const s=document.getElementById('ficheHeadSec'); return !!(s&&s.classList.contains('reveal')); }
+function ficheHeadRevealed(){ return ['ficheHeadSec','fMachineMono','ficheChgSec'].some(function(id){ const s=document.getElementById(id); return !!(s&&s.classList.contains('reveal')); }); }   // [L343 · fix audit] l'une des 3 sections dépliée = « ▴ REPLIER »
+function _l340RevealBox(box){ try{ if(!box) return; box.classList.add('reveal'); if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); }catch(e){} }   // [L343 · fix audit BLOQUANT] déplier UNE section (pas les 3 : la pile d'en-tête écrasait la liste)
 function toggleFicheHead(force){ try{
   const on=(typeof force==='boolean')?force:!ficheHeadRevealed();
   ['ficheHeadSec','fMachineMono','ficheChgSec'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.toggle('reveal',on); });
@@ -19406,6 +19433,18 @@ function renderFicheHeadPills(){ try{
   row.innerHTML=h;
   row.classList.toggle('open',open);
   row.setAttribute('aria-expanded',open?'true':'false');
+  const _empty=!(typeof ficheLines!=='undefined'&&ficheLines.length);
+  row.style.display=_empty?'none':'';   // [L343 · demande Esteban] fiche vide : rien à résumer (« CLIENT ? · LAME N° ? » faisait du bruit)
+  if(_empty&&open){ ['ficheHeadSec','fMachineMono','ficheChgSec'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.remove('reveal'); }); }   // [fix audit] la rangée disparaît → on ne laisse pas l'en-tête dépliée orpheline
+  try{ if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); }catch(e){}
+}catch(e){} }
+// [L343 · fix audit] hauteur de la colonne centrale = écran − (position réelle du haut de la colonne) : les bandeaux en flux
+// (miroir partage, boîte de réception, bannière lame) ne poussent plus la barre sous le bord. Variable CSS, calcul trivial.
+function _l343SyncFicheTop(){ try{
+  if(!_isLandscapeFiche()) return;
+  const m=document.getElementById('ficheMain'); if(!m||!document.getElementById('page1').classList.contains('active')) return;
+  const t=Math.round(m.getBoundingClientRect().top+(window.scrollY||0));
+  if(t>0&&t<600) document.documentElement.style.setProperty('--fiche-top',(t+8)+'px');
 }catch(e){} }
 // Filet de sécurité « jamais pointer un élément caché » (doctrine L288·T5) : toute garde qui DÉFILE vers un champ
 // d'une section repliée la DÉPLIE d'abord. Un seul point (enrobage défensif de scrollIntoView, paysage seulement),
@@ -19419,8 +19458,8 @@ function renderFicheHeadPills(){ try{
         const box=this.closest?this.closest('#'+_FICHE_COLLAPSIBLE.join(',#')):null;
         if(box&&!box.classList.contains('reveal')){
           if(box.id==='etiquetteSoldeFiche') toggleSoldeCard(true);
-          else if(box.id==='cliSection'||box.id==='planCondSec'){ box.classList.add('reveal'); try{ if(typeof _l341PlanPolish==='function') _l341PlanPolish(); }catch(e){} }   // [L341] sections Plan repliées
-          else toggleFicheHead(true);
+          else if(box.id==='cliSection'||box.id==='planCondSec'||box.id==='cliRecapFiche'){ box.classList.add('reveal'); try{ if(typeof _l341PlanPolish==='function') _l341PlanPolish(); }catch(e){} }   // [L341] sections Plan repliées
+          else _l340RevealBox(box);   // [L343 · fix audit] une seule section (celle qui contient la cible)
           if(this.matches&&this.matches('input,textarea,select')){ const _t=this; setTimeout(function(){ try{ _t.focus({preventScroll:true}); }catch(e){} },0); }   // [L340 · fix audit] le focus() posé AVANT le scroll par les gardes était un no-op (display:none) → on le rejoue après dépliage
         }
       }
@@ -19447,8 +19486,11 @@ function _l340SetupFichePills(){ try{
   const ss=document.getElementById('soldeSummary'); if(!ss) renderSoldeSummary([]);
   const soldeSum=document.getElementById('soldeSummary'); if(soldeSum) soldeSum.addEventListener('click',function(){ toggleSoldeCard(); });
   // rotation portrait→paysage : un champ en cours de saisie dans une section repliable ne doit pas disparaître sous le doigt
-  try{ const mq=window.matchMedia('(min-width:1100px)'); const onMq=function(e){ try{ _syncSoldeA11y(); if(e.matches){ const a=document.activeElement; if(a&&a.closest&&a.closest('#ficheHeadSec,#fMachineMono,#ficheChgSec')) toggleFicheHead(true); } renderFicheHeadPills(); }catch(_){} };
+  try{ const mq=window.matchMedia('(min-width:1100px)'); const onMq=function(e){ try{ _syncSoldeA11y(); if(e.matches){ const a=document.activeElement; if(a&&a.closest&&a.closest('#ficheHeadSec,#fMachineMono,#ficheChgSec')) toggleFicheHead(true); } renderFicheHeadPills(); if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); }catch(_){} };
     if(mq.addEventListener) mq.addEventListener('change',onMq); else if(mq.addListener) mq.addListener(onMq); }catch(e){}
+  // [L343 · fix audit] la hauteur de la colonne centrale suit sa position réelle : redimensionnement + bandeaux en flux (miroir partage, réception, lame)
+  try{ window.addEventListener('resize',function(){ try{ _l343SyncFicheTop(); }catch(_){} });
+    if(window.ResizeObserver){ const ro=new ResizeObserver(function(){ try{ _l343SyncFicheTop(); }catch(_){} }); ['sharedViewingBar','sharedWithMeBar','lameAlertBanner','nav'].forEach(function(id){ const el=document.getElementById(id); if(el) ro.observe(el); }); } }catch(e){}
 }catch(e){} }
 // [L340 · fix audit design · maquette 17] chip « CHUTE n mm » sur la carte EN COURS = utile − (Σ laizes + lames), lecture seule
 // (calcStats en lecture, aucun calcul moteur modifié) ; recalculée au changement de config (fin de updateAllCumuls) et au hub.
@@ -20145,6 +20187,7 @@ function _syncSharedApply(doc){
   // Préserver le chrono du destinataire (restoreFicheState le remettrait à zéro).
   const _prevChrono={sec:chronoSec,startTs:chronoStartTs,wasRunning:chronoRunning,runStart:chronoRunStart};
   const _sy=window.scrollY||0;   // préserver le défilement (reconstruction complète du DOM)
+  const _fl0=document.getElementById('ficheLines'); const _flTop=_fl0?_fl0.scrollTop:0;   // [L343 · fix audit] en paysage c'est #ficheLines qui défile
   // [L168 · audit #14] préserver la SAISIE QUALITÉ EN COURS du destinataire (test2/NC/détail/action) : la
   // re-hydratation reconstruit tout le DOM depuis l'état de l'émetteur → sinon une NC/un dévidage tapés à
   // l'instant par le destinataire (celui-là même exigé pour valider ✂) étaient effacés à chaque push (≤10 s).
@@ -20164,6 +20207,7 @@ function _syncSharedApply(doc){
   catch(e){ console.warn('Miroir live :',e); return; }
   try{ restoreChrono(_prevChrono); }catch(e){}
   try{ window.scrollTo(0,_sy); }catch(e){}
+  try{ const _fl1=document.getElementById('ficheLines'); if(_fl1&&_flTop) _fl1.scrollTop=_flTop; }catch(e){}   // [L343 · fix audit] le récepteur du miroir garde sa position dans la liste
   // [L62 · Lot 4] ré-appliquer le verrou après la reconstruction du DOM (les 🔒 sont portés par les lignes).
   try{ applySharedCuts(doc.cuts||{}); }catch(e){}
   // [L168 · audit #14] restaurer la saisie locale préservée sur les lignes que le destinataire peut éditer.
@@ -21628,7 +21672,7 @@ function _l79SyncChgBtn(){
   const b=document.getElementById('chgBtn'); if(!b) return;
   const on=_l79ChgActive();
   b.classList.toggle('btn-orange',on);
-  b.textContent=(on?'🔧 Changements EN COURS ●':'🔧 Changements (machine · opérateur · lame)');
+  b.textContent=(on?'🔧 Changements EN COURS ●':'🔧 Changements');
 }
 function toggleChangements(){
   const z=document.getElementById('changementsZone'); if(!z) return;
