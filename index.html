@@ -1642,7 +1642,8 @@ body.atelier .stat-tile b{font-size:36px}
   #fichesList .fiche-card:not(.fc-open)>.fc-grid>.fc-cell:nth-child(4){display:flex;flex-direction:row;align-items:baseline;gap:6px;order:4;margin-left:auto}
   #fichesList .fiche-card:not(.fc-open)>.fc-grid>.fc-cell:nth-child(4) .fc-val{font-size:18px}
   #fichesList .fiche-card:not(.fc-open)>.fc-actions{order:6;display:flex;gap:8px;margin:0;flex:none}
-  #fichesList .fiche-card:not(.fc-open)>.fc-actions>*:not(:first-child):not(span.fc-btn):not(.fc-btn-green){display:none}   /* PDF + badge BL + ✓ VALIDER / ▶ REPRENDRE (actions du moment) ; le reste au tap — [fix audit] */
+  #fichesList .fiche-card:not(.fc-open)>.fc-actions>*:not(:first-child):not(span.fc-btn):not(.fc-btn-green):not(.fc-btn-bl){display:none}   /* PDF + badge BL + 📎 BL + ✓ VALIDER / ▶ REPRENDRE ; le reste au tap — [fix audit] · [L346] 📎 BL en 1 tap */
+  #fichesList .fiche-card:not(.fc-open)>.fc-grid>.fc-cell:nth-child(5){display:flex;flex-direction:row;align-items:baseline;gap:6px;order:4}   /* [L346 · audit] la PERTE (métrique chef) visible sur la rangée compacte */
   #fichesList .fiche-card:not(.fc-open)>.fc-actions .fc-btn{min-height:48px;padding:0 14px;width:auto;white-space:nowrap}   /* [fix audit] jamais sur 2 lignes */
   body.atelier #fichesList .fiche-card:not(.fc-open)>.fc-actions .fc-btn{min-height:52px}
   #fichesList .fiche-card:not(.fc-open)>.fc-actions::after{content:"▾";color:var(--text3);font-size:14px;align-self:center;margin-left:4px}   /* [fix audit] chevron collé aux actions (ne passe plus seul à la ligne) */
@@ -2722,7 +2723,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.17-L345';
+const APP_VERSION='2026.08.17-L346';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5628,20 +5629,30 @@ function renderDataSummary(){
     // [L317 · fix audit] borné à la SEMAINE (comme le 1er chip) : sinon le chiffre mesurait la profondeur du
     // cache (200 fiches au boot, 20 000 après l'historique complet) au lieu d'un en-cours actionnable.
     try{ if(typeof ficheBLs==='function'&&F.length) noBL=F.filter(function(f){ const t=f.date||f.ts||f.at; const d=t?new Date(t):null; if(!(d&&!isNaN(d)&&d>=monday)) return false; try{ return ficheBLs(f).length===0; }catch(e){ return false; } }).length; }catch(e){}
-    const lameEl=document.getElementById('lameAlertBanner');
-    const lame=(lameEl&&lameEl.style.display!=='none')?'à changer':'✓';
+    // [L346 · audit Données] chip LAME lu à la SOURCE (lameAlerts sur maintenanceCache) — le bandeau #lameAlertBanner est éphémère (5 s) : le chip disait « ✓ » 99 % du temps
+    let lame='✓', lameWarn=false;
+    try{ const al=(typeof lameAlerts==='function'&&Array.isArray(maintenanceCache))?lameAlerts(maintenanceCache,Date.now()):[];
+      if(al.length){ const ch=al.filter(function(a){ return a.state==='change'; }); const so=al.filter(function(a){ return a.state!=='change'; });
+        lame=(ch.length?ch.map(function(a){ return String(a.machine||'').toUpperCase()+' à changer'; }).join(' · '):so.map(function(a){ return String(a.machine||'').toUpperCase()+' bientôt'; }).join(' · ')); lameWarn=true; } }catch(e){}
+    // [L346 · audit Données] PLANNING DU JOUR f/T calculé depuis la source du Planning (savesCache · plannedDate · _plnSpanIsos · _plnDejaCoupe) — aucune requête
+    let plnTxt='—';
+    try{ if(Array.isArray(savesCache)&&typeof _plnSpanIsos==='function'&&typeof _plnDejaCoupe==='function'&&typeof _plnIso==='function'){
+      const todayIso=_plnIso(new Date(now.getFullYear(),now.getMonth(),now.getDate())); const ctx=(typeof _plnSentKeys==='function')?_plnSentKeys():null;
+      const todays=savesCache.filter(function(x){ return x&&!x.deleted&&x.plannedDate&&_plnSpanIsos(x).includes(todayIso); });
+      if(todays.length){ let done=0; if(ctx) todays.forEach(function(x){ try{ if(_plnDejaCoupe(x,ctx)) done++; }catch(_){} }); plnTxt=done+' / '+todays.length; } else plnTxt='0'; } }catch(e){}
     const chip=function(lbl,val,warn){ return '<span style="display:inline-flex;flex-direction:column;gap:1px;padding:6px 18px;border-right:1px solid var(--border)"><span style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-family:var(--f-head);font-weight:700">'+lbl+'</span><b style="font-size:24px;font-variant-numeric:tabular-nums;font-family:var(--f-head);font-weight:800;'+(warn?'color:#ffb968':'')+'">'+val+'</b></span>'; };   /* [L333 · maquette 19] label 13px (plancher §2.13-C) + valeur 24px Condensed, orange avertissement #ffb968 (§2.16-A) */
     const _blf=document.getElementById('btnLoadFull'); const _blfIn=!!(_blf&&el.contains(_blf)); if(_blfIn) el.removeChild(_blf);   // [L342] le bouton vit dans le bandeau en paysage : on le sort AVANT de réécrire le HTML (sinon détruit)
     // [L345 · œil chef d'entreprise] bobines coupées + perte matière moyenne de la semaine (champs déjà en cache : totalBobines, pct)
     let wkBob=0, wkPctSum=0, wkPctN=0;
-    try{ F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; const d=t?new Date(t):null; if(!(d&&!isNaN(d)&&d>=monday)) return; const nb=parseInt(f.totalBobines,10); if(nb>0) wkBob+=nb; const pc=parseFloat(String(f.pct||'').replace(',','.')); if(!isNaN(pc)){ wkPctSum+=pc; wkPctN++; } }); }catch(e){}
-    const wkPct=wkPctN?(wkPctSum/wkPctN):null;
+    try{ F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; const d=t?new Date(t):null; if(!(d&&!isNaN(d)&&d>=monday)) return; if(f.valide===false||f.manqueMatiere) return;   /* [L346 · audit] MÊME règle que le KPI mensuel (buildMonthlyKpi) : refusées et manque-matière exclues */
+      const nb=parseInt(f.totalBobines,10); if(nb>0) wkBob+=nb; const pc=parseFloat(String(f.pct||'').replace(',','.')); if(!isNaN(pc)&&nb>0){ wkPctSum+=pc*nb; wkPctN+=nb; } }); }catch(e){}
+    const wkPct=wkPctN?(wkPctSum/wkPctN):null;   /* pondérée par bobines (règle KPI) */
     el.innerHTML=chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
       +chip('Bobines',(wkKnown&&wkBob>0)?String(wkBob):'—',false)
       +chip('Perte moy.',(wkPct!=null)?(wkPct.toFixed(1).replace('.',',')+' %'):'—',(wkPct!=null&&wkPct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5)))
-      +chip('Planning du jour','—',false)   /* [L336 · maquette 19 · §2.16-B] chip présent, valeur « — » (aucune source mémoire fiable — AUCUNE requête, règle L317) */
+      +chip('Planning du jour',plnTxt,false)   /* [L346] f/T depuis la source du Planning (mémoire) */
       +chip('BL à joindre',(noBL===0?'0':noBL),(typeof noBL==='number'&&noBL>0))
-      +chip('Lame',lame,lame!=='✓');
+      +chip('Lame',lame,lameWarn);
     if(_blfIn) el.appendChild(_blf);
     try{ if(typeof _l342PlaceLoadFull==='function') _l342PlaceLoadFull(); }catch(_){}   // [L342 · maquette 19] 📥 HISTORIQUE COMPLET à droite du bandeau (paysage)
   }catch(e){}
@@ -11190,6 +11201,7 @@ function _isDataTabVisible(tab){
   return !!(el && !el.classList.contains('hidden'));
 }
 function renderDataPage(){
+  try{ renderDataSummary(); }catch(e){}   // [L346 · audit Données] bandeau à jour dès l'entrée (il ne l'était qu'au boot et au changement d'onglet)
   // [L80 · PERF-2] Ne rend QUE le sous-onglet VISIBLE. Avant : renderSaves()+renderTemps()+renderFiches()
   // systématiquement → 2 listes cachées (potentiellement des centaines de nœuds DOM) construites en pure
   // perte à CHAQUE entrée dans Données. Les autres sous-onglets sont rendus à la demande par switchTab (clic).
@@ -15450,7 +15462,7 @@ function renderFiches(){
   if(q){
     fiches=fiches.filter(f=>{
       const refs=Array.isArray(f.refGroups)?f.refGroups.map(g=>g.ref||'').join(' '):(f.ref||'');
-      return _noAcc([f.client,f.numCmd,f.name,refs].filter(Boolean).join(' ')).includes(q);
+      return _noAcc([f.client,f.numCmd,f.name,refs,f.ini,f.ini2].filter(Boolean).join(' ')).includes(q);   /* [L346 · audit] recherche aussi par initiales (« mes fiches ») */
     });
   }
   const list=document.getElementById('fichesList');
@@ -15555,6 +15567,7 @@ function renderFiches(){
 
       <div class="fc-actions">
         <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',true)">📄 PDF</button>
+        ${(canValidate()&&!blOk)?`<button class="fc-btn fc-btn-ghost fc-btn-bl" onclick="triggerBLFiche('${f._id}',null)" title="Joindre le bon de livraison">📎 BL</button>`:''}<!-- [L346 · audit] joindre le BL en 1 tap depuis la rangée compacte (handler existant) -->
         ${cliPdfBtns}
         ${f.manqueMatiere?`<button class="fc-btn fc-btn-green" onclick="reprendreCommandeManque('${f._id}')" title="Reprendre le solde non coupé (matière revenue)">▶ Reprendre la commande</button>`:''}
         ${editBtn}

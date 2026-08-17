@@ -794,5 +794,13 @@ has(/data-conf0="\$\{esc\(data\.conf\|\|''\)\}"/,'L345 : config de référence p
 has(/#changementsZone\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:8px\}/,'L345 : 🔧 Changements = 3 choix compacts, le détail s ouvre pour le choix coché seulement (paysage)');
 has(/chip\('Perte moy\.'/,'L345 : bandeau Données « chef » — bobines + perte moyenne de la semaine (données en cache, aucune requête)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L345 présents dans index.html + sw.js');
+console.log('── L346 : audit Données (œil chef) — quick wins ──');
+has(/lameAlerts\(maintenanceCache,Date\.now\(\)\):\[\];/,'L346 : chip LAME lu à la source (lameAlerts) — le bandeau éphémère le rendait faux 99 % du temps');
+has(/if\(f\.valide===false\|\|f\.manqueMatiere\) return;   \/\* \[L346/,'L346 : bobines / perte du bandeau = règle du KPI mensuel (refusées + manque-matière exclues, perte pondérée)');
+has(/todays\.length\)\{ let done=0;/,'L346 : planning du jour f/T calculé depuis la source du Planning (aucune requête)');
+has(/  try\{ renderDataSummary\(\); \}catch\(e\)\{\}   \/\/ \[L346/,'L346 : bandeau rafraîchi à chaque entrée dans Données');
+has(/\[f\.client,f\.numCmd,f\.name,refs,f\.ini,f\.ini2\]/,'L346 : recherche des fiches aussi par initiales');
+has(/class="fc-btn fc-btn-ghost fc-btn-bl"/,'L346 : joindre le BL en 1 tap depuis la rangée compacte (pilotage)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L346 présents dans index.html + sw.js');
 process.exit(fail?1:0);
