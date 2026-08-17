@@ -754,5 +754,12 @@ has(/#statsBar \.stat-tile\{flex:1 1 150px;min-width:0\}/,'L341 fix audit : tuil
 has(/#planCondSec\.cond-has-alert\{border-color:#59584f;background:#1a1a18\}/,'L341 fix audit design : carte emballage NEUTRE même avec alerte (§2.17-B : pas de 3e orange sur le Plan)');
 has(/const f=e\.target\.closest\('\.field'\); if\(!f\|\|!pl\.contains\(f\)\) return;/,'L341 fix audit : tap sur la carte de saisie (libellé/marge) → focus du champ (plus de bande morte)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L341 présents dans index.html + sw.js');
+console.log('── L342 : fidélité maquette 19 — données paysage (historique dans le bandeau, cartes une rangée) ──');
+has(/function _l342PlaceLoadFull/,'L342 : 📥 historique complet dans le bandeau résumé en paysage (nœud unique, retour dans l onglet Plans en portrait)');
+has(/if\(_blfIn\) el\.removeChild\(_blf\);/,'L342 : le bouton est SORTI du bandeau avant la réécriture innerHTML (sinon détruit — bug attrapé en test)');
+has(/#fichesList \.fiche-card:not\(\.fc-open\)\{display:flex;flex-direction:row/,'L342 : cartes de fiche en UNE RANGÉE en paysage (tap = carte complète .fc-open) — ids/handlers/boutons intacts');
+has(/card\.classList\.toggle\('fc-open'\)/,'L342 : dépliage au tap sur la carte, jamais sur un contrôle');
+has(/try\{ _l342SetupDonnees\(\); \}catch\(e\)\{\}/,'L342 : initialisation au boot + rotation (matchMedia)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L342 présents dans index.html + sw.js');
 process.exit(fail?1:0);

@@ -1623,6 +1623,35 @@ body.atelier .stat-tile b{font-size:36px}
   #reportBubble{left:16px;right:auto;bottom:16px;width:48px;height:48px;opacity:.7}   /* plancher 48px conservé */
   #reportBubble:hover,#reportBubble:focus-visible,#reportBubble:active{opacity:1}
 }
+/* ============================================================
+   [L342 · FIDÉLITÉ MAQUETTE 19 · §2.16-B] ÉCRAN DONNÉES PAYSAGE — bandeau résumé + 📥 HISTORIQUE COMPLET à droite,
+   cartes de fiche en UNE RANGÉE (tap = carte complète). Scopé ≥1100px — portrait STRICTEMENT identique.
+   ============================================================ */
+@media(min-width:1100px){
+  #dataSummary{padding:8px 12px;gap:0}
+  #dataSummary #btnLoadFull{margin-left:auto;min-height:48px;font-size:14px}
+  #page2 #fichesList{grid-template-columns:1fr;gap:10px}
+  /* — carte compacte : [date · temps] [CLIENT + état] [N° cmd] [bobines] … [BL] [PDF] — */
+  #fichesList .fiche-card:not(.fc-open){display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 16px;min-height:60px;cursor:pointer;margin-bottom:0}
+  #fichesList .fiche-card:not(.fc-open)>.fc-foot{order:1;border:none;padding:0;font:700 14px/1 var(--f-head);letter-spacing:.02em;color:var(--text3);white-space:nowrap}
+  #fichesList .fiche-card:not(.fc-open)>.fc-header{order:2;flex:0 1 auto;min-width:0;align-items:center;flex-wrap:nowrap;gap:12px}   /* [fix audit] colonnes alignées : client · état à gauche, métriques calées à droite */
+  #fichesList .fiche-card:not(.fc-open) .fc-title{font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #fichesList .fiche-card:not(.fc-open)>.fc-cmd{order:3;margin:0}
+  #fichesList .fiche-card:not(.fc-open)>.fc-grid{display:contents}
+  #fichesList .fiche-card:not(.fc-open)>.fc-grid>.fc-cell{display:none}
+  #fichesList .fiche-card:not(.fc-open)>.fc-grid>.fc-cell:nth-child(4){display:flex;flex-direction:row;align-items:baseline;gap:6px;order:4;margin-left:auto}
+  #fichesList .fiche-card:not(.fc-open)>.fc-grid>.fc-cell:nth-child(4) .fc-val{font-size:18px}
+  #fichesList .fiche-card:not(.fc-open)>.fc-actions{order:6;display:flex;gap:8px;margin:0;flex:none}
+  #fichesList .fiche-card:not(.fc-open)>.fc-actions>*:not(:first-child):not(span.fc-btn):not(.fc-btn-green){display:none}   /* PDF + badge BL + ✓ VALIDER / ▶ REPRENDRE (actions du moment) ; le reste au tap — [fix audit] */
+  #fichesList .fiche-card:not(.fc-open)>.fc-actions .fc-btn{min-height:48px;padding:0 14px;width:auto;white-space:nowrap}   /* [fix audit] jamais sur 2 lignes */
+  body.atelier #fichesList .fiche-card:not(.fc-open)>.fc-actions .fc-btn{min-height:52px}
+  #fichesList .fiche-card:not(.fc-open)>.fc-actions::after{content:"▾";color:var(--text3);font-size:14px;align-self:center;margin-left:4px}   /* [fix audit] chevron collé aux actions (ne passe plus seul à la ligne) */
+  #fichesList .fiche-card:not(.fc-open)>div:not(.fc-header):not(.fc-cmd):not(.fc-grid):not(.fc-foot):not(.fc-actions){order:5;margin:0!important;padding:4px 8px!important;font-size:12px!important;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}   /* badges (⛔ manque matière · 🔗 · 👥 · ⚠ écart) en pastilles compactes ellipsables */
+  #fichesList .fiche-card:not(.fc-open)>.fc-bl{display:none}   /* [fix audit] bloc BL complet (liens + 🗑) au tap ; l'état vit sur la pastille « BL joint » */
+  #fichesList .fiche-card.fc-open::before{content:"▴ replier";display:block;font:700 13px/1 var(--f-head);letter-spacing:.06em;color:var(--text3);margin-bottom:6px}
+  #fichesList .fiche-card.fc-open{cursor:pointer}
+  #tabContentSaves>.flex-wrap:not(:has(#btnLoadFull)):not(:has(#backupBtnZone:not([style*="none"]))){margin-bottom:0}   /* [fix audit] rangée vidée : plus de marge fantôme */
+}
 </style>
 </head>
 <body>
@@ -2597,7 +2626,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.17-L341';
+const APP_VERSION='2026.08.17-L342';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4678,9 +4707,9 @@ function blCardBlock(f){
   // rouge ; seul un bouton discret « Ajouter un BL » subsiste pour le pilotage. La boîte VERTE
   // « BL complet » reste. Multi-réf partiel : boîte NEUTRE (plus de rouge) avec le statut par réf.
   if(!bls.length && !complete){
-    return manage ? `<div style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap"><button onclick="triggerBLFiche('${fid}',null)" style="background:#1a1a18;border:1px solid var(--border2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;padding:3px 8px">📎 Ajouter un BL${multi?' (global)':''}</button></div>` : '';
+    return manage ? `<div class="fc-bl" style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap"><button onclick="triggerBLFiche('${fid}',null)" style="background:#1a1a18;border:1px solid var(--border2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;padding:3px 8px">📎 Ajouter un BL${multi?' (global)':''}</button></div>` : '';
   }
-  return `<div style="margin:6px 0;padding:8px 10px;border-radius:8px;background:${complete?'rgba(74,222,128,0.08)':'transparent'};border:1px solid ${complete?'#1e5c30':'var(--border2)'}">${head}${body}${actions}</div>`;
+  return `<div class="fc-bl" style="margin:6px 0;padding:8px 10px;border-radius:8px;background:${complete?'rgba(74,222,128,0.08)':'transparent'};border:1px solid ${complete?'#1e5c30':'var(--border2)'}">${head}${body}${actions}</div>`;   /* [L342] classe de présentation (compact paysage : l'état BL vit sur la pastille « BL joint », le bloc revient au tap) */
 }
 
 // Fichiers de la commande client (niveau plan) — multi-fichiers, tous types
@@ -5506,10 +5535,13 @@ function renderDataSummary(){
     const lameEl=document.getElementById('lameAlertBanner');
     const lame=(lameEl&&lameEl.style.display!=='none')?'à changer':'✓';
     const chip=function(lbl,val,warn){ return '<span style="display:inline-flex;flex-direction:column;gap:1px;padding:6px 18px;border-right:1px solid var(--border)"><span style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-family:var(--f-head);font-weight:700">'+lbl+'</span><b style="font-size:24px;font-variant-numeric:tabular-nums;font-family:var(--f-head);font-weight:800;'+(warn?'color:#ffb968':'')+'">'+val+'</b></span>'; };   /* [L333 · maquette 19] label 13px (plancher §2.13-C) + valeur 24px Condensed, orange avertissement #ffb968 (§2.16-A) */
+    const _blf=document.getElementById('btnLoadFull'); const _blfIn=!!(_blf&&el.contains(_blf)); if(_blfIn) el.removeChild(_blf);   // [L342] le bouton vit dans le bandeau en paysage : on le sort AVANT de réécrire le HTML (sinon détruit)
     el.innerHTML=chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
       +chip('Planning du jour','—',false)   /* [L336 · maquette 19 · §2.16-B] chip présent, valeur « — » (aucune source mémoire fiable — AUCUNE requête, règle L317) */
       +chip('BL à joindre',(noBL===0?'0':noBL),(typeof noBL==='number'&&noBL>0))
       +chip('Lame',lame,lame!=='✓');
+    if(_blfIn) el.appendChild(_blf);
+    try{ if(typeof _l342PlaceLoadFull==='function') _l342PlaceLoadFull(); }catch(_){}   // [L342 · maquette 19] 📥 HISTORIQUE COMPLET à droite du bandeau (paysage)
   }catch(e){}
 }
 function switchTab(tab){
@@ -19524,6 +19556,30 @@ function _l341SetupPlan(){ try{
       _l341PlanPolish(); }catch(_){} };
     if(mq.addEventListener) mq.addEventListener('change',onMq); else if(mq.addListener) mq.addListener(onMq); }catch(e){}
 }catch(e){} }
+// ============================================================
+// [L342 · FIDÉLITÉ MAQUETTE 19 · §2.16-B] ÉCRAN DONNÉES PAYSAGE ≥1100px — présentation pure :
+//  · 📥 « Historique complet » (#btnLoadFull) rejoint la droite du bandeau résumé (nœud unique, remis dans la
+//    rangée d'actions de l'onglet Plans en portrait) — switchTab continue de le montrer/masquer par style.display ;
+//  · cartes de fiche en UNE RANGÉE (date · client · n° cmd · bobines · état · BL · PDF), tap = carte complète (.fc-open).
+// ============================================================
+function _l342PlaceLoadFull(){ try{
+  const b=document.getElementById('btnLoadFull'); if(!b) return;
+  const strip=document.getElementById('dataSummary'); const home=document.querySelector('#tabContentSaves>.flex-wrap');
+  if(_isLandscapeFiche()){ if(strip&&b.parentElement!==strip) strip.appendChild(b); }
+  else if(home&&b.parentElement!==home){ home.insertBefore(b,home.firstChild); }
+}catch(e){} }
+function _l342SetupDonnees(){ try{
+  if(document.body.dataset.l342Data) return; document.body.dataset.l342Data='1';
+  _l342PlaceLoadFull();
+  // tap sur une carte de fiche compacte → carte complète (aucun contrôle intercepté)
+  document.addEventListener('click',function(e){ try{
+    if(!_isLandscapeFiche()) return;
+    const card=e.target.closest('#fichesList .fiche-card'); if(!card) return;
+    if(e.target.closest('button,a,input,select,textarea,label,summary,details')) return;
+    card.classList.toggle('fc-open');
+  }catch(_){} });
+  try{ const mq=window.matchMedia('(min-width:1100px)'); const onMq=function(){ try{ _l342PlaceLoadFull(); }catch(_){} }; if(mq.addEventListener) mq.addEventListener('change',onMq); else if(mq.addListener) mq.addListener(onMq); }catch(e){}
+}catch(e){} }
 // [L339 · audit] helper % de part de bobine (appelé aussi par les early-returns de recalcPlan pour VIDER)
 function _updateRowShares(uShare){ try{
   document.querySelectorAll('#page0 .order-row').forEach(function(row){
@@ -21593,6 +21649,7 @@ function toggleChangements(){
   _l79SetupChangements();   // [L79] regroupe lame/machine/op.2 sous le bouton « Changements »
   try{ _l340SetupFichePills(); }catch(e){}   // [L340 · maquette 17] pastilles d'en-tête + carte solde repliable (paysage) — APRÈS _l79SetupChangements (nœuds déplacés au boot)
   try{ _l341SetupPlan(); }catch(e){}   // [L341 · maquette 18] plan paysage : tuile utile, OUTILS en bas de colonne, résumé emballage
+  try{ _l342SetupDonnees(); }catch(e){}   // [L342 · maquette 19] données paysage : historique dans le bandeau, cartes de fiche en une rangée
   // loadFirestoreData() est appelé après authentification dans onAuthStateChanged
 })();
 </script>
