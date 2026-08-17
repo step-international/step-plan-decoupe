@@ -1678,6 +1678,41 @@ body.atelier .stat-tile b{font-size:36px}
   #cliRecapFiche:not(.reveal){display:none}   /* [fix audit] récap emballage par client (multi-clients) : au tap ⚙ OUTILS → 📥, sinon il écrasait la liste */
   #cliRecapFiche.reveal{max-height:24vh;overflow-y:auto}
 }
+/* ============================================================
+   [L344 · BIG AUDIT — hiérarchie & bruit, regard opérateur] FICHE : gestes RARES en retrait (PAUSE/RESET ghost 48px,
+   pastilles d'en-tête 40px), 🔧 CHANGEMENTS dans le rail (2 taps max), jalons de série (chip 3 s), volet clôture
+   complété (perte %, série). Scopé ≥1100px sauf le chip jalon (portrait aussi, 3 s, non probant).
+   ============================================================ */
+.fp-jalon{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;border:1px solid #6a5200;background:#1f1804;color:#ffd45e;font:700 14px/1 var(--f-head);letter-spacing:.04em;white-space:nowrap}
+.rail-chg{display:none}
+@media(min-width:1100px){
+  #ficheRail>.rail-chg{display:flex!important;order:5;min-height:48px;justify-content:space-between;font-size:15px;margin-top:6px}
+  #ficheRail>.rail-chg .outils-badge{font-size:12px;letter-spacing:.02em}
+  /* chrono : les chiffres restent XXL, PAUSE/RESET (rares) passent en boutons discrets 48px */
+  #ficheRail #chronoStartBtn,#ficheRail #chronoPauseBtn{min-height:48px;font-size:16px}
+  #ficheRail .chrono-btns .btn-ghost{min-height:48px;font-size:14px}
+  #ficheRail .chrono-status{font-size:13px;color:var(--text3)}
+  /* pastilles d'en-tête : lecture seule → plus discrètes (40px, texte 14px) */
+  .fh-pills{min-height:40px;padding:4px 10px;gap:4px 6px}
+  .fh-pill{font-size:14px;padding:5px 9px}
+  .fh-arrow{font-size:13px}
+}
+/* [L344 · BIG AUDIT] PLAN : ce que l'opérateur touche à chaque commande (CLIENT · RÉFÉRENCE · LAIZES · COMMENCER) reste GROS ;
+   les champs rares (n° commande · livraison · fichier client · mère · bords) passent en retrait ; la rangée + ligne / stock / chute /
+   outils descend à 48px (gestes « parfois »). Scopé ≥1100px. */
+@media(min-width:1100px){
+  #planLeft .field:has(#planNumCmd),#planLeft .field:has(#planDateLiv),#planLeft .field:has(#commandePhotoZone){min-height:62px;padding-top:26px;padding-bottom:6px}
+  #planLeft #planNumCmd{font-size:20px;font-weight:700}
+  #planLeft #planDateLiv{font-size:20px;font-weight:700}
+  #planLeft .field:has(#planDateLiv) .btn{min-height:44px;font-size:14px;padding:0 12px}
+  #planLeft .field:has(#commandePhotoZone) .photo-btn{min-height:44px;font-size:14px;padding:6px 12px}
+  #planLeft #planClient{font-size:30px}   /* le CLIENT, premier geste, un cran au-dessus */
+  #planLeft .row3>.field:not(.ud-tile) input{font-size:26px!important;color:var(--text2)}   /* mère/bords : pré-remplis par le profil, un cran en dessous de la LARGEUR UTILE (32px, bleue) */
+  .ref-block .flex.mt8 .btn{min-height:48px;font-size:15px}
+  .ref-block .flex.mt8 #outilsPlanBtn{min-height:48px;font-size:15px}
+  #btnStartCut{min-height:84px!important;font-size:29px!important}   /* geste n°1 de l'écran : un cran au-dessus de tout le reste */
+}
+
 </style>
 </head>
 <body>
@@ -2652,7 +2687,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.17-L343';
+const APP_VERSION='2026.08.17-L344';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7245,6 +7280,7 @@ function computePlanAggregate(computed){
   const perteMm    =Math.max(0,totalMat-totalUsed-chuteStockMm);
   const perteMereMm=Math.max(0,perteMm-resteRouleauxMm);
   const pertePct   =totalMat>0?(perteMereMm/totalMat*100):0;
+  try{ window._lastPertePct=pertePct; }catch(_){}   // [L344 · §2.5 volet clôture] valeur d'AFFICHAGE (le volet la relit ; aucun calcul dupliqué)
   // 5) Chutes stock prélevées (bobineaux) + compteur rouleaux recoupés.
   const chutesUsedAll={};
   computed.forEach(c=>Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{chutesUsedAll[w]=(chutesUsedAll[w]||0)+q;}));
@@ -9836,6 +9872,8 @@ function _openVictory(p){
       +(cli||cmd?'<div style="color:var(--muted);font-size:13px;margin-top:2px">'+esc(cli)+(cmd?' · '+esc(cmd):'')+'</div>':'')+'</div>'
       +row('Temps', t?t:'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?null:'var(--red)')
       +row('Non-conformités', p.nc?(p.nc+' NC déclarée(s)'):'0 NC ✓', p.nc?'var(--red)':'var(--green)')
+      +((typeof window._lastPertePct==='number')?row('Perte matière', window._lastPertePct.toFixed(1).replace('.',',')+' %', window._lastPertePct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5)?'#ffb968':'var(--green)'):'')   /* [L344 · §2.5] perte % du plan */
+      +((typeof _gamifOff==='function'&&!_gamifOff()&&typeof streakGet==='function'&&streakGet()>=2)?row('Série sans NC', '×'+streakGet()+(streakGet()>=25?' ⭐':streakGet()>=10?' 🔥':''),'#ffd45e'):'')   /* [L344 · §2.5] série (localStorage, jamais en base) */
       +row('Machine(s)', esc(p.machStr))
       +row('Lame · Opérateur', esc(lame||'—')+' · '+esc(op||'—'))
       +(p.etiq?row('Photos étiquettes', p.etiq+' jointe(s) ✓','var(--green)'):'')
@@ -18797,6 +18835,12 @@ function updateCoupeeStatus(){
     banner.style.display='flex';banner.style.alignItems='center';banner.style.gap='14px';banner.style.flexWrap='wrap';banner.style.textAlign='left';banner.style.color='var(--text)';
     banner.classList.toggle('fp-done',allDone);banner.style.background='';banner.style.borderColor='';   /* [L334 · maquette 17] fond piloté par CSS : rangée transparente ≥1100px, carte en portrait, VERT (.fp-done) quand tout est coupé */
     banner.innerHTML=_fpRow;
+    // [L344 · §2.5 jalons] mi-parcours / dernière bobine : chip discrète 3 s DANS le HUD (jamais une modale, rien en base)
+    try{ if(typeof _gamifOff==='function'&&!_gamifOff()&&total>=4&&done>0&&!allDone){
+      const _isMid=(done===Math.ceil(total/2)), _isLast=(done===total-1);
+      if((_isMid||_isLast)&&window._fpJalonDone!==done){ window._fpJalonDone=done; const j=document.createElement('span'); j.className='fp-jalon'; j.textContent=_isLast?'🎯 DERNIÈRE BOBINE':'🎯 MI-PARCOURS'; banner.appendChild(j); setTimeout(function(){ try{ j.remove(); }catch(_){} },3000); }
+      if(done<Math.ceil(total/2)) window._fpJalonDone=0;   // nouvelle commande / dé-marquage : le jalon peut se rejouer
+    } }catch(_){}
   }
   if(sendBtn){
     sendBtn.disabled=false;   // [L288 · T5 · zéro tap mort] plus jamais disabled : le tap explique le reste à couper (garde dans confirmCommandeRecap)
@@ -19472,6 +19516,8 @@ function _l343SyncFicheTop(){ try{
 function _l340SetupFichePills(){ try{
   if(document.body.dataset.l340Pills) return; document.body.dataset.l340Pills='1';   // [L340 · fix audit] garde de ré-entrance (listeners jamais doublés)
   renderFicheHeadPills();
+  // [L344 · inventaire §2.10] 🔧 CHANGEMENTS (lame · machine · op.2 · changement plan) en 1 tap dans le rail (paysage) — il fallait ⚙ → 🔧 → case = 3 taps
+  try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railChgBtn')){ const b=document.createElement('button'); b.type='button'; b.id='railChgBtn'; b.className='btn rail-chg'; b.innerHTML='🔧 Changements <span class="outils-badge">lame · machine · op.2</span>'; b.addEventListener('click',function(){ try{ outilsChangements(); }catch(_){} }); const ob=document.getElementById('outilsFicheBtn'); if(ob&&ob.parentNode===rail) rail.insertBefore(b,ob.nextSibling); else rail.appendChild(b); } }catch(e){}
   // les pastilles suivent la saisie dans les sections repliables (input/change/click délégués — sans toucher aux handlers)
   ['ficheHeadSec','fMachineMono','ficheChgSec'].forEach(function(id){ const el=document.getElementById(id); if(!el) return;
     ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ setTimeout(renderFicheHeadPills,0); }); });
@@ -19570,7 +19616,7 @@ function _l341RenderCondSummary(){ try{
   const notes=v('planNotesEmballage').split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean);
   const alertEl=document.getElementById('packagingAlert'); const alertOn=!!(alertEl&&!alertEl.classList.contains('hidden')&&alertEl.textContent.trim());
   const open=sec.classList.contains('reveal');
-  let h='<span class="cs-l1"><b>📦 EMBALLAGE'+(cli?' '+esc(cli.toUpperCase()):'')+'</b>'+(parts.length?'<span class="cs-auto">AUTO ✓</span>':'<span class="cs-auto cs-none">À RENSEIGNER</span>')+'<span class="cs-arrow">'+(open?'▴ REPLIER':'▾ DÉTAIL')+'</span></span>';
+  let h='<span class="cs-l1"><b>📦 EMBALLAGE'+(cli?' '+esc(cli.toUpperCase()):'')+'</b>'+(parts.length?'<span class="cs-auto">✓</span>':'<span class="cs-auto cs-none">À RENSEIGNER</span>')+'<span class="cs-arrow">'+(open?'▴ REPLIER':'▾ DÉTAIL')+'</span></span>';
   h+='<span class="cs-l2">'+(parts.length?esc(parts.join(' · ')):'palette · type · étiquetage · cerclage')+(notes.length?' — '+esc(notes[0])+(notes.length>1?' (+'+(notes.length-1)+')':''):'')+'</span>';
   if(alertOn) h+='<span class="cs-alert">⚡ '+esc(alertEl.textContent.trim().replace(/^⚡\s*/,'').slice(0,140))+'</span>';   /* [fix audit] le texte de l'alerte commence déjà par ⚡ */
   sum.innerHTML=h;

@@ -773,5 +773,14 @@ has(/#cliRecapFiche:not\(\.reveal\)\{display:none\}/,'L343 fix audit : récap em
 has(/<label for="planDateLiv">Livraison<\/label>/,'L343 : libellés d écran courts (Livraison, Référence, Film, Machine, Bords, Laizes, + Ligne, Joindre, Temps, Partager, Cumul, Changements)');
 has(/row\.style\.display=_empty\?'none':'';/,'L343 : pastilles d en-tête masquées sur fiche vide');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L343 présents dans index.html + sw.js');
+console.log('── L344 : big audit — couverture spec + hiérarchie/bruit (regard opérateur) ──');
+has(/row\('Perte matière'/,'L344 : volet de clôture complété — perte % (§2.5, oublié depuis L319)');
+has(/row\('Série sans NC'/,'L344 : volet de clôture — série sans NC (localStorage, jamais en base)');
+has(/className='fp-jalon'/,'L344 : jalons mi-parcours / dernière bobine = chip 3 s dans le HUD, jamais une modale (§2.5)');
+has(/id='railChgBtn'/,'L344 : 🔧 Changements en 1 tap dans le rail paysage (inventaire §2.10 : 3 taps → 2)');
+has(/<span class="cs-auto">✓<\/span>/,'L344 : « AUTO ✓ » → « ✓ » (§2.20)');
+has(/#btnStartCut\{min-height:84px!important;font-size:29px!important\}/,'L344 : COMMENCER À COUPER = geste n°1 du Plan, un cran au-dessus de tout');
+has(/#planLeft #planClient\{font-size:30px\}/,'L344 : CLIENT en avant ; n° commande / livraison / fichier en retrait ; mère/bords en dessous de la largeur utile');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L344 présents dans index.html + sw.js');
 process.exit(fail?1:0);
