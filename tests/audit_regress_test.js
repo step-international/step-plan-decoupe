@@ -807,5 +807,15 @@ has(/t\.dataset\.conf0=String\(t\.value\|\|''\)\.trim\(\); \} _l345SyncEditChips
 (function(){ const ok=require('fs').existsSync(__dirname+'/sim200.mjs'); console.log((ok?'✅ ':'❌ ')+'L347 : tests/sim200.mjs présent (simulation bout en bout, mode entraînement, hors index.html)'); if(!ok)fail++; })();
 absent(/sim200\.mjs/,'L347 : sim200.mjs n est PAS référencé dans index.html');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L347 présents dans index.html + sw.js');
+console.log('── L348 : audit design & a11y (skills) — contrastes, cibles, textes, thème clair, feedback tactile ──');
+has(/input::placeholder,textarea::placeholder\{color:var\(--text2\);opacity:\.8\}/,'L348 : placeholders lisibles (2,96:1 → 5,2:1)');
+has(/#ficheRail \.chrono-status,\.fh-pill \.fh-l,\.cumul-head label,\.section \.section-title,\.ref-block \.flex\.mt8 \.btn\.btn-ghost,#planLeft \.ref-block-title\{color:var\(--text2\)\}/,'L348 : --text3 sur carte (4,18:1) → --text2 (8,3:1) sur les libellés secondaires');
+has(/\.fc-cmd-badge\{color:#141310\}/,'L348 : N° cmd sur bleu lisible (2,8:1 → 6,6:1)');
+has(/#verTag\{font-size:13px!important\}#roleTag\{font-size:13px\}/,'L348 : plus aucun texte < 13px (version, rôle, hint, auto, badge)');
+has(/\.fh-pills::before\{content:"";position:absolute;inset:-4px 0\}/,'L348 : cibles 48px sans changer le visuel (pastilles, ? aide, carte solde repliée)');
+has(/const a11yRows=function\(\)/,'L348 : rôles button + clavier (Entrée/Espace) + aria-expanded sur les rangées dépliables, HUD aria-live');
+has(/html\.theme-light #sendPlanWrap\{box-shadow:0 -10px 22px rgba\(255,255,255,\.6\)\}/,'L348 : ombres pré-inversées pour le thème clair (doctrine du fichier)');
+has(/#nav button,\.btn,\.machine-btn-fiche,\.fh-pills\{transition-property:background-color,border-color,color,box-shadow,transform,opacity\}/,'L348 : plus de transition:all');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L348 présents dans index.html + sw.js');
 process.exit(fail?1:0);
