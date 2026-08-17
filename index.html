@@ -2723,7 +2723,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.17-L346';
+const APP_VERSION='2026.08.17-L347';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -19609,7 +19609,15 @@ function _l345SyncEditChips(){ try{
   document.querySelectorAll('.fiche-line').forEach(function(line){ const chip=line.querySelector('.fl-edit-chip'); if(!chip) return; const d=_l345ConfDirty(line.id); line.classList.toggle('conf-dirty',d); chip.textContent=d?'♻ RECALCULER':'✎ MODIFIER'; chip.classList.toggle('need-recalc',d); });
 }catch(e){} }
 function _l345EditChip(id){ try{
-  if(_l345ConfDirty(id)){ if(typeof recalcEcartsFromFiche==='function') recalcEcartsFromFiche(); return; }
+  if(_l345ConfDirty(id)){
+    // [L347 · sim 200 commandes] le recalcul ne RECONSTRUIT pas toujours la ligne (non coupée = non engagée : le reste est
+    // ré-empaqueté depuis les bobines figées) → la ligne restait « à recalculer » et le ✂ verrouillé sans issue.
+    // Après le tap RECALCULER, la config saisie DEVIENT la référence de la ligne (la règle « modifier ⇒ recalculer avant
+    // de couper » est respectée ; jamais de tap mort permanent). Si la ligne est reconstruite, sa nouvelle config est de toute façon la référence.
+    let started=false; try{ const r=(typeof recalcEcartsFromFiche==='function')?recalcEcartsFromFiche():null; started=!!(r&&r.started); }catch(e){}
+    setTimeout(function(){ try{ const t=document.getElementById('flConf_'+id); if(t){ t.dataset.conf0=String(t.value||'').trim(); } _l345SyncEditChips(); }catch(e){} }, started?1300:0);
+    return;
+  }
   const t=document.getElementById('flConf_'+id); if(t){ t.focus(); try{ t.setSelectionRange(0,t.value.length); }catch(e){} }
 }catch(e){} }
 // [L340 · fix audit design · maquette 17] chip « CHUTE n mm » sur la carte EN COURS = utile − (Σ laizes + lames), lecture seule

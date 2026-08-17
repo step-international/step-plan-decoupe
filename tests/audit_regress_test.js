@@ -802,5 +802,10 @@ has(/  try\{ renderDataSummary\(\); \}catch\(e\)\{\}   \/\/ \[L346/,'L346 : band
 has(/\[f\.client,f\.numCmd,f\.name,refs,f\.ini,f\.ini2\]/,'L346 : recherche des fiches aussi par initiales');
 has(/class="fc-btn fc-btn-ghost fc-btn-bl"/,'L346 : joindre le BL en 1 tap depuis la rangée compacte (pilotage)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L346 présents dans index.html + sw.js');
+console.log('── L347 : simulation 200 commandes (tests/sim200.mjs) — correctif verrou RECALCULER ──');
+has(/t\.dataset\.conf0=String\(t\.value\|\|''\)\.trim\(\); \} _l345SyncEditChips\(\);/,'L347 : après le tap ♻ RECALCULER la config saisie devient la référence → plus jamais de ✂ verrouillé sans issue (trouvé par la sim : 61/200 commandes bloquées)');
+(function(){ const ok=require('fs').existsSync(__dirname+'/sim200.mjs'); console.log((ok?'✅ ':'❌ ')+'L347 : tests/sim200.mjs présent (simulation bout en bout, mode entraînement, hors index.html)'); if(!ok)fail++; })();
+absent(/sim200\.mjs/,'L347 : sim200.mjs n est PAS référencé dans index.html');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L347 présents dans index.html + sw.js');
 process.exit(fail?1:0);
