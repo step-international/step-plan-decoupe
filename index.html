@@ -1865,6 +1865,23 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
   .fh-pills:not(.open) .fh-arrow{border-color:#5a5852}
   .fh-pills{padding-right:6px}
 }
+/* ============================================================
+   [L353 · BACKLOG « améliorations sans décision » n°8 · 9 · 10 · 12 (19/08)] fiche paysage : (8) config longue = police réduite
+   au lieu de 2 lignes ; (9) chip ⚠ DÉPASSE plus visible + confirmation de sécurité au ✂ ; (10) ordre de coupe ligne 3 = n bobines
+   · config à venir ; (12) mode apprenti VISIBLE (🎓 dans le HUD + sous-indice sur ⚠ DÉFAUT). Tout scopé ≥1100px — portrait inchangé.
+   ============================================================ */
+.foc-cfg{display:none}
+@media(min-width:1100px){
+  .fl-current.conf-long [id^="flConf_"]{font-size:26px!important}
+  body.atelier .fl-current.conf-long [id^="flConf_"]{font-size:28px!important}
+  .fl-chute.over{background:#3a1215;border:1px solid #8a2b2f;border-radius:8px;padding:6px 10px;color:#ff8a8f;animation:arcadePulse 1.8s ease-out infinite}
+  @media(prefers-reduced-motion:reduce){.fl-chute.over{animation:none}}
+  .foc-l3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .foc-cfg{display:inline;color:var(--text2)}
+  body.apprenti #coupeeBanner::after{content:"🎓 APPRENTI";display:inline-flex;align-items:center;flex:none;margin-left:8px;font:800 13px/1 var(--f-head);letter-spacing:.06em;color:#ffd45e;background:#241d05;border:1px solid #6a5200;border-radius:99px;padding:5px 9px}   /* (le HUD est static!important depuis L343 : chip en flux, pas en absolu) */
+  body.apprenti .fl-current .fl-more:not([open])>summary{flex-direction:column;gap:2px}
+  body.apprenti .fl-current .fl-more:not([open])>summary::after{content:"bobine non conforme ? → ici";font:600 13px/1.2 var(--f-body,inherit);letter-spacing:0;text-transform:none;color:var(--text3)}
+}
 </style>
 </head>
 <body>
@@ -2840,7 +2857,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L352';
+const APP_VERSION='2026.08.19-L353';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4723,7 +4740,7 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
 })();
 let _efPhotoUploads=0;   // [L169 · audit #17] uploads photo en cours en ÉDITION de fiche archivée
 // [L230] hauteur AUTO du champ conf (Nb bob. × Largeur) : 1 ligne par défaut, passe sur 2+ lignes quand le texte déborde.
-function _confAutoH(el){ if(!el) return; el.style.height='auto'; el.style.height=Math.max(44,el.scrollHeight)+'px'; }
+function _confAutoH(el){ if(!el) return; try{ const _ln=el.closest&&el.closest('.fiche-line'); if(_ln) _ln.classList.toggle('conf-long',String(el.value||'').replace(/\s+/g,'').length>22); }catch(e){}   /* [L353 · backlog n°8] config longue → police réduite sur la carte en cours (paysage) au lieu de passer sur 2 lignes */ el.style.height='auto'; el.style.height=Math.max(44,el.scrollHeight)+'px'; }
 function refreshPhotoZone(lineId){
   const zone=document.getElementById('photoZone_'+lineId);
   if(!zone) return;
@@ -17886,13 +17903,15 @@ function renderFicheMachineBlocks(opts){
       const _cliRaw=(typeof cliMulti==='function'&&cliMulti())?'':((((document.getElementById('fClient')||{}).value)||''));   /* [L337 · audit] multi-clients : PAS de nom en tête de rangée (le client A s'affichait sur des réfs du client B) */
       const _cli=esc(String(_cliRaw).trim());
       let _nbBob=0; try{ const _rk2=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k2=nrm(r.ref); _nbBob=ficheLines.filter(l=>l&&((_rk2&&l.refIdKey===_rk2)||nrm(l.ref)===_k2)).length; }catch(_){ }
+      // [L353 · backlog n°10 · §2.21] ligne 3 = n bobines · CONFIG de la prochaine bobine à couper de cette réf (résumé, ellipsé ; paysage seulement — .foc-cfg)
+      let _cfg=''; try{ const _rk4=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k4=nrm(r.ref); const _mine=ficheLines.filter(l=>l&&((_rk4&&l.refIdKey===_rk4)||nrm(l.ref)===_k4)); const _fl=_mine.find(l=>{ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||_mine[0]; if(_fl){ _cfg=String((document.getElementById('flConf_'+_fl.id)||{}).value||'').replace(/\s*\+\s*/g,' + ').replace(/\s*[x×]\s*/g,'×').trim(); } }catch(_){ }
       oh+='<div class="fmm-order-row foc-'+_stCls+'" style="border-left:5px solid '+rc+';align-items:flex-start">'
         +'<span class="fmm-drag-handle" onpointerdown="fmmDragStart(event,'+r.idx+')" title="Glisser pour réordonner" aria-hidden="true">⠿</span>'
         +'<span class="fmm-order-num" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">'+(pos+1)+'</span>'
         +'<span class="fmm-order-id">'
         +'<span class="foc-l1">'+(_cli?'<span class="foc-cli">'+_cli+'</span>':'')+_mlTag+'<span class="foc-st foc-st-'+_stCls+'">'+_stTxt+'</span>'+'</span>'
         +'<span class="fmm-order-name foc-name">'+_nm+'</span>'
-        +(_nbBob?'<span class="foc-l3">'+_nbBob+' bobine'+(_nbBob>1?'s':'')+'</span>':'')
+        +(_nbBob?'<span class="foc-l3">'+_nbBob+' bobine'+(_nbBob>1?'s':'')+(_cfg?'<span class="foc-cfg"> · '+esc(_cfg)+'</span>':'')+'</span>':'')
         +((_omChip||_noBobChip)?'<span class="fmm-order-tags">'+_omChip+_noBobChip+'</span>':'')
         +(_tagsNoMl.length?'<span class="fmm-order-tags">'+_tagsNoMl.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'')
         +'</span>'
@@ -18812,6 +18831,12 @@ function coupeeTapOne(id){
     try{ const c=line.querySelector('.fl-edit-chip'); if(c){ c.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
     return;
   }
+  // [L353 · backlog n°9] la config DÉPASSE la laize utile (Σ laizes + lames > utile) : physiquement incoupable → confirmation de
+  // sécurité NATIVE et synchrone (doctrine ≥16) avant de marquer coupée — jamais un blocage sec (l.useful peut être imparfait).
+  if(!line.classList.contains('coupee')&&typeof _l353Overflow==='function'){ const _ov=_l353Overflow(id); if(_ov>0){
+    try{ const c=line.querySelector('.fl-chute'); if(c) c.animate([{outline:'3px solid #ff8a8f',outlineOffset:'2px'},{outline:'3px solid rgba(255,138,143,0)'}],{duration:1400}); }catch(e){}
+    if(!confirm('⚠ La config dépasse la laize utile de '+fmt(_ov)+' mm — elle ne peut pas être coupée telle quelle.\n\nMarquer quand même cette bobine COUPÉE ?')) return;
+  } }
   const already=line.classList.contains('coupee');
   const ncEl=document.getElementById('flTest2nc_'+id);
   // [L307 · fix audit ISO] « saine » = ni NC test 2ᵉ, NI motif NC dimensionnel coché (Angle/Casse/Larg./Qté) :
@@ -19167,9 +19192,10 @@ function hintCoupeeApply(){
   try{
     const b=document.querySelector('.next-action[id^="coupeeBtn_"]');
     document.querySelectorAll('.hint-cut').forEach(function(x){ if(x!==b) x.classList.remove('hint-cut'); });
+    const apprenti=(typeof _apprentiOn==='function')?_apprentiOn():false;
+    try{ document.body.classList.toggle('apprenti',!!apprenti); }catch(e){}   // [L353 · backlog n°12 · §2.19-6] état lisible par le CSS (indices supplémentaires en paysage) — posé même sans ✂ désigné
     if(!b) return;
     let n=0; try{ n=parseInt(localStorage.getItem(_hintCutKey())||'0',10)||0; }catch(e){}
-    const apprenti=(typeof _apprentiOn==='function')?_apprentiOn():false;
     const _t2=b.closest('.fiche-line')?.classList.contains('t2-todo');   // [L322 · fix audit] chemin NC : le ::after « test 2ᵉ à cocher » (signal ISO) garde la main — et « 1 tap » serait un mauvais conseil ici
     b.classList.toggle('hint-cut', (n<3||apprenti)&&!_t2);
   }catch(e){}
@@ -19799,6 +19825,8 @@ function _l345EditChip(id){ try{
   }
   const t=document.getElementById('flConf_'+id); if(t){ t.focus(); try{ t.setSelectionRange(0,t.value.length); }catch(e){} }
 }catch(e){} }
+// [L353 · backlog n°9] dépassement (mm) de la config d'une bobine par rapport à sa laize utile — MÊME lecture que le chip CHUTE (calcStats en lecture), 0 si rien à dire
+function _l353Overflow(id){ try{ const l=(typeof ficheLines!=='undefined')?ficheLines.find(function(x){ return x&&x.id===id; }):null; const conf=(document.getElementById('flConf_'+id)||{}).value||''; const useful=(l&&l.useful>0)?l.useful:((typeof getUseful==='function')?getUseful():0); const blade=(l&&typeof l.blade==='number')?l.blade:((typeof getBlade==='function')?getBlade():0); if(!(useful>0)||!conf.trim()) return 0; const pieces=parseConf(conf); if(!pieces.length) return 0; const w=useful-calcStats(pieces,blade).total; return w<0?-w:0; }catch(e){ return 0; } }
 // [L340 · fix audit design · maquette 17] chip « CHUTE n mm » sur la carte EN COURS = utile − (Σ laizes + lames), lecture seule
 // (calcStats en lecture, aucun calcul moteur modifié) ; recalculée au changement de config (fin de updateAllCumuls) et au hub.
 function _l340RenderChuteChip(){ try{

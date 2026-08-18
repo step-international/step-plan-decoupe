@@ -852,5 +852,14 @@ has(/\.fh-pills\.open \.fh-arrow\{background:var\(--blue\);border-color:var\(--b
 has(/#ficheHeadSide>#fMachineMono button\[onclick="printFichePlan\(\)"\]\{display:none\}/,'L352 : 🖨 du bloc machine masqué DANS LE SLOT seulement (doublon exact de 🖨 IMPRIMER de la barre)');
 has(/^#ficheHeadSide\{display:none\}$/m,'L352 : slot inerte hors paysage (portrait strictement identique)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L352 présents dans index.html + sw.js');
+console.log('── L353 : backlog améliorations n°8 · 9 · 10 · 12 (19/08) ──');
+has(/_ln\.classList\.toggle\('conf-long',String\(el\.value\|\|''\)\.replace\(\/\\s\+\/g,''\)\.length>22\)/,'L353 n°8 : config longue → classe conf-long (police réduite en paysage au lieu de 2 lignes)');
+has(/function _l353Overflow\(id\)/,'L353 n°9 : dépassement calculé comme le chip CHUTE (lecture calcStats)');
+has(/Marquer quand même cette bobine COUPÉE \?'\)\) return;/,'L353 n°9 : confirmation de sécurité NATIVE synchrone au ✂ quand la config dépasse (jamais un blocage sec)');
+has(/<span class="foc-cfg"> · '\+esc\(_cfg\)\+'<\/span>/,'L353 n°10 : ordre de coupe ligne 3 = n bobines · config à venir (§2.21)');
+has(/^\.foc-cfg\{display:none\}$/m,'L353 n°10 : config de la ligne 3 masquée en portrait (identique)');
+has(/document\.body\.classList\.toggle\('apprenti',!!apprenti\)/,'L353 n°12 : body.apprenti posé par hintCoupeeApply (mode apprenti visible)');
+has(/body\.apprenti #coupeeBanner::after\{content:"🎓 APPRENTI"/,'L353 n°12 : chip 🎓 APPRENTI dans le HUD (paysage)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L353 présents dans index.html + sw.js');
 process.exit(fail?1:0);
