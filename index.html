@@ -1882,6 +1882,15 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
   body.apprenti .fl-current .fl-more:not([open])>summary{flex-direction:column;gap:2px}
   body.apprenti .fl-current .fl-more:not([open])>summary::after{content:"bobine non conforme ? → ici";font:600 13px/1.2 var(--f-body,inherit);letter-spacing:0;text-transform:none;color:var(--text3)}
 }
+/* ============================================================
+   [L354 · BACKLOG n°16 · 17 · 19 (19/08)] (16) Données › Plans : filtre « 📅 Aujourd'hui (n) » + « 📂 Charger ce plan » depuis une carte
+   du planning ; (17) téléphone ≤600px : onglet « FICHE » court (Clair/Atelier/Quitter restaient hors écran) ; (19) thème clair : .btn-blue /
+   .btn-orange en teintes PRÉ-INVERSÉES (≈2,5-2,8:1 après le filtre → ≥7:1). Palette du thème sombre INCHANGÉE.
+   ============================================================ */
+#saveFilterToday{flex:none;padding:0 10px;font-size:13px;letter-spacing:.02em}#saveFilterToday.sel{background:#241d05;color:#ffd45e;border-color:#b8860b}
+@media(max-width:600px){#tabBtn1{font-size:0!important;line-height:0;letter-spacing:0}#tabBtn1::before{content:"📋 Fiche";font-size:15px;line-height:1.2;letter-spacing:.04em}}
+html.theme-light .btn-blue{background:#12325e;color:#a9d3ff;border-color:#2d5a9e}html.theme-light .btn-blue:hover{background:#163a6a}
+html.theme-light .btn-orange{background:#2a1c00;color:#ffbb70;border-color:#7a5200}html.theme-light .btn-orange:hover{background:#331f00}
 </style>
 </head>
 <body>
@@ -2530,6 +2539,7 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
         <option value="">Toutes matières / réf.</option>
       </select>
       <input type="text" id="saveFilterCmd" aria-label="Filtrer les plans par n° de commande" oninput="debouncedRenderSaves()" placeholder="N° commande…" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px"><!-- [L163 · sweep perf #6] débounce (seul filtre texte non débouncé) -->
+      <button type="button" class="btn btn-ghost btn-sm" id="saveFilterToday" aria-pressed="false" onclick="toggleSaveFilterToday()" title="Ne montrer que les plans posés sur AUJOURD'HUI au planning">📅 Aujourd'hui</button><!-- [L354 · backlog n°16] planning du jour → plan en 2 taps (Données · 📅 · 📂 Charger) -->
       <button class="btn btn-ghost btn-sm" onclick="resetSaveFilters()">✕ Reset</button>
     </div>
     <!-- [L65] compteur de commandes préparées (plans sauvegardés en attente de découpe) -->
@@ -2857,7 +2867,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L353';
+const APP_VERSION='2026.08.19-L354';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9091,10 +9101,12 @@ function renderSaves(){
   if(fC){const nf=norm(fC); saves=saves.filter(s=>norm(s.client).includes(nf));}
   if(fR) saves=saves.filter(s=>saveRefs(s).includes(fR));
   if(fCmd) saves=saves.filter(s=>(s.numCmd||'').toLowerCase().includes(fCmd));
+  // [L354 · backlog n°16] « 📅 Aujourd'hui (n) » : plans dont l'étalement planning couvre AUJOURD'HUI (source = _plnSpanIsos, comme le Planning) — lecture seule
+  let fToday=false; try{ const tb=document.getElementById('saveFilterToday'); if(tb){ const _today=(typeof _localDay==='function')?_localDay():new Date().toISOString().slice(0,10); const _isT=s=>{ try{ return typeof _plnSpanIsos==='function'&&_plnSpanIsos(s).includes(_today); }catch(e){ return false; } }; const _nT=savesCache.filter(s=>s&&!s.deleted&&_isT(s)).length; tb.textContent='📅 Aujourd\'hui'+(_nT?' ('+_nT+')':''); fToday=tb.classList.contains('sel'); tb.setAttribute('aria-pressed',fToday?'true':'false'); if(fToday) saves=saves.filter(_isT); } }catch(e){}
 
   const list=document.getElementById('savesList');
   const empty=document.getElementById('savesEmpty');
-  if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');empty.textContent=(fC||fR||fCmd)?'Aucun résultat pour ces filtres.':'Aucune sauvegarde.';return;}
+  if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');empty.textContent=(fC||fR||fCmd||fToday)?(fToday&&!(fC||fR||fCmd)?'Aucun plan posé sur aujourd\'hui au planning.':'Aucun résultat pour ces filtres.'):'Aucune sauvegarde.';return;}
   empty.classList.add('hidden');
   // [L106 · Phase 2 · W] pagination (même pattern que Fiches/Temps) : renderSaves rendait
   // TOUT d'un coup — lent sur tablette dès que l'historique grossit.
@@ -9171,9 +9183,11 @@ function renderSaves(){
     ?`<div style="text-align:center;margin-top:12px"><button class="btn btn-ghost" onclick="savesRenderLimit+=50;renderSaves()">⬇ Voir plus (${totalSaves-saves.length} restant${totalSaves-saves.length>1?'s':''})</button></div>`
     :'');   // [L106 · Phase 2 · W]
 }
+function toggleSaveFilterToday(){ try{ const tb=document.getElementById('saveFilterToday'); if(!tb) return; tb.classList.toggle('sel'); savesRenderLimit=50; renderSaves(); }catch(e){} }   // [L354 · backlog n°16]
 function resetSaveFilters(){
   ['saveFilterClient','saveFilterRef'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const c=document.getElementById('saveFilterCmd');if(c)c.value='';
+  try{ const tb=document.getElementById('saveFilterToday'); if(tb) tb.classList.remove('sel'); }catch(e){}   // [L354]
   savesRenderLimit=50;   // [L106 · Phase 2 · W] repartir en haut de liste
   renderSaves();
 }
@@ -12156,6 +12170,7 @@ function plnOpenCard(sid){
     +'<div style="display:flex;flex-direction:column;gap:8px">'
       +(canE?'<button class="btn btn-blue" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\');plnArm(\''+esc(sid)+'\')">📍 '+(s.plannedDate?'Déplacer':'Poser sur le planning')+'</button>':'')
       +(canE&&s.plannedDate?'<button class="btn btn-red" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\');plnSetPlan(\''+esc(sid)+'\',null,null)">↩ Retirer du planning</button>':'')
+      +((!(function(){ try{ return _plnDejaCoupe(s,_plnSentKeys()); }catch(e){ return false; } })())?'<button class="btn btn-green" style="width:100%;justify-content:center;min-height:52px" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\');openLoadModal(\''+esc(sid)+'\')">📂 Charger ce plan</button>':'')   /* [L354 · backlog n°16] 4 taps → 2 : carte du planning → charger (même modale de confirmation que Données › Plans, gardes doLoad intactes) ; jamais sur une commande déjà coupée */
       +'<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\');plnGotoSave(\''+esc(sid)+'\')">👁 Voir dans Plans</button>'
       +'<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="document.getElementById(\'plnCardModal\').classList.remove(\'open\')">Fermer</button>'
     +'</div></div>';

@@ -861,5 +861,13 @@ has(/^\.foc-cfg\{display:none\}$/m,'L353 n°10 : config de la ligne 3 masquée e
 has(/document\.body\.classList\.toggle\('apprenti',!!apprenti\)/,'L353 n°12 : body.apprenti posé par hintCoupeeApply (mode apprenti visible)');
 has(/body\.apprenti #coupeeBanner::after\{content:"🎓 APPRENTI"/,'L353 n°12 : chip 🎓 APPRENTI dans le HUD (paysage)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L353 présents dans index.html + sw.js');
+console.log('── L354 : backlog n°16 · 17 · 19 (19/08) ──');
+has(/id="saveFilterToday" aria-pressed="false" onclick="toggleSaveFilterToday\(\)"/,'L354 n°16 : filtre 📅 Aujourd hui (n) dans Données › Plans (source _plnSpanIsos, lecture seule)');
+has(/function toggleSaveFilterToday\(\)/,'L354 n°16 : bascule du filtre + reset dans resetSaveFilters');
+has(/📂 Charger ce plan<\/button>':''\)   \/\* \[L354/,'L354 n°16 : « 📂 Charger ce plan » depuis la fenêtre d une carte du planning (openLoadModal → doLoad, gardes intactes ; jamais sur une coupée)');
+has(/@media\(max-width:600px\)\{#tabBtn1\{font-size:0!important/,'L354 n°17 : onglet « 📋 Fiche » court sur téléphone ≤600px');
+has(/html\.theme-light \.btn-blue\{background:#12325e;color:#a9d3ff/,'L354 n°19 : thème clair — .btn-blue pré-inversé (≥7:1 après filtre)');
+has(/html\.theme-light \.btn-orange\{background:#2a1c00;color:#ffbb70/,'L354 n°19 : thème clair — .btn-orange pré-inversé (≥7:1 après filtre)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L354 présents dans index.html + sw.js');
 process.exit(fail?1:0);
