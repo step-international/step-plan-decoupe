@@ -869,5 +869,13 @@ has(/@media\(max-width:600px\)\{#tabBtn1\{font-size:0!important/,'L354 n°17 : o
 has(/html\.theme-light \.btn-blue\{background:#12325e;color:#a9d3ff/,'L354 n°19 : thème clair — .btn-blue pré-inversé (≥7:1 après filtre)');
 has(/html\.theme-light \.btn-orange\{background:#2a1c00;color:#ffbb70/,'L354 n°19 : thème clair — .btn-orange pré-inversé (≥7:1 après filtre)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L354 présents dans index.html + sw.js');
+console.log('── L355 : §2.22-2/3 (19/08) ──');
+has(/id="victoryGoSame" style="min-height:56px;display:none" onclick="victoryConfirmSame\(\)"/,'L355 §2.22-2 : bouton « ✅ Enregistrer · ＋ même client » dans le volet de clôture (masqué par défaut)');
+has(/function victoryConfirmSame\(\)/,'L355 §2.22-2 : même envoi que victoryConfirm (aucune garde contournée)');
+has(/const _l355Same=\(function\(\)\{ try\{ const v=window\._l355SameClient; window\._l355SameClient=null;/,'L355 §2.22-2 : intention consommée UNE fois en tête de saveCommandeFiche (avant trainingGuard)');
+has(/if\(_l355Same\) setTimeout\(function\(\)\{ try\{ _l355PrefillClient\(_l355Same\); \}catch\(e\)\{\} \}, 450\);/,'L355 §2.22-2 : pré-remplissage APRÈS le resetAll du succès seulement');
+has(/function _l355NcFrequent\(id\)/,'L355 §2.22-3 : « NC cause fréquente » = indication seule (fichesCache, ≥2 NC même type, rien coché, rien écrit)');
+has(/fl\.addEventListener\('toggle',function\(e\)/,'L355 §2.22-3 : posée à l ouverture du volet ⚠ Défaut (toggle en capture)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L355 présents dans index.html + sw.js');
 process.exit(fail?1:0);

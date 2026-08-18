@@ -1891,6 +1891,9 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
 @media(max-width:600px){#tabBtn1{font-size:0!important;line-height:0;letter-spacing:0}#tabBtn1::before{content:"📋 Fiche";font-size:15px;line-height:1.2;letter-spacing:.04em}}
 html.theme-light .btn-blue{background:#12325e;color:#a9d3ff;border-color:#2d5a9e}html.theme-light .btn-blue:hover{background:#163a6a}
 html.theme-light .btn-orange{background:#2a1c00;color:#ffbb70;border-color:#7a5200}html.theme-light .btn-orange:hover{background:#331f00}
+/* [L355 · §2.22-2/3 (19/08)] volet de clôture : « ＋ même client » ; ⚠ Défaut : indication « cause fréquente » (jamais cochée) */
+.nc-freq{display:block;flex-basis:100%;width:100%;font-size:13px;color:var(--text3);margin-top:4px}
+.nc-check.nc-freq-hint{outline:1px dashed #b06a00;outline-offset:1px}
 </style>
 </head>
 <body>
@@ -2772,6 +2775,7 @@ html.theme-light .btn-orange{background:#2a1c00;color:#ffbb70;border-color:#7a52
     <div id="victoryBody"></div>
     <div class="modal-btns" style="margin-top:12px">
       <button class="btn btn-ghost" style="min-height:56px" onclick="victoryClose()">Revoir</button>
+      <button class="btn btn-ghost" id="victoryGoSame" style="min-height:56px;display:none" onclick="victoryConfirmSame()">✅ Enregistrer · ＋ même client</button><!-- [L355 · §2.22-2] même envoi (toutes gardes), puis Plan vierge avec le CLIENT pré-rempli -->
       <button class="btn" id="victoryGo" style="min-height:56px;flex:1;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800" onclick="victoryConfirm()">✅ Enregistrer &amp; nouvelle commande</button>
     </div>
   </div>
@@ -2867,7 +2871,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L354';
+const APP_VERSION='2026.08.19-L355';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10081,11 +10085,16 @@ function _openVictory(p){
       +row('Lame · Opérateur', esc(lame||'—')+' · '+esc(op||'—'))
       +(p.etiq?row('Photos étiquettes', p.etiq+' jointe(s) ✓','var(--green)'):'')
       +'<div style="margin-top:10px;font-size:12px;color:var(--muted)">L\'envoi enregistre la fiche définitivement et vide le plan — action irréversible.</div>';
+    try{ const sb=document.getElementById('victoryGoSame'); if(sb){ const _multiCli=(typeof cliMulti==='function')&&cliMulti(); const _known=!!(cli&&typeof CLIENT_DATA!=='undefined'&&CLIENT_DATA[cli]); sb.style.display=(_known&&!_multiCli)?'':'none'; } }catch(e){}   // [L355 · §2.22-2] seulement si le client est du catalogue (le <select> Plan ne peut pas prendre une saisie libre) et hors multi-clients
     document.getElementById('victoryOverlay')?.classList.add('open');
   }catch(e){ try{ if(confirm('Enregistrer la fiche définitivement et vider le plan ?')){ _victoryArmed=true; confirmCommandeRecap(); } }catch(_){} }   // repli ultime : jamais un envoi bloqué par le volet — [L351 · audit] mais jamais SANS confirmation
 }
 function victoryClose(){ try{ document.getElementById('victoryOverlay')?.classList.remove('open'); }catch(e){} }
 function victoryConfirm(){ victoryClose(); _victoryArmed=true; confirmCommandeRecap(); }
+// [L355 · §2.22-2] même envoi que victoryConfirm (aucune garde contournée) ; l'intention « même client » est consommée UNE fois par
+// saveCommandeFiche (tentative suivante, ≤ 2 min) et n'agit qu'APRÈS le resetAll du succès — jamais sur un échec/brouillon.
+function victoryConfirmSame(){ try{ const cli=(document.getElementById('fClient')?.value||'').trim(); window._l355SameClient=cli?{cli:cli,ts:Date.now()}:null; }catch(e){} victoryConfirm(); }
+function _l355PrefillClient(cli){ try{ const el=document.getElementById('planClient'); if(!el||!cli) return; el.value=cli; if(el.value!==cli) return; if(typeof onClientChange==='function') onClientChange(); try{ showPage(0); }catch(e){} try{ document.getElementById('planRef')?.focus({preventScroll:true}); }catch(e){} try{ showToast('＋ Nouvelle commande — client '+cli+' pré-rempli : choisis la référence.','ok'); }catch(e){} }catch(e){} }
 
 async function confirmCommande(){
   if(_shareBlockSend()) return;   // [L63 · Lot 5] destinataire d'un partage : envoi réservé à l'émetteur
@@ -10721,6 +10730,7 @@ function stopTraining(){
   }catch(e){}
 }
 async function saveCommandeFiche(rows,useful,blade,opts){
+  const _l355Same=(function(){ try{ const v=window._l355SameClient; window._l355SameClient=null; return (v&&v.cli&&(Date.now()-v.ts)<120000)?v.cli:null; }catch(e){ return null; } })();   // [L355 · §2.22-2] consommée ICI, une seule fois, quelle que soit l'issue de l'envoi (entraînement compris : jamais reportée sur un envoi réel suivant)
   if(trainingGuard()){ try{ showToast('🎓 ENTRAÎNEMENT — fiche NON envoyée (rien en base). Remise à zéro.'); }catch(e){} try{ resetAll(); }catch(e){} return null; }
   // ── Verrou anti double-clic : un double-tap tablette pendant le commit
   //    créait fiche + temps EN DOUBLE. Le bouton est désactivé pour de vrai.
@@ -11141,6 +11151,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   showToast('✓ Commande confirmée et enregistrée'+(opts.modifié?' (fiche modifiée)':''),'ok');
   // Reset complet → Plan vierge
   setTimeout(function(){ resetAll(); }, 300);
+  if(_l355Same) setTimeout(function(){ try{ _l355PrefillClient(_l355Same); }catch(e){} }, 450);   // [L355 · §2.22-2] APRÈS le reset : client pré-rempli, curseur sur la référence
   return _ficheIdOut; // [L67 · Audit A] lie le brouillon de solde (manque matière) à la fiche
   }finally{
     _sendingFiche=false;
@@ -19387,6 +19398,22 @@ function syncFlMore(id){
   if(nc && det.dataset.ncSeen!=='1'){ det.open=true; try{ if(typeof _confAutoH==='function') setTimeout(function(){ _confAutoH(document.getElementById('flConf_'+id)); },0); }catch(_){} }   // [L340 · fix audit] volet NC ouvert → la carte quitte le mode compact : hauteur du textarea rejouée
   det.dataset.ncSeen=nc?'1':'';
 }
+// [L355 · §2.22-3] « NC cause fréquente » sur cette réf : simple INDICATION (rien n'est coché, rien n'est écrit) — historique déjà en
+// cache (fichesCache, aucune requête), même réf (nom normalisé), au moins 2 NC du même type. Posée UNE fois par carte à l'ouverture du volet ⚠ Défaut.
+function _l355NcFrequent(id){ try{
+  if(!Array.isArray(fichesCache)||!fichesCache.length) return;
+  const l=(typeof ficheLines!=='undefined')?ficheLines.find(function(x){ return x&&x.id===id; }):null; if(!l) return;
+  const box=document.getElementById(id); const zone=box&&box.querySelector('.nc-checks'); if(!zone||zone.querySelector('.nc-freq')) return;
+  const k=nrm(l.ref||((document.getElementById('fRef')||{}).value||'')); if(!k) return;
+  const cnt={ang:0,casse:0,larg:0,qty:0}; let n=0;
+  fichesCache.forEach(function(f){ if(!f||f.deleted||f.valide===false||!Array.isArray(f.lines)) return; f.lines.forEach(function(d){ if(!d||nrm(d.ref||f.ref||'')!==k) return; if(d.ncAng){cnt.ang++;n++;} if(d.ncCasse){cnt.casse++;n++;} if(d.ncLarg){cnt.larg++;n++;} if(d.ncQty){cnt.qty++;n++;} }); });
+  if(n<2) return;
+  const top=Object.keys(cnt).sort(function(a,b){ return cnt[b]-cnt[a]; })[0]; if(cnt[top]<2) return;
+  const lbl={ang:'Angle',casse:'Casse',larg:'Larg.',qty:'Qté'}[top];
+  const chip=document.createElement('span'); chip.className='nc-freq'; chip.textContent='cause fréquente sur cette réf : '+lbl+' ('+cnt[top]+'×)'; chip.title='Historique en mémoire — indication seulement, rien n\'est coché'; zone.appendChild(chip);
+  const lab=document.getElementById('nc_'+top+'_'+id); if(lab) lab.classList.add('nc-freq-hint');
+}catch(e){} }
+(function _l355NcHook(){ try{ const fl=document.getElementById('ficheLines'); if(!fl||fl.dataset.l355) return; fl.dataset.l355='1'; fl.addEventListener('toggle',function(e){ try{ const d=e.target; if(d&&d.matches&&d.matches('details.fl-more')&&d.open){ const line=d.closest('.fiche-line'); if(line) _l355NcFrequent(line.id); } }catch(_){} },true); }catch(e){} })();   // toggle ne bulle pas → capture
 // Réapplique la règle FEBA (masquage « Droit » + conformité) sur toutes les bobines.
 function refreshAllTest2(){
   (ficheLines||[]).forEach(l=>updateTest2Subs(l.id));
