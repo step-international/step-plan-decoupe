@@ -789,7 +789,7 @@ has(/#planResultSec>#planCards\{flex:1 1 auto;min-height:0;overflow-y:auto/,'L34
 has(/const ok=confirm\('Des BOBINEAUX ou CHUTES en stock à ajouter au plan \?/,'L345 : question stock AVANT le chrono (confirm natif synchrone, 1×/commande, Annuler = ouvrir le plan)');
 has(/if\(_premierDepart\)\{ let _go=true; try\{ _go=\(maybeShowChutesRappel\(\)!==false\); \}catch\(e\)\{\} if\(!_go\) return; \}/,'L345 : chrono NON lancé si l opérateur choisit d ouvrir le plan');
 has(/function _l345ConfDirty/,'L345 : MODIFIER et ÉCARTS = un bouton ; config modifiée → « ♻ RECALCULER »');
-has(/if\(typeof _l345ConfDirty==='function'&&_l345ConfDirty\(id\)\)\{/,'L345 : garde ✂ — pas de coupe tant que les écarts ne sont pas recalculés après modification (toast + halo)');
+has(/if\(!line\.classList\.contains\('coupee'\)&&typeof _l345ConfDirty==='function'&&_l345ConfDirty\(id\)\)\{/,'L345 : garde ✂ — pas de coupe tant que les écarts ne sont pas recalculés après modification (toast + halo) — L351 : jamais sur le dé-marquage');
 has(/data-conf0="\$\{esc\(data\.conf\|\|''\)\}"/,'L345 : config de référence posée à la création de la ligne (donc après chaque recalcul)');
 has(/#changementsZone\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:8px\}/,'L345 : 🔧 Changements = 3 choix compacts, le détail s ouvre pour le choix coché seulement (paysage)');
 has(/chip\('Perte moy\.'/,'L345 : bandeau Données « chef » — bobines + perte moyenne de la semaine (données en cache, aucune requête)');
@@ -830,5 +830,15 @@ has(/#reportBubble\{width:60px!important;height:60px!important;opacity:1!importa
 has(/#etiqPhotoZone img\{width:48px!important;height:48px!important;border:2px solid var\(--green\)!important/,'L350 : vignette photo d étiquette 48px liseré vert dès la prise');
 has(/#outilsFicheDlg \.outils-chg\{display:none\}/,'L350 : entrée 🔧 Changements retirée du tiroir en paysage (bouton du rail)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L350 présents dans index.html + sw.js');
+console.log('── L351 : grosse audit de régression L303 ↔ L350 (3 agents) — correctifs ──');
+has(/if\(!line\.classList\.contains\('coupee'\)&&typeof _l345ConfDirty==='function'/,'L351 : la garde config-modifiée ne bloque plus le DÉ-marquage');
+has(/if\(started\|\|shareLock\) setTimeout/,'L351 : conf0 réinitialisée seulement si le recalcul est parti (ou partage = recalcul impossible)');
+has(/if\(tab==='stock'\) tab='saves';/,'L351 : onglet Stock masqué → jamais un écran Données vide au boot');
+has(/if\(confirm\('Enregistrer la fiche définitivement et vider le plan \?'\)\)\{ _victoryArmed=true; confirmCommandeRecap\(\); \}/,'L351 : replis du volet de clôture = envoi TOUJOURS confirmé');
+has(/window\._lastPertePct=null;/,'L351 : perte % du volet remise à zéro au reset (plus de valeur périmée)');
+has(/format papier L303 restauré/,'L351 : fiche papier printFiche — colonne Cumul au format L303 (« 502 mm : 5 / 9 »), régression L334 corrigée');
+has(/👥 Multi-clients — ＋ 2ᵉ client/,'L351 : 2ᵉ client en 2 taps depuis ⚙ OUTILS Plan');
+has(/#ficheLines:has\(\.fl-badge\.badge-red\) \.fl-current \.fiche-grid>\.field:has\(\.cumul-box\) button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:inline-flex!important\}/,'L351 : ♻ recalcul atteignable en 1 tap dès qu une bobine est NC (rebut)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L351 présents dans index.html + sw.js');
 process.exit(fail?1:0);

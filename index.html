@@ -1811,6 +1811,8 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
 #etiqPhotoZone img{width:48px!important;height:48px!important;border:2px solid var(--green)!important;border-radius:9px!important;box-shadow:0 0 0 2px rgba(69,201,123,.25)}
 @media(min-width:1100px){#outilsFicheDlg .outils-chg{display:none}}   /* [L350] doublon du bouton 🔧 du rail */
 #barExtras #etiqPhotoZone:has(img)+button,#etiqPhotoZone:has(img)~button{border-color:var(--green)!important;color:var(--green)!important}   /* le 📷＋ passe en vert dès qu'une photo est là */
+/* [L351 · audit régression] ♻ recalcul atteignable dès qu'une bobine est en NC (rebut/déchet) : le bouton ♻ de la carte en cours réapparaît (1 tap) */
+@media(min-width:1100px){#ficheLines:has(.fl-badge.badge-red) .fl-current .fiche-grid>.field:has(.cumul-box) button[onclick="recalcEcartsFromFiche()"]{display:inline-flex!important}}
 </style>
 </head>
 <body>
@@ -2642,7 +2644,7 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="outilsPlanTitle">
     <h3 id="outilsPlanTitle">⚙ Outils plan</h3><button class="modal-x" aria-label="Fermer" onclick="closeOutilsDlg('outilsPlanDlg')">✕</button>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');outilsReveal('#cliSection')">👥 Multi-clients</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');outilsReveal('#cliSection');try{ if(typeof cliMulti==='function'&&!cliMulti()&&typeof cliAdd==='function') cliAdd(); }catch(e){}">👥 Multi-clients — ＋ 2ᵉ client</button><!-- [L351 · audit] 2 taps au lieu de 3 : dévoile ET ajoute le 2ᵉ client -->
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');addRefBlock()">＋ Ajouter une référence</button>
       <button class="btn" id="outilsPmBtn" onclick="closeOutilsDlg('outilsPlanDlg');togglePlanManual()">✏️ Modifier le plan à la main</button><!-- [L339 · audit] libellé dynamique : dit « revenir en auto » quand le plan manuel est actif -->
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button>
@@ -2786,7 +2788,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.18-L350';
+const APP_VERSION='2026.08.18-L351';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5687,7 +5689,7 @@ function renderDataSummary(){
     const F=(typeof fichesCache!=='undefined'&&Array.isArray(fichesCache))?fichesCache.filter(function(f){return f&&!f.deleted;}):[];
     const now=new Date(); const day=(now.getDay()+6)%7; const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-day);
     let wk=0,wkKnown=false;
-    F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; if(!t) return; const d=new Date(t); if(!isNaN(d)){ wkKnown=true; if(d>=monday) wk++; } });
+    F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; if(!t) return; const d=new Date(t); if(!isNaN(d)){ wkKnown=true; if(d>=monday&&!(f.valide===false||f.manqueMatiere)) wk++; } });   /* [L351 · audit] même règle que Bobines/Perte (refusées + manque-matière exclues) */
     let noBL='—';
     // [L317 · fix audit] borné à la SEMAINE (comme le 1er chip) : sinon le chiffre mesurait la profondeur du
     // cache (200 fiches au boot, 20 000 après l'historique complet) au lieu d'un en-cours actionnable.
@@ -5726,6 +5728,7 @@ function switchTab(tab){
   if(typeof updateTabBadges==='function') updateTabBadges();
   if(tab==='temps') tab='analyse';   // [L120] onglet Temps fusionné dans Analyse (rétro-compat des anciens appels/liens)
   if(tab==='nc') tab='analyse';      // [L223 · ergo #13] Registre NC fusionné dans Analyse (rétro-compat)
+  if(tab==='stock') tab='saves';     // [L351 · audit] onglet Stock masqué (décision L350) : un poste resté dessus n'arrive plus sur un écran vide
   if(tab==='analyse'&&!canViewAnalyse()&&!canManageData()) tab='saves';   // [L131 · #24] pilotage : accès conservé (Temps)
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
   if(tab==='stock'&&!canViewStock()) tab='saves';
@@ -9976,7 +9979,7 @@ function confirmCommandeRecap(){
 let _victoryArmed=false;
 function _openVictory(p){
   try{
-    const body=document.getElementById('victoryBody'); if(!body){ _victoryArmed=true; confirmCommandeRecap(); return; }
+    const body=document.getElementById('victoryBody'); if(!body){ if(confirm('Enregistrer la fiche définitivement et vider le plan ?')){ _victoryArmed=true; confirmCommandeRecap(); } return; }   // [L351 · audit] repli AVEC confirmation (envoi irréversible)
     const cli=(document.getElementById('fClient')?.value||'').trim();
     const cmd=(document.getElementById('fNumCmd')?.value||'').trim();
     const lame=(document.getElementById('fNumLame')?.value||'').trim();
@@ -9989,14 +9992,14 @@ function _openVictory(p){
       +(cli||cmd?'<div style="color:var(--muted);font-size:13px;margin-top:2px">'+esc(cli)+(cmd?' · '+esc(cmd):'')+'</div>':'')+'</div>'
       +row('Temps', t?t:'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?null:'var(--red)')
       +row('Non-conformités', p.nc?(p.nc+' NC déclarée(s)'):'0 NC ✓', p.nc?'var(--red)':'var(--green)')
-      +((typeof window._lastPertePct==='number')?row('Perte matière', window._lastPertePct.toFixed(1).replace('.',',')+' %', window._lastPertePct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5)?'#ffb968':'var(--green)'):'')   /* [L344 · §2.5] perte % du plan */
+      +((typeof window._lastPertePct==='number'&&!(typeof planManual!=='undefined'&&planManual))?row('Perte matière', window._lastPertePct.toFixed(1).replace('.',',')+' %', window._lastPertePct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5)?'#ffb968':'var(--green)'):'')   /* [L344 · §2.5] perte % du plan */
       +((typeof _gamifOff==='function'&&!_gamifOff()&&typeof streakGet==='function'&&streakGet()>=2)?row('Série sans NC', '×'+streakGet()+(streakGet()>=25?' ⭐':streakGet()>=10?' 🔥':''),'#ffd45e'):'')   /* [L344 · §2.5] série (localStorage, jamais en base) */
       +row('Machine(s)', esc(p.machStr))
       +row('Lame · Opérateur', esc(lame||'—')+' · '+esc(op||'—'))
       +(p.etiq?row('Photos étiquettes', p.etiq+' jointe(s) ✓','var(--green)'):'')
       +'<div style="margin-top:10px;font-size:12px;color:var(--muted)">L\'envoi enregistre la fiche définitivement et vide le plan — action irréversible.</div>';
     document.getElementById('victoryOverlay')?.classList.add('open');
-  }catch(e){ _victoryArmed=true; try{ confirmCommandeRecap(); }catch(_){} }   // repli ultime : jamais un envoi bloqué par le volet
+  }catch(e){ try{ if(confirm('Enregistrer la fiche définitivement et vider le plan ?')){ _victoryArmed=true; confirmCommandeRecap(); } }catch(_){} }   // repli ultime : jamais un envoi bloqué par le volet — [L351 · audit] mais jamais SANS confirmation
 }
 function victoryClose(){ try{ document.getElementById('victoryOverlay')?.classList.remove('open'); }catch(e){} }
 function victoryConfirm(){ victoryClose(); _victoryArmed=true; confirmCommandeRecap(); }
@@ -11211,6 +11214,7 @@ function resetAll(){
   document.getElementById('sendPlanBtn').style.cursor='pointer';
   document.getElementById('sendPlanHint').style.display='block';
   try{ if(typeof _l341RenderCondSummary==='function') _l341RenderCondSummary(); }catch(e){}   // [L341 · fix audit] carte-résumé emballage remise à zéro avec le plan
+  try{ window._lastPertePct=null; }catch(e){}   // [L351 · audit] le volet de clôture ne montre pas la perte d'un plan précédent
 
   // Retourner sur la page Plan
   showPage(0);
@@ -18751,7 +18755,7 @@ function coupeeTapOne(id){
   const line=document.getElementById(id);
   if(!line){ return; }
   // [L345 · demande Esteban] config MODIFIÉE et pas recalculée → pas de coupe : le plan (écarts) doit d'abord être recalculé
-  if(typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)){
+  if(!line.classList.contains('coupee')&&typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)){   // [L351 · audit] la garde ne vise que la COUPE : le dé-marquage garde son confirm historique
     showToast('♻ Config modifiée : recalcule les écarts avant de couper (bouton « ♻ RECALCULER » sur la bobine).','err');
     try{ const c=line.querySelector('.fl-edit-chip'); if(c){ c.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
     return;
@@ -19691,7 +19695,9 @@ function _l345EditChip(id){ try{
     // Après le tap RECALCULER, la config saisie DEVIENT la référence de la ligne (la règle « modifier ⇒ recalculer avant
     // de couper » est respectée ; jamais de tap mort permanent). Si la ligne est reconstruite, sa nouvelle config est de toute façon la référence.
     let started=false; try{ const r=(typeof recalcEcartsFromFiche==='function')?recalcEcartsFromFiche():null; started=!!(r&&r.started); }catch(e){}
-    setTimeout(function(){ try{ const t=document.getElementById('flConf_'+id); if(t){ t.dataset.conf0=String(t.value||'').trim(); } _l345SyncEditChips(); }catch(e){} }, started?1300:0);
+    const shareLock=(typeof _shareCurrentDocId==='function')&&!!_shareCurrentDocId();   // [L351 · audit] partage actif = recalcul impossible → on n'enferme pas l'opérateur
+    if(started||shareLock) setTimeout(function(){ try{ const t=document.getElementById('flConf_'+id); if(t){ t.dataset.conf0=String(t.value||'').trim(); } _l345SyncEditChips(); }catch(e){} }, started?1300:0);
+    else { try{ showToast('♻ Recalcul non lancé — la bobine reste « à recalculer » (retape ♻ RECALCULER, ou remets la config d\'origine).','err'); }catch(e){} }
     return;
   }
   const t=document.getElementById('flConf_'+id); if(t){ t.focus(); try{ t.setSelectionRange(0,t.value.length); }catch(e){} }
@@ -21825,7 +21831,7 @@ function printFiche(){
     const conf2=(_flMachineOf(l.id)==='feba')?devi:(devi&&droit);   // [L65] machine de la ligne
     const test2=conf2?'✓':((devi?'Dév.':'')+(droit?'Droit':''))||'';
     const cumEl=document.getElementById('flCumul_'+l.id);
-    const cumText=cumEl?cumEl.innerText.trim().replace(/\n+/g,', '):'—';
+    const cumText=(function(){ if(!cumEl) return '—'; try{ const cards=[...cumEl.querySelectorAll('.cumul-card')]; if(cards.length){ const parts=cards.map(function(c){ const t=(c.querySelector('.cc-t')||{}).textContent||''; const v=(c.querySelector('.cc-v')||{}).textContent||''; const x=(c.querySelector('.cc-x')||{}).textContent||''; return t.replace(/^\s*LAIZE\s+/i,'').trim()+' : '+v.replace(/\s+/g,' ').trim()+(x.trim()?', '+x.replace(/\s+/g,' ').trim():''); }); const rest=[...cumEl.children].filter(function(n){ return !n.classList.contains('cumul-card'); }).map(function(n){ return n.innerText.replace(/\s+/g,' ').trim(); }).filter(Boolean); return parts.concat(rest).join(', '); } }catch(e){} return cumEl.innerText.trim().replace(/\n+/g,', '); })();   // [L351 · audit régression] les cartes L334 collaient le texte (« LAIZE 502 mm5 / 9 ») : format papier L303 restauré (« 502 mm : 5 / 9 »)
     const nc=['larg','qty','casse','ang'].filter(k=>document.getElementById('nc_'+k+'_'+l.id)?.querySelector('input')?.checked);
     const ncText=nc.length?nc.join(', '):'RAS';
     const ncDetail=document.getElementById('nc_detail_'+l.id)?.value||'';
