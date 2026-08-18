@@ -824,5 +824,11 @@ has(/#ficheRail>#shareBlock>#shareBtn\{display:none\}/,'L349 : PARTAGER hors du 
 has(/class="btn outils-share" onclick="closeOutilsDlg\('outilsFicheDlg'\);toggleSharePanel\(true\)"/,'L349 : entrée 🤝 Partager dans ⚙ OUTILS');
 has(/hb\.classList\.add\('rail-hide'\)/,'L349 : 🙈/👁 coupées déplacé dans le rail en paysage (retour dans #chgBtnRow en portrait)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L349 présents dans index.html + sw.js');
+console.log('── L350 : retours Esteban n°4 (18/08) ──');
+has(/#tabStock,#tabContentStock\{display:none!important\}/,'L350 : onglet Stock retiré de Données (masqué, contenu conservé)');
+has(/#reportBubble\{width:60px!important;height:60px!important;opacity:1!important;background:#1e3a5f!important/,'L350 : bulle 💬 bleue, 60px, pleinement visible');
+has(/#etiqPhotoZone img\{width:48px!important;height:48px!important;border:2px solid var\(--green\)!important/,'L350 : vignette photo d étiquette 48px liseré vert dès la prise');
+has(/#outilsFicheDlg \.outils-chg\{display:none\}/,'L350 : entrée 🔧 Changements retirée du tiroir en paysage (bouton du rail)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L350 présents dans index.html + sw.js');
 process.exit(fail?1:0);
