@@ -17,6 +17,7 @@
 // USAGE :
 //   node tests/agent.mjs            # mission 1 (batterie) — runnable MAINTENANT, aucun prérequis
 //   node tests/agent.mjs --flow     # missions 1 + 2 (Playwright, si dispo + STEP_URL)
+//   node tests/agent.mjs --sim 20   # [L356] missions 1 + 2 bis : sim200.mjs (Chrome headless, serveur local 8000 ou STEP_URL)
 //   node tests/agent.mjs --summary  # force l'envoi du résumé du matin
 // ============================================================
 import { spawnSync } from 'node:child_process';
@@ -98,17 +99,35 @@ async function runFlow() {
   return fails;
 }
 
+// ── MISSION 2 bis [L356 · backlog n°14] : parcours nominal RÉEL via tests/sim200.mjs (Chrome headless + CDP, zéro dépendance,
+//    mode entraînement = aucune écriture) — remplace le squelette Playwright quand un serveur local sert l'app.
+//    `--sim [n]` : n commandes (déf. 20) sur STEP_URL ou http://127.0.0.1:8000/. Ignoré proprement si le serveur ne répond pas.
+async function runSim(n) {
+  const URL = process.env.STEP_URL || 'http://127.0.0.1:8000/';
+  try { const r = await fetch(URL, { signal: AbortSignal.timeout(2500) }); if (!r.ok) throw new Error('HTTP ' + r.status); }
+  catch (e) { log(`⏭️  --sim ignoré : ${URL} injoignable (${e.message}). Lance : cd ~/step-plan-decoupe && python3 -m http.server 8000 --bind 127.0.0.1`); return null; }
+  const r = spawnSync('node', [join(HERE, 'sim200.mjs'), '--n', String(n), '--url', URL], { encoding: 'utf8', timeout: 1_800_000 });
+  const tail = (r.stdout || '').trim().split('\n').slice(-1)[0] || (r.stderr || '').trim().slice(0, 200);
+  log(`sim200 (${n}) : ${tail}`);
+  if (r.status === 0) return [];
+  // détail des anomalies depuis le rapport JSON (mêmes chemins que sim200.mjs)
+  try { const rep = JSON.parse(readFileSync(join(HERE, 'sim200-report.json'), 'utf8')); return (rep.summary.bugKinds || []).map(([k, c]) => `sim200 : ${k} (×${c})`); }
+  catch (_) { return [`sim200 : sortie ${r.status} — ${tail}`]; }
+}
+
 // ── ORCHESTRATION ───────────────────────────────────────────
 const argv = process.argv.slice(2);
 const wantFlow = argv.includes('--flow');
+const simIdx = argv.indexOf('--sim'); const wantSim = simIdx >= 0; const simN = wantSim ? (+(argv[simIdx + 1]) || 20) : 0;   // [L356]
 const forceSummary = argv.includes('--summary');
 
 const battery = runBattery();
 const broken = battery.filter(r => !r.ok);
 let flowFails = null;
 if (wantFlow) { flowFails = await runFlow(); }
+let simFails = null; if (wantSim) { simFails = await runSim(simN); }   // [L356]
 
-const allFails = [...broken.map(b => `TEST ${b.f} : ${b.tail}`), ...((flowFails || []).map(f => `FLOW ${f}`))];
+const allFails = [...broken.map(b => `TEST ${b.f} : ${b.tail}`), ...((flowFails || []).map(f => `FLOW ${f}`)), ...((simFails || []).map(f => `SIM ${f}`))];
 
 if (allFails.length) {
   // Mail IMMÉDIAT (regroupé par signature = liste triée des tests cassés)
@@ -119,7 +138,7 @@ if (allFails.length) {
   log(`❌ ${allFails.length} échec(s) : ` + allFails.join(' | '));
   process.exit(1);
 } else {
-  log(`✅ tout vert : ${battery.length} suites` + (wantFlow ? ` + parcours (${flowFails === null ? 'flow non exécuté' : flowFails.length + ' échec flow'})` : ''));
+  log(`✅ tout vert : ${battery.length} suites` + (wantFlow ? ` + parcours (${flowFails === null ? 'flow non exécuté' : flowFails.length + ' échec flow'})` : '') + (wantSim ? ` + sim200 (${simFails === null ? 'serveur absent' : simN + ' commandes OK'})` : ''));
   // Résumé du matin (7 h ± ou forcé) : UN mail quand tout va bien, jamais sinon.
   if (forceSummary || NOW.getHours() === 7) {
     deliver('✅ STEP agent — nuit calme',

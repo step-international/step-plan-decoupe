@@ -855,8 +855,12 @@ has(/^#ficheHeadSide\{display:none\}$/m,'L352 : slot inerte hors paysage (portra
 console.log('── L353 : backlog améliorations n°8 · 9 · 10 · 12 (19/08) ──');
 has(/_ln\.classList\.toggle\('conf-long',String\(el\.value\|\|''\)\.replace\(\/\\s\+\/g,''\)\.length>22\)/,'L353 n°8 : config longue → classe conf-long (police réduite en paysage au lieu de 2 lignes)');
 has(/function _l353Overflow\(id\)/,'L353 n°9 : dépassement calculé comme le chip CHUTE (lecture calcStats)');
-has(/Marquer quand même cette bobine COUPÉE \?'\)\) return;/,'L353 n°9 : confirmation de sécurité NATIVE synchrone au ✂ quand la config dépasse (jamais un blocage sec)');
-has(/<span class="foc-cfg"> · '\+esc\(_cfg\)\+'<\/span>/,'L353 n°10 : ordre de coupe ligne 3 = n bobines · config à venir (§2.21)');
+has(/Marquer quand même cette bobine COUPÉE \?'\)\)\{/,'L353 n°9 : confirmation de sécurité NATIVE synchrone au ✂ quand la config dépasse (jamais un blocage sec) — fix audit : halo après refus');
+has(/return w<-0\.5\?-w:0; \}catch\(e\)\{ return 0; \} \}/,'L353 fix audit : tolérance 0,5 mm (seuil moteur) — plus de « dépasse de 0 mm »');
+has(/const _dm=Date\.now\(\)-_lastCoupeeMarkMs; if\(_dm>=0&&_dm<700\) return;/,'L353 fix audit : anti-rebond B40 AVANT le dialogue de dépassement');
+has(/animation:l353OverPulse 1\.8s ease-out infinite/,'L353 fix audit : halo rouge dédié sur DÉPASSE (plus arcadePulse ambre)');
+has(/<span class="foc-cfg"> · ➜ '\+esc\(_cfg\)\+'<\/span>/,'L353 n°10 : ordre de coupe ligne 3 = n bobines · ➜ config à venir (§2.21)');
+has(/const cf=row\.querySelector\('\.foc-cfg'\); if\(cf\)\{/,'L353 fix audit : config de la ligne 3 rafraîchie à chaque coche (_l340SyncOrderStates)');
 has(/^\.foc-cfg\{display:none\}$/m,'L353 n°10 : config de la ligne 3 masquée en portrait (identique)');
 has(/document\.body\.classList\.toggle\('apprenti',!!apprenti\)/,'L353 n°12 : body.apprenti posé par hintCoupeeApply (mode apprenti visible)');
 has(/body\.apprenti #coupeeBanner::after\{content:"🎓 APPRENTI"/,'L353 n°12 : chip 🎓 APPRENTI dans le HUD (paysage)');
@@ -870,12 +874,22 @@ has(/html\.theme-light \.btn-blue\{background:#12325e;color:#a9d3ff/,'L354 n°19
 has(/html\.theme-light \.btn-orange\{background:#2a1c00;color:#ffbb70/,'L354 n°19 : thème clair — .btn-orange pré-inversé (≥7:1 après filtre)');
 
 console.log('── L355 : §2.22-2/3 (19/08) ──');
-has(/id="victoryGoSame" style="min-height:56px;display:none" onclick="victoryConfirmSame\(\)"/,'L355 §2.22-2 : bouton « ✅ Enregistrer · ＋ même client » dans le volet de clôture (masqué par défaut)');
+has(/id="victoryGoSame" style="min-height:56px;display:none;flex-basis:100%;justify-content:center" onclick="victoryConfirmSame\(\)"/,'L355 §2.22-2 : bouton « ＋ Même client pour la commande suivante » dans le volet de clôture (masqué par défaut ; forme L356 après audit)');
 has(/function victoryConfirmSame\(\)/,'L355 §2.22-2 : même envoi que victoryConfirm (aucune garde contournée)');
 has(/const _l355Same=\(function\(\)\{ try\{ const v=window\._l355SameClient; window\._l355SameClient=null;/,'L355 §2.22-2 : intention consommée UNE fois en tête de saveCommandeFiche (avant trainingGuard)');
 has(/if\(_l355Same\) setTimeout\(function\(\)\{ try\{ _l355PrefillClient\(_l355Same\); \}catch\(e\)\{\} \}, 450\);/,'L355 §2.22-2 : pré-remplissage APRÈS le resetAll du succès seulement');
 has(/function _l355NcFrequent\(id\)/,'L355 §2.22-3 : « NC cause fréquente » = indication seule (fichesCache, ≥2 NC même type, rien coché, rien écrit)');
 has(/fl\.addEventListener\('toggle',function\(e\)/,'L355 §2.22-3 : posée à l ouverture du volet ⚠ Défaut (toggle en capture)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L355 présents dans index.html + sw.js');
+console.log('── L356 : correctifs des audits L353 · L354 · L355 (19/08) ──');
+has(/const L=Array\.isArray\(f\.ficheDetail\)\?f\.ficheDetail:\(Array\.isArray\(f\.lines\)\?f\.lines:null\)/,'L356 (audit L355) : NC fréquente lit ficheDetail (les bobines d une fiche envoyée) — la feature était inerte');
+has(/id="victoryGoSame" style="min-height:56px;display:none;flex-basis:100%;justify-content:center"/,'L356 (audit L355) : bouton « ＋ Même client » sur SA ligne, sans ✅ (3 boutons débordaient en atelier)');
+has(/function _openVictory\(p\)\{\n  try\{ window\._l355SameClient=null; \}catch\(e\)\{\}/,'L356 (audit L355) : intention « même client » purgée à chaque ouverture du volet');
+has(/!\(opts&&opts\.manqueMatiere\)&&\(Date\.now\(\)-v\.ts\)<120000/,'L356 (audit L355) : jamais de pré-remplissage sur un envoi manque-matière');
+has(/\.nc-check\.nc-freq-hint:not\(\.sel\):not\(:focus-within\)/,'L356 (audit L355) : indication NC jamais par-dessus l état coché ni le focus');
+has(/aria-label="Fiche de découpe" onclick="showPage\(1\)"/,'L356 (audit L354) : aria-label sur l onglet Fiche (nom accessible propre sur téléphone)');
+has(/html\.theme-light \.btn-green\{background:#0e3a1c;color:#a7f3c0\}html\.theme-light \.btn-red\{background:#330a0a;color:#ffbdbd\}/,'L356 (audit L354) : thème clair — vert/rouge pré-inversés (≥9,5:1)');
+has(/body\.atelier #saveFilterToday\{font-size:15px/,'L356 (audit L354) : échelle atelier du filtre Aujourd hui');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L356 présents dans index.html + sw.js');
 process.exit(fail?1:0);
