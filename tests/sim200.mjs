@@ -12,6 +12,8 @@ import { join } from 'node:path';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.startsWith('--') ? [a.slice(2), (arr[i + 1] && !arr[i + 1].startsWith('--')) ? arr[i + 1] : true] : []).filter(Boolean));
 const N = +(args.n || 200), SEED = +(args.seed || 42), URL_ = args.url || 'http://127.0.0.1:8000/';
+// [L356] --multi <p> proba d'une 2e référence (déf. .3) · --nc <p> proba d'une NC réelle motif+action (déf. .25) · --nomulti / --nonc pour couper
+const P_MULTI = args.nomulti ? 0 : +(args.multi || 0.3), P_NC = args.nonc ? 0 : +(args.nc || 0.25);
 const PORT = 9400 + Math.floor(Math.random() * 400);
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const udd = mkdtempSync(join(tmpdir(), 'stepsim-'));
@@ -52,6 +54,9 @@ const PAGE_ONE = `(async function(k){
     for(let i=0;i<nL;i++){ const w=pick([40,49,60,70,80,100,120,157,200,250,300,400,502,612]); const qty=ri(1,60); if(w>useful) continue; cmd.push({w,qty}); rows.appendChild(makeOrderRow(String(qty),String(w))); }
     if(!cmd.length){ cmd=[{w:100,qty:10}]; rows.appendChild(makeOrderRow('10','100')); }
     if(R()<0.15){ if(typeof addPlanChuteTo==='function'){ const b=q('.ref-block button[onclick^="addPlanChuteTo"]'); if(b) b.click(); const cr=q('.rb-chutes .rb-chute-row, .rb-chutes>*'); const ins=cr?cr.querySelectorAll('input'):[]; if(ins.length>=2){ ins[0].value=String(cmd[0].w); ins[1].value='2'; ins[0].dispatchEvent(new Event('input',{bubbles:true})); ins[1].dispatchEvent(new Event('input',{bubbles:true})); rep.chute=true; } } }
+    // [L356] MULTI-RÉF : 2e référence du même client (autre réf si possible), 1-2 laizes, mère 1250 si vide
+    let multi=false; if(R()<${P_MULTI}&&refs.length>1&&typeof addRefBlock==='function'){ try{ addRefBlock(); const b2=document.querySelectorAll('.ref-block')[1]; const sel=b2.querySelector('[data-rb=ref]'); const o=[...sel.options].map(o=>o.value).filter(v=>v&&v!==ref); sel.value=o.length?pick(o):ref; sel.dispatchEvent(new Event('change',{bubbles:true})); const m2=b2.querySelector('[data-rb=mother]'); if(m2&&!m2.value){ m2.value='1250'; m2.dispatchEvent(new Event('input',{bubbles:true})); } const mc2=b2.querySelector('[data-rb=machine]'); if(mc2&&!mc2.value){ mc2.value=pick(['feba','maveg','cevenini']); mc2.dispatchEvent(new Event('change',{bubbles:true})); } const r2=b2.querySelector('.rb-rows'); r2.innerHTML=''; const n2=ri(1,2); for(let i=0;i<n2;i++){ r2.appendChild(makeOrderRow(String(ri(1,20)),String(pick([100,157,200,300,450])))); } multi=true; }catch(e){ bug('multi : addRefBlock a levé '+e.message); } }
+    rep.multi=multi;
     recalcPlan(); await wait(60);
     const cards=document.querySelectorAll('#planCards .bobine-card').length;
     const tiles=[...document.querySelectorAll('#statsBar .stat-tile b')].map(e=>e.textContent.trim());
@@ -68,9 +73,15 @@ const PAGE_ONE = `(async function(k){
     set('fNumLame','L-'+ri(1,40));
     // 3) garde config modifiée (1 commande sur 3)
     if(R()<0.34&&ficheLines.length){ const l0=ficheLines[0]; const ta=document.getElementById('flConf_'+l0.id); if(ta&&ta.dataset.conf0){ ta.value=ta.value+' + 1×'+pick([50,80]); ta.dispatchEvent(new Event('input',{bubbles:true})); await wait(260); const chip=document.getElementById(l0.id).querySelector('.fl-edit-chip'); const btn=document.getElementById('coupeeBtn_'+l0.id); btn.click(); await wait(80); const refused=!document.getElementById(l0.id).classList.contains('coupee'); rep.guard={chip:chip?chip.textContent:null, refused}; if(!refused) bug('garde recalcul : coupe ACCEPTÉE malgré config modifiée'); if(chip&&chip.textContent.indexOf('RECALCULER')<0) bug('garde recalcul : bouton pas passé en RECALCULER'); if(typeof _l345EditChip==='function') _l345EditChip(l0.id); await wait(1500); rep.guard.linesAfter=ficheLines.length; rep.guard.stillDirty=(typeof _l345ConfDirty==='function')?_l345ConfDirty(ficheLines[0]&&ficheLines[0].id):null; } }
-    // 4) coupe de toutes les bobines (chrono AUTO au 1er ✂)
+    // [L356] MULTI-RÉF : le bloc « valider la bobine mère » de la réf 1 doit exister ; en-tête dépliée (L352) → il vient dans #ficheHeadSide et VALIDER y marche
+    const _valRef=async()=>{ const blk=document.querySelector('.fmm-inline-block.active'); const btn=blk&&blk.querySelector('.btn-blue'); if(btn){ btn.click(); await wait(120); return true; } return false; };
+    if(multi){ if(typeof fmmIsMulti!=='function'||!fmmIsMulti()) bug('multi : fmmIsMulti() faux après import'); const blk0=document.querySelector('.fmm-inline-block.active'); if(!blk0) bug('multi : aucun bloc « valider la bobine mère » actif'); else { try{ toggleFicheHead(true); await wait(60); const side=document.getElementById('ficheHeadSide'); const inSlot=!!(side&&side.contains(document.querySelector('.fmm-inline-block.active'))); rep.l352={inSlot, twocol:document.getElementById('ficheHeadSec').classList.contains('head-2col'), hdrMiniHidden:getComputedStyle(document.querySelector('#ficheHeadSec .hdr-mini')).display==='none'}; if(!inSlot) bug('L352 : bloc réf actif PAS dans le slot en-tête déplié'); if(!rep.l352.hdrMiniHidden) bug('L352 : Client/Réf visibles dans l en-tête dépliée'); const okV=await _valRef(); if(!okV) bug('L352 : bouton VALIDER absent dans le slot'); toggleFicheHead(false); await wait(60); if(side&&side.children.length) bug('L352 : slot non vidé au repli'); if(document.querySelectorAll('.l352-home').length) bug('L352 : jalon .l352-home orphelin après repli'); if(!ficheRefValidated.size) bug('multi : réf 1 non validée après VALIDER dans le slot'); }catch(e){ bug('L352 : '+e.message); } } }
+    // [L356] NC RÉELLE sur une bobine (motif + action + test 2e cochés à la main, comme un opérateur)
+    let ncLine=null; if(R()<${P_NC}&&ficheLines.length){ ncLine=pick(ficheLines); try{ const id=ncLine.id; const det=document.getElementById(id).querySelector('details.fl-more'); if(det) det.open=true; const cb=document.getElementById('nc_'+pick(['larg','qty','casse','ang'])+'_'+id).querySelector('input'); cb.checked=true; updateNC(id); const act=pick(['dechet','chutes']); toggleAction(id,act); const dv=document.getElementById('flDevi_'+id); if(dv&&!dv.checked){ dv.checked=true; dv.dispatchEvent(new Event('change',{bubbles:true})); } const feba=(typeof _flMachineOf==='function')?(_flMachineOf(id)==='feba'):false; const dr=document.getElementById('flDroit_'+id); if(!feba&&dr&&!dr.checked){ dr.checked=true; dr.dispatchEvent(new Event('change',{bubbles:true})); } try{ updateTest2Subs(id); }catch(_){} rep.nc={id, act, badge:!!document.querySelector('#'+id+' .fl-badge.badge-red')}; if(!rep.nc.badge) bug('NC : badge rouge absent après motif coché'); }catch(e){ bug('NC : '+e.message); } }
+    // 4) coupe de toutes les bobines (chrono AUTO au 1er ✂) — [L356] en multi, valider chaque réf quand son bloc devient actif
     let cut=0, tries=0, wasRunning=chronoRunning; const T=ficheLines.length; let jalonSeen=false;
-    for(let i=0;i<T&&tries<T*3;i++){ const l=ficheLines[i]; const el=document.getElementById(l.id); const b=document.getElementById('coupeeBtn_'+l.id); if(!el||!b){ bug('bobine sans bouton ✂ '+i); continue; }
+    for(let i=0;i<T&&tries<T*3;i++){ if(multi){ if(await _valRef()) await wait(1500); }   /* [L356] valider AVANT de lire la ligne : la validation régénère les lignes (ids neufs) */
+      const l=ficheLines[i]; if(!l){ bug('ligne '+i+' disparue après validation'); break; } const el=document.getElementById(l.id); const b=document.getElementById('coupeeBtn_'+l.id); if(!el||!b){ bug('bobine sans bouton ✂ '+i); continue; }
       if(el.classList.contains('coupee')){ cut++; continue; }
       b.click(); await wait(40); for(let r=0;r<3&&!el.classList.contains('coupee');r++){ await wait(800); b.click(); await wait(40); tries++; }
       if(el.classList.contains('coupee')) cut++; else { bug('✂ refusé bobine '+(i+1)+'/'+T+' ('+(document.querySelector('#globalToast')?.textContent||'').slice(0,80)+')'); }
@@ -85,7 +96,7 @@ const PAGE_ONE = `(async function(k){
     try{ confirmCommandeRecap(); }catch(e){ bug('confirmCommandeRecap a levé : '+e.message); }
     await wait(150);
     const vo=document.querySelector('#victoryOverlay.open'); rep.victory=!!vo; if(!vo) bug('volet de clôture NON ouvert après coupe complète');
-    else { const t=document.getElementById('victoryBody').innerText; if(t.indexOf(T+'/'+T)<0) bug('volet : compteur '+T+'/'+T+' absent'); if(t.indexOf('Perte matière')<0) bug('volet : perte % absente'); try{ victoryClose(); }catch(_){} }
+    else { const t=document.getElementById('victoryBody').innerText; if(t.indexOf(T+'/'+T)<0) bug('volet : compteur '+T+'/'+T+' absent'); if(t.indexOf('Perte matière')<0) bug('volet : perte % absente'); if(ncLine&&!/1 NC/.test(t)) bug('volet : la NC déclarée n apparaît pas ('+(t.match(/[^\\n]*NC[^\\n]*/)||[''])[0]+')'); if(!ncLine&&/\\d+ NC déclarée/.test(t)) bug('volet : NC fantôme'); try{ victoryClose(); }catch(_){} }
     resetAll(); await wait(60);
     if(ficheLines.length) bug('resetAll : fiche non vidée');
     if(document.getElementById('victoryOverlay')?.classList.contains('open')) bug('resetAll : volet resté ouvert');

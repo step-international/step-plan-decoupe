@@ -840,5 +840,17 @@ has(/format papier L303 restauré/,'L351 : fiche papier printFiche — colonne C
 has(/👥 Multi-clients — ＋ 2ᵉ client/,'L351 : 2ᵉ client en 2 taps depuis ⚙ OUTILS Plan');
 has(/#ficheLines:has\(\.fl-badge\.badge-red\) \.fl-current \.fiche-grid>\.field:has\(\.cumul-box\) button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:inline-flex!important\}/,'L351 : ♻ recalcul atteignable en 1 tap dès qu une bobine est NC (rebut)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L351 présents dans index.html + sw.js');
+console.log('── L352 : en-tête fiche compacte 2 colonnes (demande Esteban 19/08) ──');
+has(/#ficheHeadSec\.reveal\.l352-idok \.hdr-mini\{display:none\}/,'L352 : Client + Réf. produit masqués dans l en-tête dépliée en paysage (déjà dans les pastilles) — seulement s ils sont renseignés (fix audit)');
+has(/sec\.classList\.toggle\('l352-idok'/,'L352 fix audit : classe l352-idok posée par le sync (client + réf renseignés)');
+has(/body\.atelier #ficheHeadSide \.machine-btn-fiche\{min-height:56px/,'L352 fix audit : échelle atelier conservée dans le slot (cibles ≥48px)');
+has(/#ficheHeadSec\.reveal\.head-2col\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/,'L352 : en-tête dépliée = 2 colonnes (en-tête à gauche · réf + bobine mère + validation à droite)');
+has(/function _l352SyncHeadSide\(\)/,'L352 : sync du slot #ficheHeadSide (bloc actif multi-réf / #fMachineMono mono) — jalon .l352-home = retour exact au repli / portrait');
+has(/renderFicheMachineBlocks\.__l352=true/,'L352 : hook après renderFicheMachineBlocks (le bloc re-rendu revient dans le slot)');
+has(/if\(typeof _l352SyncHeadSide==='function'\) _l352SyncHeadSide\(\);/,'L352 : sync appelée à chaque renderFicheHeadPills (déplié / replié / rotation)');
+has(/\.fh-pills\.open \.fh-arrow\{background:var\(--blue\);border-color:var\(--blue\)/,'L352 : bouton ▴ REPLIER coloré (bleu) et visible');
+has(/#ficheHeadSide>#fMachineMono button\[onclick="printFichePlan\(\)"\]\{display:none\}/,'L352 : 🖨 du bloc machine masqué DANS LE SLOT seulement (doublon exact de 🖨 IMPRIMER de la barre)');
+has(/^#ficheHeadSide\{display:none\}$/m,'L352 : slot inerte hors paysage (portrait strictement identique)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L352 présents dans index.html + sw.js');
 process.exit(fail?1:0);

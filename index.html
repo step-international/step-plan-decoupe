@@ -1813,6 +1813,58 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
 #barExtras #etiqPhotoZone:has(img)+button,#etiqPhotoZone:has(img)~button{border-color:var(--green)!important;color:var(--green)!important}   /* le 📷＋ passe en vert dès qu'une photo est là */
 /* [L351 · audit régression] ♻ recalcul atteignable dès qu'une bobine est en NC (rebut/déchet) : le bouton ♻ de la carte en cours réapparaît (1 tap) */
 @media(min-width:1100px){#ficheLines:has(.fl-badge.badge-red) .fl-current .fiche-grid>.field:has(.cumul-box) button[onclick="recalcEcartsFromFiche()"]{display:inline-flex!important}}
+/* ============================================================
+   [L352 · DEMANDE ESTEBAN 19/08] EN-TÊTE FICHE COMPACTE 2 COLONNES (paysage ≥1100px, en-tête DÉPLIÉE) :
+   (1) Client + Réf. produit ne s'affichent plus dans l'en-tête dépliée (déjà dans la rangée de pastilles) ;
+   (2) l'en-tête ne prend que la MOITIÉ gauche ; la moitié droite (#ficheHeadSide, déplacé par JS _l352SyncHeadSide,
+       retour à sa place au repli / en portrait) = la RÉFÉRENCE avec la bobine mère et son bouton de validation
+       (multi-réf : bloc « Réf N · à couper maintenant » ; mono-réf : bloc Machine / mère / bords / 🔄 Changement plan) ;
+   (3) ▴ REPLIER / ✎ CORRIGER = vrai bouton coloré (bleu = fermer, bordé = ouvrir), toujours visible.
+   Portrait / téléphone : strictement inchangés (le slot est vide + display:none). Papier / PDF : non concernés.
+   ============================================================ */
+#ficheHeadSide{display:none}
+@media(min-width:1100px){
+  #ficheHeadSec.reveal.l352-idok .hdr-mini{display:none}   /* client · réf = pastilles (« c'est marqué sur le côté déjà ») — [fix audit] seulement s'ils sont RENSEIGNÉS (sinon « CLIENT ? » resterait incorrigeable) */
+  #ficheHeadSec.reveal.head-2col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 18px;align-items:start;max-height:min(48vh,calc(100dvh - var(--fiche-top,89px) - 340px))}   /* [fix audit] iPad mini 744px : la barre du bas reste visible (HUD + 1 carte + barre ≈ 340px) */
+  #ficheHeadSec.reveal.head-2col>*{grid-column:1;min-width:0}
+  #ficheHeadSec.reveal.head-2col>#ficheHeadSide{display:block;grid-column:2;grid-row:1/span 40;align-self:stretch;border-left:1px solid var(--border2);padding-left:18px}
+  #ficheHeadSec.reveal>.section-title{margin-bottom:8px}
+  #ficheHeadSec.reveal .field{margin-bottom:8px}
+  #ficheHeadSec.reveal .flex-wrap.mt12{margin-top:6px}
+  /* — colonne droite : le bloc réf/mère À PLAT (plus de carte dans la carte), champs 48px, bouton de validation bien visible — */
+  #ficheHeadSide>.fmm-inline-block,#ficheHeadSide>#fMachineMono{margin:0!important;padding:0!important;border:none!important;background:transparent!important;box-shadow:none;max-height:none;overflow:visible;opacity:1}
+  #ficheHeadSide>#fMachineMono>.section-title{margin-bottom:6px}
+  #ficheHeadSide .fmm-head{margin-bottom:8px;gap:6px}
+  #ficheHeadSide .fmm-name{font-size:18px;font-family:var(--f-head);font-weight:800}
+  #ficheHeadSide .fmm-badge{font-size:13px}
+  #ficheHeadSide .field{margin-bottom:8px}
+  #ficheHeadSide .field label{font-size:13px;margin-bottom:3px}
+  #ficheHeadSide .row3{gap:8px}
+  #ficheHeadSide .row3 input{min-height:48px;font-size:20px;font-weight:700;padding:6px 10px}
+  #ficheHeadSide .machine-btns{gap:6px}
+  #ficheHeadSide .machine-btn-fiche{min-height:48px;padding:8px 6px}
+  /* [fix audit L352] échelle ATELIER (défaut opérateur) conservée dans le slot : les règles #id battaient body.atelier */
+  body.atelier #ficheHeadSide .machine-btn-fiche{min-height:56px;font-size:18px;padding:10px 8px}
+  body.atelier #ficheHeadSide .field label{font-size:16px}
+  body.atelier #ficheHeadSide .row3 input{min-height:52px;font-size:22px}
+  body.atelier #ficheHeadSide .fmm-inline-block>.btn-blue,body.atelier #ficheHeadSide>#fMachineMono .btn-blue{min-height:56px!important;font-size:19px;line-height:56px}
+  body.atelier #ficheHeadSide .fmm-name{font-size:20px}body.atelier #ficheHeadSide .fmm-badge{font-size:15px}
+  body.atelier .fh-arrow{font-size:16px!important}
+  #ficheHeadSide .fmm-inline-block>.btn-blue,#ficheHeadSide>#fMachineMono .btn-blue{min-height:52px!important;font-size:17px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;justify-content:center;margin-top:6px!important}
+  #ficheHeadSide>#fMachineMono>div[style*="display:flex"]{margin-top:6px!important}
+  #ficheHeadSide>#fMachineMono button[onclick="printFichePlan()"]{display:none}   /* doublon exact de 🖨 IMPRIMER de la barre (même printFichePlan) */
+  #ficheHeadSide>#fMachineMono>.section-title[data-l352ref]:not([data-l352ref=""])::after{content:" · " attr(data-l352ref);color:var(--text);letter-spacing:.02em}   /* la référence à côté de « MACHINE » (mono-réf) */
+  #ficheHeadSide .fmm-head .frs-mch{display:none}   /* la machine est déjà dite par le bouton sélectionné juste dessous */
+  #ficheHeadSide .fmm-hint{display:none}   /* « vérifie la vraie bobine mère… » : le bouton le dit (textes courts, règle Esteban) */
+  #ficheHeadSide .fmm-inline-block>.btn-blue{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;line-height:52px;padding:0 12px}
+  #ficheHeadSide #fPlanHint{margin-top:6px!important}
+  #ficheHeadSide .fmm-valsum{gap:6px}
+  /* — bouton REPLIER / CORRIGER coloré et lisible (demande : « plus coloré pour qu'on le voie ») — */
+  .fh-arrow{display:inline-flex;align-items:center;min-height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--border2);background:#222220;color:var(--text)!important;font-size:14px}
+  .fh-pills.open .fh-arrow{background:var(--blue);border-color:var(--blue);color:#0b1526!important;font-weight:800}
+  .fh-pills:not(.open) .fh-arrow{border-color:#5a5852}
+  .fh-pills{padding-right:6px}
+}
 </style>
 </head>
 <body>
@@ -2788,7 +2840,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.18-L351';
+const APP_VERSION='2026.08.19-L352';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9447,7 +9499,7 @@ function chronoStart(){
       // geste = valider la bobine mère de la réf en cours. Orange (à valider) ≠ rouge (dimension modifiée).
       const _ai=(typeof fmmActiveIdx==='function')?fmmActiveIdx():null;
       const _rf=(typeof fmmGetRefs==='function')?(fmmGetRefs().find(x=>x.idx===_ai)||null):null;
-      showToast('⚠ Valide d\'abord la bobine mère de la réf en cours'+(_rf&&_rf.ref?' — « '+refDispCtx(_rf.ref)+' »':'')+' : bouton « 🔄 Valider la bobine mère » juste au-dessus de sa 1re bobine.','err');
+      showToast('⚠ Valide d\'abord la bobine mère de la réf en cours'+(_rf&&_rf.ref?' — « '+refDispCtx(_rf.ref)+' »':'')+' : bouton « 🔄 Valider la bobine mère » (surligné).','err');   // [L352 · fix audit] le bloc peut vivre dans l\'en-tête dépliée : on ne dit plus « au-dessus de sa 1re bobine » (le scroll + le halo le montrent)
       const _blk=document.querySelector('.fmm-block.active')||document.querySelector('.fmm-inline-block.active');
       if(_blk){ try{_blk.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){} _blk.style.outline='3px solid var(--orange)'; setTimeout(function(){ _blk.style.outline=''; },2500); }
       return;
@@ -19611,6 +19663,7 @@ function renderFicheHeadPills(){ try{
   const _empty=!(typeof ficheLines!=='undefined'&&ficheLines.length);
   row.style.display=_empty?'none':'';   // [L343 · demande Esteban] fiche vide : rien à résumer (« CLIENT ? · LAME N° ? » faisait du bruit)
   if(_empty&&open){ ['ficheHeadSec','fMachineMono','ficheChgSec'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.remove('reveal'); }); }   // [fix audit] la rangée disparaît → on ne laisse pas l'en-tête dépliée orpheline
+  try{ if(typeof _l352SyncHeadSide==='function') _l352SyncHeadSide(); }catch(e){}   // [L352] colonne droite (réf + mère + validation) suit l'état déplié/replié
   try{ if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); }catch(e){}
 }catch(e){} }
 // [L343 · fix audit] hauteur de la colonne centrale = écran − (position réelle du haut de la colonne) : les bandeaux en flux
@@ -19682,6 +19735,50 @@ function _l340SetupFichePills(){ try{
   try{ window.addEventListener('resize',function(){ try{ _l343SyncFicheTop(); }catch(_){} });
     if(window.ResizeObserver){ const ro=new ResizeObserver(function(){ try{ _l343SyncFicheTop(); }catch(_){} }); ['sharedViewingBar','sharedWithMeBar','lameAlertBanner','nav'].forEach(function(id){ const el=document.getElementById(id); if(el) ro.observe(el); }); } }catch(e){}
 }catch(e){} }
+// ============================================================
+// [L352 · DEMANDE ESTEBAN 19/08] EN-TÊTE COMPACTE 2 COLONNES (paysage) : quand #ficheHeadSec est dépliée, le bloc
+// « référence + bobine mère + bouton de validation » vient s'asseoir à sa droite dans le slot #ficheHeadSide :
+//   · multi-réf : le bloc .fmm-inline-block.active (« Réf N · à couper maintenant », rendu par renderFicheMachineBlocks) ;
+//   · mono-réf  : #fMachineMono (Machine / mère / bords / 🔄 Changement plan — normalement dans le rail).
+// PUR DÉPLACEMENT DE NŒUD (ids, handlers, sérialisation intacts) : un jalon invisible (.l352-home) marque la place
+// d'origine → retour exact au repli, en portrait, ou dès que le bloc n'est plus le bon (autre réf active, mono↔multi).
+// Piège connu (L339) : jamais de sélecteur ancré sur un nœud déplacé → les règles CSS visent le slot lui-même.
+// ============================================================
+function _l352Restore(n){ try{
+  if(!n) return;
+  const ph=n._l352Home; n._l352Home=null;
+  if(ph&&ph.parentNode){ ph.parentNode.insertBefore(n,ph); ph.remove(); return; }
+  if(n.id==='fMachineMono'){ const rail=document.getElementById('ficheRail'); const ch=document.getElementById('ficheChronoSec'); if(rail){ if(ch&&ch.parentNode===rail) rail.insertBefore(n,ch.nextSibling); else rail.prepend(n); } return; }
+  const fl=document.getElementById('ficheLines'); if(fl&&fl.parentNode) fl.parentNode.insertBefore(n,fl); else n.remove();   // repli : place de la réf 1 (renderFicheMachineBlocks re-rendra la bonne)
+}catch(e){} }
+function _l352SyncHeadSide(){ try{
+  const sec=document.getElementById('ficheHeadSec'); if(!sec) return;
+  let slot=document.getElementById('ficheHeadSide');
+  if(!slot){ slot=document.createElement('div'); slot.id='ficheHeadSide'; sec.appendChild(slot); }
+  // jalons orphelins (le bloc a été re-rendu ailleurs par renderFicheMachineBlocks) → nettoyage
+  document.querySelectorAll('.l352-home').forEach(function(ph){ const n=ph._l352Node; if(!n||!n.isConnected||n.parentNode!==slot||n._l352Home!==ph) ph.remove(); });
+  const want=(typeof _isLandscapeFiche==='function')&&_isLandscapeFiche()&&sec.classList.contains('reveal');
+  try{ const v=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; }; sec.classList.toggle('l352-idok',!!(v('fClient')&&v('fRef'))); }catch(e){}   // [fix audit] client + réf manquants → les champs restent visibles dans l'en-tête dépliée
+  const multi=(typeof fmmIsMulti==='function')&&fmmIsMulti();
+  const mono=document.getElementById('fMachineMono');
+  const node=!want?null:(multi?document.querySelector('.fmm-inline-block.active'):mono);
+  const _ae=document.activeElement; const _keep=(_ae&&_ae!==document.body&&(slot.contains(_ae)||(node&&node.contains(_ae))))?_ae:null;   // [fix audit] rotation clavier ouvert : le nœud déplacé perdrait le focus
+  Array.from(slot.children).forEach(function(n){ if(n!==node) _l352Restore(n); });   // tout ce qui n'a plus sa place repart chez lui
+  if(node&&node.parentNode!==slot){
+    if(!node._l352Home&&node.parentNode){ const ph=document.createElement('span'); ph.className='l352-home'; ph.style.display='none'; ph._l352Node=node; node.parentNode.insertBefore(ph,node); node._l352Home=ph; }
+    slot.appendChild(node);
+  }
+  sec.classList.toggle('head-2col',!!node);
+  if(_keep&&_keep.isConnected&&document.activeElement!==_keep){ try{ _keep.focus({preventScroll:true}); }catch(e){} }
+  if(node===mono&&mono){ try{ const t=mono.querySelector('.section-title'); const fr=document.getElementById('fRef'); if(t) t.dataset.l352ref=fr?String(fr.value||'').split(/\s\+\s/).map(function(x){ return (typeof refDisp==='function')?refDisp(x):x; }).filter(Boolean).join(' + '):''; }catch(e){} }   // mono-réf : « MACHINE · KX1045-1 » (le nom court L293)
+}catch(e){} }
+(function _l352Hook(){ try{
+  if(typeof renderFicheMachineBlocks==='function'&&!renderFicheMachineBlocks.__l352){
+    const _o=renderFicheMachineBlocks;
+    renderFicheMachineBlocks=function(){ const r=_o.apply(this,arguments); try{ _l352SyncHeadSide(); }catch(e){} return r; };
+    renderFicheMachineBlocks.__l352=true;
+  }
+}catch(e){} })();
 // [L345 · demande Esteban] UN bouton MODIFIER/RECALCULER par bobine : la config saisie (data-conf0 = valeur posée à la création de la
 // ligne, donc après chaque recalcul) diffère → la ligne est « à recalculer » : le bouton devient ♻ RECALCULER et le ✂ refuse (coupeeTapOne).
 function _l345ConfDirty(id){ try{ const t=document.getElementById('flConf_'+id); if(!t) return false; const c0=String(t.dataset.conf0||'').trim(); if(!c0) return false; return String(t.value||'').trim()!==c0; }catch(e){ return false; } }

@@ -36,6 +36,11 @@ const SETUP = {
   'fiche-start': `showPage(1); __set('fNumLame','L-12'); chronoStart(); window.scrollTo(0,0);`,
   'fiche-cut': `showPage(1); __set('fNumLame','L-12'); chronoStart(); (function(){ const l=ficheLines[0]; const b=document.getElementById('coupeeBtn_'+l.id); b&&b.click(); })(); window.scrollTo(0,0);`,
   donnees: `stopTraining(); showPage(2); window.scrollTo(0,0);`,
+  // [L352] en-tête DÉPLIÉE (tap sur les pastilles) — mono-réf
+  'fiche-open': `showPage(1); __set('fNumLame','L-12'); toggleFicheHead(true); window.scrollTo(0,0);`,
+  // [L352] MULTI-RÉF (2 références EPCO) — bloc « valider la bobine mère » de la réf 1 visible
+  'fiche-multi': `addRefBlock(); (function(){ const b=document.querySelectorAll('.ref-block')[1]; const sel=b.querySelector('[data-rb=ref]'); const o=Array.from(sel.options).find(o=>o.value&&o.value!==document.getElementById('planRef').value)||sel.options[1]; sel.value=o.value; sel.dispatchEvent(new Event('change',{bubbles:true})); const m=b.querySelector('[data-rb=mother]'); if(m&&!m.value){ m.value='1250'; m.dispatchEvent(new Event('input',{bubbles:true})); } const rows=b.querySelector('.rb-rows'); rows.innerHTML=''; rows.appendChild(makeOrderRow('6','300')); rows.appendChild(makeOrderRow('4','450')); })(); recalcPlan(); showPage(1); __set('fNumLame','L-12'); window.scrollTo(0,0);`,
+  'fiche-multi-open': `addRefBlock(); (function(){ const b=document.querySelectorAll('.ref-block')[1]; const sel=b.querySelector('[data-rb=ref]'); const o=Array.from(sel.options).find(o=>o.value&&o.value!==document.getElementById('planRef').value)||sel.options[1]; sel.value=o.value; sel.dispatchEvent(new Event('change',{bubbles:true})); const m=b.querySelector('[data-rb=mother]'); if(m&&!m.value){ m.value='1250'; m.dispatchEvent(new Event('input',{bubbles:true})); } const rows=b.querySelector('.rb-rows'); rows.innerHTML=''; rows.appendChild(makeOrderRow('6','300')); rows.appendChild(makeOrderRow('4','450')); })(); recalcPlan(); showPage(1); __set('fNumLame','L-12'); toggleFicheHead(true); window.scrollTo(0,0);`,
 };
 
 (async () => {
