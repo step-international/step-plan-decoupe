@@ -817,5 +817,12 @@ has(/const a11yRows=function\(\)/,'L348 : rôles button + clavier (Entrée/Espac
 has(/html\.theme-light #sendPlanWrap\{box-shadow:0 -10px 22px rgba\(255,255,255,\.6\)\}/,'L348 : ombres pré-inversées pour le thème clair (doctrine du fichier)');
 has(/#nav button,\.btn,\.machine-btn-fiche,\.fh-pills\{transition-property:background-color,border-color,color,box-shadow,transform,opacity\}/,'L348 : plus de transition:all');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L348 présents dans index.html + sw.js');
+console.log('── L349 : retours Esteban n°3 (18/08) ──');
+has(/#planCards \.bobine-card \.card-sub\{display:none\}/,'L349 : cartes du plan compactes en paysage (plus de sous-lignes explicatives)');
+has(/#chgBtnRow\{display:none\}   \/\* ligne 🔧 Changements du haut retirée/,'L349 : ligne 🔧 Changements du haut retirée en paysage (bouton du rail = bascule)');
+has(/#ficheRail>#shareBlock>#shareBtn\{display:none\}/,'L349 : PARTAGER hors du rail (⚙ OUTILS), bloc conservé pour l état partagé');
+has(/class="btn outils-share" onclick="closeOutilsDlg\('outilsFicheDlg'\);toggleSharePanel\(true\)"/,'L349 : entrée 🤝 Partager dans ⚙ OUTILS');
+has(/hb\.classList\.add\('rail-hide'\)/,'L349 : 🙈/👁 coupées déplacé dans le rail en paysage (retour dans #chgBtnRow en portrait)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L349 présents dans index.html + sw.js');
 process.exit(fail?1:0);

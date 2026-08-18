@@ -1782,6 +1782,24 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
   #ficheRail .section{padding:12px 16px}#ficheRail>*{margin-bottom:8px}   /* échelle 4/8 */
   #coupeeBanner .fp-seg:not(.cur):not(.ok):not(.nc){box-shadow:inset 0 0 0 1px var(--line2)}   /* crans restants lisibles */
 }
+/* ============================================================
+   [L349 · RETOURS ESTEBAN n°3 (18/08)] Plan : cartes du plan COMPACTES (plus de sous-lignes explicatives, rouleau chute
+   en une ligne, config = résultat seul) ; Fiche paysage : ligne 🔧 Changements du haut RETIRÉE (le bouton du rail suffit et
+   bascule), 🙈/👁 coupées dans le rail à la place de PARTAGER, PARTAGER seulement dans ⚙ OUTILS (le bloc reste pour l'état
+   « partagée » et le volet), tiroir sans l'entrée coupées.
+   ============================================================ */
+@media(min-width:1100px){
+  #planCards .bobine-card .card-sub{display:none}   /* « rouleau chute 300 mm — À RECOUPER EN 1ER · 300 / 300 mm », « utilisé / utile », notes stock : le papier les garde */
+  #planCards .bobine-card .chute-strike,#planCards .bobine-card .chute-arrow{display:none}   /* « 9×201 → 7×201 » : seul le résultat à couper reste (le stock est déjà déduit) */
+  #planCards .bobine-card .chute-note{color:var(--text)}
+  #planCards .bobine-card.recut .bc-count{font-size:14px;white-space:nowrap}
+  #planCards .bobine-card .badge-recut{font-size:14px}
+  #chgBtnRow{display:none}   /* ligne 🔧 Changements du haut retirée : le bouton du rail ouvre/ferme la zone */
+  #ficheRail>#shareBlock>#shareBtn{display:none}   /* PARTAGER → ⚙ OUTILS ; le bloc garde l'état partagé et le volet */
+  #ficheRail>#hideCoupeesBtn.rail-hide{display:flex!important;order:7;min-height:48px;justify-content:center;font-size:15px;width:100%}
+  #outilsFicheDlg .outils-hide-coupees{display:none}
+}
+@media(max-width:1099px){#outilsFicheDlg .outils-share{display:none}}   /* portrait : PARTAGER est déjà dans la page */
 </style>
 </head>
 <body>
@@ -2601,7 +2619,8 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');outilsChangements()">🔧 Changements — machine · lame · op.2</button><!-- [L339 · audit] ouvre VRAIMENT la zone (elle est repliée .hidden) -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');addFicheLine()">＋ Ligne manuelle</button>
-      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');toggleHideCoupees()">🙈 Masquer / afficher les coupées</button>
+      <button class="btn outils-hide-coupees" onclick="closeOutilsDlg('outilsFicheDlg');toggleHideCoupees()">🙈 Masquer / afficher les coupées</button><!-- [L349] masqué en paysage : le bouton vit dans le rail -->
+      <button class="btn outils-share" onclick="closeOutilsDlg('outilsFicheDlg');toggleSharePanel(true)">🤝 Partager la commande</button><!-- [L349 · demande Esteban] le partage (rare) ne vit plus que dans ⚙ OUTILS -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');saveDraftManual()">💾 Brouillon</button>
       <button class="btn" id="outilsRecapBtn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche')">📥 Récap emballage par client</button><!-- [L339 · audit] visible seulement en multi-clients (openOutilsDlg) — en mono la cible n'existe pas à l'écran -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');stopManqueMatiere()">⛔ Arrêt — manque de matière</button>
@@ -2756,7 +2775,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.18-L348';
+const APP_VERSION='2026.08.18-L349';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -19621,8 +19640,13 @@ function _l340SetupFichePills(){ try{
     a11yRows();
     const cb=document.getElementById('coupeeBanner'); if(cb) cb.setAttribute('aria-live','polite');
   }catch(e){}
+  // [L349 · demande Esteban] 🙈 masquer / 👁 voir les coupées : DIRECT dans le rail en paysage (à la place de PARTAGER), retour dans #chgBtnRow en portrait
+  try{ const _placeHide=function(){ try{ const hb=document.getElementById('hideCoupeesBtn'); const rail=document.getElementById('ficheRail'); const row=document.getElementById('chgBtnRow'); if(!hb) return;
+      if(_isLandscapeFiche()){ if(rail&&hb.parentElement!==rail){ rail.appendChild(hb); hb.classList.add('rail-hide'); hb.style.flex=''; } }
+      else if(row&&hb.parentElement!==row){ row.appendChild(hb); hb.classList.remove('rail-hide'); hb.style.flex='1'; } }catch(_){} };
+    _placeHide(); const mq2=window.matchMedia('(min-width:1100px)'); const on2=function(){ try{ _placeHide(); }catch(_){} }; if(mq2.addEventListener) mq2.addEventListener('change',on2); else if(mq2.addListener) mq2.addListener(on2); }catch(e){}
   // [L344 · inventaire §2.10] 🔧 CHANGEMENTS (lame · machine · op.2 · changement plan) en 1 tap dans le rail (paysage) — il fallait ⚙ → 🔧 → case = 3 taps
-  try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railChgBtn')){ const b=document.createElement('button'); b.type='button'; b.id='railChgBtn'; b.className='btn rail-chg'; b.setAttribute('aria-controls','ficheChgSec'); b.innerHTML='🔧 Changements <span class="outils-badge">lame · machine · op.2</span>'; b.addEventListener('click',function(){ try{ outilsChangements(); }catch(_){} }); const ob=document.getElementById('outilsFicheBtn'); if(ob&&ob.parentNode===rail) rail.insertBefore(b,ob.nextSibling); else rail.appendChild(b); } }catch(e){}
+  try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railChgBtn')){ const b=document.createElement('button'); b.type='button'; b.id='railChgBtn'; b.className='btn rail-chg'; b.setAttribute('aria-controls','ficheChgSec'); b.innerHTML='🔧 Changements <span class="outils-badge">lame · machine · op.2</span>'; b.addEventListener('click',function(){ try{ const sec=document.getElementById('ficheChgSec'); if(sec&&sec.classList.contains('reveal')){ sec.classList.remove('reveal'); renderFicheHeadPills(); } else outilsChangements(); }catch(_){} });   /* [L349] bascule : 2e tap = replier */ const ob=document.getElementById('outilsFicheBtn'); if(ob&&ob.parentNode===rail) rail.insertBefore(b,ob.nextSibling); else rail.appendChild(b); } }catch(e){}
   // les pastilles suivent la saisie dans les sections repliables (input/change/click délégués — sans toucher aux handlers)
   ['ficheHeadSec','fMachineMono','ficheChgSec'].forEach(function(id){ const el=document.getElementById(id); if(!el) return;
     ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ setTimeout(renderFicheHeadPills,0); }); });
