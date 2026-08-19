@@ -1944,7 +1944,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   #ficheRight>#sendPlanWrap>#sendPlanHint:empty{display:none!important}                                   /* n°6 : hint vide = 0px (inline display:block) */
   #ficheRight>#coupeeBanner{margin-bottom:4px!important;padding-top:6px!important;padding-bottom:6px!important}   /* n°6 (inline L2511/2520) */
   #coupeeBanner .fp-seg{height:14px}                                                                      /* n°6 */
-  .btn-blue{background:#16283d}                                                                           /* n°7 : 4,07 → 5,29:1 (VALIDER LA BOBINE MÈRE, CHANGEMENT PLAN) */
+  .btn-blue{background:#16283d}.btn-blue:hover{background:#1b3350}                                       /* n°7 : 4,07 → 5,29:1 (VALIDER LA BOBINE MÈRE, CHANGEMENT PLAN) — [L364] hover collant iPad aussi ≥4,5:1 */
   #atelierBtn.on{color:var(--text);border-color:var(--text3);background:var(--s3)}                        /* n°12 : nav neutre (l'orange = avertissement) */
   #roleTag.role-op,#roleTag.role-admin{background:var(--s2);color:var(--text2)}
   .frs-change{font-size:13px}
@@ -2999,7 +2999,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L363';
+const APP_VERSION='2026.08.19-L364';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3859,7 +3859,7 @@ function applyRole(){
   // fiches+temps et parquent des plans). Le droit fin est appliqué CÔTÉ CLIENT uniquement (canManageData).
   // → masquer le bouton Sauvegarder du plan pour les opérateurs (sinon erreur permissions brute).
   var psb=document.getElementById('planSaveBtn');if(psb)psb.style.display=canManage?'':'none';
-  try{ const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; if(_dm){ const _m1=document.querySelector('#refBlocks [data-rb="machine"]'); if(_m1&&!_m1.value&&!(typeof ficheLines!=='undefined'&&ficheLines.length)){ _m1.value=_dm; selectMachine(_dm); if(typeof onRefMachineChange==='function') onRefMachineChange(_m1); } } }catch(e){}   // [L363 · B3] machine du poste posée à la connexion (bloc 1 vide seulement)
+  try{ const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; if(_dm){ const _m1=document.querySelector('#refBlocks [data-rb="machine"]'); const _post=(typeof _machinePostName==='function')?String(_machinePostName()||'').toLowerCase():''; const _pristine=!(typeof ficheLines!=='undefined'&&ficheLines.length)&&!Array.from(document.querySelectorAll('#refBlocks .order-row input[data-type="qty"]')).some(function(i){ return String(i.value||'').trim(); }); if(_m1&&_pristine&&(!_m1.value||(_post&&_post===_dm&&_m1.value!==_dm))){ _m1.value=_dm; selectMachine(_dm); if(typeof onRefMachineChange==='function') onRefMachineChange(_m1); } } }catch(e){}   // [L363 · B3 + L364 fix audit] machine du poste posée à la connexion — Poste > dernière machine, jamais par-dessus une saisie (plan vierge seulement)
   var fmb=document.getElementById('fichesManageBtns');if(fmb)fmb.style.display=canManage?'':'none';
   var tmb=document.getElementById('tempsManageBtns');if(tmb)tmb.style.display=canManage?'':'none';
   var bbz=document.getElementById('backupBtnZone');if(bbz)bbz.style.display=canManage?'flex':'none';
@@ -4405,6 +4405,7 @@ var PKG_CLIENTS={
 function applyPackagingRules(clientName){
   var rules=PKG_CLIENTS[clientName]||PKG_DEFAULT;
   // [L363 · analyse parcours B5] après une saisie MANUELLE dans l'emballage (même commande, même client), la règle ne REMPLIT que les vides
+  if(window._l363PkgClient!==clientName) window._l363PkgTouched=false;   // [L364 · fix audit] la saisie manuelle vaut pour CE client seulement
   var _keep=!!(window._l363PkgTouched&&window._l363PkgClient===clientName);
   var _setIf=function(id,v){ var el=document.getElementById(id); if(!el) return; if(_keep&&String(el.value||'').trim()) return; el.value=v||''; };
   window._l363PkgClient=clientName;
@@ -4419,11 +4420,15 @@ function applyPackagingRules(clientName){
   if(refVal.match(/KX/i)&&!_dejaKx){
     cerclageNote='\n🔵 Film KX détecté → cerclage automatique quelle que soit la largeur.';
   }
-  _setIf('planNotesEmballage',(rules.notes||'')+cerclageNote);
+  var _nEl=document.getElementById('planNotesEmballage');
+  if(_keep&&_nEl&&String(_nEl.value||'').trim()){   // [L364 · fix audit] saisie manuelle gardée MAIS la ligne KX suit la réf (retirée si périmée, ajoutée si la réf est KX)
+    var _v=String(_nEl.value).replace(/\n?🔵 Film KX détecté[^\n]*/,'');
+    _nEl.value=_v+(cerclageNote&&_v.indexOf('Film KX détecté')<0?cerclageNote:'');
+  } else _setIf('planNotesEmballage',(rules.notes||'')+cerclageNote);
   var alertEl=document.getElementById('packagingAlert');
   if(PKG_CLIENTS[clientName]){
     alertEl.classList.remove('hidden');
-    var warn='⚡ Règles spécifiques <strong>'+clientName+'</strong> appliquées. Vérifie et adapte si besoin.';
+    var warn=_keep?('⚡ Règles <strong>'+clientName+'</strong> — ta saisie emballage est conservée (vides complétés).'):('⚡ Règles spécifiques <strong>'+clientName+'</strong> appliquées. Vérifie et adapte si besoin.');   // [L364 · fix audit] ne pas dire « appliquées » quand rien n'a été réécrit
     alertEl.innerHTML=warn;
   } else {
     alertEl.classList.add('hidden');
@@ -6102,16 +6107,17 @@ function onClientChange(){
     refs.map(r=>`<option value="${esc(r.ref)}">${esc(r.ref)}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');
   // Recharge la liste des réfs dans TOUS les blocs (même client partout), en gardant la valeur si possible
   document.querySelectorAll('.ref-block [data-rb="ref"]').forEach(sel=>{
-    const prev=sel.value;
+    const _wasAuto=(sel.id==='planRef'&&!!sel.value&&sel.dataset.l363auto===sel.value);   // [L364 · fix audit] réf posée par B4 et jamais changée par l'opérateur → pas une saisie : ne pas la retenir au changement de client
+    const prev=_wasAuto?'':sel.value; delete sel.dataset.l363auto;
     sel.innerHTML=opts;
     // [L271 · audit #7] réf hors du catalogue du nouveau client : ne plus la VIDER en silence (elle ne
     // revenait pas si on rechangeait de client). applySavedRef la ré-ajoute comme option → saisie conservée.
-    if(refs.some(r=>r.ref===prev)) sel.value=prev; else applySavedRef(sel,prev,client);
-    if(sel.id==='planRef'&&!prev&&refs.length===1&&!sel.value){ sel.value=refs[0].ref; window._l363RefAuto=true; }   // [L363 · B4] client à RÉF UNIQUE (39/85) : présélectionnée (corrigeable) ; rien si une réf était déjà choisie (chargement / reprise)
+    if(prev){ if(refs.some(r=>r.ref===prev)) sel.value=prev; else applySavedRef(sel,prev,client); } else sel.value='';
+    if(sel.id==='planRef'&&!prev&&refs.length===1&&!sel.value){ sel.value=refs[0].ref; sel.dataset.l363auto=refs[0].ref; window._l363RefAuto=true; }   // [L363 · B4] client à RÉF UNIQUE (39/85) : présélectionnée (corrigeable) ; rien si une réf était déjà choisie (chargement / reprise)
   });
-  if(window._l363RefAuto){ window._l363RefAuto=false; try{ onRefChange(); }catch(e){} }
   const lg=document.getElementById('planLongueur'); if(lg) lg.value='';
   const lr=document.getElementById('planLargeur'); if(lr) lr.value='';
+  if(window._l363RefAuto){ window._l363RefAuto=false; try{ onRefChange(); }catch(e){} }   // [L364 · fix audit] APRÈS les vidages historiques (sinon la longueur catalogue était effacée aussitôt)
   updateVekaVisibility(true);   // [L218] changement de client INTERACTIF → vide le sous-type VEKA si on quitte VEKA (anti-rétention)
   updateMandrinVisibility();
   if(client) applyPackagingRules(client);
@@ -19978,7 +19984,7 @@ function _l340SetupFichePills(){ try{
   const ss=document.getElementById('soldeSummary'); if(!ss) renderSoldeSummary([]);
   const soldeSum=document.getElementById('soldeSummary'); if(soldeSum) soldeSum.addEventListener('click',function(){ toggleSoldeCard(); });
   // rotation portrait→paysage : un champ en cours de saisie dans une section repliable ne doit pas disparaître sous le doigt
-  try{ const mq=window.matchMedia('(min-width:1100px)'); const onMq=function(e){ try{ _syncSoldeA11y(); if(e.matches){ const a=document.activeElement; if(a&&a.closest&&a.closest('#ficheHeadSec,#fMachineMono,#ficheChgSec')) toggleFicheHead(true); } renderFicheHeadPills(); if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); }catch(_){} };
+  try{ const mq=window.matchMedia('(min-width:1100px)'); const onMq=function(e){ try{ _syncSoldeA11y(); if(e.matches){ const a=document.activeElement; if(a&&a.closest&&a.closest('#ficheHeadSec,#fMachineMono,#ficheChgSec')) toggleFicheHead(true); } renderFicheHeadPills(); if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); try{ if(typeof _l345SyncEditChips==='function') _l345SyncEditChips(); }catch(_){} }catch(_){} };   /* [L364] rotation : lecture seule de la config levée/posée */
     if(mq.addEventListener) mq.addEventListener('change',onMq); else if(mq.addListener) mq.addListener(onMq); }catch(e){}
   // [L343 · fix audit] la hauteur de la colonne centrale suit sa position réelle : redimensionnement + bandeaux en flux (miroir partage, réception, lame)
   try{ window.addEventListener('resize',function(){ try{ _l343SyncFicheTop(); }catch(_){} });
@@ -20050,7 +20056,7 @@ function _l352SyncHeadSide(){ try{
 function _l345ConfDirty(id){ try{ const t=document.getElementById('flConf_'+id); if(!t) return false; const c0=String(t.dataset.conf0||'').trim(); if(!c0) return false; return String(t.value||'').trim()!==c0; }catch(e){ return false; } }
 function _l345SyncEditChips(){ try{
   // [L363 · analyse parcours B11] paysage : la config de chaque bobine est en LECTURE SEULE tant que ✎ MODIFIER n'est pas tapé (12 px du ✂, le clavier s'ouvrait au moindre frôlement) ; portrait inchangé
-  try{ const _ls=(typeof _isLandscapeFiche==='function')&&_isLandscapeFiche(); document.querySelectorAll('#ficheLines .fiche-line [id^="flConf_"]').forEach(function(t){ if(!_ls){ t.readOnly=false; return; } if(t.dataset.l363edit!=='1') t.readOnly=true; }); }catch(e){}
+  try{ const _ls=(typeof _isLandscapeFiche==='function')&&_isLandscapeFiche(); document.querySelectorAll('#ficheLines .fiche-line [id^="flConf_"]').forEach(function(t){ const _ln=t.closest('.fiche-line'); const _cur=!!(_ln&&_ln.classList.contains('fl-current')); if(!_ls||!_cur){ t.readOnly=false; return; } if(t.dataset.l363edit!=='1') t.readOnly=true; }); }catch(e){}   // [L364 · fix audit] seulement la carte EN COURS (le ✎ MODIFIER n'existe que là) — une carte dépliée reste éditable
   document.querySelectorAll('.fiche-line').forEach(function(line){ const chip=line.querySelector('.fl-edit-chip'); if(!chip) return; const d=_l345ConfDirty(line.id); line.classList.toggle('conf-dirty',d); chip.textContent=d?'♻ RECALCULER':'✎ MODIFIER'; chip.classList.toggle('need-recalc',d); });
 }catch(e){} }
 function _l345EditChip(id){ try{

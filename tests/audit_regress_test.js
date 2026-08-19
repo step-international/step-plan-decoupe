@@ -940,7 +940,7 @@ has(/\.fiche-ref-sep\.change\{border-color:var\(--warn\)/,'L362 B9 : changement 
 
 console.log('── L363 : analyse des parcours — logique validée (B3 B4 B5 B11 B15 · A16 A17 A20) ──');
 has(/function _l363DefaultMachine\(\)/,'L363 B3 : machine par défaut = compte Poste X > dernière machine du poste (resetAll + connexion)');
-has(/if\(sel\.id==='planRef'&&!prev&&refs\.length===1&&!sel\.value\)\{ sel\.value=refs\[0\]\.ref; window\._l363RefAuto=true; \}/,'L363 B4 : client à réf unique → réf présélectionnée (interactif seulement)');
+has(/if\(sel\.id==='planRef'&&!prev&&refs\.length===1&&!sel\.value\)\{ sel\.value=refs\[0\]\.ref; sel\.dataset\.l363auto=refs\[0\]\.ref; window\._l363RefAuto=true; \}/,'L363 B4 : client à réf unique → réf présélectionnée (interactif seulement ; marquée auto depuis L364)');
 has(/var _keep=!!\(window\._l363PkgTouched&&window\._l363PkgClient===clientName\);/,'L363 B5 : emballage — après saisie manuelle la règle ne remplit que les vides');
 has(/if\(t\.dataset\.l363edit!=='1'\) t\.readOnly=true;/,'L363 B11 : config en lecture seule tant que ✎ MODIFIER n est pas tapé (paysage)');
 has(/function initDefaultRows\(\)\{for\(let i=0;i<3;i\+\+\) addOrderRow\(\);\}/,'L363 B15 : 3 lignes vides par défaut (la suivante s ajoute seule)');
@@ -948,5 +948,13 @@ has(/let delay=600;/,'L363 B15 : recalcul du plan léger à 600 ms');
 has(/#planSaveBtn\{display:inline-flex;min-height:48px;width:100%;justify-content:center\}/,'L363 A17 : 💾 Sauvegarder le plan à 1 tap en paysage (gating rôle intact)');
 has(/body\.calc-pending #planCards/,'L363 A20 : plan périmé signalé pendant le recalcul');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L363 présents dans index.html + sw.js');
+console.log('── L364 : correctifs audit L359→L363 ──');
+has(/const _wasAuto=\(sel\.id==='planRef'&&!!sel\.value&&sel\.dataset\.l363auto===sel\.value\);/,'L364 : réf auto (B4) jamais retenue comme saisie au changement de client');
+has(/if\(window\._l363RefAuto\)\{ window\._l363RefAuto=false; try\{ onRefChange\(\); \}catch\(e\)\{\} \}   \/\/ \[L364 · fix audit\] APRÈS les vidages/,'L364 : onRefChange après les vidages (la longueur catalogue n est plus effacée)');
+has(/if\(window\._l363PkgClient!==clientName\) window\._l363PkgTouched=false;/,'L364 : saisie emballage manuelle = pour CE client seulement');
+has(/var _v=String\(_nEl\.value\)\.replace\(\/\\n\?🔵 Film KX détecté\[\^\\n\]\*\/,''\);/,'L364 : ligne KX suit la réf même en mode « saisie gardée »');
+has(/const _cur=!!\(_ln&&_ln\.classList\.contains\('fl-current'\)\); if\(!_ls\|\|!_cur\)\{ t\.readOnly=false; return; \}/,'L364 : lecture seule de la config sur la carte EN COURS seulement (carte dépliée éditable)');
+has(/\.btn-blue:hover\{background:#1b3350\}/,'L364 : hover .btn-blue ≥4,5:1');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L364 présents dans index.html + sw.js');
 process.exit(fail?1:0);
