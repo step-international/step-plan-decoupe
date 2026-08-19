@@ -889,7 +889,7 @@ has(/!\(opts&&opts\.manqueMatiere\)&&\(Date\.now\(\)-v\.ts\)<120000/,'L356 (audi
 has(/\.nc-check\.nc-freq-hint:not\(\.sel\):not\(:focus-within\)/,'L356 (audit L355) : indication NC jamais par-dessus l état coché ni le focus');
 has(/aria-label="Fiche de découpe" onclick="showPage\(1\)"/,'L356 (audit L354) : aria-label sur l onglet Fiche (nom accessible propre sur téléphone)');
 has(/html\.theme-light \.btn-green\{background:#0e3a1c;color:#a7f3c0\}html\.theme-light \.btn-red\{background:#330a0a;color:#ffbdbd\}/,'L356 (audit L354) : thème clair — vert/rouge pré-inversés (≥9,5:1)');
-has(/body\.atelier #saveFilterToday\{font-size:15px/,'L356 (audit L354) : échelle atelier du filtre Aujourd hui');
+has(/body\.atelier #saveFilterToday,body\.atelier #saveFilterMine\{font-size:15px/,'L356 (audit L354) : échelle atelier du filtre Aujourd hui');
 
 console.log('── L357 : retours Esteban (19/08 soir) ──');
 has(/#planLeft>\.flex\.mt8>button\[onclick="addRefBlock\(\)"\]\{display:inline-flex;flex:1;min-height:56px/,'L357 : « + Ajouter une référence » visible sous la réf 1 en paysage (56px, neutre)');
@@ -967,5 +967,12 @@ has(/Brouillon de la tablette '\+_pD\+'\.\\n\\nLe reprendre ICI/,'L365 : reprise
 has(/const _dupKey=d=>\{ const n=_numOf\(d\); return n\?\(_draftPoste\(d\)\+'¦'\+n\):''; \};/,'L365 : une seule carte par (poste, n°) — versions plus anciennes repliées, rien détruit');
 has(/suppression depuis une autre tablette réservée au pilotage\/admin/,'L365 : 🗑️ d un brouillon d une autre tablette réservé au pilotage');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L365 présents dans index.html + sw.js');
+console.log('── L366 : plans & écran Données par tablette ──');
+has(/if\(d\.fromFicheId&&!loadedSaveId\)\{ const _ff=\(fichesCache\|\|\[\]\)\.find/,'L366 D1 : solde ⛔ repris → plan du reste lié (archivé à l envoi)');
+has(/x\.id==='d_solde_'\+s\.resteFromFiche&&!x\.consumed/,'L366 D2 : plan du reste chargé → brouillon solde jumeau consommé à l envoi');
+has(/<details class="drafts-other"/,'L366 E1 : brouillons des autres tablettes repliés (passation à 1 tap), les miens dépliés');
+has(/id="saveFilterMine" aria-pressed="false"/,'L366 E2 : Plans — « ⚙ MA MACHINE seulement » par défaut sur compte machine');
+has(/return !m\.size\|\|m\.has\(_myPm\); \}\);/,'L366 E2 : plans sans machine toujours visibles');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L366 présents dans index.html + sw.js');
 process.exit(fail?1:0);

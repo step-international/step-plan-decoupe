@@ -1890,7 +1890,7 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
    du planning ; (17) téléphone ≤600px : onglet « FICHE » court (Clair/Atelier/Quitter restaient hors écran) ; (19) thème clair : .btn-blue /
    .btn-orange en teintes PRÉ-INVERSÉES (≈2,5-2,8:1 après le filtre → ≥7:1). Palette du thème sombre INCHANGÉE.
    ============================================================ */
-#saveFilterToday{flex:none;padding:0 10px;font-size:13px;letter-spacing:.02em}body.atelier #saveFilterToday{font-size:15px;padding:0 10px}   /* [fix audit] échelle atelier */#saveFilterToday.sel{background:#241d05;color:#ffd45e;border-color:#b8860b}
+#saveFilterToday,#saveFilterMine{flex:none;padding:0 10px;font-size:13px;letter-spacing:.02em}body.atelier #saveFilterToday,body.atelier #saveFilterMine{font-size:15px;padding:0 10px}   /* [fix audit] échelle atelier */#saveFilterToday.sel,#saveFilterMine.sel{background:#241d05;color:#ffd45e;border-color:#b8860b}
 @media(max-width:600px){#tabBtn1{font-size:0!important;line-height:0;letter-spacing:0}#tabBtn1::before{content:"📋 Fiche";font-size:15px;line-height:1.2;letter-spacing:.04em}body.atelier #tabBtn1::before{font-size:19px}}   /* [fix audit] échelle atelier conservée */
 html.theme-light .btn-blue{background:#12325e;color:#a9d3ff;border-color:#2d5a9e}html.theme-light .btn-blue:hover{background:#163a6a}
 html.theme-light .btn-orange{background:#2a1c00;color:#ffbb70;border-color:#7a5200}html.theme-light .btn-orange:hover{background:#331f00}
@@ -1989,7 +1989,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   /* B2 — onglet actif = inversé neutre (l'ambre reste au geste) */
   #nav button.active{color:#141310;background:var(--text);border-bottom-color:var(--text)}
   .tab-bar .tab-btn.active,.tab-btn.active{color:#141310;background:var(--text);border-color:var(--text)}
-  #saveFilterToday.sel{background:var(--text);color:#141310;border-color:var(--text)}
+  #saveFilterToday.sel,#saveFilterMine.sel{background:var(--text);color:#141310;border-color:var(--text)}
   /* A9 — bleu = FEBA seulement : machine sélectionnée = aplat COULEUR MACHINE ; initiales sélectionnées = inversé neutre ; pastilles ouvertes = bord neutre */
   .machine-btn-fiche.sel-feba{background:var(--feba);border-color:var(--feba);color:#141310}
   .machine-btn-fiche.sel-maveg{background:var(--maveg);border-color:var(--maveg);color:#141310}
@@ -2671,7 +2671,8 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
         <option value="">Toutes matières / réf.</option>
       </select>
       <input type="text" id="saveFilterCmd" aria-label="Filtrer les plans par n° de commande" oninput="debouncedRenderSaves()" placeholder="N° commande…" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px"><!-- [L163 · sweep perf #6] débounce (seul filtre texte non débouncé) -->
-      <button type="button" class="btn btn-ghost btn-sm" id="saveFilterToday" aria-pressed="false" onclick="toggleSaveFilterToday()" title="Ne montrer que les plans posés sur AUJOURD'HUI au planning">📅 Aujourd'hui</button><!-- [L354 · backlog n°16] planning du jour → plan en 2 taps (Données · 📅 · 📂 Charger) -->
+      <button type="button" class="btn btn-ghost btn-sm" id="saveFilterToday" aria-pressed="false" onclick="toggleSaveFilterToday()" title="Ne montrer que les plans posés sur AUJOURD'HUI au planning">📅 Aujourd'hui</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="saveFilterMine" aria-pressed="false" onclick="this.classList.toggle('sel');savesRenderLimit=50;renderSaves()" style="display:none">⚙ ma machine</button><!-- [L366 · demande Esteban] tablette machine : par défaut seulement les plans de MA machine (les plans sans machine restent visibles) --><!-- [L354 · backlog n°16] planning du jour → plan en 2 taps (Données · 📅 · 📂 Charger) -->
       <button class="btn btn-ghost btn-sm" onclick="resetSaveFilters()">✕ Reset</button>
     </div>
     <!-- [L65] compteur de commandes préparées (plans sauvegardés en attente de découpe) -->
@@ -3001,7 +3002,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L365';
+const APP_VERSION='2026.08.19-L366';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9257,6 +9258,12 @@ function renderSaves(){
     selR.value=cached.refs.has(cur)?cur:'';
   }
   const fR=selR?selR.value:'';
+  // [L366 · demande Esteban] tablette MACHINE : par défaut seulement les plans de MA machine (refGroups/machine/plannedMachine) — les plans sans machine restent visibles ; bouton pour tout voir
+  const _myPm=(typeof _machinePostName==='function')?_machinePostName():'';
+  const _mb=document.getElementById('saveFilterMine');
+  if(_mb){ _mb.style.display=_myPm?'':'none'; if(_myPm&&_mb.dataset.init!=='1'){ _mb.dataset.init='1'; _mb.classList.add('sel'); } _mb.textContent='⚙ '+(_myPm||'ma machine')+' seulement'; _mb.setAttribute('aria-pressed',_mb.classList.contains('sel')?'true':'false'); }
+  const fMine=!!(_myPm&&_mb&&_mb.classList.contains('sel'));
+  if(fMine) saves=saves.filter(s=>{ const m=new Set(); if(Array.isArray(s.refGroups)) s.refGroups.forEach(g=>{ const l=getMachineLabel((g&&g.machine)||''); if(l) m.add(String(l).toUpperCase()); }); const l=getMachineLabel(s.machine||''); if(l) m.add(String(l).toUpperCase()); if(s.plannedMachine){ const pl=getMachineLabel(s.plannedMachine); if(pl) m.add(String(pl).toUpperCase()); } return !m.size||m.has(_myPm); });
   const fCmd=(document.getElementById('saveFilterCmd')?.value||'').trim().toLowerCase();
   // Réfs réelles d'un plan (multi-réf via refGroups, sinon réf simple).
   const saveRefs=s=>Array.isArray(s.refGroups)&&s.refGroups.length?s.refGroups.map(g=>g.ref).filter(Boolean):(s.ref&&s.ref!=='—'?[s.ref]:[]);
@@ -9353,6 +9360,7 @@ function resetSaveFilters(){
   ['saveFilterClient','saveFilterRef'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const c=document.getElementById('saveFilterCmd');if(c)c.value='';
   try{ const tb=document.getElementById('saveFilterToday'); if(tb) tb.classList.remove('sel'); }catch(e){}   // [L354]
+  try{ const mb=document.getElementById('saveFilterMine'); if(mb) mb.classList.remove('sel'); }catch(e){}   // [L366]
   savesRenderLimit=50;   // [L106 · Phase 2 · W] repartir en haut de liste
   renderSaves();
 }
@@ -9520,6 +9528,8 @@ async function doLoad(){
   // à l'envoi de CETTE nouvelle commande — comme le fait déjà _newCmdClearLiveFiche/resetAll.
   _resumedDraftId=null; _resumedForeignDraftId=null;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
+  // [L366] plan du RESTE chargé : le brouillon ⛔ solde jumeau (d_solde_<fiche>) sera consommé à l'envoi (branche _resumedDraftId du balayage, concordance client/n° garantie)
+  try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _resumedDraftId=_sd.id; } }catch(e){}
   editingSaveId=null; _editSaveBase=null; // un chargement normal annule un éventuel mode modification
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   const G=id=>document.getElementById(id);
@@ -21875,6 +21885,8 @@ function resumeDraft(id){
   }catch(e){}
   const _foreignId=(/^d_autosave_/.test(String(id))&&id!==autosaveId()&&id!==planAutosaveId())?id:null;
   restoreFicheState(d.state);
+  // [L366] solde ⛔ repris alors qu'un PLAN DU RESTE existe pour la même fiche : on le LIE (loadedSaveId) → archivé à l'envoi comme un plan chargé (sinon il restait dans Données › Plans = double découpe du solde)
+  try{ if(d.fromFicheId&&!loadedSaveId){ const _ff=(fichesCache||[]).find(f=>f&&f._id===d.fromFicheId); const _rp=(_ff&&_ff.restePlanId)?(savesCache||[]).find(x=>x&&x._id===_ff.restePlanId&&!x.deleted):null; if(_rp) loadedSaveId=_rp._id; } }catch(e){}
   _resumedForeignDraftId=_foreignId;
   _resumedDraftId=id;   // [L108 · Phase 4C] reprise = ce brouillon sera consommé à l'envoi (validation Esteban : « reprise = consommer l'ancien »)
   // [L103 · audit-max] flux L67 « reprends ta commande (brouillon) » : la reprise CONSCIENTE
@@ -22173,7 +22185,7 @@ function renderDrafts(){
     drafts=drafts.filter(d=>{ const k=_dupKey(d); if(!k) return true; if(_seen[k]){ (_older[_seen[k]]=_older[_seen[k]]||[]).push(d); return false; } _seen[k]=d.id; return true; }); }
   if(!drafts.length){list.innerHTML='';if(empty)empty.style.display='';return;}
   if(empty)empty.style.display='none';
-  list.innerHTML=drafts.map(d=>{
+  const _card=d=>{
     const dt=new Date(d.savedAt);const ds=dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const nb=(d.state&&d.state.lines)?d.state.lines.length:0;
     const tag=d.fromSend?'<span style="display:inline-block;background:#3d2a00;color:var(--orange);font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">non envoyé</span>'
@@ -22201,7 +22213,13 @@ function renderDrafts(){
         <button class="btn btn-red btn-sm" onclick="deleteDraft('${d.id}')">🗑️</button>
       </div>
     </div>`;
-  }).join('');
+  };
+  // [L366 · demande Esteban] par défaut MA tablette dépliée ; les brouillons des autres tablettes repliés (passation à 1 tap) — aucun mélange par inadvertance
+  const _myPg=(typeof _machinePostName==='function')?_machinePostName():'';
+  const _grp={}; drafts.forEach(d=>{ const p=_draftPoste(d)||'—'; (_grp[p]=_grp[p]||[]).push(d); });
+  const _ord=Object.keys(_grp).sort((a,b)=>(a===_myPg?-1:b===_myPg?1:a.localeCompare(b)));
+  list.innerHTML=_ord.map(p=>{ const h=_grp[p].map(_card).join(''); if(!_myPg||p===_myPg) return h;
+    return '<details class="drafts-other" style="margin:10px 0"><summary style="cursor:pointer;font-weight:700;min-height:48px;display:flex;align-items:center;gap:8px">'+_posteChip(p)+' '+_grp[p].length+' brouillon(s) sur une autre tablette — ouvrir pour une passation</summary>'+h+'</details>'; }).join('');
 }
 function printFiche(){
   // [L75 · Impression fraîche] « Changement plan » / op.2 s'applique ~1 s après le OK
