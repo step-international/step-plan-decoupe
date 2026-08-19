@@ -924,5 +924,10 @@ has(/#ficheRail>\*\{flex-shrink:0\}/,'L360 n°13 : boutons du rail ne rétrécis
 has(/body:not\(:has\(\.fmm-inline-block\.active\)\) #ficheRail #chronoStartBtn\{min-height:64px/,'L360 n°14 : DÉMARRER mono à l échelle des gestes');
 has(/\.cond-summary \.cs-l2\{-webkit-line-clamp:3\}/,'L360 n°16 : résumé emballage sur 3 lignes');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L360 présents dans index.html + sw.js');
+console.log('── L361 : retours Esteban (19/08 nuit) ──');
+has(/body:not\(\.show-ref-bands\) #ficheRight>\.fmm-inline-block:not\(\.active\),body:not\(\.show-ref-bands\) #ficheLines \.fmm-inline-block:not\(\.active\)\{display:none\}/,'L361 : bandes Réf validée / verrouillée masquées en paysage (le rail les porte) — seul le bloc à couper reste');
+has(/id="outilsRecorrBtn" onclick="closeOutilsDlg\('outilsFicheDlg'\);_l361ShowRefBands\(\)"/,'L361 : ⚙ OUTILS → 🔄 Recorriger une bobine mère (ré-affiche les bandes validées)');
+has(/function _l361SyncOutilsBadges\(\)/,'L361 : badge OUTILS = nombre d entrées réellement visibles (affichait 6 pour 4)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L361 présents dans index.html + sw.js');
 process.exit(fail?1:0);

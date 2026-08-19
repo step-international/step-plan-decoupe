@@ -1956,6 +1956,17 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   .cond-summary .cs-l2{-webkit-line-clamp:3}                                                               /* n°16 : la spécificité client se lit (EPCO = 3 lignes) */
   .cond-summary .cs-alert{display:none}                                                                    /* n°16 : 0 phrase explicative */
 }
+/* ============================================================
+   [L361 · DEMANDES ESTEBAN 19/08] Fiche paysage : les bandes « Réf N ✓ validée » et « 🔒 à venir » sont MASQUÉES (le rail ORDRE DE COUPE
+   porte déjà réf · ml · film · état) — seul le bloc À COUPER MAINTENANT (validation) reste ; ⚙ OUTILS → « 🔄 Recorriger une bobine mère »
+   les ré-affiche. Badges OUTILS = entrées visibles (JS). Portrait inchangé.
+   ============================================================ */
+.outils-recorr{display:none}
+@media(min-width:1100px){
+  body:not(.show-ref-bands) #ficheRight>.fmm-inline-block:not(.active),body:not(.show-ref-bands) #ficheLines .fmm-inline-block:not(.active){display:none}
+  body.show-ref-bands .fmm-inline-block:has(.fmm-badge.val) .fmm-valsum{display:flex!important}
+  body.show-ref-bands .fmm-inline-block:has(.fmm-badge.val) .fmm-head::after{content:none}
+}
 </style>
 </head>
 <body>
@@ -2779,6 +2790,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
       <button class="btn outils-hide-coupees" onclick="closeOutilsDlg('outilsFicheDlg');toggleHideCoupees()">🙈 Masquer / afficher les coupées</button><!-- [L349] masqué en paysage : le bouton vit dans le rail -->
       <button class="btn outils-share" onclick="closeOutilsDlg('outilsFicheDlg');toggleSharePanel(true)">🤝 Partager la commande</button><!-- [L349 · demande Esteban] le partage (rare) ne vit plus que dans ⚙ OUTILS -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');saveDraftManual()">💾 Brouillon</button>
+      <button class="btn outils-recorr" id="outilsRecorrBtn" onclick="closeOutilsDlg('outilsFicheDlg');_l361ShowRefBands()">🔄 Recorriger une bobine mère</button><!-- [L361 · demande Esteban] les bandes « Réf N validée » sont masquées en paysage (le rail ORDRE DE COUPE les porte) : cette entrée les ré-affiche pour 🔄 recorriger — visible seulement ≥1100 ET s'il y a une réf validée -->
       <button class="btn" id="outilsRecapBtn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche')">📥 Récap emballage par client</button><!-- [L339 · audit] visible seulement en multi-clients (openOutilsDlg) — en mono la cible n'existe pas à l'écran -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');stopManqueMatiere()">⛔ Arrêt — manque de matière</button>
     </div>
@@ -2933,7 +2945,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L360';
+const APP_VERSION='2026.08.19-L361';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -19718,15 +19730,33 @@ document.addEventListener('click',function(e){
 function openOutilsDlg(id){ try{
   document.getElementById(id).classList.add('open');
   if(id==='outilsFicheDlg'){   /* [L339 · audit] l'entrée récap n'apparaît qu'en multi-clients (en mono la cible n'existe pas à l'écran) */
-    const rb=document.getElementById('outilsRecapBtn');
-    if(rb) rb.style.display=(typeof cliMulti==='function'&&cliMulti())?'':'none';
   }
+  try{ _l361SyncOutilsBadges(); }catch(_){}   // [L361] (règles de visibilité recap / recorriger + badge = entrées visibles)
   if(id==='outilsPlanDlg'){    /* [L339 · audit] l'entrée plan manuel dit ce que fera le tap (bascule sans surprise) */
     const pb=document.getElementById('outilsPmBtn');
     if(pb) pb.textContent=(typeof planManual!=='undefined'&&planManual)?'↩ Revenir au plan automatique (les modifs manuelles seront recalculées)':'✏️ Modifier le plan à la main';
   }
 }catch(_){} }
 function closeOutilsDlg(id){ try{ document.getElementById(id).classList.remove('open'); }catch(_){} }
+// [L361 · demande Esteban 19/08] badge « n » des boutons ⚙ OUTILS = nombre d'entrées RÉELLEMENT visibles (il affichait 6 pour 4)
+function _l361SyncOutilsBadges(){ try{
+  const rb=document.getElementById('outilsRecapBtn');   /* [L339 · audit] l'entrée récap n'apparaît qu'en multi-clients (en mono la cible n'existe pas à l'écran) */
+  if(rb) rb.style.display=(typeof cliMulti==='function'&&cliMulti())?'':'none';
+  const rc=document.getElementById('outilsRecorrBtn');   // [L361] seulement en paysage ET s'il existe une réf validée (sinon rien à recorriger)
+  if(rc) rc.style.display=((typeof _isLandscapeFiche==='function'&&_isLandscapeFiche())&&document.querySelector('.fmm-inline-block .fmm-badge.val'))?'inline-flex':'none';
+  [['outilsFicheBtn','outilsFicheDlg'],['outilsPlanBtn','outilsPlanDlg']].forEach(function(pair){
+    const btn=document.getElementById(pair[0]), dlg=document.getElementById(pair[1]); if(!btn||!dlg) return;
+    const n=Array.from(dlg.querySelectorAll('.modal>div>button.btn')).filter(function(b){ return b.style.display!=='none'&&getComputedStyle(b).display!=='none'; }).length;
+    const bd=btn.querySelector('.outils-badge'); if(bd&&n>0) bd.textContent=String(n);
+  });
+}catch(e){} }
+// [L361] ré-affiche les bandes « Réf N validée » (masquées en paysage) pour 🔄 recorriger ; la classe tombe au prochain rendu des blocs
+function _l361ShowRefBands(){ try{
+  document.body.classList.add('show-ref-bands');
+  const first=document.querySelector('.fmm-inline-block:has(.fmm-badge.val)');
+  if(first){ first.classList.add('ref-open'); try{ first.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} try{ first.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); }catch(e){} }
+  else { try{ showToast('Aucune bobine mère validée à recorriger.'); }catch(e){} }
+}catch(e){} }
 function outilsReveal(sel,alt){ try{
   let el=document.querySelector(sel);
   const _hidden=function(n){ return !n||n.getClientRects().length===0; };   /* [L339 · audit] détecte AUSSI le masquage par ancêtre */
@@ -19945,7 +19975,7 @@ function _l352SyncHeadSide(){ try{
 (function _l352Hook(){ try{
   if(typeof renderFicheMachineBlocks==='function'&&!renderFicheMachineBlocks.__l352){
     const _o=renderFicheMachineBlocks;
-    renderFicheMachineBlocks=function(){ const r=_o.apply(this,arguments); try{ _l352SyncHeadSide(); }catch(e){} return r; };
+    renderFicheMachineBlocks=function(){ const r=_o.apply(this,arguments); try{ document.body.classList.remove('show-ref-bands'); }catch(e){} try{ _l352SyncHeadSide(); }catch(e){} try{ _l361SyncOutilsBadges(); }catch(e){} return r; };   // [L361] bandes validées re-masquées au rendu suivant ; badge OUTILS à jour
     renderFicheMachineBlocks.__l352=true;
   }
 }catch(e){} })();
@@ -22175,6 +22205,7 @@ function toggleChangements(){
   try{ renderCliPanel(); cliSyncBody(); }catch(e){}   // [L64 · Lot 6] panneau multi-clients (état mono au boot)
   recalcPlan();
   _l79SetupChangements();   // [L79] regroupe lame/machine/op.2 sous le bouton « Changements »
+  try{ _l361SyncOutilsBadges(); const _mqb=window.matchMedia('(min-width:1100px)'); const _onb=function(){ try{ _l361SyncOutilsBadges(); }catch(_){} }; if(_mqb.addEventListener) _mqb.addEventListener('change',_onb); else if(_mqb.addListener) _mqb.addListener(_onb); }catch(e){}   // [L361] badges OUTILS = entrées visibles
   try{ _l340SetupFichePills(); }catch(e){}   // [L340 · maquette 17] pastilles d'en-tête + carte solde repliable (paysage) — APRÈS _l79SetupChangements (nœuds déplacés au boot)
   try{ _l341SetupPlan(); }catch(e){}   // [L341 · maquette 18] plan paysage : tuile utile, OUTILS en bas de colonne, résumé emballage
   try{ _l342SetupDonnees(); }catch(e){}   // [L342 · maquette 19] données paysage : historique dans le bandeau, cartes de fiche en une rangée
