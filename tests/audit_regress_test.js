@@ -898,8 +898,15 @@ has(/<div class="fp-byref" style="flex-basis:100%/,'L357 : ligne par-réf du HUD
 has(/^  \.fp-byref\{display:none!important\}$/m,'L357 : ligne par-réf masquée en paysage (le rail ORDRE DE COUPE la porte)');
 has(/block\.style\.setProperty\('--rc',rc\)/,'L357 : couleur de réf exposée en variable CSS sur le bloc');
 has(/\(function _l357RefBand\(\)\{/,'L357 : tap sur la bande d une réf VALIDÉE = déplier/replier les détails (paysage seulement)');
-has(/#ficheRight>\.fmm-inline-block\{flex:0 0 auto;max-height:40vh;overflow-y:auto\}/,'L357 : la bande de réf ne se comprime plus dans la colonne');
+has(/#ficheRight>\.fmm-inline-block\{flex:0 0 auto;max-height:/,'L357 : la bande de réf ne se comprime plus dans la colonne (plafond révisé L358)');
 { const _gone=!/body\.apprenti #coupeeBanner::after\{content:"🎓 APPRENTI"/.test(src); console.log((_gone?'✅ ':'❌ ')+'L357 : chip APPRENTI du HUD retirée (demande Esteban)'); if(!_gone) fail++; }
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L357 présents dans index.html + sw.js');
+console.log('── L358 : correctifs audit L357 ──');
+has(/#ficheLines \.fmm-inline-block\{min-width:0;max-width:100%\}/,'L358 : bande de réf dans #ficheLines = min-width:0 (plus de colonne élargie / ml hors écran)');
+has(/\.fmm-inline-block:has\(\.fmm-badge\.val\):not\(\.ref-done\) \.fmm-head::after\{content:"▾"/,'L358 : chevron ▾/▴ (spécificité corrigée)');
+has(/\.fmm-ref-chip\{font:800 14px\/1 var\(--f-head\);padding:6px 10px;border-radius:8px;white-space:nowrap;background:var\(--rc,#888\)!important;color:#141310!important/,'L358 : chip Réf N contrastée (≥6,2:1)');
+has(/#ficheRight>\.fmm-inline-block\{flex:0 0 auto;max-height:min\(50vh,calc\(100dvh - 402px\)\)/,'L358 : plafond du bloc actif relatif à l écran (VALIDER visible à 744px)');
+has(/\[L357 · fix audit a11y\] bande validée = bouton clavier/,'L358 : bande validée role=button + clavier en paysage');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L358 présents dans index.html + sw.js');
 process.exit(fail?1:0);
