@@ -853,7 +853,7 @@ has(/#ficheHeadSide>#fMachineMono button\[onclick="printFichePlan\(\)"\]\{displa
 has(/^#ficheHeadSide\{display:none\}$/m,'L352 : slot inerte hors paysage (portrait strictement identique)');
 
 console.log('── L353 : backlog améliorations n°8 · 9 · 10 · 12 (19/08) ──');
-has(/_ln\.classList\.toggle\('conf-long',String\(el\.value\|\|''\)\.replace\(\/\\s\+\/g,''\)\.length>22\)/,'L353 n°8 : config longue → classe conf-long (police réduite en paysage au lieu de 2 lignes)');
+has(/_ln\.classList\.toggle\('conf-long',String\(el\.value\|\|''\)\.replace\(\/\\s\+\/g,''\)\.length>17\)/,'L353 n°8 : config longue → classe conf-long (police réduite en paysage au lieu de 2 lignes) — seuil 22→17 en L360 (mesuré)');
 has(/function _l353Overflow\(id\)/,'L353 n°9 : dépassement calculé comme le chip CHUTE (lecture calcStats)');
 has(/Marquer quand même cette bobine COUPÉE \?'\)\)\{/,'L353 n°9 : confirmation de sécurité NATIVE synchrone au ✂ quand la config dépasse (jamais un blocage sec) — fix audit : halo après refus');
 has(/return w<-0\.5\?-w:0; \}catch\(e\)\{ return 0; \} \}/,'L353 fix audit : tolérance 0,5 mm (seuil moteur) — plus de « dépasse de 0 mm »');
@@ -914,5 +914,15 @@ has(/if\(!_lel\.value\.trim\(\)\|\|\(_oldNum&&_lel\.value\.trim\(\)===_oldNum\)\
 has(/if\(_c\.some\(c=>c\.oversize&&c\.oversize\.length\)\)\{ showToast\('⛔ Une laize dépasse la largeur utile/,'L359 QW2 : COMMENCER refuse (toast) quand une laize dépasse l utile — plus de fiche vide silencieuse');
 has(/showToast\(auto\?'⛔ Une laize dépasse la largeur utile — la fiche reste vide/,'L359 QW2 : import auto = toast non bloquant au lieu du silence');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L359 présents dans index.html + sw.js');
+console.log('── L360 : analyse des parcours — quick wins CSS ──');
+has(/\.fl-current \.cumul-box\{grid-template-columns:repeat\(auto-fit,minmax\(180px,1fr\)\)\}/,'L360 n°3 : cumul de la carte en cours sur une rangée (paysage)');
+has(/\.fiche-line\.fl-current \.fiche-grid>\.field:has\(\[id\^="flConf_"\]\)\{padding-left:130px;padding-right:145px\}/,'L360 n°4 : config de la carte en cours sur 1 ligne (313→388px)');
+has(/<span class="fmm-btn-ref"> — '\+esc\(String\(r\.ref\)\)\+'<\/span>/,'L360 n°5 : réf du bouton VALIDER dans un span (masqué ≥1100, chaîne portrait identique)');
+has(/#ficheRight>#sendPlanWrap>#sendPlanHint:empty\{display:none!important\}/,'L360 n°6 : hint vide de la barre = 0px');
+has(/^  \.btn-blue\{background:#16283d\}/m,'L360 n°7 : .btn-blue ≥4,5:1 en paysage');
+has(/#ficheRail>\*\{flex-shrink:0\}/,'L360 n°13 : boutons du rail ne rétrécissent plus');
+has(/body:not\(:has\(\.fmm-inline-block\.active\)\) #ficheRail #chronoStartBtn\{min-height:64px/,'L360 n°14 : DÉMARRER mono à l échelle des gestes');
+has(/\.cond-summary \.cs-l2\{-webkit-line-clamp:3\}/,'L360 n°16 : résumé emballage sur 3 lignes');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L360 présents dans index.html + sw.js');
 process.exit(fail?1:0);
