@@ -63,5 +63,19 @@ ok(_supersededManualDrafts('dNEWok','Prima / 111',draftFP('dNEWok',{...idA},{...
 ok(_supersededManualDrafts('dNEWpo','Prima / 111',draftFP('dNEWpo',{},{...idA})).some(d=>d.id==='dA'),
    '[contrôle] fiche vide + plan A → A consommé (concordance plan, fiche non renseignée)');
 
+// [L365/L367] MATRICE POSTE — compte MACHINE (3 tablettes = 3 comptes « Poste X ») : l'identité d'un brouillon = le POSTE
+global._machinePostName=()=>'MAVEG'; global._ini=()=>'?'; global._resumedDraftId=null;
+global.brouillonsCache=[Object.assign(draft('dP1','Prima','111','KX1045'),{owner:'JF',ownerPost:'MAVEG',label:'Prima / 111'})];
+ok(_supersededManualDrafts('dNEWp1','Prima / 111',draft('dNEWp1','Prima','111','KX1045')).some(d=>d.id==='dP1'),'[L365] MAVEG→MAVEG même label, initiales ≠ → consommé (même poste = même travail)');
+global.brouillonsCache=[Object.assign(draft('dP2','Prima','111','KX1045'),{owner:'JF',ownerPost:'FEBA',label:'Prima / 111'})];
+ok(_supersededManualDrafts('dNEWp2','Prima / 111',draft('dNEWp2','Prima','111','KX1045')).length===0,'[L365] MAVEG→FEBA même label non repris → jamais (autre tablette)');
+global.brouillonsCache=[Object.assign(draft('dP3','Prima','111','KX1045'),{owner:'JF',label:'Prima / 111'})];
+ok(_supersededManualDrafts('dNEWp3','Prima / 111',draft('dNEWp3','Prima','111','KX1045')).length===0,'[L365] legacy sans ownerPost + initiales ? → pas consommé');
+global._ini=()=>'JF';
+ok(_supersededManualDrafts('dNEWp4','Prima / 111',draft('dNEWp4','Prima','111','KX1045')).some(d=>d.id==='dP3'),'[L365] legacy owner JF + initiales JF → consommé (règle historique)');
+global.brouillonsCache=[Object.assign(draft('dP5','Prima','','KX1045'),{owner:'JF',ownerPost:'MAVEG',label:'Prima / sans n°'})];
+ok(_supersededManualDrafts('dNEWp5','Prima / sans n°',draft('dNEWp5','Prima','','KX1045')).length===0,'[L365] même poste sans n° non repris → jamais (L254)');
+global._machinePostName=()=>''; global._ini=()=>'ER';
+
 console.log(fail?('\n💥 '+fail+' échec(s)'):'\n🏆 DRAFT CONCORDANCE VALIDÉ : parcage anti-doublon (reprise consommée seulement si même commande — parité avec l\'envoi L245)');
 process.exit(fail?1:0);

@@ -964,7 +964,7 @@ has(/Brouillon \$\{esc\(_pst\|\|''\)\} du \$\{ds\}/,'L365 : libellé « Brouillo
 has(/if\(_myP&&d\.ownerPost\)\{ if\(String\(d\.ownerPost\)\.toUpperCase\(\)!==_myP\) return false; \}/,'L365 : identité brouillon = POSTE sur compte machine (💾 supersède l ancien du même poste + n°, jamais une autre tablette)');
 has(/if\(_myP2&&d\.ownerPost\)\{ if\(String\(d\.ownerPost\)\.toUpperCase\(\)!==_myP2\) return false; \}/,'L365 : à l envoi, consommation des brouillons du même poste + n°');
 has(/Brouillon de la tablette '\+_pD\+'\.\\n\\nLe reprendre ICI/,'L365 : reprise d un brouillon d une autre tablette = passation nominative (confirm)');
-has(/const _dupKey=d=>\{ const n=_numOf\(d\); return n\?\(_draftPoste\(d\)\+'¦'\+n\):''; \};/,'L365 : une seule carte par (poste, n°) — versions plus anciennes repliées, rien détruit');
+has(/const _dupKey=d=>\{ const n=_numOf\(d\); if\(!n\) return '';/,'L365 : une seule carte par (poste, client, n°) — versions plus anciennes repliées, rien détruit (clé + client en L367)');
 has(/suppression depuis une autre tablette réservée au pilotage\/admin/,'L365 : 🗑️ d un brouillon d une autre tablette réservé au pilotage');
 
 console.log('── L366 : plans & écran Données par tablette ──');
@@ -974,5 +974,14 @@ has(/<details class="drafts-other"/,'L366 E1 : brouillons des autres tablettes r
 has(/id="saveFilterMine" aria-pressed="false"/,'L366 E2 : Plans — « ⚙ MA MACHINE seulement » par défaut sur compte machine');
 has(/return !m\.size\|\|m\.has\(_myPm\); \}\);/,'L366 E2 : plans sans machine toujours visibles');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L366 présents dans index.html + sw.js');
+console.log('── L367 : correctifs audit L365/L366 ──');
+has(/let _loadedSoldeDraftId=null;/,'L367 : solde jumeau du plan du reste = variable dédiée (survit au VALIDER bobine mère)');
+has(/if\(d\.id===_resumedDraftId\|\|\(_loadedSoldeDraftId&&d\.id===_loadedSoldeDraftId\)\)\{/,'L367 : consommé à l envoi via la branche concordance');
+has(/const _openP=new Set\(Array\.from\(list\.querySelectorAll\('details\.drafts-other\[open\]'\)\)/,'L367 : état ouvert/fermé des groupes conservé au re-rendu (snapshot)');
+has(/return _draftPoste\(d\)\+'¦'\+nrm\(f\.client\|\|p\.client\|\|''\)\+'¦'\+n; \};/,'L367 : clé de dédup = poste + client + n°');
+has(/if\(!_myPg\)\{ list\.innerHTML=drafts\.map\(_card\)\.join\(''\); return; \}/,'L367 : compte personnel = liste chronologique');
+has(/if\(d\.fromSend\)\{ const _pF=/,'L367 : filet non envoyé consommé dès que la MÊME commande est en base (toute tablette)');
+has(/mb\.classList\.toggle\('sel',!!\(\(typeof _machinePostName==='function'\)\?_machinePostName\(\):''\)\)/,'L367 : Reset des filtres Plans = retour à « ma machine »');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L367 présents dans index.html + sw.js');
 process.exit(fail?1:0);

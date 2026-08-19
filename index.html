@@ -3002,7 +3002,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L366';
+const APP_VERSION='2026.08.19-L367';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4608,6 +4608,7 @@ let cmdClients = [];   // [{id:'B',nom,numCmd,dateLiv,palette,typeCond,etiquetag
 const CLI_COLORS={A:'#eab308',B:'#f472b6',C:'#22d3ee',D:'#c4b5fd','+':'#888'};
 let ficheLines = [];
 let loadTargetIdx = null;
+let _loadedSoldeDraftId=null;   // [L367 · fix audit] d_solde_<fiche> jumeau du plan du RESTE chargé (doLoad) — survit aux régénérations (VALIDER / Changement plan purgent _resumedDraftId)
 let loadedSaveId = null; // id du plan sauvegardé chargé par l'opérateur (supprimé après confirmation de la fiche)
 let editingSaveId = null; // id du plan en cours de MODIFICATION (la sauvegarde écrase ce plan)
 // TX-doSave édition (B7) : marqueur de version capturé au chargement en édition
@@ -9278,7 +9279,7 @@ function renderSaves(){
 
   const list=document.getElementById('savesList');
   const empty=document.getElementById('savesEmpty');
-  if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');empty.textContent=(fC||fR||fCmd||fToday)?(fToday&&!(fC||fR||fCmd)?'Aucun plan posé sur aujourd\'hui au planning.':'Aucun résultat pour ces filtres.'):'Aucune sauvegarde.';return;}
+  if(!saves.length){list.innerHTML='';empty.classList.remove('hidden');empty.textContent=(fC||fR||fCmd||fToday||fMine)?(fToday&&!(fC||fR||fCmd)?'Aucun plan posé sur aujourd\'hui au planning.':(fMine&&!(fC||fR||fCmd||fToday)?'Aucun plan pour '+_myPm+' — tape « ⚙ '+_myPm+' seulement » pour tout voir.':'Aucun résultat pour ces filtres.')):'Aucune sauvegarde.';return;}   // [L367]
   empty.classList.add('hidden');
   // [L106 · Phase 2 · W] pagination (même pattern que Fiches/Temps) : renderSaves rendait
   // TOUT d'un coup — lent sur tablette dès que l'historique grossit.
@@ -9360,7 +9361,7 @@ function resetSaveFilters(){
   ['saveFilterClient','saveFilterRef'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const c=document.getElementById('saveFilterCmd');if(c)c.value='';
   try{ const tb=document.getElementById('saveFilterToday'); if(tb) tb.classList.remove('sel'); }catch(e){}   // [L354]
-  try{ const mb=document.getElementById('saveFilterMine'); if(mb) mb.classList.remove('sel'); }catch(e){}   // [L366]
+  try{ const mb=document.getElementById('saveFilterMine'); if(mb) mb.classList.toggle('sel',!!((typeof _machinePostName==='function')?_machinePostName():'')); }catch(e){}   // [L366 · L367 fix audit] Reset = retour au défaut « ma machine » sur compte machine
   savesRenderLimit=50;   // [L106 · Phase 2 · W] repartir en haut de liste
   renderSaves();
 }
@@ -9404,7 +9405,7 @@ function _newCmdClearLiveFiche(){
   // sérialisé SES ids AVANT ce clear (newCmdPark → saveDraftManual) : son renvoi reste idempotent.
   _pendingFicheId=null; _pendingTempsId=null; _autosaveLastSig='';
   _resumedForeignDraftId=null;   // [L103 · audit-max] idem resetAll : passation abandonnée
-  _resumedDraftId=null;          // [L108 · Phase 4C]
+  _resumedDraftId=null; _loadedSoldeDraftId=null;   // [L108 · Phase 4C] · [L367]
   _localCopyFromShare=null; try{ renderSharedViewBar(); }catch(e){}   // [L103 · audit-max] fiche vidée : le bandeau « copie d'un partage terminé » ne concerne plus rien
   try{ chronoReset(true); }catch(e){ console.warn('chronoReset:',e); }   // [L79] reset forcé (nouvelle commande)
 }
@@ -9457,7 +9458,7 @@ async function editSavedPlan(id){
   await doLoad();              // remplit l'éditeur ; doLoad remet editingSaveId=null en fin de course
   editingSaveId=id;            // ré-affirmé APRÈS doLoad → le mode édition survit à sa remise à zéro
   _editSaveBase={id:id, date:baseDate}; // B7 : version de référence pour le verrou optimiste
-  loadedSaveId=null;           // on n'est pas dans le flux opérateur→fiche
+  loadedSaveId=null; _loadedSoldeDraftId=null;   // on n'est pas dans le flux opérateur→fiche
   updateSaveBtnLabel();
   showToast('✏️ Plan chargé pour modification — enregistre pour écraser l\'ancien','ok');
 }
@@ -9529,7 +9530,7 @@ async function doLoad(){
   _resumedDraftId=null; _resumedForeignDraftId=null;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
   // [L366] plan du RESTE chargé : le brouillon ⛔ solde jumeau (d_solde_<fiche>) sera consommé à l'envoi (branche _resumedDraftId du balayage, concordance client/n° garantie)
-  try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _resumedDraftId=_sd.id; } }catch(e){}
+  _loadedSoldeDraftId=null; try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } }catch(e){}   // [L367 · fix audit] variable dédiée (l'_resumedDraftId mourait au VALIDER bobine mère)
   editingSaveId=null; _editSaveBase=null; // un chargement normal annule un éventuel mode modification
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   const G=id=>document.getElementById(id);
@@ -11258,7 +11259,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
           const _victims=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>{
             if(!d||d.consumed||d.kind==='shared'||/^d_shared_/.test(String(d.id))) return false;
             if(/^d_autosave/.test(String(d.id))) return false;
-            if(d.id===_resumedDraftId){
+            if(d.id===_resumedDraftId||(_loadedSoldeDraftId&&d.id===_loadedSoldeDraftId)){   // [L367] + solde jumeau du plan du reste chargé
               // [L245 · sceptique v3] reprise explicite consommée SEULEMENT si même commande — règle unifiée :
               // n° NON vide et égal (la réf est ignorée : en multi-réf la réf envoyée est un join « A + B » qui
               // ne matchait jamais → la protection anti-double-reprise était perdue en multi-réf), OU deux n°
@@ -11270,6 +11271,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
             }
             if(d.fromFicheId) return false;
             if(!nrm(_ncSend)) return false;
+            if(d.fromSend){ const _pF=(d.state&&d.state.plan)||{}; const _fF=(d.state&&d.state.fiche)||{}; const _kF=nrm(_fF.client||_pF.client||'')+'\u00a6'+nrm(_fF.ref||_pF.ref||'')+'\u00a6'+nrm(((_fF.numCmd||_pF.numCmd)&&(_fF.numCmd||_pF.numCmd)!=='\u2014')?(_fF.numCmd||_pF.numCmd):''); if(_kF===_kSend) return true; }   // [L367 · fix audit] filet « non envoyé » = obsolète dès que la MÊME commande (clé complète, n° non vide) est en base, quelle que soit la tablette
             const _myP2=(typeof _machinePostName==='function')?_machinePostName():'';
             if(_myP2&&d.ownerPost){ if(String(d.ownerPost).toUpperCase()!==_myP2) return false; }   // [L365] même tablette = consommé à l'envoi ; autre tablette = jamais (sauf repris explicitement, traité plus haut)
             else { if(d.owner==='?'||_mineIni==='?') return false;   // [L156 · audit #9] identité inconnue (compte machine) : jamais de consommation croisée ('?'==='?' passait la garde)
@@ -11284,7 +11286,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
               logAudit('delete','brouillons',d.id,`Brouillon consomm\u00e9 (fiche envoy\u00e9e \u2014 m\u00eame commande) \u2014 ${client||''} / ${ref||''}${numCmd&&numCmd!=='\u2014'?' \u00b7 N\u00b0 '+numCmd:''}`).catch(function(){});
             }catch(e){ console.warn('Brouillon non consomm\u00e9 (r\u00e9seau ?) :',e&&e.message); }
           }
-          if(_victims.length){ _resumedDraftId=null; try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){} }
+          if(_victims.length){ _resumedDraftId=null; _loadedSoldeDraftId=null; try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){} }
         }catch(e){}
       }catch(e){}
     }catch(e){
@@ -11377,7 +11379,7 @@ function resetSiteConfirm(){
 function resetAll(){
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
-  _resumedDraftId=null;          // [L108 · Phase 4C]
+  _resumedDraftId=null; _loadedSoldeDraftId=null;   // [L108 · Phase 4C] · [L367]
   // [L67 · Audit] « Nouveau plan » clôt le partage émetteur : sans ça, la commande SUIVANTE
   // était poussée aux collègues sous l'ancien partage (10 s) → découpe d'une commande fantôme.
   try{ shareEndAfterSend(); }catch(e){}
@@ -11426,7 +11428,7 @@ function resetAll(){
   document.getElementById('ficheLines').innerHTML='';
   ficheLines=[];
   Object.keys(ficholinePhotos).forEach(function(k){delete ficholinePhotos[k];});
-  commandePhoto='';commandeFiles=[];refreshCommandePhotoZone();loadedSaveId=null;editingSaveId=null;
+  commandePhoto='';commandeFiles=[];refreshCommandePhotoZone();loadedSaveId=null;editingSaveId=null;_loadedSoldeDraftId=null;
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   commandTotals={};
   cartonByWidth={};
@@ -22181,14 +22183,17 @@ function renderDrafts(){
   // on ne montre que le PLUS RÉCENT ; les autres (🔄 auto vs 💾, auto fiche vs auto plan, 2 tablettes en passation) sont repliés
   // sous la carte — reprenables, rien n'est détruit (l'auto est souvent l'état le plus frais, cf. garde L287). drafts = déjà trié savedAt desc.
   const _older={};
-  { const _dupKey=d=>{ const n=_numOf(d); return n?(_draftPoste(d)+'¦'+n):''; }; const _seen={};
+  drafts.sort((a,b)=>String(b.savedAt||'').localeCompare(String(a.savedAt||'')));   // [L367 · fix audit] tri défensif (insertions optimistes en tête ≠ ordre du snapshot)
+  const _openP=new Set(Array.from(list.querySelectorAll('details.drafts-other[open]')).map(x=>x.dataset.poste));   // [L367] les repliés/dépliés survivent au re-rendu (snapshot toutes les 10-15 s)
+  const _openV=new Set(Array.from(list.querySelectorAll('.save-card details[open]')).map(x=>(x.closest('.save-card')||{}).dataset?(x.closest('.save-card').dataset.id||''):''));
+  { const _dupKey=d=>{ const n=_numOf(d); if(!n) return ''; const f=(d.state&&d.state.fiche)||{}, p=(d.state&&d.state.plan)||{}; return _draftPoste(d)+'¦'+nrm(f.client||p.client||'')+'¦'+n; }; const _seen={};   // [L367 · fix audit] + CLIENT (deux clients au même n° = deux cartes)
     drafts=drafts.filter(d=>{ const k=_dupKey(d); if(!k) return true; if(_seen[k]){ (_older[_seen[k]]=_older[_seen[k]]||[]).push(d); return false; } _seen[k]=d.id; return true; }); }
   if(!drafts.length){list.innerHTML='';if(empty)empty.style.display='';return;}
   if(empty)empty.style.display='none';
   const _card=d=>{
     const dt=new Date(d.savedAt);const ds=dt.toLocaleDateString('fr-FR')+' '+dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const nb=(d.state&&d.state.lines)?d.state.lines.length:0;
-    const tag=d.fromSend?'<span style="display:inline-block;background:#3d2a00;color:var(--orange);font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">non envoyé</span>'
+    const tag=(d.fromSend||(_older[d.id]||[]).some(o=>o.fromSend))?'<span style="display:inline-block;background:#3d2a00;color:var(--orange);font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">non envoyé</span>'
       :(d.planDraft?'<span style="display:inline-block;background:#1e2a3d;color:#60a5fa;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">saisie plan</span>':'');
     const meta=d.planDraft?'Saisie de plan en cours':(nb+' bobine(s)');
     // [L280 · demande Esteban] même sans initiales d'opérateur (owner '?'), afficher au moins la MACHINE : poste
@@ -22202,8 +22207,8 @@ function renderDrafts(){
     const _other=!!(_pst&&_myP&&_pst!==_myP);
     const _chip=_posteChip(_pst)+(_other?'<span class="frs-mch" style="--mc:#8a94a6;margin-left:4px" title="Créé sur une autre tablette — le reprendre ici = passation">autre tablette</span>':'');
     const _mcVar=(MACHINE_KEYS.indexOf(String(_pst).toLowerCase())>=0)?('var(--'+String(_pst).toLowerCase()+')'):'var(--border2)';
-    const _oldH=(_older[d.id]||[]).length?'<details style="margin-top:4px"><summary style="font-size:13px;color:var(--muted);cursor:pointer">+'+_older[d.id].length+' version(s) plus ancienne(s)</summary>'+_older[d.id].map(o=>'<div style="font-size:13px;padding:3px 0">'+esc(o.label)+' · '+new Date(o.savedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' <button class="btn btn-ghost btn-sm" style="min-height:40px" onclick="resumeDraft(\''+o.id+'\')">▶</button></div>').join('')+'</details>':'';
-    return `<div class="save-card${_other?' poste-other':''}" style="--mc:${_mcVar};border-left:4px solid var(--mc)" data-poste="${esc(_pst)}">
+    const _oldH=(_older[d.id]||[]).length?'<details'+(_openV.has(d.id)?' open':'')+' style="margin-top:4px"><summary style="font-size:13px;color:var(--muted);cursor:pointer;min-height:48px;display:flex;align-items:center">+'+_older[d.id].length+' version(s) plus ancienne(s)</summary>'+_older[d.id].map(o=>'<div style="font-size:13px;padding:3px 0">'+esc(o.label)+(o.fromSend?' <b style="color:var(--orange)">non envoyé</b>':'')+' · '+new Date(o.savedAt).toLocaleDateString('fr-FR')+' '+new Date(o.savedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' <button class="btn btn-ghost btn-sm" style="min-height:48px" onclick="resumeDraft(\''+o.id+'\')">▶</button></div>').join('')+'</details>':'';   // [L367] date + tag non envoyé + cibles 48px + état ouvert conservé
+    return `<div class="save-card${_other?' poste-other':''}" style="--mc:${_mcVar};border-left:4px solid var(--mc)" data-poste="${esc(_pst)}" data-id="${esc(d.id)}">
       <div class="save-info">
         <div class="save-title">${_chip} ${esc(d.label)}${tag}</div>
         <div class="save-meta">Brouillon ${esc(_pst||'')} du ${ds} · ${meta}${_who?' · <b style="color:var(--blue)">'+esc(_who)+'</b>':''}</div>${_oldH}
@@ -22218,8 +22223,9 @@ function renderDrafts(){
   const _myPg=(typeof _machinePostName==='function')?_machinePostName():'';
   const _grp={}; drafts.forEach(d=>{ const p=_draftPoste(d)||'—'; (_grp[p]=_grp[p]||[]).push(d); });
   const _ord=Object.keys(_grp).sort((a,b)=>(a===_myPg?-1:b===_myPg?1:a.localeCompare(b)));
-  list.innerHTML=_ord.map(p=>{ const h=_grp[p].map(_card).join(''); if(!_myPg||p===_myPg) return h;
-    return '<details class="drafts-other" style="margin:10px 0"><summary style="cursor:pointer;font-weight:700;min-height:48px;display:flex;align-items:center;gap:8px">'+_posteChip(p)+' '+_grp[p].length+' brouillon(s) sur une autre tablette — ouvrir pour une passation</summary>'+h+'</details>'; }).join('');
+  if(!_myPg){ list.innerHTML=drafts.map(_card).join(''); return; }   // [L367] compte personnel (pilotage) : liste chronologique, pas de groupes
+  list.innerHTML=_ord.map(p=>{ const h=_grp[p].map(_card).join(''); if(p===_myPg) return h;
+    return '<details class="drafts-other" data-poste="'+esc(p)+'"'+(_openP.has(p)?' open':'')+' style="margin:10px 0"><summary style="cursor:pointer;font-weight:700;min-height:48px;display:flex;align-items:center;gap:8px">'+_posteChip(p==='—'?'':p)+' '+_grp[p].length+' brouillon(s) '+(p==='—'?'sans machine connue':'sur une autre tablette — ouvrir pour une passation')+'</summary>'+h+'</details>'; }).join('');
 }
 function printFiche(){
   // [L75 · Impression fraîche] « Changement plan » / op.2 s'applique ~1 s après le OK
