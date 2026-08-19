@@ -956,5 +956,16 @@ has(/var _v=String\(_nEl\.value\)\.replace\(\/\\n\?🔵 Film KX détecté\[\^\\n
 has(/const _cur=!!\(_ln&&_ln\.classList\.contains\('fl-current'\)\); if\(!_ls\|\|!_cur\)\{ t\.readOnly=false; return; \}/,'L364 : lecture seule de la config sur la carte EN COURS seulement (carte dépliée éditable)');
 has(/\.btn-blue:hover\{background:#1b3350\}/,'L364 : hover .btn-blue ≥4,5:1');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L364 présents dans index.html + sw.js');
+console.log('── L365 : brouillons par tablette (3 comptes machine) — demande Esteban 19/08 ──');
+has(/fromSend:true,owner:_ini\(\),ownerPost:_machinePostName\(\)/,'L365 : le brouillon « non envoyé » porte le poste');
+has(/function _draftPoste\(d\)/,'L365 : poste d un brouillon = ownerPost > machine fiche > machine plan');
+has(/class="save-card\$\{_other\?' poste-other':''\}" style="--mc:\$\{_mcVar\};border-left:4px solid var\(--mc\)"/,'L365 : carte brouillon teintée machine + « autre tablette »');
+has(/Brouillon \$\{esc\(_pst\|\|''\)\} du \$\{ds\}/,'L365 : libellé « Brouillon FEBA / MAVEG / CEVENINI »');
+has(/if\(_myP&&d\.ownerPost\)\{ if\(String\(d\.ownerPost\)\.toUpperCase\(\)!==_myP\) return false; \}/,'L365 : identité brouillon = POSTE sur compte machine (💾 supersède l ancien du même poste + n°, jamais une autre tablette)');
+has(/if\(_myP2&&d\.ownerPost\)\{ if\(String\(d\.ownerPost\)\.toUpperCase\(\)!==_myP2\) return false; \}/,'L365 : à l envoi, consommation des brouillons du même poste + n°');
+has(/Brouillon de la tablette '\+_pD\+'\.\\n\\nLe reprendre ICI/,'L365 : reprise d un brouillon d une autre tablette = passation nominative (confirm)');
+has(/const _dupKey=d=>\{ const n=_numOf\(d\); return n\?\(_draftPoste\(d\)\+'¦'\+n\):''; \};/,'L365 : une seule carte par (poste, n°) — versions plus anciennes repliées, rien détruit');
+has(/suppression depuis une autre tablette réservée au pilotage\/admin/,'L365 : 🗑️ d un brouillon d une autre tablette réservé au pilotage');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L365 présents dans index.html + sw.js');
 process.exit(fail?1:0);
