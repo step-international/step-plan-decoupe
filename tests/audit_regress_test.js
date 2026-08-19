@@ -929,5 +929,14 @@ has(/body:not\(\.show-ref-bands\) #ficheRight>\.fmm-inline-block:not\(\.active\)
 has(/id="outilsRecorrBtn" onclick="closeOutilsDlg\('outilsFicheDlg'\);_l361ShowRefBands\(\)"/,'L361 : ⚙ OUTILS → 🔄 Recorriger une bobine mère (ré-affiche les bandes validées)');
 has(/function _l361SyncOutilsBadges\(\)/,'L361 : badge OUTILS = nombre d entrées réellement visibles (affichait 6 pour 4)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L361 présents dans index.html + sw.js');
+console.log('── L362 : vocabulaire couleurs (analyse parcours D, décisions B1/B2/B7/B8/B9 validées par Esteban 19/08) ──');
+has(/\.fl-current \.fl-pos\{background:transparent;border:1\.5px solid #b8860b;color:#ffd45e\}/,'L362 B1 : pastille BOBINE n/T en jaune outline (ambre = seul le ✂)');
+has(/#nav button\.active\{color:#141310;background:var\(--text\);border-bottom-color:var\(--text\)\}/,'L362 B2 : onglet actif inversé neutre en paysage');
+has(/\.machine-btn-fiche\.sel-maveg\{background:var\(--maveg\);border-color:var\(--maveg\);color:#141310\}/,'L362 A9 : machine sélectionnée = aplat couleur machine (bleu = FEBA seulement)');
+has(/\.fmm-badge\.act\{background:transparent;border:1\.5px solid #b8860b;color:#ffd45e\}/,'L362 A10 : « à couper maintenant » en jaune outline comme le rail');
+has(/body:has\(\.fmm-inline-block\.active\) #ficheRail #chronoStartBtn:not\(:disabled\)\{background:linear-gradient\(#33332f,#2e2e2b\)!important/,'L362 B7 : avant validation multi, DÉMARRER neutre et VALIDER ambre');
+has(/\.fiche-line\.fl-current:has\(\.fl-badge\.badge-red\) \.fl-more\{background:#241010;border-color:#8a2b2f\}/,'L362 B8 : ⚠ DÉFAUT neutre, rouge plein seulement si NC réelle');
+has(/\.fiche-ref-sep\.change\{border-color:var\(--warn\)/,'L362 B9 : changement de machine = orange vif (le rouge reste à la NC)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L362 présents dans index.html + sw.js');
 process.exit(fail?1:0);
