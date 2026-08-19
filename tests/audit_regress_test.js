@@ -743,7 +743,7 @@ console.log('── L341 : fidélité maquette 18 — plan paysage (cartes de sa
 has(/function _l341PlanPolish/,'L341 : tuile LARGEUR UTILE déplacée dans .row3 en paysage (nœud unique #usefulDisplay, remis dans son champ en portrait)');
 has(/function _l341RenderCondSummary/,'L341 : 📦 emballage en carte-résumé (tap = détail) — selects/notes/handlers inchangés');
 has(/#cliSection:not\(\.reveal\):not\(:has\(#cliPanel>\*\)\)\{display:none\}/,'L341 : multi-clients replié en paysage SAUF actif (2e client) ou déplié via ⚙ OUTILS');
-has(/#planLeft>\.flex\.mt8>button\[onclick="addRefBlock\(\)"\]\{display:none\}/,'L341 : « + Ajouter une référence » → ⚙ OUTILS en paysage (entrée existante)');
+has(/closeOutilsDlg\('outilsPlanDlg'\);addRefBlock\(\)">＋ Ajouter une référence<\/button>/,'L341 : entrée « + Ajouter une référence » dans ⚙ OUTILS (conservée dans le DOM ; masquée en paysage depuis L357 — décision Esteban 19/08 : bouton direct sous la réf 1)');
 has(/\.ref-block \.flex\.mt8 \.btn\.btn-orange,\.ref-block \.flex\.mt8 \.btn\.btn-recut\{background:linear-gradient/,'L341 : ✂ bobineaux / ♻ chute NEUTRES en paysage (§2.16-A)');
 has(/#planCards \.bobine-card \.card-sub:has\(>\.v\)\{display:none\}/,'L341 : plan ligne par ligne sans sous-ligne « utilisé / utile » (maquette 18) — données intactes');
 has(/class="stat-chip sc-utile"/,'L341 : chip utile classée (masquée en paysage : doublon de la tuile bleue)');
@@ -863,7 +863,7 @@ has(/<span class="foc-cfg"> · ➜ '\+esc\(_cfg\)\+'<\/span>/,'L353 n°10 : ordr
 has(/const cf=row\.querySelector\('\.foc-cfg'\); if\(cf\)\{/,'L353 fix audit : config de la ligne 3 rafraîchie à chaque coche (_l340SyncOrderStates)');
 has(/^\.foc-cfg\{display:none\}$/m,'L353 n°10 : config de la ligne 3 masquée en portrait (identique)');
 has(/document\.body\.classList\.toggle\('apprenti',!!apprenti\)/,'L353 n°12 : body.apprenti posé par hintCoupeeApply (mode apprenti visible)');
-has(/body\.apprenti #coupeeBanner::after\{content:"🎓 APPRENTI"/,'L353 n°12 : chip 🎓 APPRENTI dans le HUD (paysage)');
+has(/body\.apprenti \.fl-current \.fl-more:not\(\[open\]\)>summary::after\{content:"bobine non conforme \? → ici"/,'L353 n°12 : sous-indice apprenti sous ⚠ DÉFAUT (paysage) — la chip 🎓 APPRENTI du HUD a été RETIRÉE en L357 (décision Esteban 19/08)');
 
 console.log('── L354 : backlog n°16 · 17 · 19 (19/08) ──');
 has(/id="saveFilterToday" aria-pressed="false" onclick="toggleSaveFilterToday\(\)"/,'L354 n°16 : filtre 📅 Aujourd hui (n) dans Données › Plans (source _plnSpanIsos, lecture seule)');
@@ -891,5 +891,15 @@ has(/aria-label="Fiche de découpe" onclick="showPage\(1\)"/,'L356 (audit L354) 
 has(/html\.theme-light \.btn-green\{background:#0e3a1c;color:#a7f3c0\}html\.theme-light \.btn-red\{background:#330a0a;color:#ffbdbd\}/,'L356 (audit L354) : thème clair — vert/rouge pré-inversés (≥9,5:1)');
 has(/body\.atelier #saveFilterToday\{font-size:15px/,'L356 (audit L354) : échelle atelier du filtre Aujourd hui');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L356 présents dans index.html + sw.js');
+console.log('── L357 : retours Esteban (19/08 soir) ──');
+has(/#planLeft>\.flex\.mt8>button\[onclick="addRefBlock\(\)"\]\{display:inline-flex;flex:1;min-height:56px/,'L357 : « + Ajouter une référence » visible sous la réf 1 en paysage (56px, neutre)');
+has(/#outilsPlanDlg button\[onclick="closeOutilsDlg\('outilsPlanDlg'\);addRefBlock\(\)"\]\{display:none\}/,'L357 : entrée « + référence » retirée de ⚙ OUTILS plan en paysage');
+has(/<div class="fp-byref" style="flex-basis:100%/,'L357 : ligne par-réf du HUD = classe fp-byref (masquée ≥1100px, visible en portrait)');
+has(/^  \.fp-byref\{display:none!important\}$/m,'L357 : ligne par-réf masquée en paysage (le rail ORDRE DE COUPE la porte)');
+has(/block\.style\.setProperty\('--rc',rc\)/,'L357 : couleur de réf exposée en variable CSS sur le bloc');
+has(/\(function _l357RefBand\(\)\{/,'L357 : tap sur la bande d une réf VALIDÉE = déplier/replier les détails (paysage seulement)');
+has(/#ficheRight>\.fmm-inline-block\{flex:0 0 auto;max-height:40vh;overflow-y:auto\}/,'L357 : la bande de réf ne se comprime plus dans la colonne');
+{ const _gone=!/body\.apprenti #coupeeBanner::after\{content:"🎓 APPRENTI"/.test(src); console.log((_gone?'✅ ':'❌ ')+'L357 : chip APPRENTI du HUD retirée (demande Esteban)'); if(!_gone) fail++; }
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L357 présents dans index.html + sw.js');
 process.exit(fail?1:0);

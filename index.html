@@ -1565,8 +1565,10 @@ body.atelier .stat-tile b{font-size:36px}
   #planLeft .field>label span{color:#8fe0ab}   /* « auto » = validation automatique (2.16-A ③), 13px */
   /* — multi-clients + « + Ajouter une référence » → ⚙ OUTILS (visibles seulement s'ils sont actifs/dépliés) — */
   #cliSection:not(.reveal):not(:has(#cliPanel>*)){display:none}
-  #planLeft>.flex.mt8>button[onclick="addRefBlock()"]{display:none}
-  #planLeft>.flex.mt8:not(:has(#outilsPlanBtn)){display:none}   /* rangée vidée (« + référence » → OUTILS) */
+  /* [L357 · demande Esteban 19/08] « + Ajouter une référence » DIRECTEMENT sous la réf 1 (geste fréquent) — plus dans ⚙ OUTILS */
+  #planLeft>.flex.mt8>button[onclick="addRefBlock()"]{display:inline-flex;flex:1;min-height:56px;justify-content:center;font-size:16px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;background:var(--card);color:var(--text);border:1px solid var(--border2)}
+  #planLeft>.flex.mt8:not(:has(#outilsPlanBtn)):not(:has(button[onclick="addRefBlock()"])){display:none}   /* rangée vidée */
+  #outilsPlanDlg button[onclick="closeOutilsDlg('outilsPlanDlg');addRefBlock()"]{display:none}
   #planLeft>.flex.mt8{gap:10px}
   .ref-block .flex.mt8 #outilsPlanBtn,#planLeft>.flex.mt8 #outilsPlanBtn{flex:1;min-height:56px;justify-content:space-between;font-size:16px}
   /* — rangée des gestes de laize : boutons NEUTRES (§2.16-A : la couleur ne dit plus « famille de geste »), 56px — */
@@ -1670,7 +1672,7 @@ body.atelier .stat-tile b{font-size:36px}
   #ficheMain>#ficheRight{flex:1 1 auto;min-height:280px;display:flex;flex-direction:column}   /* [fix audit BLOQUANT] HUD + 1 carte + barre TOUJOURS visibles, même en-tête dépliée */
   #ficheRight>#coupeeBanner{position:static!important;flex:none;margin-bottom:8px}   /* le HUD n'a plus besoin d'être sticky : il est hors de la zone qui défile */
   #ficheRight>#planDriftBanner{flex:none}
-  #ficheRight>.fmm-inline-block{flex:0 1 auto;max-height:40vh;overflow-y:auto}   /* multi-réf : bloc « valider la bobine mère » plafonné */
+  #ficheRight>.fmm-inline-block{flex:0 0 auto;max-height:40vh;overflow-y:auto}   /* multi-réf : bloc « valider la bobine mère » plafonné — [L357] ne se comprime plus (la bande de réf était écrasée à 32px) */
   #ficheRight>#ficheLines{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 4px 12px;align-content:start}
   #ficheRight>#sendPlanWrap{position:relative;flex:none;margin-top:0}   /* relative (pas static) : le ::before « la liste continue » garde son ancrage */
   #ficheRight>#sendPlanWrap::before{top:-24px}
@@ -1879,7 +1881,7 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
   @media(prefers-reduced-motion:reduce){.fl-chute.over{animation:none}}
   .foc-l3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .foc-cfg{display:inline;color:var(--text2)}
-  body.apprenti #coupeeBanner::after{content:"🎓 APPRENTI";display:inline-flex;align-items:center;flex:none;margin-left:8px;font:800 13px/1 var(--f-head);letter-spacing:.06em;color:#ffd45e;background:#241d05;border:1px solid #6a5200;border-radius:99px;padding:5px 9px}   /* (le HUD est static!important depuis L343 : chip en flux, pas en absolu) */
+  /* [L357 · demande Esteban] chip « 🎓 APPRENTI » du HUD RETIRÉ (« le mot apprenti inutile ») — body.apprenti reste pour le sous-indice ⚠ DÉFAUT */
   body.apprenti .fl-current .fl-more:not([open])>summary{flex-direction:column;gap:2px}
   body.apprenti .fl-current .fl-more:not([open])>summary::after{content:"bobine non conforme ? → ici";font:600 13px/1.2 var(--f-body,inherit);letter-spacing:0;text-transform:none;color:var(--text3)}
 }
@@ -1896,6 +1898,35 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
 /* [L355 · §2.22-2/3 (19/08)] volet de clôture : « ＋ même client » ; ⚠ Défaut : indication « cause fréquente » (jamais cochée) */
 .nc-freq{display:block;flex-basis:100%;width:100%;font-size:13px;color:var(--muted);margin-top:4px}body.atelier .nc-freq{font-size:15px}   /* [fix audit] --text3 sur #1f1f1d = 4,33 → --muted 8,6:1 ; échelle atelier */
 .nc-check.nc-freq-hint:not(.sel):not(:focus-within){outline:1px dashed #b06a00;outline-offset:1px}   /* [fix audit] jamais par-dessus l'état coché ni l'anneau de focus */
+/* ============================================================
+   [L357 · DEMANDES ESTEBAN 19/08 (retours L356)] Fiche paysage : (1) haut de colonne plus compact — ligne par-réf du HUD
+   masquée (le rail ORDRE DE COUPE la porte), chip APPRENTI retirée, marges serrées ; (2) le bloc « Réf N » devient une
+   BANDE nette teintée de la couleur de la réf : chip · état · NOM · ml · film — validée = bande seule (tap = détails),
+   verrouillée = bande + 🔒, à couper = bande + machine/mère/VALIDER. Plan paysage : « + Ajouter une référence » sous la réf 1.
+   Tout scopé ≥1100px — portrait inchangé.
+   ============================================================ */
+@media(min-width:1100px){
+  .fp-byref{display:none!important}
+  .fh-pills{margin-bottom:4px}
+  #ficheRight>#coupeeBanner{margin-bottom:4px;padding-top:6px;padding-bottom:6px}
+  /* — bande de référence (hors slot L352) — */
+  #ficheRight>.fmm-inline-block,#ficheLines .fmm-inline-block{margin:4px 0 8px;padding:8px 12px 8px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--rc,#888) 45%,var(--border2));border-left-width:6px!important;background:linear-gradient(color-mix(in srgb,var(--rc,#888) 16%,var(--card)),color-mix(in srgb,var(--rc,#888) 6%,var(--card)))}
+  #ficheRight>.fmm-inline-block .fmm-head,#ficheLines .fmm-inline-block .fmm-head{margin-bottom:0;gap:10px;min-height:44px;align-items:center;flex-wrap:nowrap;overflow:hidden}
+  #ficheRight>.fmm-inline-block .fmm-name,#ficheLines .fmm-inline-block .fmm-name{font:800 22px/1.1 var(--f-head);letter-spacing:.01em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  #ficheRight>.fmm-inline-block .fmm-ref-chip,#ficheLines .fmm-inline-block .fmm-ref-chip{font:800 14px/1 var(--f-head);padding:6px 10px;border-radius:8px;white-space:nowrap}
+  #ficheRight>.fmm-inline-block .fmm-badge,#ficheLines .fmm-inline-block .fmm-badge{font-size:13px;white-space:nowrap}
+  #ficheRight>.fmm-inline-block .fmm-meta,#ficheLines .fmm-inline-block .fmm-meta{margin-left:auto;display:flex;gap:6px;flex:none}
+  #ficheRight>.fmm-inline-block .fmm-tag,#ficheLines .fmm-inline-block .fmm-tag{font:800 15px/1 var(--f-head);letter-spacing:.03em;padding:6px 10px;border-radius:8px;background:color-mix(in srgb,var(--rc,#888) 22%,var(--card));color:var(--text);border:1px solid color-mix(in srgb,var(--rc,#888) 60%,transparent);white-space:nowrap}
+  /* validée : bande seule, détails (mère · bords · laize · recorriger) au tap ; verrouillée : bande + 🔒 sans phrase ; à couper : inchangé (machine / mère / VALIDER) */
+  .fmm-inline-block:has(.fmm-badge.val):not(.ref-done):not(.ref-open) .fmm-valsum{display:none}
+  .fmm-inline-block:has(.fmm-badge.val):not(.ref-done) .fmm-head{cursor:pointer}
+  .fmm-inline-block:has(.fmm-badge.val):not(.ref-done):not(:has(#ficheHeadSide)) .fmm-head::after{content:"▾";margin-left:4px;color:var(--text3);font-size:16px;flex:none}
+  .fmm-inline-block:has(.fmm-badge.val):not(.ref-done).ref-open .fmm-head::after{content:"▴"}
+  .fmm-inline-block.ref-open .fmm-valsum{margin-top:8px}
+  .fmm-inline-block.locked .fmm-hint{display:none}
+  .fmm-inline-block.locked{opacity:.75}
+  #ficheHeadSide .fmm-head::after{content:none}
+}
 </style>
 </head>
 <body>
@@ -2138,7 +2169,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
     <div class="section-title">Plan de découpe</div>
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
-      <button type="button" class="btn" id="outilsPlanBtn" onclick="openOutilsDlg('outilsPlanDlg')" style="display:none;min-height:56px;justify-content:space-between;flex:1">⚙ Outils <span class="outils-badge">5</span></button><!-- [L338 · §2.14 maquette 18] tiroir OUTILS du Plan (≥1100px) -->
+      <button type="button" class="btn" id="outilsPlanBtn" onclick="openOutilsDlg('outilsPlanDlg')" style="display:none;min-height:56px;justify-content:space-between;flex:1">⚙ Outils <span class="outils-badge">4</span></button><!-- [L338 · §2.14 maquette 18] tiroir OUTILS du Plan (≥1100px) -->
       <button class="btn btn-blue btn-sm" id="planSaveBtn" onclick="openSaveModal()">💾 Sauvegarder</button>
       <button class="btn btn-ghost btn-sm" id="planEditBtn" onclick="togglePlanManual()">✏️ Modifier à la main</button><!-- [L121 · T4-A1] doublon « 🆕 Nouveau plan » retiré (= « ↺ Réinitialiser » rouge, plus haut) -->
     </div>
@@ -2873,7 +2904,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L356';
+const APP_VERSION='2026.08.19-L357';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -18018,6 +18049,7 @@ function renderFicheMachineBlocks(opts){
     block.dataset.refIdx=r.idx;
     const rc=refColor(pos);
     block.style.borderLeft='6px solid '+rc;   // couleur par référence (miroir de l'ordre de coupe)
+    try{ block.style.setProperty('--rc',rc); }catch(e){}   // [L357] la bande de réf (paysage) se teinte de la couleur de la réf
     const refChip='<span class="fmm-ref-chip" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">Réf '+(pos+1)+'</span>';
     // [L258 · bug Esteban] nom de machine dans l'en-tête du bloc (états à couper / verrouillé) : l'état validé
     // l'affiche déjà dans son résumé. Sans ça, le nom n'était que dans le <select> → « pas indiqué ».
@@ -19065,7 +19097,7 @@ function updateCoupeeStatus(){
   const _fpRow='<span class="fp-num tabnum"><b>'+done+'</b><small> / '+total+' coupées</small></span>'
     +_bar
     +'<span class="fp-pct tabnum">'+_pct+'%</span>'+_stk
-    +(perRefStr?'<div style="flex-basis:100%;font-size:12px;font-weight:600;margin-top:4px;text-align:left">'+perRefStr+'</div>':'');
+    +(perRefStr?'<div class="fp-byref" style="flex-basis:100%;font-size:12px;font-weight:600;margin-top:4px;text-align:left">'+perRefStr+'</div>':'');   // [L357] classe : masquée ≥1100px (le rail ORDRE DE COUPE porte déjà l'état par réf)
   // [L292 · demande Esteban 30/07] GUIDE DE PROCHAINE ACTION (T6/L288) RETIRÉ EN ENTIER : jugé inutile à l'usage
   // (« ce texte est inutile ») — les boutons pulsés (.next-action), la barre d'action et les toasts zéro-tap-mort
   // (L288 T5, conservés) suffisent. Le suivi « X/N coupées » reste seul dans la bande.
@@ -19818,6 +19850,20 @@ function _l340SetupFichePills(){ try{
 // d'origine → retour exact au repli, en portrait, ou dès que le bloc n'est plus le bon (autre réf active, mono↔multi).
 // Piège connu (L339) : jamais de sélecteur ancré sur un nœud déplacé → les règles CSS visent le slot lui-même.
 // ============================================================
+// [L357 · demande Esteban 19/08] BANDE DE RÉFÉRENCE (paysage) : le bloc « Réf N » (validé) n'est plus qu'une bande nette
+// (chip · état · nom · ml · film) ; un tap sur la bande déplie mère / bords / laize / 🔄 recorriger (.ref-open, même classe
+// que le repli « réf terminée » L288). Affichage pur ; en portrait rien ne change (le listener ne fait rien <1100px).
+(function _l357RefBand(){ try{
+  if(document.body.dataset.l357) return; document.body.dataset.l357='1';
+  document.addEventListener('click',function(e){ try{
+    if(!(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche())) return;
+    const h=e.target&&e.target.closest&&e.target.closest('.fmm-inline-block>.fmm-head'); if(!h) return;
+    if(e.target.closest('button,a,input,select,textarea')) return;
+    const b=h.parentNode; if(!b||!b.querySelector('.fmm-badge.val')||b.classList.contains('ref-done')) return;
+    if(b.closest('#ficheHeadSide')) return;   // dans le slot de l'en-tête (L352) : jamais replié
+    b.classList.toggle('ref-open'); h.setAttribute('aria-expanded',b.classList.contains('ref-open')?'true':'false');
+  }catch(_){} });
+}catch(e){} })();
 function _l352Restore(n){ try{
   if(!n) return;
   const ph=n._l352Home; n._l352Home=null;
