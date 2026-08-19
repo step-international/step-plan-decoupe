@@ -2907,7 +2907,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L358';
+const APP_VERSION='2026.08.19-L359';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5564,7 +5564,7 @@ function importPlanToFiche(opts){
     }
     const tooWide=computed.some(c=>c.oversize.length);
     if(tooWide){
-      if(!auto) showToast('⚠ Une largeur dépasse la largeur utile de sa référence.\n\nCorrige le plan avant d\'importer dans la fiche.','err');
+      showToast(auto?'⛔ Une laize dépasse la largeur utile — la fiche reste vide : corrige le plan.':'⚠ Une largeur dépasse la largeur utile de sa référence.\n\nCorrige le plan avant d\'importer dans la fiche.','err');   // [L359 · QW2] en auto aussi (toast non bloquant) : avant, fiche vide SANS UN MOT
       return;
     }
     const multi=computed.length>1;
@@ -5634,6 +5634,23 @@ function importPlanToFiche(opts){
     }else{
       copy('planRef','fRef');
       copy('planLongueur','fLongueur');
+      // [L359 · analyse parcours 19/08 · QW1 · ISO] MONO-RÉF : la MACHINE du plan devient celle de la fiche. Avant, ficheMachine
+      // restait 'feba' (selectMachine du reset) tant que l'opérateur ne retapait pas le bouton machine du bloc replié → pastille,
+      // archive (getMachineLabel(ficheMachine)), fiche papier et alertes lame attestaient FEBA pour un plan MAVEG/CEVENINI.
+      // Variable + boutons + n° de lame SEULEMENT (pas selectFicheMachine : il ré-applique bords/lame et invalide le plan).
+      try{
+        const _pm=computed[0]&&computed[0].machine;
+        if(_pm&&_pm!==ficheMachine&&typeof MACHINE_KEYS!=='undefined'&&MACHINE_KEYS.indexOf(_pm)>=0){
+          const _prev=ficheMachine; ficheMachine=_pm;
+          ['feba','maveg','cevenini'].forEach(k=>{ const b=document.getElementById('fBtn'+k.charAt(0).toUpperCase()+k.slice(1)); if(b) b.className='machine-btn-fiche'+(k===_pm?' sel-'+k:''); });
+          const _lel=document.getElementById('fNumLame');
+          if(_lel&&typeof lameActiveForMachine==='function'){
+            const _old=lameActiveForMachine(_prev), _new=lameActiveForMachine(_pm);
+            const _oldNum=_old?String(_old.lameNum||'').trim():'', _newNum=_new?String(_new.lameNum||'').trim():'';
+            if(!_lel.value.trim()||(_oldNum&&_lel.value.trim()===_oldNum)) _lel.value=_newNum;   // la lame pré-remplie de l'ancienne machine ne reste pas ; une saisie manuelle est préservée
+          }
+        }
+      }catch(e){}
     }
     copy('planNumCmd','fNumCmd');
     copy('planDateLiv','fDateLiv');
@@ -6016,6 +6033,8 @@ function startCutFromPlan(){
     const g=(typeof getRefGroups==='function')?getRefGroups():[];
     const hasRows=g.some(x=>((x.rows&&x.rows.length)||(x.rawRows&&x.rawRows.length)));
     if(!hasRows){ showToast('⚠ Saisis d\'abord la commande (au moins une laize avec quantité) avant de lancer la coupe.','err'); return; }
+    // [L359 · analyse parcours 19/08 · QW2] laize > largeur utile : la fiche serait générée VIDE (importPlanToFiche auto refuse en silence) → on le dit ici, avant de basculer (zéro cul-de-sac ; lecture seule du moteur, comme importPlanToFiche)
+    try{ const _c=packRefGroupsPal(g).filter(c=>c.rows.length); if(_c.some(c=>c.oversize&&c.oversize.length)){ showToast('⛔ Une laize dépasse la largeur utile (⛔ sur le plan) — corrige avant de couper.','err'); return; } }catch(e){}
   }catch(e){}
   showPage(1);
 }

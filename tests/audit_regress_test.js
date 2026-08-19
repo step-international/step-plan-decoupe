@@ -908,5 +908,11 @@ has(/\.fmm-ref-chip\{font:800 14px\/1 var\(--f-head\);padding:6px 10px;border-ra
 has(/#ficheRight>\.fmm-inline-block\{flex:0 0 auto;max-height:min\(50vh,calc\(100dvh - 402px\)\)/,'L358 : plafond du bloc actif relatif à l écran (VALIDER visible à 744px)');
 has(/\[L357 · fix audit a11y\] bande validée = bouton clavier/,'L358 : bande validée role=button + clavier en paysage');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L358 présents dans index.html + sw.js');
+console.log('── L359 : analyse des parcours (19/08) — quick wins 1 · 2 (ISO / cul-de-sac) ──');
+has(/const _pm=computed\[0\]&&computed\[0\]\.machine;/,'L359 QW1 : mono-réf — la machine du plan devient celle de la fiche à l import (archive / papier / alertes lame justes)');
+has(/if\(!_lel\.value\.trim\(\)\|\|\(_oldNum&&_lel\.value\.trim\(\)===_oldNum\)\) _lel\.value=_newNum;/,'L359 QW1 : n° de lame de l ancienne machine remplacé, saisie manuelle préservée');
+has(/if\(_c\.some\(c=>c\.oversize&&c\.oversize\.length\)\)\{ showToast\('⛔ Une laize dépasse la largeur utile/,'L359 QW2 : COMMENCER refuse (toast) quand une laize dépasse l utile — plus de fiche vide silencieuse');
+has(/showToast\(auto\?'⛔ Une laize dépasse la largeur utile — la fiche reste vide/,'L359 QW2 : import auto = toast non bloquant au lieu du silence');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L359 présents dans index.html + sw.js');
 process.exit(fail?1:0);

@@ -80,23 +80,23 @@ const PAGE_ONE = `(async function(k){
     let ncLine=null; if(R()<${P_NC}&&ficheLines.length){ ncLine=pick(ficheLines); try{ const id=ncLine.id; const det=document.getElementById(id).querySelector('details.fl-more'); if(det) det.open=true; const cb=document.getElementById('nc_'+pick(['larg','qty','casse','ang'])+'_'+id).querySelector('input'); cb.checked=true; updateNC(id); const act=pick(['dechet','chutes']); toggleAction(id,act); const dv=document.getElementById('flDevi_'+id); if(dv&&!dv.checked){ dv.checked=true; dv.dispatchEvent(new Event('change',{bubbles:true})); } const feba=(typeof _flMachineOf==='function')?(_flMachineOf(id)==='feba'):false; const dr=document.getElementById('flDroit_'+id); if(!feba&&dr&&!dr.checked){ dr.checked=true; dr.dispatchEvent(new Event('change',{bubbles:true})); } try{ updateTest2Subs(id); }catch(_){} rep.nc={id, act, badge:!!document.querySelector('#'+id+' .fl-badge.badge-red')}; if(!rep.nc.badge) bug('NC : badge rouge absent après motif coché'); }catch(e){ bug('NC : '+e.message); } }
     // 4) coupe de toutes les bobines (chrono AUTO au 1er ✂) — [L356] en multi, valider chaque réf quand son bloc devient actif
     let cut=0, tries=0, wasRunning=chronoRunning; const T=ficheLines.length; let jalonSeen=false;
-    for(let i=0;i<T&&tries<T*3;i++){ if(multi){ if(await _valRef()) await wait(1500); }   /* [L356] valider AVANT de lire la ligne : la validation régénère les lignes (ids neufs) */
+    for(let i=0;i<ficheLines.length&&tries<T*3+20;i++){ if(multi){ if(await _valRef()) await wait(1500); }   /* [L359] borne vivante : une NC déchet + recalcul peut AJOUTER une bobine de remplacement */   /* [L356] valider AVANT de lire la ligne : la validation régénère les lignes (ids neufs) */
       const l=ficheLines[i]; if(!l){ bug('ligne '+i+' disparue après validation'); break; } const el=document.getElementById(l.id); const b=document.getElementById('coupeeBtn_'+l.id); if(!el||!b){ bug('bobine sans bouton ✂ '+i); continue; }
       if(el.classList.contains('coupee')){ cut++; continue; }
       b.click(); await wait(40); for(let r=0;r<3&&!el.classList.contains('coupee');r++){ await wait(800); b.click(); await wait(40); tries++; }
       if(el.classList.contains('coupee')) cut++; else { bug('✂ refusé bobine '+(i+1)+'/'+T+' ('+(document.querySelector('#globalToast')?.textContent||'').slice(0,80)+')'); }
       if(i===0&&!chronoRunning) bug('chrono NON démarré automatiquement au 1er ✂');
       if(document.querySelector('.fp-jalon')) jalonSeen=true;
-      const reste=(document.getElementById('sendPlanBtn')||{}).dataset?.reste; if(reste!=null&&parseInt(reste,10)!==T-cut) bug('RESTE '+reste+' ≠ '+(T-cut));
+      const reste=(document.getElementById('sendPlanBtn')||{}).dataset?.reste; if(reste!=null&&parseInt(reste,10)!==ficheLines.length-cut) bug('RESTE '+reste+' ≠ '+(ficheLines.length-cut));
     }
-    rep.cut={cut,T,jalonSeen,chrono:chronoRunning,hud:(document.querySelector('#coupeeBanner .fp-num')||{}).textContent};
-    if(cut!==T) bug('coupe incomplète '+cut+'/'+T);
+    const Tf=ficheLines.length; rep.cut={cut,T:Tf,T0:T,jalonSeen,chrono:chronoRunning,hud:(document.querySelector('#coupeeBanner .fp-num')||{}).textContent};
+    if(cut!==Tf) bug('coupe incomplète '+cut+'/'+Tf);
     if(T>=4&&!jalonSeen) rep.note='jalon non vu (peut être masqué par le timing)';
     // 5) clôture : volet victoire (aucun envoi : le volet s'ouvre, on le ferme)
     try{ confirmCommandeRecap(); }catch(e){ bug('confirmCommandeRecap a levé : '+e.message); }
     await wait(150);
     const vo=document.querySelector('#victoryOverlay.open'); rep.victory=!!vo; if(!vo) bug('volet de clôture NON ouvert après coupe complète');
-    else { const t=document.getElementById('victoryBody').innerText; if(t.indexOf(T+'/'+T)<0) bug('volet : compteur '+T+'/'+T+' absent'); if(t.indexOf('Perte matière')<0) bug('volet : perte % absente'); if(ncLine&&!/1 NC/.test(t)) bug('volet : la NC déclarée n apparaît pas ('+(t.match(/[^\\n]*NC[^\\n]*/)||[''])[0]+')'); if(!ncLine&&/\\d+ NC déclarée/.test(t)) bug('volet : NC fantôme'); try{ victoryClose(); }catch(_){} }
+    else { const t=document.getElementById('victoryBody').innerText; if(t.indexOf(Tf+'/'+Tf)<0) bug('volet : compteur '+Tf+'/'+Tf+' absent'); if(t.indexOf('Perte matière')<0) bug('volet : perte % absente'); if(ncLine&&!/1 NC/.test(t)) bug('volet : la NC déclarée n apparaît pas ('+(t.match(/[^\\n]*NC[^\\n]*/)||[''])[0]+')'); if(!ncLine&&/\\d+ NC déclarée/.test(t)) bug('volet : NC fantôme'); try{ victoryClose(); }catch(_){} }
     resetAll(); await wait(60);
     if(ficheLines.length) bug('resetAll : fiche non vidée');
     if(document.getElementById('victoryOverlay')?.classList.contains('open')) bug('resetAll : volet resté ouvert');
