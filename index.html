@@ -2031,6 +2031,12 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
 .app-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:18px 0 6px;font-size:13px;color:var(--text3)}
 .app-footer .btn,.outils-foot .btn{min-height:44px;font-size:13px;color:var(--text2)}
 .outils-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:13px;color:var(--text3)}
+/* [L369 · audit « bruit résiduel » (19/08)] ATELIER masqué pour l'opérateur (forcé ON) ; CLAIR dans le pied des tiroirs ≥1100 ; compteur
+   de plans masqué ≥1100 (il comptait TOUT alors que la liste est « ma machine ») ; pieds discrets en atelier ; nav portrait défile seule. */
+body.role-op #atelierBtn{display:none!important}
+@media(max-width:1099px){#nav{overflow-x:auto;scrollbar-width:none}}
+@media(min-width:1100px){#themeBtn{display:none!important}#savesCount{display:none}}
+body.atelier .app-footer .btn,body.atelier .outils-foot .btn{font-size:14px;min-height:44px;padding:8px 12px}
 </style>
 </head>
 <body>
@@ -2860,7 +2866,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
       <button class="btn" id="outilsRecapBtn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche')">📥 Récap emballage par client</button><!-- [L339 · audit] visible seulement en multi-clients (openOutilsDlg) — en mono la cible n'existe pas à l'écran -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');stopManqueMatiere()">⛔ Arrêt — manque de matière</button>
     </div>
-    <div class="outils-foot"><span class="app-ver"></span> · <button type="button" class="btn btn-ghost btn-sm" onclick="closeOutilsDlg('outilsFicheDlg');document.getElementById('welcomeHelpBtn').click()">? Accueil</button></div><!-- [L368] -->
+    <div class="outils-foot"><span class="app-ver"></span> · <button type="button" class="btn btn-ghost btn-sm" onclick="toggleTheme()">☀️ Clair / sombre</button> · <button type="button" class="btn btn-ghost btn-sm foot-accueil" onclick="closeOutilsDlg('outilsFicheDlg');document.getElementById('welcomeHelpBtn').click()">? Accueil</button></div><!-- [L368 · L369 : CLAIR déplacé ici en paysage] -->
   </div>
 </div>
 <div class="modal-overlay" id="outilsPlanDlg">
@@ -2873,7 +2879,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
       <button class="btn" id="outilsSaveBtn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button><!-- [L363 · A17] gatée sur canManageData() comme #planSaveBtn (sinon erreur permissions brute pour un opérateur) -->
       <button class="btn btn-red" onclick="closeOutilsDlg('outilsPlanDlg');resetSiteConfirm()">↺ Réinitialiser</button>
     </div>
-    <div class="outils-foot"><span class="app-ver"></span> · <button type="button" class="btn btn-ghost btn-sm" onclick="closeOutilsDlg('outilsPlanDlg');document.getElementById('welcomeHelpBtn').click()">? Accueil</button></div><!-- [L368] -->
+    <div class="outils-foot"><span class="app-ver"></span> · <button type="button" class="btn btn-ghost btn-sm" onclick="toggleTheme()">☀️ Clair / sombre</button> · <button type="button" class="btn btn-ghost btn-sm foot-accueil" onclick="closeOutilsDlg('outilsPlanDlg');document.getElementById('welcomeHelpBtn').click()">? Accueil</button></div><!-- [L368 · L369] -->
   </div>
 </div>
 <div class="modal-overlay" id="op2RefModal">
@@ -3013,7 +3019,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L368';
+const APP_VERSION='2026.08.19-L369';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3874,6 +3880,8 @@ function applyRole(){
   // fiches+temps et parquent des plans). Le droit fin est appliqué CÔTÉ CLIENT uniquement (canManageData).
   // → masquer le bouton Sauvegarder du plan pour les opérateurs (sinon erreur permissions brute).
   var psb=document.getElementById('planSaveBtn');if(psb)psb.style.display=canManage?'':'none';
+  try{ document.body.classList.toggle('role-op',currentRole==='operateur'); }catch(e){}   // [L369] rôle lisible par le CSS (ATELIER masqué pour l'opérateur : atelier forcé ON à chaque connexion, le bouton ne servait qu'à rapetisser)
+  try{ var blf=document.getElementById('btnLoadFull'); if(blf) blf.style.display=canManage?'':'none'; }catch(e){}   // [L369] historique complet (20 000 fiches) = pilotage/admin seulement
   try{ const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; if(_dm){ const _m1=document.querySelector('#refBlocks [data-rb="machine"]'); const _post=(typeof _machinePostName==='function')?String(_machinePostName()||'').toLowerCase():''; const _pristine=!(typeof ficheLines!=='undefined'&&ficheLines.length)&&!Array.from(document.querySelectorAll('#refBlocks .order-row input[data-type="qty"]')).some(function(i){ return String(i.value||'').trim(); }); if(_m1&&_pristine&&(!_m1.value||(_post&&_post===_dm&&_m1.value!==_dm))){ _m1.value=_dm; selectMachine(_dm); if(typeof onRefMachineChange==='function') onRefMachineChange(_m1); } } }catch(e){}   // [L363 · B3 + L364 fix audit] machine du poste posée à la connexion — Poste > dernière machine, jamais par-dessus une saisie (plan vierge seulement)
   var fmb=document.getElementById('fichesManageBtns');if(fmb)fmb.style.display=canManage?'':'none';
   var tmb=document.getElementById('tempsManageBtns');if(tmb)tmb.style.display=canManage?'':'none';
@@ -5963,9 +5971,10 @@ function renderDataSummary(){
     try{ F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; const d=t?new Date(t):null; if(!(d&&!isNaN(d)&&d>=monday)) return; if(f.valide===false||f.manqueMatiere) return;   /* [L346 · audit] MÊME règle que le KPI mensuel (buildMonthlyKpi) : refusées et manque-matière exclues */
       const nb=parseInt(f.totalBobines,10); if(nb>0) wkBob+=nb; const pc=parseFloat(String(f.pct||'').replace(',','.')); if(!isNaN(pc)&&nb>0){ wkPctSum+=pc*nb; wkPctN+=nb; } }); }catch(e){}
     const wkPct=wkPctN?(wkPctSum/wkPctN):null;   /* pondérée par bobines (règle KPI) */
-    el.innerHTML=chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
+    const _chef=(typeof canViewAnalyse==='function')?!!canViewAnalyse():true;   // [L369] KPI « œil chef » (semaine / bobines / perte) = pilotage/admin ; l'opérateur garde planning · BL · lame
+    el.innerHTML=(_chef?chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
       +chip('Bobines',(wkKnown&&wkBob>0)?String(wkBob):'—',false)
-      +chip('Perte moy.',(wkPct!=null)?(wkPct.toFixed(1).replace('.',',')+' %'):'—',(wkPct!=null&&wkPct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5)))
+      +chip('Perte moy.',(wkPct!=null)?(wkPct.toFixed(1).replace('.',',')+' %'):'—',(wkPct!=null&&wkPct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5))):'')
       +chip('Planning du jour',plnTxt,false)   /* [L346] f/T depuis la source du Planning (mémoire) */
       +chip('BL à joindre',(noBL===0?'0':noBL),(typeof noBL==='number'&&noBL>0))
       +chip('Lame',lame,lameWarn);
@@ -17793,7 +17802,7 @@ function invalidateFichePlan(){
 function updateFPlanHint(){
   const h=document.getElementById('fPlanHint'); if(!h) return;
   if(fichePlanValidated){
-    h.textContent='✓ Prêt';   // [L188] variante raccourcie (demande Esteban : moins de texte inutile)
+    h.textContent='';   // [L188] variante raccourcie → [L369] silence = OK (l'avertissement orange reste quand il faut)
     h.style.color='var(--green)';
   }else{
     h.textContent='⚠ Dimension modifiée — « 🔄 Changement plan » requis';   // [L305 · LOT 21 · §2.20] raccourci (le toast de la garde porte le détail)
@@ -19829,6 +19838,7 @@ function openOutilsDlg(id){ try{
   if(id==='outilsFicheDlg'){   /* [L339 · audit] l'entrée récap n'apparaît qu'en multi-clients (en mono la cible n'existe pas à l'écran) */
   }
   try{ _l361SyncOutilsBadges(); }catch(_){}   // [L361] (règles de visibilité recap / recorriger + badge = entrées visibles)
+  try{ const _fa=document.querySelector('#'+id+' .outils-foot .foot-accueil'); if(_fa) _fa.style.display=(typeof chronoRunning!=='undefined'&&chronoRunning)?'none':''; }catch(_){}   // [L369] « ? Accueil » inutile pendant la coupe (tap à vide)
   if(id==='outilsPlanDlg'){    /* [L339 · audit] l'entrée plan manuel dit ce que fera le tap (bascule sans surprise) */
     const pb=document.getElementById('outilsPmBtn');
     if(pb) pb.textContent=(typeof planManual!=='undefined'&&planManual)?'↩ Revenir au plan automatique (les modifs manuelles seront recalculées)':'✏️ Modifier le plan à la main';

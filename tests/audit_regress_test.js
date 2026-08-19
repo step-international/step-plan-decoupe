@@ -989,5 +989,13 @@ has(/id="appFooter" class="app-footer"><span class="app-ver"><\/span>/,'L368 : v
 has(/document\.querySelectorAll\('\.app-ver'\)\.forEach\(function\(e\)\{ e\.textContent='v'\+APP_VERSION; \}\)/,'L368 : version posée dans les pieds (Données + ⚙ OUTILS)');
 has(/\.modal>div:not\(\.outils-foot\)>button\.btn/,'L368 : le pied des tiroirs OUTILS ne compte pas dans le badge');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L368 présents dans index.html + sw.js');
+console.log('── L369 : bruit résiduel (audit 19/08) ──');
+has(/document\.body\.classList\.toggle\('role-op',currentRole==='operateur'\)/,'L369 : classe rôle opérateur sur body');
+has(/body\.role-op #atelierBtn\{display:none!important\}/,'L369 : ATELIER masqué pour l opérateur (forcé ON de toute façon)');
+has(/@media\(max-width:1099px\)\{#nav\{overflow-x:auto;scrollbar-width:none\}\}/,'L369 : nav portrait défile seule (page immobile)');
+has(/const _chef=\(typeof canViewAnalyse==='function'\)\?!!canViewAnalyse\(\):true;/,'L369 : KPI chef du bandeau Données réservés pilotage/admin');
+has(/if\(blf\) blf\.style\.display=canManage\?'':'none';/,'L369 : historique complet réservé pilotage/admin');
+has(/class="btn btn-ghost btn-sm" onclick="toggleTheme\(\)">☀️ Clair \/ sombre<\/button>/,'L369 : CLAIR dans le pied des tiroirs OUTILS (paysage)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L369 présents dans index.html + sw.js');
 process.exit(fail?1:0);
