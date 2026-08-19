@@ -778,7 +778,7 @@ has(/row\('Perte matière'/,'L344 : volet de clôture complété — perte % (§
 has(/row\('Série sans NC'/,'L344 : volet de clôture — série sans NC (localStorage, jamais en base)');
 has(/className='fp-jalon'/,'L344 : jalons mi-parcours / dernière bobine = chip 3 s dans le HUD, jamais une modale (§2.5)');
 has(/id='railChgBtn'/,'L344 : 🔧 Changements en 1 tap dans le rail paysage (inventaire §2.10 : 3 taps → 2)');
-has(/<span class="cs-auto">✓<\/span>/,'L344 : « AUTO ✓ » → « ✓ » (§2.20)');
+has(/<span class="cs-auto">'\+\(_isCli\?'CLIENT':'DÉFAUT'\)\+'<\/span>/,'L344 : « AUTO ✓ » → « ✓ » (§2.20) — L363 A16 (analyse parcours, validée Esteban) : le ✓ dit maintenant CLIENT / DÉFAUT (la règle appliquée)');
 has(/#btnStartCut\{min-height:84px!important;font-size:29px!important\}/,'L344 : COMMENCER À COUPER = geste n°1 du Plan, un cran au-dessus de tout');
 has(/#planLeft #planClient\{font-size:30px\}/,'L344 : CLIENT en avant ; n° commande / livraison / fichier en retrait ; mère/bords en dessous de la largeur utile');
 
@@ -938,5 +938,15 @@ has(/body:has\(\.fmm-inline-block\.active\) #ficheRail #chronoStartBtn:not\(:dis
 has(/\.fiche-line\.fl-current:has\(\.fl-badge\.badge-red\) \.fl-more\{background:#241010;border-color:#8a2b2f\}/,'L362 B8 : ⚠ DÉFAUT neutre, rouge plein seulement si NC réelle');
 has(/\.fiche-ref-sep\.change\{border-color:var\(--warn\)/,'L362 B9 : changement de machine = orange vif (le rouge reste à la NC)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L362 présents dans index.html + sw.js');
+console.log('── L363 : analyse des parcours — logique validée (B3 B4 B5 B11 B15 · A16 A17 A20) ──');
+has(/function _l363DefaultMachine\(\)/,'L363 B3 : machine par défaut = compte Poste X > dernière machine du poste (resetAll + connexion)');
+has(/if\(sel\.id==='planRef'&&!prev&&refs\.length===1&&!sel\.value\)\{ sel\.value=refs\[0\]\.ref; window\._l363RefAuto=true; \}/,'L363 B4 : client à réf unique → réf présélectionnée (interactif seulement)');
+has(/var _keep=!!\(window\._l363PkgTouched&&window\._l363PkgClient===clientName\);/,'L363 B5 : emballage — après saisie manuelle la règle ne remplit que les vides');
+has(/if\(t\.dataset\.l363edit!=='1'\) t\.readOnly=true;/,'L363 B11 : config en lecture seule tant que ✎ MODIFIER n est pas tapé (paysage)');
+has(/function initDefaultRows\(\)\{for\(let i=0;i<3;i\+\+\) addOrderRow\(\);\}/,'L363 B15 : 3 lignes vides par défaut (la suivante s ajoute seule)');
+has(/let delay=600;/,'L363 B15 : recalcul du plan léger à 600 ms');
+has(/#planSaveBtn\{display:inline-flex;min-height:48px;width:100%;justify-content:center\}/,'L363 A17 : 💾 Sauvegarder le plan à 1 tap en paysage (gating rôle intact)');
+has(/body\.calc-pending #planCards/,'L363 A20 : plan périmé signalé pendant le recalcul');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L363 présents dans index.html + sw.js');
 process.exit(fail?1:0);

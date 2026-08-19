@@ -2015,6 +2015,12 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   .fiche-ref-sep.change{border-color:var(--warn);border-left-color:var(--warn);background:linear-gradient(#3d2a00,var(--section))}
   .frs-change{color:var(--warn)}
 }
+/* [L363 · analyse parcours — logique validée : B3 machine du poste · B4 réf unique · B5 emballage main gagne · B11 config lecture seule · B15 3 lignes/600 ms · A16 · A17 · A20] */
+@media(min-width:1100px){
+  #planSaveBtn{display:inline-flex;min-height:48px;width:100%;justify-content:center}   /* A17 : 💾 à 1 tap (le gating rôle inline display:none gagne) */
+  body.calc-pending #planCards,body.calc-pending .row-share{opacity:.55;transition:opacity .2s}   /* A20 : plan périmé pendant le recalcul */
+  #ficheLines .fiche-line [id^="flConf_"][readonly]{cursor:default;caret-color:transparent}   /* B11 */
+}
 </style>
 </head>
 <body>
@@ -2851,7 +2857,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');outilsReveal('#cliSection');try{ if(typeof cliMulti==='function'&&!cliMulti()&&typeof cliAdd==='function') cliAdd(); }catch(e){}">👥 Multi-clients — ＋ 2ᵉ client</button><!-- [L351 · audit] 2 taps au lieu de 3 : dévoile ET ajoute le 2ᵉ client -->
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');addRefBlock()">＋ Ajouter une référence</button>
       <button class="btn" id="outilsPmBtn" onclick="closeOutilsDlg('outilsPlanDlg');togglePlanManual()">✏️ Modifier le plan à la main</button><!-- [L339 · audit] libellé dynamique : dit « revenir en auto » quand le plan manuel est actif -->
-      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button>
+      <button class="btn" id="outilsSaveBtn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button><!-- [L363 · A17] gatée sur canManageData() comme #planSaveBtn (sinon erreur permissions brute pour un opérateur) -->
       <button class="btn btn-red" onclick="closeOutilsDlg('outilsPlanDlg');resetSiteConfirm()">↺ Réinitialiser</button>
     </div>
   </div>
@@ -2993,7 +2999,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L362';
+const APP_VERSION='2026.08.19-L363';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3853,6 +3859,7 @@ function applyRole(){
   // fiches+temps et parquent des plans). Le droit fin est appliqué CÔTÉ CLIENT uniquement (canManageData).
   // → masquer le bouton Sauvegarder du plan pour les opérateurs (sinon erreur permissions brute).
   var psb=document.getElementById('planSaveBtn');if(psb)psb.style.display=canManage?'':'none';
+  try{ const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; if(_dm){ const _m1=document.querySelector('#refBlocks [data-rb="machine"]'); if(_m1&&!_m1.value&&!(typeof ficheLines!=='undefined'&&ficheLines.length)){ _m1.value=_dm; selectMachine(_dm); if(typeof onRefMachineChange==='function') onRefMachineChange(_m1); } } }catch(e){}   // [L363 · B3] machine du poste posée à la connexion (bloc 1 vide seulement)
   var fmb=document.getElementById('fichesManageBtns');if(fmb)fmb.style.display=canManage?'':'none';
   var tmb=document.getElementById('tempsManageBtns');if(tmb)tmb.style.display=canManage?'':'none';
   var bbz=document.getElementById('backupBtnZone');if(bbz)bbz.style.display=canManage?'flex':'none';
@@ -4397,10 +4404,11 @@ var PKG_CLIENTS={
 
 function applyPackagingRules(clientName){
   var rules=PKG_CLIENTS[clientName]||PKG_DEFAULT;
-  document.getElementById('planPalette').value=rules.palette||'';
-  document.getElementById('planType').value=rules.type||'';
-  document.getElementById('planEtiquetage').value=rules.etiquetage||'';
-  document.getElementById('planCerclage').value=rules.cerclage||'';
+  // [L363 · analyse parcours B5] après une saisie MANUELLE dans l'emballage (même commande, même client), la règle ne REMPLIT que les vides
+  var _keep=!!(window._l363PkgTouched&&window._l363PkgClient===clientName);
+  var _setIf=function(id,v){ var el=document.getElementById(id); if(!el) return; if(_keep&&String(el.value||'').trim()) return; el.value=v||''; };
+  window._l363PkgClient=clientName;
+  _setIf('planPalette',rules.palette); _setIf('planType',rules.type); _setIf('planEtiquetage',rules.etiquetage); _setIf('planCerclage',rules.cerclage);
   // Auto-détection KX dans la référence sélectionnée
   // [L292 · demande Esteban 30/07 (feuille annotée)] la ligne « Film KX détecté → cerclage automatique » ne
   // s'ajoute plus quand les règles du client parlent DÉJÀ du cerclage KX (champ cerclage « tous KX » ou notes
@@ -4411,7 +4419,7 @@ function applyPackagingRules(clientName){
   if(refVal.match(/KX/i)&&!_dejaKx){
     cerclageNote='\n🔵 Film KX détecté → cerclage automatique quelle que soit la largeur.';
   }
-  document.getElementById('planNotesEmballage').value=(rules.notes||'')+cerclageNote;
+  _setIf('planNotesEmballage',(rules.notes||'')+cerclageNote);
   var alertEl=document.getElementById('packagingAlert');
   if(PKG_CLIENTS[clientName]){
     alertEl.classList.remove('hidden');
@@ -6099,7 +6107,9 @@ function onClientChange(){
     // [L271 · audit #7] réf hors du catalogue du nouveau client : ne plus la VIDER en silence (elle ne
     // revenait pas si on rechangeait de client). applySavedRef la ré-ajoute comme option → saisie conservée.
     if(refs.some(r=>r.ref===prev)) sel.value=prev; else applySavedRef(sel,prev,client);
+    if(sel.id==='planRef'&&!prev&&refs.length===1&&!sel.value){ sel.value=refs[0].ref; window._l363RefAuto=true; }   // [L363 · B4] client à RÉF UNIQUE (39/85) : présélectionnée (corrigeable) ; rien si une réf était déjà choisie (chargement / reprise)
   });
+  if(window._l363RefAuto){ window._l363RefAuto=false; try{ onRefChange(); }catch(e){} }
   const lg=document.getElementById('planLongueur'); if(lg) lg.value='';
   const lr=document.getElementById('planLargeur'); if(lr) lr.value='';
   updateVekaVisibility(true);   // [L218] changement de client INTERACTIF → vide le sous-type VEKA si on quitte VEKA (anti-rétention)
@@ -6499,7 +6509,7 @@ function _maybeAutoRow(row){
     if(rows[rows.length-1]!==row) return;
     const q=(row.querySelector('input[data-type="qty"]')?.value||'').trim();
     const w=(row.querySelector('input[data-type="width"]')?.value||'').trim();
-    if(q!==''&&w!==''){ cont.appendChild(makeOrderRow()); if(typeof updateCartonVisibility==='function') updateCartonVisibility(); }
+    if(q!==''&&w!==''){ const _nr=makeOrderRow(); cont.appendChild(_nr); if(typeof updateCartonVisibility==='function') updateCartonVisibility(); try{ if(window.innerWidth>=1100) _nr.scrollIntoView({block:'nearest'}); }catch(e){} }   // [L363 · A20] la ligne suivante reste visible (paysage)
   }catch(e){}
 }
 // Ajoute une ligne au bloc réf qui contient le bouton cliqué.
@@ -6746,7 +6756,7 @@ function autofillLegrandAll(){
   document.querySelectorAll('.order-row').forEach(autofillLegrandRow);
 }
 
-function initDefaultRows(){for(let i=0;i<5;i++) addOrderRow();}
+function initDefaultRows(){for(let i=0;i<3;i++) addOrderRow();}   // [L363 · B15] 5→3 : la ligne suivante s'ajoute toute seule (_maybeAutoRow)
 
 // ============================================================
 // ALGORITHME 1D
@@ -7567,13 +7577,14 @@ function computePlanDelay(groups){
   let totalQty=0; const widths=new Set();
   (groups||[]).forEach(g=>(g.rows||[]).forEach(r=>{if(r.qty>0&&r.width>0){totalQty+=r.qty;widths.add(r.width);}}));
   const distinct=widths.size;
-  let delay=1800;                                   // commande légère : réactif
+  let delay=600;                                    // commande légère : réactif — [L363 · B15] 1800→600 ms (mesuré : le plan « figé » 1,8 s après chaque frappe)
   if(totalQty>=250 || distinct>=12) delay=3000;     // [L73 · Lot 5 · B51] moyenne : seuils abaissés (>1 s déjà sur tablette atelier)
   if(totalQty>=600 || distinct>=40) delay=4500;     // lourde : on laisse le temps au PC
   return {delay, heavy:delay>=3000, totalQty, distinct};   // [L73 · Lot 5 · B51] bandeau ⏳ dès la commande moyenne (avant : lourde seulement)
 }
 function debouncedRecalcPlan(){
   clearTimeout(_recalcPlanTimer);
+  try{ document.body.classList.add('calc-pending'); }catch(e){}   // [L363 · A20] le plan affiché est périmé jusqu'au recalcul (opacité, paysage)
   let delay=2000;
   try{
     const d=computePlanDelay(getRefGroups());
@@ -7837,6 +7848,7 @@ function _planGroupsByLaize(pg,ref){
   return pg||[];
 }
 function recalcPlan(){
+  try{ document.body.classList.remove('calc-pending'); }catch(e){}   // [L363 · A20]
   // Colore chaque select machine (bleu FEBA / vert MAVEG / violet CEVENINI) ET [L79] force la perte
   // lame du bloc = défaut de sa machine (FEBA=5, MAVEG/CEVENINI=0). Lame DÉTERMINISTE (le champ est
   // masqué) : ferme aussi le cas d'un plan legacy rechargé avec une lame incohérente. Bloc sans
@@ -11381,8 +11393,11 @@ function resetAll(){
   document.getElementById('planDateLiv').value='';
   document.getElementById('packagingAlert').classList.add('hidden');
   document.querySelectorAll('.order-row').forEach(function(r){r.remove();});
-  selectMachine('feba');
-  document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';});
+  // [L363 · analyse parcours B3 (validée Esteban 19/08)] machine PRÉ-CHOISIE pour la commande suivante : compte machine « Poste X »
+  // d'abord, sinon la dernière machine choisie sur ce poste (step_last_machine, déjà utilisée au boot) — corrigeable en 1 tap ; rien n'est attesté
+  // (c'est le même défaut qu'au boot ; la fiche hérite via L359). Sans poste ni mémoire : comme avant (selects vides).
+  window._l363PkgTouched=false; window._l363PkgClient='';   // [L363 · B5] nouvelle commande = la règle reprend la main
+  { const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; selectMachine(_dm||'feba'); document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value=_dm||'';}); }
   initDefaultRows();
   
   recalcPlan();
@@ -19792,6 +19807,7 @@ function _l361SyncOutilsBadges(){ try{
   if(rb) rb.style.display=(typeof cliMulti==='function'&&cliMulti())?'':'none';
   const rc=document.getElementById('outilsRecorrBtn');   // [L361] seulement en paysage ET s'il existe une réf validée (sinon rien à recorriger)
   if(rc) rc.style.display=((typeof _isLandscapeFiche==='function'&&_isLandscapeFiche())&&document.querySelector('.fmm-inline-block .fmm-badge.val'))?'inline-flex':'none';
+  const sb=document.getElementById('outilsSaveBtn'); if(sb){ let _can=true; try{ _can=(typeof canManageData==='function')?!!canManageData():true; }catch(e){} sb.style.display=_can?'':'none'; }   // [L363 · A17]
   [['outilsFicheBtn','outilsFicheDlg'],['outilsPlanBtn','outilsPlanDlg']].forEach(function(pair){
     const btn=document.getElementById(pair[0]), dlg=document.getElementById(pair[1]); if(!btn||!dlg) return;
     const n=Array.from(dlg.querySelectorAll('.modal>div>button.btn')).filter(function(b){ return b.style.display!=='none'&&getComputedStyle(b).display!=='none'; }).length;
@@ -19992,6 +20008,8 @@ function _l340SetupFichePills(){ try{
   }catch(_){} });
   document.addEventListener('keydown',function(e){ try{ if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('.fmm-inline-block>.fmm-head[role=button]')){ e.preventDefault(); e.target.click(); } }catch(_){} });
 }catch(e){} })();
+// [L363 · B3] machine par défaut : compte machine « Poste FEBA/MAVEG/CEVENINI » > dernière machine choisie sur ce poste > '' (comme avant)
+function _l363DefaultMachine(){ try{ const p=(typeof _machinePostName==='function')?String(_machinePostName()||'').toLowerCase():''; if(p&&MACHINE_KEYS.indexOf(p)>=0) return p; let lm=''; try{ lm=localStorage.getItem('step_last_machine')||''; }catch(e){} return (lm&&MACHINE_KEYS.indexOf(lm)>=0)?lm:''; }catch(e){ return ''; } }
 function _l352Restore(n){ try{
   if(!n) return;
   const ph=n._l352Home; n._l352Home=null;
@@ -20031,6 +20049,8 @@ function _l352SyncHeadSide(){ try{
 // ligne, donc après chaque recalcul) diffère → la ligne est « à recalculer » : le bouton devient ♻ RECALCULER et le ✂ refuse (coupeeTapOne).
 function _l345ConfDirty(id){ try{ const t=document.getElementById('flConf_'+id); if(!t) return false; const c0=String(t.dataset.conf0||'').trim(); if(!c0) return false; return String(t.value||'').trim()!==c0; }catch(e){ return false; } }
 function _l345SyncEditChips(){ try{
+  // [L363 · analyse parcours B11] paysage : la config de chaque bobine est en LECTURE SEULE tant que ✎ MODIFIER n'est pas tapé (12 px du ✂, le clavier s'ouvrait au moindre frôlement) ; portrait inchangé
+  try{ const _ls=(typeof _isLandscapeFiche==='function')&&_isLandscapeFiche(); document.querySelectorAll('#ficheLines .fiche-line [id^="flConf_"]').forEach(function(t){ if(!_ls){ t.readOnly=false; return; } if(t.dataset.l363edit!=='1') t.readOnly=true; }); }catch(e){}
   document.querySelectorAll('.fiche-line').forEach(function(line){ const chip=line.querySelector('.fl-edit-chip'); if(!chip) return; const d=_l345ConfDirty(line.id); line.classList.toggle('conf-dirty',d); chip.textContent=d?'♻ RECALCULER':'✎ MODIFIER'; chip.classList.toggle('need-recalc',d); });
 }catch(e){} }
 function _l345EditChip(id){ try{
@@ -20045,7 +20065,7 @@ function _l345EditChip(id){ try{
     else { try{ showToast('♻ Recalcul non lancé — la bobine reste « à recalculer » (retape ♻ RECALCULER, ou remets la config d\'origine).','err'); }catch(e){} }
     return;
   }
-  const t=document.getElementById('flConf_'+id); if(t){ t.focus(); try{ t.setSelectionRange(0,t.value.length); }catch(e){} }
+  const t=document.getElementById('flConf_'+id); if(t){ t.dataset.l363edit='1'; t.readOnly=false; t.focus(); try{ t.setSelectionRange(0,t.value.length); }catch(e){} t.addEventListener('blur',function _b(){ try{ t.removeEventListener('blur',_b); delete t.dataset.l363edit; if(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()) t.readOnly=true; }catch(e){} }); }   // [L363 · B11] éditable jusqu'au blur
 }catch(e){} }
 // [L353 · backlog n°9] dépassement (mm) de la config d'une bobine par rapport à sa laize utile — MÊME lecture que le chip CHUTE (calcStats en lecture), 0 si rien à dire
 function _l353Overflow(id){ try{ const l=(typeof ficheLines!=='undefined')?ficheLines.find(function(x){ return x&&x.id===id; }):null; const conf=(document.getElementById('flConf_'+id)||{}).value||''; const useful=(l&&l.useful>0)?l.useful:((typeof getUseful==='function')?getUseful():0); const blade=(l&&typeof l.blade==='number')?l.blade:((typeof getBlade==='function')?getBlade():0); if(!(useful>0)||!conf.trim()) return 0; const pieces=parseConf(conf); if(!pieces.length) return 0; const w=useful-calcStats(pieces,blade).total; return w<-0.5?-w:0; }catch(e){ return 0; } }   // [fix audit L353] tolérance 0,5 mm = seuil du moteur (_confIllisible) : plus de « dépasse de 0 mm » (flottants / arrondi des slots)
@@ -20131,8 +20151,9 @@ function _l341RenderCondSummary(){ try{
   const notes=v('planNotesEmballage').split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean);
   const alertEl=document.getElementById('packagingAlert'); const alertOn=!!(alertEl&&!alertEl.classList.contains('hidden')&&alertEl.textContent.trim());
   const open=sec.classList.contains('reveal');
-  let h='<span class="cs-l1"><b>📦 EMBALLAGE'+(cli?' '+esc(cli.toUpperCase()):'')+'</b>'+(parts.length?'<span class="cs-auto">✓</span>':'<span class="cs-auto cs-none">À RENSEIGNER</span>')+'<span class="cs-arrow">'+(open?'▴ REPLIER':'▾ DÉTAIL')+'</span></span>';
-  h+='<span class="cs-l2">'+(parts.length?esc(parts.join(' · ')):'palette · type · étiquetage · cerclage')+(notes.length?' — '+esc(notes[0])+(notes.length>1?' (+'+(notes.length-1)+')':''):'')+'</span>';
+  const _isCli=!!(cli&&typeof PKG_CLIENTS!=='undefined'&&PKG_CLIENTS[cli]);   // [L363 · A16] la spécificité se lit : règle CLIENT ou règle PAR DÉFAUT (le « ✓ » ne disait rien)
+  let h='<span class="cs-l1"><b>📦 EMBALLAGE'+(cli?' '+esc(cli.toUpperCase()):'')+'</b>'+(parts.length?'<span class="cs-auto">'+(_isCli?'CLIENT':'DÉFAUT')+'</span>':'<span class="cs-auto cs-none">À RENSEIGNER</span>')+'<span class="cs-arrow">'+(open?'▴ REPLIER':'▾ DÉTAIL')+'</span></span>';
+  h+='<span class="cs-l2">'+(notes.length?esc(notes[0])+(notes.length>1?' (+'+(notes.length-1)+')':'')+' — ':'')+(parts.length?esc(parts.join(' · ')):'palette · type · étiquetage · cerclage')+'</span>';   // [L363 · A16] la note client (la vraie spécificité) AVANT les champs standards
   if(alertOn) h+='<span class="cs-alert">⚡ '+esc(alertEl.textContent.trim().replace(/^⚡\s*/,'').slice(0,140))+'</span>';   /* [fix audit] le texte de l'alerte commence déjà par ⚡ */
   sum.innerHTML=h;
   sum.setAttribute('aria-expanded',open?'true':'false');
@@ -22248,6 +22269,7 @@ function toggleChangements(){
   let _lastM=''; try{_lastM=localStorage.getItem('step_last_machine')||'';}catch(e){}
   selectMachine(_lastM||'feba');
   if(!_lastM) document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';});
+  // [L363 · B3] le compte machine « Poste X » n'est connu qu'après la connexion : applyRole re-pose la machine du poste si le bloc 1 est encore vide
   initDefaultRows();
   document.getElementById('fNumJour').value=getDayOfYear();
   try{ renderCliPanel(); cliSyncBody(); }catch(e){}   // [L64 · Lot 6] panneau multi-clients (état mono au boot)
@@ -22255,6 +22277,7 @@ function toggleChangements(){
   _l79SetupChangements();   // [L79] regroupe lame/machine/op.2 sous le bouton « Changements »
   try{ _l361SyncOutilsBadges(); const _mqb=window.matchMedia('(min-width:1100px)'); const _onb=function(){ try{ _l361SyncOutilsBadges(); }catch(_){} }; if(_mqb.addEventListener) _mqb.addEventListener('change',_onb); else if(_mqb.addListener) _mqb.addListener(_onb); }catch(e){}   // [L361] badges OUTILS = entrées visibles
   try{ _l340SetupFichePills(); }catch(e){}   // [L340 · maquette 17] pastilles d'en-tête + carte solde repliable (paysage) — APRÈS _l79SetupChangements (nœuds déplacés au boot)
+  try{ const _pc=document.getElementById('planCondSec'); if(_pc){ ['input','change'].forEach(function(ev){ _pc.addEventListener(ev,function(e){ try{ if(e.isTrusted) window._l363PkgTouched=true; }catch(_){} }); }); } }catch(e){}   // [L363 · B5] saisie manuelle (événement utilisateur) → la règle ne réécrit plus les champs remplis
   try{ _l341SetupPlan(); }catch(e){}   // [L341 · maquette 18] plan paysage : tuile utile, OUTILS en bas de colonne, résumé emballage
   try{ _l342SetupDonnees(); }catch(e){}   // [L342 · maquette 19] données paysage : historique dans le bandeau, cartes de fiche en une rangée
   // loadFirestoreData() est appelé après authentification dans onAuthStateChanged
