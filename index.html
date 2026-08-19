@@ -2023,6 +2023,14 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
 }
 /* [L365 · 3 tablettes = 3 comptes machine] brouillons teintés par machine d'origine ; « autre tablette » en retrait */
 .save-card.poste-other{opacity:.82}
+/* ============================================================
+   [L368 · DEMANDE ESTEBAN 19/08] nav : version et bouton « ? » RETIRÉS (données inutiles pendant la coupe) — la version et
+   « Revoir l'accueil » restent accessibles : pied de Données (#appFooter) et pied des tiroirs ⚙ OUTILS (zéro fonction perdue).
+   ============================================================ */
+#verTag,#welcomeHelpBtn{display:none!important}
+.app-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:18px 0 6px;font-size:13px;color:var(--text3)}
+.app-footer .btn,.outils-foot .btn{min-height:44px;font-size:13px;color:var(--text2)}
+.outils-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:13px;color:var(--text3)}
 </style>
 </head>
 <body>
@@ -2778,6 +2786,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
     <div id="corbeilleList"></div>
     <div id="corbeilleEmpty" class="text-muted" style="padding:8px 0">Corbeille vide.</div>
   </div>
+  <div id="appFooter" class="app-footer"><span class="app-ver"></span> · <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('welcomeHelpBtn').click()">? Revoir l'accueil</button></div><!-- [L368 · demande Esteban] version + accueil retirés de la nav (données inutiles en coupe) : visibles ici, discrets -->
 </div>
 
 <!-- MODALS -->
@@ -2851,6 +2860,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
       <button class="btn" id="outilsRecapBtn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche')">📥 Récap emballage par client</button><!-- [L339 · audit] visible seulement en multi-clients (openOutilsDlg) — en mono la cible n'existe pas à l'écran -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');stopManqueMatiere()">⛔ Arrêt — manque de matière</button>
     </div>
+    <div class="outils-foot"><span class="app-ver"></span> · <button type="button" class="btn btn-ghost btn-sm" onclick="closeOutilsDlg('outilsFicheDlg');document.getElementById('welcomeHelpBtn').click()">? Accueil</button></div><!-- [L368] -->
   </div>
 </div>
 <div class="modal-overlay" id="outilsPlanDlg">
@@ -2863,6 +2873,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
       <button class="btn" id="outilsSaveBtn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button><!-- [L363 · A17] gatée sur canManageData() comme #planSaveBtn (sinon erreur permissions brute pour un opérateur) -->
       <button class="btn btn-red" onclick="closeOutilsDlg('outilsPlanDlg');resetSiteConfirm()">↺ Réinitialiser</button>
     </div>
+    <div class="outils-foot"><span class="app-ver"></span> · <button type="button" class="btn btn-ghost btn-sm" onclick="closeOutilsDlg('outilsPlanDlg');document.getElementById('welcomeHelpBtn').click()">? Accueil</button></div><!-- [L368] -->
   </div>
 </div>
 <div class="modal-overlay" id="op2RefModal">
@@ -3002,7 +3013,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L367';
+const APP_VERSION='2026.08.19-L368';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3845,6 +3856,7 @@ function applyRole(){
   { const _ta=document.getElementById('tabAudit'); if(_ta) _ta.style.display=canViewAudit()?'':'none'; }   // [L65] onglet retiré du HTML — garde de survie si réintroduit
   document.getElementById('tabMaintenance').style.display=canAccessMaintenance()?'':'none';
   const vEl=document.getElementById('verTag'); if(vEl) vEl.textContent='v'+APP_VERSION;
+  try{ document.querySelectorAll('.app-ver').forEach(function(e){ e.textContent='v'+APP_VERSION; }); }catch(e){}   // [L368] version visible dans Données (pied) et ⚙ OUTILS (pied) — plus dans la nav
   // Si l'onglet actif n'est plus autorisé, rebascule sur Plans
   const active=document.querySelector('.tab-btn.active');
   if(active){
@@ -19832,7 +19844,7 @@ function _l361SyncOutilsBadges(){ try{
   const sb=document.getElementById('outilsSaveBtn'); if(sb){ let _can=true; try{ _can=(typeof canManageData==='function')?!!canManageData():true; }catch(e){} sb.style.display=_can?'':'none'; }   // [L363 · A17]
   [['outilsFicheBtn','outilsFicheDlg'],['outilsPlanBtn','outilsPlanDlg']].forEach(function(pair){
     const btn=document.getElementById(pair[0]), dlg=document.getElementById(pair[1]); if(!btn||!dlg) return;
-    const n=Array.from(dlg.querySelectorAll('.modal>div>button.btn')).filter(function(b){ return b.style.display!=='none'&&getComputedStyle(b).display!=='none'; }).length;
+    const n=Array.from(dlg.querySelectorAll('.modal>div:not(.outils-foot)>button.btn')).filter(function(b){ return b.style.display!=='none'&&getComputedStyle(b).display!=='none'; }).length;
     const bd=btn.querySelector('.outils-badge'); if(bd&&n>0) bd.textContent=String(n);
   });
 }catch(e){} }

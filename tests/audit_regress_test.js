@@ -983,5 +983,11 @@ has(/if\(!_myPg\)\{ list\.innerHTML=drafts\.map\(_card\)\.join\(''\); return; \}
 has(/if\(d\.fromSend\)\{ const _pF=/,'L367 : filet non envoyé consommé dès que la MÊME commande est en base (toute tablette)');
 has(/mb\.classList\.toggle\('sel',!!\(\(typeof _machinePostName==='function'\)\?_machinePostName\(\):''\)\)/,'L367 : Reset des filtres Plans = retour à « ma machine »');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L367 présents dans index.html + sw.js');
+console.log('── L368 : nav épurée (demande Esteban 19/08) ──');
+has(/#verTag,#welcomeHelpBtn\{display:none!important\}/,'L368 : version et bouton ? retirés de la nav');
+has(/id="appFooter" class="app-footer"><span class="app-ver"><\/span>/,'L368 : version + « Revoir l accueil » en pied de Données (rien de perdu)');
+has(/document\.querySelectorAll\('\.app-ver'\)\.forEach\(function\(e\)\{ e\.textContent='v'\+APP_VERSION; \}\)/,'L368 : version posée dans les pieds (Données + ⚙ OUTILS)');
+has(/\.modal>div:not\(\.outils-foot\)>button\.btn/,'L368 : le pied des tiroirs OUTILS ne compte pas dans le badge');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L368 présents dans index.html + sw.js');
 process.exit(fail?1:0);
