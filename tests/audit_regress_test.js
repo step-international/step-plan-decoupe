@@ -926,7 +926,7 @@ has(/\.cond-summary \.cs-l2\{-webkit-line-clamp:3\}/,'L360 n°16 : résumé emba
 
 console.log('── L361 : retours Esteban (19/08 nuit) ──');
 has(/body:not\(\.show-ref-bands\) #ficheRight>\.fmm-inline-block:not\(\.active\),body:not\(\.show-ref-bands\) #ficheLines \.fmm-inline-block:not\(\.active\)\{display:none\}/,'L361 : bandes Réf validée / verrouillée masquées en paysage (le rail les porte) — seul le bloc à couper reste');
-has(/id="outilsRecorrBtn" onclick="closeOutilsDlg\('outilsFicheDlg'\);_l361ShowRefBands\(\)"/,'L361 : ⚙ OUTILS → 🔄 Recorriger une bobine mère (ré-affiche les bandes validées)');
+has(/\[L361 → retiré L382 · décision Esteban 21\/08\] entrée « 🔄 Recorriger une bobine mère » supprimée/,'L361 (révisé L382) : entrée Recorriger retirée du tiroir — décision Esteban 21/08');
 has(/function _l361SyncOutilsBadges\(\)/,'L361 : badge OUTILS = nombre d entrées réellement visibles (affichait 6 pour 4)');
 
 console.log('── L362 : vocabulaire couleurs (analyse parcours D, décisions B1/B2/B7/B8/B9 validées par Esteban 19/08) ──');
@@ -945,7 +945,7 @@ has(/var _keep=!!\(window\._l363PkgTouched&&window\._l363PkgClient===clientName\
 has(/if\(t\.dataset\.l363edit!=='1'\) t\.readOnly=true;/,'L363 B11 : config en lecture seule tant que ✎ MODIFIER n est pas tapé (paysage)');
 has(/function initDefaultRows\(\)\{for\(let i=0;i<3;i\+\+\) addOrderRow\(\);\}/,'L363 B15 : 3 lignes vides par défaut (la suivante s ajoute seule)');
 has(/let delay=600;/,'L363 B15 : recalcul du plan léger à 600 ms');
-has(/#planSaveBtn\{display:inline-flex;min-height:48px;width:100%;justify-content:center\}/,'L363 A17 : 💾 Sauvegarder le plan à 1 tap en paysage (gating rôle intact)');
+has(/#planSaveBtn\{display:inline-flex;min-height:40px;width:auto/,'L363 A17 (révisé L382) : 💾 Sauvegarder à 1 tap, en PETIT (gating rôle intact)');
 has(/body\.calc-pending #planCards/,'L363 A20 : plan périmé signalé pendant le recalcul');
 
 console.log('── L364 : correctifs audit L359→L363 ──');
@@ -995,7 +995,7 @@ has(/body\.role-op #atelierBtn\{display:none!important\}/,'L369 : ATELIER masqu�
 has(/@media\(max-width:1099px\)\{#nav\{overflow-x:auto;scrollbar-width:none\}\}/,'L369 : nav portrait défile seule (page immobile)');
 has(/const _chef=\(typeof canManageData==='function'\)\?!!canManageData\(\):true;/,'L369 : KPI chef du bandeau Données réservés pilotage/admin (élargi au pilotage en L377 · B5)');
 has(/if\(blf\) blf\.style\.display=canManage\?'':'none';/,'L369 : historique complet réservé pilotage/admin');
-has(/class="btn btn-ghost btn-sm" onclick="toggleTheme\(\)">☀️ Clair \/ sombre<\/button>/,'L369 : CLAIR dans le pied des tiroirs OUTILS (paysage)');
+has(/\[L382\] CLAIR revient dans la nav/,'L369 (révisé L382) : CLAIR de retour dans la nav à côté d ADMIN — décision Esteban 21/08');
 
 console.log('── L370 : analyse des parcours B13 · B14 · A15 · A19 ──');
 has(/function _l370NcQuick\(id,btn\)/,'L370 B14 : puces détail NC = texte seulement, rien coché');
@@ -1110,5 +1110,11 @@ has(/hors-ligne — la réponse arrivera au retour du réseau/,'L381 n°9 : atte
   const okF=/data\.status !== "pending"/.test(fx)&&/cfg\.data\(\)\.enabled !== true\) return;/.test(fx)&&/CONTEXTE SCANNÉ/.test(fx)&&fx.indexOf('apiMessages = [')<fx.indexOf('msgs.forEach')&&/timeout: 90_000/.test(fx)&&/max_tokens: 3000/.test(fx);
   console.log((okF?'✅ ':'❌ ')+'L381 : fonction — interrupteur serveur, contexte en tour user de tête, timeout SDK, budget 3000'); if(!okF) fail++; }
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L381 présents dans index.html + sw.js');
+console.log('── L382 : retours recette Esteban (21/08) ──');
+has(/les chips « n références » \/ « n clients » remontent/,'L382 : chip n références à côté du titre Plan de découpe (purge anti-accumulation)');
+has(/ttl\.querySelectorAll\('\.title-chip'\)\.forEach\(function\(o\)\{ o\.remove\(\); \}\);/,'L382 : purge des chips déplacées à chaque recalc');
+has(/#statsBar \.stat-tile b\{font-size:24px\}/,'L382 : tuiles compactes — le plan des bobines se voit plus haut');
+has(/\[L372 → retiré L382 · décision Esteban 21\/08\] la bande de passage de réf est MASQUÉE/,'L382 : bande refonly retirée (le rail suffit) — bandes rouges machine conservées');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L382 présents dans index.html + sw.js');
 process.exit(fail?1:0);
