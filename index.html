@@ -1451,6 +1451,7 @@ body.atelier .stat-tile b{font-size:36px}
   .fh-pill.fh-miss{border-color:#8a2b2f;color:#ff8a8f}
   .fh-pill.fh-m{color:#141310;border-color:transparent}
   .fh-pill.fh-prep{color:var(--text2);border-style:dashed}   /* [L377 · B2] « prép. FEBA » discret */
+  #shareWhoGridMirror{max-height:240px;overflow-y:auto}   /* [L379 · n°11] 30 bobines ne mangent pas l'écran */
   .fh-pill.fh-m-feba{background:var(--feba)} .fh-pill.fh-m-maveg{background:var(--maveg)} .fh-pill.fh-m-cevenini{background:var(--cevenini)}
   .fh-pill.fh-chg{border-color:#b06a00;background:#241905;color:#ffb968}
   .fh-arrow{margin-left:auto;font:700 14px/1 var(--f-head);letter-spacing:.04em;color:var(--text3);white-space:nowrap}
@@ -2068,7 +2069,7 @@ body.atelier .app-footer .btn,body.atelier .outils-foot .btn{font-size:14px;min-
 /* [L378 · grande analyse — retouches design section 5 (≥1100, portrait intact)] cadres « ici » en jaune outline #b8860b
    (l'ambre plein reste au SEUL prochain geste), bande refonly ≥13px, badge OUTILS 14px, .app-ver lisible, thème clair. */
 @media(min-width:1100px){
-  .fiche-line.fl-current{border-color:#b8860b}
+  .fiche-line.fl-current{border-color:#b8860b;border-left-color:var(--mc,#b8860b)}   /* [L379 · fix audit n°14] le repère MACHINE de la carte en cours était le seul à disparaître */
   .fmm-order-row.foc-cur{border-color:#b8860b!important;border-left-color:#b8860b!important}
   .fmm-order-row.foc-cur .fmm-order-num{color:#ffd45e!important}
   .fiche-ref-sep .frs-count,.fiche-ref-sep .frs-m{font-size:13px}
@@ -3060,7 +3061,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.20-L378';
+const APP_VERSION='2026.08.20-L379';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5700,7 +5701,7 @@ function isFicheUntouched(){
     if(document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')) return false;
     if(document.getElementById('flDevi_'+id)?.checked) return false;
     if(document.getElementById('flDroit_'+id)?.checked) return false;
-    if(document.getElementById('flTest2nc_'+id)?.checked) return false;   // [L290 · audit 30/07 #NC] ⚠ NC test 2ᵉ = travail terrain : la fiche n'est plus « vierge » (l'import auto ne l'écrase
+    if(document.getElementById('flTest2nc_'+id)?.checked) return false;   // [L290 · audit 30/07 #NC] ⚠ NC test 2ᵉ = travail terrain : la fiche n'est plus « vierge » (l'import auto ne l'écrase pas)
     if(typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)) return false;   // [L377 · grande analyse B8] config ÉDITÉE non recalculée = travail terrain : l'import auto ne l'écrase plus en silence plus)
   }
   return true;
@@ -5892,7 +5893,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:c.blade, machine:c.machine||'',
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm — À RECOUPER EN 1ER (avant les bobines mères)'});
             bi++;
@@ -5903,7 +5904,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<cnt;k++){
             addFicheLine({label:(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
               conf:normConf(b.conf),   // [L88] * accepté
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
             bi++;
           }
         });
@@ -5915,7 +5916,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:c.blade, machine:c.machine||'',
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm — À RECOUPER EN 1ER (avant les bobines mères)'});
             bi++;
@@ -5930,7 +5931,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
               phaseEnd:!!g._phaseEnd});
             bi++;
           }
@@ -6009,7 +6010,7 @@ function renderDataSummary(){
       const todayIso=_plnIso(new Date(now.getFullYear(),now.getMonth(),now.getDate())); const ctx=(typeof _plnSentKeys==='function')?_plnSentKeys():null;
       const todays=savesCache.filter(function(x){ return x&&!x.deleted&&x.plannedDate&&_plnSpanIsos(x).includes(todayIso); });
       if(todays.length){ let done=0; if(ctx) todays.forEach(function(x){ try{ if(_plnDejaCoupe(x,ctx)) done++; }catch(_){} }); plnTxt=done+' / '+todays.length; } else plnTxt='0'; } }catch(e){}
-    const chip=function(lbl,val,warn){ return '<span style="display:inline-flex;flex-direction:column;gap:1px;padding:6px 18px;border-right:1px solid var(--border)"><span style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-family:var(--f-head);font-weight:700">'+lbl+'</span><b style="font-size:24px;font-variant-numeric:tabular-nums;font-family:var(--f-head);font-weight:800;'+(warn?'color:#ffb968':'')+'">'+val+'</b></span>'; };   /* [L333 · maquette 19] label 13px (plancher §2.13-C) + valeur 24px Condensed, orange avertissement #ffb968 (§2.16-A) */
+    const chip=function(lbl,val,warn){ const tap=(lbl==='À valider')?' role="button" tabindex="0" onclick="try{switchTab(\'fiches\')}catch(e){}"':''; return '<span'+tap+' style="display:inline-flex;flex-direction:column;gap:1px;padding:6px 18px;border-right:1px solid var(--border)'+(tap?';cursor:pointer':'')+'"><span style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-family:var(--f-head);font-weight:700">'+lbl+'</span><b style="font-size:24px;font-variant-numeric:tabular-nums;font-family:var(--f-head);font-weight:800;'+(warn?'color:#ffb968':'')+'">'+val+'</b></span>'; };   /* [L333 · maquette 19] label 13px (plancher §2.13-C) + valeur 24px Condensed, orange avertissement #ffb968 (§2.16-A) */
     const _blf=document.getElementById('btnLoadFull'); const _blfIn=!!(_blf&&el.contains(_blf)); if(_blfIn) el.removeChild(_blf);   // [L342] le bouton vit dans le bandeau en paysage : on le sort AVANT de réécrire le HTML (sinon détruit)
     // [L345 · œil chef d'entreprise] bobines coupées + perte matière moyenne de la semaine (champs déjà en cache : totalBobines, pct)
     let wkBob=0, wkPctSum=0, wkPctN=0;
@@ -6020,7 +6021,7 @@ function renderDataSummary(){
     el.innerHTML=(_chef?chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
       +chip('Bobines',(wkKnown&&wkBob>0)?String(wkBob):'—',false)
       +chip('Perte moy.',(wkPct!=null)?(wkPct.toFixed(1).replace('.',',')+' %'):'—',(wkPct!=null&&wkPct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5))):'')
-      +(_chef?chip('À valider',String(F.filter(function(f){ return f&&!f.valide&&!f.refuse; }).length),F.some(function(f){ return f&&!f.valide&&!f.refuse; })):'')
+      +(_chef?chip('À valider',String(F.filter(function(f){ return f&&f.valide==null; }).length),F.some(function(f){ return f&&f.valide==null; })):'')   // [L379 · fix audit n°7] refusée = valide===false (le champ refuse n'existait pas → chaque refusée gonflait la chip)
       +chip('Planning du jour',plnTxt,false)   /* [L346] f/T depuis la source du Planning (mémoire) */
       +chip('BL à joindre',(noBL===0?'0':noBL),(typeof noBL==='number'&&noBL>0))
       +chip('Lame',lame,lameWarn);
@@ -9600,6 +9601,7 @@ async function doLoad(){
   // (_resumedDraftId / passation _resumedForeignDraftId) restait « armé » et se faisait consommer
   // à l'envoi de CETTE nouvelle commande — comme le fait déjà _newCmdClearLiveFiche/resetAll.
   _resumedDraftId=null; _resumedForeignDraftId=null;
+  window._l377MachinePrep=null;   // [L379 · fix audit n°12] trace « prép. X » d'une commande abandonnée : jamais héritée (le swap L376 la re-posera s'il a lieu)
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
   // [L366] plan du RESTE chargé : le brouillon ⛔ solde jumeau (d_solde_<fiche>) sera consommé à l'envoi (branche _resumedDraftId du balayage, concordance client/n° garantie)
   _loadedSoldeDraftId=null; try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } }catch(e){}   // [L367 · fix audit] variable dédiée (l'_resumedDraftId mourait au VALIDER bobine mère)
@@ -10143,6 +10145,7 @@ async function stopManqueMatiere(){
         const gr=_resteGroupsFromFiche(pseudoF);
         if(gr.length){ st.plan.refGroups=gr; st.plan.rows=gr[0].rows; }
         else { st.plan.rows=[]; st.plan.refGroups=[]; }
+        try{ st.fiche.refValidated=[]; st.fiche.refOrder=[]; }catch(e){}   // [L379 · fix audit n°3] les groupes du RESTE sont ré-indexés 0..n : les anciens index de validation mentiraient — les mères du solde se RE-valident (fail-safe ISO)
       }catch(e){ console.warn('Solde manque matière — reste du plan :',e); }
       soldeState=st;
       soldeLabel='⛔ Solde manque matière · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
@@ -11580,7 +11583,8 @@ function getFicheLinesData(){
     return {
       label:get('flLabel')?.value||'',
       conf:get('flConf')?.value||'',
-      ref:L.ref||'', refIdKey:L.refIdKey||null, useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',
+      ref:L.ref||'', refIdKey:L.refIdKey||null, refIdx:(typeof L.refIdx==='number'?L.refIdx:undefined), useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',   // [L379 · fix audit n°2] index de groupe : identité fiable du verrou B3 (les noms homonymes mentent)
+      conf0:(get('flConf')?.dataset.conf0!==undefined?get('flConf').dataset.conf0:undefined),   // [L379 · fix audit n°6] baseline « config éditée » : la protection B8 survit au brouillon
       origConf:(L.origConf!==undefined?L.origConf:undefined), rattrapage:L.rattrapage||undefined, autoLabel:String(L.label||''),   // [L97 · relecture #19] le gel « conf modifiée » et le flag rattrapage survivent au brouillon/partage — [L102 · BUG L97] la clé meta s'appelait « label » : DOUBLON avec l'étiquette saisie (ligne du dessus), la dernière gagnait → l'archive/PDF/brouillon portaient l'étiquette AUTO au lieu du vrai n° de bobine tapé par l'opérateur, et le retour de brouillon dé-gelait la ligne. Clé renommée autoLabel, toujours émise (même vide : le gel d'une ligne manuelle survit aussi au round-trip).
       recut:L.recut||false, rollW:L.rollW||0, phaseEnd:L.phaseEnd||undefined,   // [L103 · audit-max]
       cliParts:(Array.isArray(L.cliParts)&&L.cliParts.length)?L.cliParts:undefined,   // [L71 · Audit B14] snapshot figé (undefined = retiré au JSON)
@@ -18939,7 +18943,7 @@ function addFicheLine(data){
   const id='fl_'+Date.now()+'_'+(++_flIdSeq)+'_'+Math.floor(Math.random()*9999);   // [L193 · audit #4] compteur monotone → id de ligne fiche unique même à la même ms (batch import/restore) : plus de double comptage getFicheLinesData/countCoupees
   data=data||{};
   ficheLines.push({id,label:String(((data.autoLabel!==undefined)?data.autoLabel:data.label)||''),rattrapage:!!data.rattrapage,origConf:(data.origConf!==undefined?String(data.origConf):normConf(data.conf)),   // [L97 · relecture #18/#19] label en meta (le correctif L94 « étiquette auto ne gèle plus » était INOPÉRANT sans lui) + origConf restauré prioritaire — [L102 · BUG L97] au round-trip brouillon/partage, la meta vient d'autoLabel (étiquette AUTO du gel) et l'input de label (saisie réelle de l'opérateur) ; anciens brouillons sans autoLabel : comportement inchangé
-    ref:data.ref||'', useful:data.useful||0, blade:data.blade||0, machine:data.machine||'',
+    ref:data.ref||'', refIdx:(typeof data.refIdx==='number'?data.refIdx:undefined), useful:data.useful||0, blade:data.blade||0, machine:data.machine||'',   // [L379 · n°2]
     // D-1 : identité stable du groupe réf porté par la bobine (clé par contenu). Permet au
     // recalcul de rattacher chaque bobine figée à SA réf même si deux réfs ont le même code.
     refIdKey:(data.refIdKey||null),
@@ -18966,7 +18970,7 @@ function addFicheLine(data){
       </div>
       <div class="field" style="grid-column:1/-1"><label>Nb bob. × Largeur</label>
         <div style="display:flex;gap:8px;align-items:stretch"><!-- [L230 · demande Esteban] conf RÉTRÉCIE + bouton ♻ JAUNE au BOUT de la ligne ; conf longue → passe sur 2 lignes (textarea auto-hauteur, Enter bloqué) -->
-          <textarea id="flConf_${id}" rows="1" placeholder="5×80 + 3×50" data-conf0="${esc(data.conf||'')}" style="flex:1;min-width:0;resize:none;overflow:hidden;min-height:44px;font-size:16px;line-height:1.4"
+          <textarea id="flConf_${id}" rows="1" placeholder="5×80 + 3×50" data-conf0="${esc((data.conf0!==undefined?data.conf0:data.conf)||'')}" style="flex:1;min-width:0;resize:none;overflow:hidden;min-height:44px;font-size:16px;line-height:1.4"
             oninput="if(this.value.indexOf('\\n')>-1)this.value=this.value.replace(/\\n/g,' ');onFicheConfChange('${id}');_confAutoH(this)"
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(data.conf||'')}</textarea>
           <button type="button" class="fl-edit-chip" onclick="_l345EditChip('${id}')">✎ MODIFIER</button><!-- [L345 · demande Esteban] MODIFIER et ÉCARTS = UN bouton : tap = éditer la config ; config modifiée → il devient « ♻ RECALCULER » (le ✂ refuse tant que ce n'est pas fait) --><!-- [L334 · maquette 17] affordance d'édition de la config (le tap va dans le textarea) — visible sur la carte EN COURS ≥1100px ; le ♻ Écarts a rejoint le titre CUMUL (maquette) -->
@@ -19121,15 +19125,17 @@ function coupeeTapOne(id){
   // [L377 · grande analyse B3 (reco appliquée « go » Esteban 20/08)] MULTI-RÉF : la bobine d'une réf NON VALIDÉE ne se coupe pas —
   // la validation de la bobine mère par réf est déjà la règle (L176) ; seul le 1er départ était verrouillé (trou ISO préexistant L303).
   if(!line.classList.contains('coupee')&&typeof fmmIsMulti==='function'&&fmmIsMulti()){
+    let _blockCut=false, _lref='';
     try{
-      const _lref=(ficheLines.find(x=>x&&x.id===id)||{}).ref||'';
-      const _r=(typeof fmmRawRefs==='function')?fmmRawRefs().find(r=>nrm(r.ref||'')===nrm(_lref)):null;
-      if(_r&&typeof ficheRefValidated!=='undefined'&&!ficheRefValidated.has(_r.idx)){
-        showToast('🔒 Valide d\'abord la bobine mère de '+(_lref?refDisp(_lref):'cette référence')+' (bouton bleu) avant de couper.','err');
-        try{ const _b=document.querySelector('.fmm-inline-block.active .btn-blue')||document.querySelector('.fmm-inline-block .btn-blue'); if(_b){ _b.scrollIntoView({behavior:'smooth',block:'center'}); _b.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
-        return;
-      }
+      const _ln=ficheLines.find(x=>x&&x.id===id)||{}; _lref=_ln.ref||'';
+      if(typeof _ln.refIdx==='number'){ _blockCut=(typeof ficheRefValidated!=='undefined')&&!ficheRefValidated.has(_ln.refIdx); }   // [L379 · fix audit n°2] identité par INDEX de groupe (les noms homonymes mentaient : bypass prouvé)
+      else { const _r=(typeof fmmRawRefs==='function')?fmmRawRefs().find(r=>nrm(r.ref||'')===nrm(_lref)):null; _blockCut=!!(_r&&typeof ficheRefValidated!=='undefined'&&!ficheRefValidated.has(_r.idx)); }   // lignes legacy sans refIdx : repli par nom
     }catch(e){}
+    if(_blockCut){   // [L379 · n°4] décision HORS du try : une exception d'affichage ne désarme pas le verrou
+      try{ showToast('🔒 Valide d\'abord la bobine mère de '+(_lref?refDisp(_lref):'cette référence')+' (bouton bleu) avant de couper.','err'); }catch(e){}
+      try{ const _b=document.querySelector('.fmm-inline-block.active .btn-blue')||document.querySelector('.fmm-inline-block .btn-blue'); if(_b){ _b.scrollIntoView({behavior:'smooth',block:'center'}); _b.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
+      return;
+    }
   }
   // [L345 · demande Esteban] config MODIFIÉE et pas recalculée → pas de coupe : le plan (écarts) doit d'abord être recalculé
   if(!line.classList.contains('coupee')&&typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)){   // [L351 · audit] la garde ne vise que la COUPE : le dé-marquage garde son confirm historique
@@ -21223,6 +21229,7 @@ function renderSharedViewBar(){
     vb.innerHTML='<div class="share-view-bar" style="border-color:var(--orange);color:var(--orange);background:#3d2a00">⚠ Copie LOCALE d\'un partage terminé ('+esc(_localCopyFromShare.from||'?')+') — vérifie dans Données qu\'elle n\'a pas DÉJÀ été enregistrée avant tout envoi.'
       +'<button class="btn btn-ghost btn-sm" style="margin-left:auto;flex-shrink:0" onclick="_localCopyBannerDismissed=true;renderSharedViewBar()">OK, vu</button></div>';
   }else{ vb.style.display='none'; vb.innerHTML=''; }
+  try{ if(typeof renderShareWho==='function') renderShareWho(); }catch(e){}   // [L379 · fix audit n°10] le innerHTML du bandeau vient d'écraser la grille miroir : re-rendue tout de suite
 }
 function refreshShareReception(){
   try{ renderSharedInbox(); }catch(e){}
@@ -22119,7 +22126,7 @@ function resumeDraft(id){
   }
 }
 function restoreFicheLineFromData(ld){
-  addFicheLine({label:ld.label||'',conf:ld.conf||'',ref:ld.ref||'',refIdKey:ld.refIdKey||null,useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',
+  addFicheLine({label:ld.label||'',conf:ld.conf||'',conf0:(ld.conf0!==undefined?ld.conf0:undefined),ref:ld.ref||'',refIdKey:ld.refIdKey||null,refIdx:(typeof ld.refIdx==='number'?ld.refIdx:undefined),useful:ld.useful||0,blade:ld.blade||0,machine:ld.machine||'',   // [L379 · n°2 + n°6]
     origConf:(ld.origConf!==undefined?ld.origConf:undefined), rattrapage:!!ld.rattrapage,   // [L97 · relecture #19]
     autoLabel:(ld.autoLabel!==undefined?ld.autoLabel:undefined),   // [L102 · BUG L97] étiquette AUTO (meta du gel) restaurée séparément de la saisie
     phaseEnd:!!ld.phaseEnd,   // [L103 · audit-max] fin de phase restaurée (étiquette solde)
@@ -22171,6 +22178,7 @@ function restoreFicheState(st){
   // Données→Plans (double découpe possible). Brouillons antérieurs (sans champ) : null,
   // comportement d'avant (on n'archive jamais « consommé » un plan jamais coupé).
   loadedSaveId=st.loadedSaveId||null;
+  window._l377MachinePrep=null;   // [L379 · n°12] la reprise repart proprement (le swap de passation re-posera la valeur s'il a lieu)
   try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] brouillon restauré : chips du bon couple client+réf
   selectMachine(st.plan.machine||'feba');
   if(g('motherWidth'))g('motherWidth').value=st.plan.mother;

@@ -790,7 +790,7 @@ has(/const ok=confirm\('Des BOBINEAUX ou CHUTES en stock à ajouter au plan \?/,
 has(/if\(_premierDepart\)\{ let _go=true; try\{ _go=\(maybeShowChutesRappel\(\)!==false\); \}catch\(e\)\{\} if\(!_go\) return; \}/,'L345 : chrono NON lancé si l opérateur choisit d ouvrir le plan');
 has(/function _l345ConfDirty/,'L345 : MODIFIER et ÉCARTS = un bouton ; config modifiée → « ♻ RECALCULER »');
 has(/if\(!line\.classList\.contains\('coupee'\)&&typeof _l345ConfDirty==='function'&&_l345ConfDirty\(id\)\)\{/,'L345 : garde ✂ — pas de coupe tant que les écarts ne sont pas recalculés après modification (toast + halo) — L351 : jamais sur le dé-marquage');
-has(/data-conf0="\$\{esc\(data\.conf\|\|''\)\}"/,'L345 : config de référence posée à la création de la ligne (donc après chaque recalcul)');
+has(/data-conf0="\$\{esc\(\(data\.conf0!==undefined\?data\.conf0:data\.conf\)\|\|''\)\}"/,'L345 : config de référence posée à la création de la ligne (conf0 restauré prioritaire depuis L379)');
 has(/#changementsZone\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:8px\}/,'L345 : 🔧 Changements = 3 choix compacts, le détail s ouvre pour le choix coché seulement (paysage)');
 has(/chip\('Perte moy\.'/,'L345 : bandeau Données « chef » — bobines + perte moyenne de la semaine (données en cache, aucune requête)');
 
@@ -1070,10 +1070,22 @@ has(/reportAuto\('permission-denied au chargement/,'L377 §2.23-B : reportAuto s
 has(/reportAuto\('échec purge brouillons/,'L377 §2.23-B : reportAuto sur échec de purge');
 
 console.log('── L378 : retouches design (grande analyse section 5) ──');
-has(/^  \.fiche-line\.fl-current\{border-color:#b8860b\}$/m,'L378 : cadre « ici » jaune outline (ambre plein = geste seul)');
+has(/\.fiche-line\.fl-current\{border-color:#b8860b;border-left-color:var\(--mc,#b8860b\)\}/,'L378 : cadre « ici » jaune outline (ambre plein = geste seul ; bord machine conservé L379)');
 has(/\[L378 · A7\] rouge réservé aux NC réelles/,'L378 A7 : compteur de bande neutre sans NC');
 has(/\.fiche-ref-sep \.frs-count,\.fiche-ref-sep \.frs-m\{font-size:13px\}/,'L378 : bande refonly ≥13px');
 has(/html\.theme-light \.stat-tile\.pct-orange b\{color:#ff9d4d\}/,'L378 : thème clair — perte % lisible');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L378 présents dans index.html + sw.js');
+console.log('── L379 : correctifs audit L377/L378 ──');
+has(/if\(typeof _ln\.refIdx==='number'\)\{ _blockCut=\(typeof ficheRefValidated!=='undefined'\)&&!ficheRefValidated\.has\(_ln\.refIdx\); \}/,'L379 n°2 : verrou B3 par INDEX de groupe (les homonymes ne mentent plus) — structurel');
+has(/refIdKey:_refIdKey\(c\), refIdx:c\.idx,/,'L379 n°2 : refIdx posé à la génération des lignes');
+has(/st\.fiche\.refValidated=\[\]; st\.fiche\.refOrder=\[\];/,'L379 n°3 : les mères du SOLDE se re-valident (index ré-alignés)');
+has(/if\(_blockCut\)\{   \/\/ \[L379 · n°4\] décision HORS du try/,'L379 n°4 : verrou fail-closed');
+has(/conf0:\(get\('flConf'\)\?\.dataset\.conf0!==undefined/,'L379 n°6 : baseline conf0 sérialisée (la protection B8 survit au brouillon)');
+has(/return f&&f\.valide==null; \}\).length\)/,'L379 n°7 : « À valider » = valide==null (les refusées ne gonflent plus la chip)');
+has(/\.fiche-line\.fl-current\{border-color:#b8860b;border-left-color:var\(--mc,#b8860b\)\}/,'L379 n°14 : repère machine conservé sur la carte en cours');
+has(/\[L379 · fix audit n°12\] trace « prép\. X » d'une commande abandonnée/,'L379 n°12 : machinePrep purgé à doLoad');
+has(/\[L379 · n°12\] la reprise repart proprement/,'L379 n°12 : machinePrep purgé à la reprise de brouillon');
+has(/#shareWhoGridMirror\{max-height:240px;overflow-y:auto\}/,'L379 n°11 : grille miroir bornée');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L379 présents dans index.html + sw.js');
 process.exit(fail?1:0);
