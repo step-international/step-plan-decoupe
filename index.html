@@ -3081,7 +3081,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.21-L382';
+const APP_VERSION='2026.08.21-L383';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6855,6 +6855,7 @@ async function removeRefBlock(btn){
     if(!(await confirmDlg('Retirer la référence '+(_refLbl?('« '+_refLbl+' »'):'de ce bloc')+_desc+' du plan ?\n\nCette référence et ses bobines seront ENLEVÉES de la commande. Action non annulable.',{danger:true,ok:'Retirer la référence'}))) return;
     try{ if(typeof logAudit==='function') logAudit('delete','plan-ref',_refLbl||'(sans réf)','Bloc référence retiré du plan — '+_rowsTxt.length+' ligne(s)'+(_hasChute?' + chutes/recuts':'')).catch(function(){}); }catch(e){}
   }
+  try{ const _lt=block.previousElementSibling; if(_lt&&_lt.classList&&_lt.classList.contains('plan-outils-top')) _lt.remove(); }catch(e){}   // [L383 · audit fusion] le lanceur ⚙ OUTILS inséré au-dessus part avec son bloc
   block.remove();
   renumberRefBlocks();
   debouncedRecalcPlan();   // [L73 · Lot 5 · B51] même correctif anti-gel que les ✕ de ligne (suppression DOM instantanée, calcul lourd après debounce, bandeau ⏳)
@@ -7428,7 +7429,7 @@ let _restoringRefGroups=false;
 function _restoreRefGroupsBody(arr){
   const client=document.getElementById('planClient')?.value||'';
   // Réinitialise : retire les blocs extra, vide les lignes du bloc #1
-  document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
+  document.querySelectorAll('.ref-block.extra').forEach(b=>{ try{ const _lt=b.previousElementSibling; if(_lt&&_lt.classList&&_lt.classList.contains('plan-outils-top')) _lt.remove(); }catch(e){} b.remove(); });   /* [L383 · audit fusion] le lanceur ⚙ OUTILS adjacent part avec le bloc */
   _refBlockSeq=1; renumberRefBlocks();
   document.querySelectorAll('.ref-block .rb-rows .order-row').forEach(r=>r.remove());
   // Bloc #1
@@ -8149,6 +8150,7 @@ function recalcPlan(){
     if(cardsEl) cardsEl.innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
     try{ _updateRowShares(0); }catch(_){}   /* [L339 · audit] plan vidé : % de part vidés aussi */
     try{ if(typeof _l341RenderCondSummary==='function') _l341RenderCondSummary(); }catch(_){}   /* [L341 · fix audit] résumé emballage vidé aussi (resetAll passait par ici) */
+    try{ document.querySelectorAll('#planResultSec>.section-title .title-chip').forEach(function(o){ o.remove(); }); }catch(_){}   /* [L383 · audit fusion] plan vidé (✓ envoi / ↺ réinitialiser) : les chips « n références / n clients » du titre partent aussi — elles affichaient la commande PRÉCÉDENTE */
     return;
   }
 
@@ -11050,7 +11052,9 @@ function startTraining(){
     if(_trainingMode) return;
     const hasWork=(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length)||(typeof planHasContent==='function'&&planHasContent());   // [L327 · fix audit] planHasContent couvre AUSSI réf/n°/laizes saisies sans client
     if(hasWork && typeof confirm==='function' && !confirm('🎓 Passer en mode ENTRAÎNEMENT ?\n\nLa commande en cours à l\'écran sera remplacée par un exemple. Rien de ce que tu feras en entraînement ne sera enregistré.')) return;
+    let _mirBak=null; try{ _mirBak=localStorage.getItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L383 · audit fusion] le temps MIROIR en attente (récepteur d'un partage) ne vit QUE dans cette clé : l'entraînement ne doit rien perdre de réel
     try{ resetAll(); }catch(e){}   // [L327 · fix audit] resetAll AVANT d'armer le mode : le cleanup d'entrée (fin de partage éventuel) est une action RÉELLE légitime, jamais une écriture « sous couvert d'entraînement »
+    try{ if(_mirBak!=null) localStorage.setItem(CHRONO_MIR_LS_KEY,_mirBak); }catch(e){}   // [L383] préservé autour du resetAll d'entrée/sortie d'entraînement
     _trainingMode=true;
     document.body.classList.add('training');
     if(!document.getElementById('trainingBanner')){
@@ -11075,7 +11079,9 @@ function stopTraining(){
     _trainingMode=false;
     document.body.classList.remove('training');
     document.getElementById('trainingBanner')?.remove();
+    let _mirBak=null; try{ _mirBak=localStorage.getItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L383] même préservation qu'à l'entrée
     try{ resetAll(); }catch(e){}
+    try{ if(_mirBak!=null) localStorage.setItem(CHRONO_MIR_LS_KEY,_mirBak); }catch(e){}
     try{ showToast('Entraînement terminé — retour au travail réel.'); }catch(e){}
   }catch(e){}
 }
@@ -11433,6 +11439,10 @@ async function saveCommandeFiche(rows,useful,blade,opts){
         //  \u00b7 le balayage par CL\u00c9 exige un n\u00b0 de commande NON vide (deux commandes l\u00e9gitimement
         //    identiques sans n\u00b0 ne se touchent jamais). Soft (consumed:true) + logAudit, comme DRAFT-4.
         try{
+          // [L383 · audit fusion] _loadedSoldeDraftId (RAM) meurt au rechargement de l'app : re-dérivé depuis
+          // loadedSaveId (qui, lui, survit via l'autosave) — sinon le solde ⛔ jumeau restait « ▶ Reprendre »
+          // après la coupe du reste = double découpe possible.
+          try{ if(!_loadedSoldeDraftId&&loadedSaveId){ const _sv=(Array.isArray(savesCache)?savesCache:[]).find(x=>x&&x._id===loadedSaveId); if(_sv&&_sv.resteFromFiche){ const _sd=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(x=>x&&x.id==='d_solde_'+_sv.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } } }catch(e){}
           const _mineIni=_ini();
           const _victims=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>{
             if(!d||d.consumed||d.kind==='shared'||/^d_shared_/.test(String(d.id))) return false;
@@ -20244,6 +20254,7 @@ function _l340SetupFichePills(){ try{
 }catch(e){} })();
 // [L374 · demande Esteban 20/08] ⚙ OUTILS du Plan : un lanceur AU-DESSUS de chaque bloc de référence (paysage), plus grand, teinté.
 function _l374PlanOutilsTop(){ try{
+  document.querySelectorAll('#refBlocks .plan-outils-top').forEach(function(l){ const n=l.nextElementSibling; if(!(n&&n.classList&&n.classList.contains('ref-block'))) l.remove(); });   // [L383 · audit fusion] lanceurs orphelins (bloc réf supprimé / plan rechargé avec moins de réfs) : purgés au lieu de s'empiler
   document.querySelectorAll('#refBlocks .ref-block').forEach(function(blk){
     if(blk.previousElementSibling&&blk.previousElementSibling.classList&&blk.previousElementSibling.classList.contains('plan-outils-top')) return;
     const b=document.createElement('button'); b.type='button'; b.className='btn plan-outils-top';
@@ -20272,13 +20283,20 @@ function _l376PostMachineSwap(withFiche){ try{
   });
   try{ localStorage.setItem('step_last_machine',_post); }catch(e){}
   currentMachine=_post;
+  let _mixCut=false;   // [L383 · audit fusion] fiche mixte : des bobines déjà coupées sur l'ancienne machine
   if(withFiche){
     try{
       const _prev=ficheMachine; ficheMachine=_post;
       ['feba','maveg','cevenini'].forEach(function(k){ const b=document.getElementById('fBtn'+k.charAt(0).toUpperCase()+k.slice(1)); if(b) b.className='machine-btn-fiche'+(k===_post?' sel-'+k:''); });
-      if(Array.isArray(ficheLines)) ficheLines.forEach(function(l){ if(l&&l.machine===_old) l.machine=_post; });
+      // [L383 · audit fusion] les bobines DÉJÀ COUPÉES restent attribuées à la machine qui les a physiquement
+      // coupées (archive/NC ISO justes — la passation ne réécrit pas l'histoire) : seules les lignes restantes
+      // basculent, via _flSetMachine (couleur de carte + règle test2 rejouées).
+      if(Array.isArray(ficheLines)) ficheLines.forEach(function(l){ if(!l||l.machine!==_old) return;
+        const _dv=document.getElementById(l.id);
+        if(_dv&&_dv.classList.contains('coupee')){ _mixCut=true; return; }
+        if(typeof _flSetMachine==='function') _flSetMachine(l,_post); else l.machine=_post; });
       const _lel=document.getElementById('fNumLame');
-      if(_lel&&typeof lameActiveForMachine==='function'){
+      if(_lel&&!_mixCut&&typeof lameActiveForMachine==='function'){
         const _o=lameActiveForMachine(_prev), _n=lameActiveForMachine(_post);
         const _oNum=_o?String(_o.lameNum||'').trim():'', _nNum=_n?String(_n.lameNum||'').trim():'';
         if(!_lel.value.trim()||(_oNum&&_lel.value.trim()===_oNum)) _lel.value=_nNum;
@@ -20289,7 +20307,7 @@ function _l376PostMachineSwap(withFiche){ try{
   }
   try{ recalcPlan(); }catch(e){}
   try{ if(_was) window._l377MachinePrep=_was; }catch(e){}   // [L377 · B2] trace durable « préparé X → coupé Y » (pastille + archive)
-  try{ showToast('⚙ Commande passée sur '+getMachineLabel(_post)+(_was?' (préparée '+_was+')':'')+' — bords/lame personnalisés conservés.'); }catch(e){}
+  try{ showToast('⚙ Commande passée sur '+getMachineLabel(_post)+(_was?' (préparée '+_was+')':'')+(_mixCut&&_was?' — les bobines déjà coupées restent attribuées à '+_was:'')+' — bords/lame personnalisés conservés.'); }catch(e){}
   return {swapped:true,was:_was};
 }catch(e){ return null; } }
 // [L377 · A9] réseau : pastille 📡 HORS-LIGNE dans la nav + flush du repli brouillon et re-render de la barre miroir au retour
@@ -20440,6 +20458,9 @@ function _l341PlanPolish(){ try{
     const ttl=document.querySelector('#planResultSec>.section-title');
     if(ttl&&land){ ttl.querySelectorAll('.title-chip').forEach(function(o){ o.remove(); });   // chaque recalc re-rend les chips : purger les anciennes déplacées
       document.querySelectorAll('#statsBar .stat-chip').forEach(function(c){ const t=c.textContent||''; if(/référence|clients/.test(t)&&c.parentElement!==ttl){ c.classList.add('title-chip'); ttl.appendChild(c); } }); }
+    else if(ttl){ const sb=document.getElementById('statsBar');   // [L383 · audit fusion] rotation en portrait : les chips REVIENNENT dans #statsBar (layout historique) au lieu de rester collées au titre
+      ttl.querySelectorAll('.title-chip').forEach(function(o){ o.classList.remove('title-chip');
+        if(sb&&!Array.from(sb.querySelectorAll('.stat-chip')).some(function(c){ return c.textContent===o.textContent; })) sb.appendChild(o); else o.remove(); }); }
   }catch(e){}
   // 1) tuile utile
   const ud=document.getElementById('usefulDisplay');
@@ -22309,7 +22330,7 @@ function restoreFicheState(st){
   if(hasGroups){
     restoreRefGroups(st.plan.refGroups);
   }else{
-    document.querySelectorAll('.ref-block.extra').forEach(b=>b.remove());
+    document.querySelectorAll('.ref-block.extra').forEach(b=>{ try{ const _lt=b.previousElementSibling; if(_lt&&_lt.classList&&_lt.classList.contains('plan-outils-top')) _lt.remove(); }catch(e){} b.remove(); });   /* [L383 · audit fusion] le lanceur ⚙ OUTILS adjacent part avec le bloc */
     _refBlockSeq=1; renumberRefBlocks();
     document.querySelectorAll('.order-row').forEach(r=>r.remove());
     // Réinjecter les paramètres du plan DANS le ref-block #1 (et pas seulement

@@ -1116,5 +1116,16 @@ has(/ttl\.querySelectorAll\('\.title-chip'\)\.forEach\(function\(o\)\{ o\.remove
 has(/#statsBar \.stat-tile b\{font-size:24px\}/,'L382 : tuiles compactes — le plan des bobines se voit plus haut');
 has(/\[L372 → retiré L382 · décision Esteban 21\/08\] la bande de passage de réf est MASQUÉE/,'L382 : bande refonly retirée (le rail suffit) — bandes rouges machine conservées');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L382 présents dans index.html + sw.js');
+console.log('── L383 : correctifs de l audit de fusion (nuit du 21/08) ──');
+has(/else if\(ttl\)\{ const sb=document\.getElementById\('statsBar'\)/,'L383 : rotation en portrait — les chips reviennent dans #statsBar (layout historique)');
+has(/\[L383 · audit fusion\] plan vidé \(✓ envoi \/ ↺ réinitialiser\) : les chips/,'L383 : plan vidé — les chips du titre partent aussi (plus de compteurs d une commande précédente)');
+has(/les bobines DÉJÀ COUPÉES restent attribuées à la machine qui les a physiquement/,'L383 : passation — les bobines déjà coupées gardent leur machine (archive ISO juste)');
+has(/lanceurs orphelins \(bloc réf supprimé/,'L383 : lanceurs ⚙ OUTILS orphelins purgés (plus d empilement au fil de la journée)');
+has(/préservé autour du resetAll d'entrée\/sortie d'entraînement/,'L383 : temps miroir en attente préservé par l entraînement');
+has(/re-dérivé depuis\n          \/\/ loadedSaveId|_loadedSoldeDraftId \(RAM\) meurt au rechargement/,'L383 : solde ⛔ jumeau re-dérivé après rechargement (consommé à l envoi du reste)');
+{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+  const okF=/maxRetries: 0/.test(fx);
+  console.log((okF?'✅ ':'❌ ')+'L383 : fonction — maxRetries:0 (le repli d erreur s exécute toujours, plus de doc « pending » à vie)'); if(!okF) fail++; }
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L383 présents dans index.html + sw.js');
 process.exit(fail?1:0);

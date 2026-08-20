@@ -71,7 +71,7 @@ exports.assistReply = onDocumentWritten(
     const db = getFirestore();
     const cfg = await db.doc("config/assistant").get();
     if (!cfg.exists || cfg.data().enabled !== true) return;
-    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value(), timeout: 90_000 }); // [L381 · n°7] < timeoutSeconds : le repli d'erreur s'exécute toujours
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value(), timeout: 90_000, maxRetries: 0 }); // [L381 · n°7 + L383 · audit fusion] 90 s SANS retry SDK (défaut = 2 retries → 90×3 > 120 s : la plateforme tuait la fonction AVANT le catch, doc bloqué « pending » à vie) : le repli d'erreur s'exécute toujours
 
     // [L381 · fix audit n°1] le CONTEXTE est un tour user SÉPARÉ, toujours en tête : le fil peut
     // commencer par un tour assistant (historique long) et l'API exige un 1er tour user — la fusion
