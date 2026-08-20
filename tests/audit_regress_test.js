@@ -95,7 +95,7 @@ absent(/class="fc-cmdline"/,'ergo #6 : bandeau bleu des laizes retiré de la car
 has(/ab-confirm/,'ergo #15 : « Confirmer la commande » une seule fois (bouton pleine page masqué quand la barre le porte)');
 has(/id="etiqPhotoInput"/,'L226 ergo #14 : input caméra étiquettes présent');
 has(/name:'Étiquette '\+\(\+\+n\)/,'L226 ergo #14 : photos étiquettes poussées dans commandeFiles (archivées avec la fiche + PDF)');
-has(/if\(!bandHtml\) return;/,'L224 : bande verte de réf supprimée (séparateur rendu SEULEMENT au changement de machine)');
+has(/if\(!bandHtml\) div\.classList\.add\('refonly'\);/,'L224 : bande de réf supprimée du PORTRAIT (le bloc Réf N y est l unique porteur) — révisé L372 : rendue partout, classe refonly = visible en paysage seulement (les blocs sont masqués L361)');
 has(/function plnResetAll/,'L223 ergo #3 : Reset du planning présent (via gardien plnSetPlan)');
 has(/id="ncBox"/,'L223 ergo #13 : Registre NC dans Analyse (repliable)');
 
@@ -1013,5 +1013,11 @@ has(/\[L371 · fix audit\] chips « Habituelles » vidées/,'L371 : chips vidée
 has(/coche le motif \(Angle · Casse · Larg\. · Qté\)/,'L371 : rappel non-attestant si détail rempli avec RAS coché');
 has(/const _mqA15=window\.matchMedia\('\(min-width:1100px\)'\)/,'L371 : rotation = fl-current du mode start recalculé');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L371 présents dans index.html + sw.js');
+console.log('── L372 : retours recette Esteban (20/08) ──');
+has(/if\(!bandHtml\) div\.classList\.add\('refonly'\);/,'L372 : bande de passage de réf toujours rendue (refonly sans changement de machine)');
+has(/^\.fiche-ref-sep\.refonly\{display:none\}$/m,'L372 : bande refonly masquée en portrait (les blocs Réf N y restent)');
+has(/TABLETTE MACHINE : un plan chargé passe sur LA machine du poste/,'L372 : plan chargé sur compte machine = machine du poste (mono-machine seulement, toast)');
+has(/t\.value=cur\.split\(' ; '\)\.map\(x=>x\.trim\(\)\)\.filter\(x=>x&&x!==txt\)\.join\(' ; '\);/,'L372 : puce détail NC = bascule (re-tap retire le texte, texte libre conservé)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L372 présents dans index.html + sw.js');
 process.exit(fail?1:0);

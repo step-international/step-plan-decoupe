@@ -2049,6 +2049,9 @@ body.atelier .app-footer .btn,body.atelier .outils-foot .btn{font-size:14px;min-
   .nc-q{min-height:44px;padding:0 12px;border-radius:9px;border:1px solid var(--border2);background:var(--card);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer}
   .nc-q.used{border-color:var(--text3);color:var(--text)}
 }
+/* [L372 · demandes Esteban 20/08] bande de passage de réf dans la pile (paysage — portrait garde les blocs « Réf N ») */
+.fiche-ref-sep.refonly{display:none}
+@media(min-width:1100px){.fiche-ref-sep.refonly{display:flex;margin:14px 0 6px}}
 </style>
 </head>
 <body>
@@ -3031,7 +3034,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.20-L371';
+const APP_VERSION='2026.08.20-L372';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5946,8 +5949,9 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,
   // [L224 · demande Esteban] la bande verte de réf est SUPPRIMÉE (« pas de répétition de données ») : la carte
   // « Réf N » en haut (bloc fmm) est l'UNIQUE porteur de l'info réf/machine/film. On ne rend le séparateur QUE
   // s'il y a un CHANGEMENT DE MACHINE (bande rouge — repère atelier critique, conservé).
-  if(!bandHtml) return;
-  div.innerHTML=`${bandHtml}${machLbl?`<span class="frs-mch">⚙ ${esc(machLbl)}</span>`:''}<span class="frs-name">🎞 ${esc(refDisp(ref))}</span><span class="frs-count ref-sep-count"></span>`;   /* [L293] nom court (dataset.ref garde le nom complet pour le matching) */
+  if(!bandHtml) div.classList.add('refonly');   // [L372 · demande Esteban 20/08] pas de changement de machine : bande de réf quand même rendue (masquée en portrait — L224 y garde le bloc « Réf N » ; en paysage L361 a masqué ces blocs → la pile n'avait plus AUCUN repère au passage de réf)
+  const _mlChip=(!bandHtml&&longueur)?`<span class="frs-m">${esc(String(longueur))} ml</span>`:'';
+  div.innerHTML=`${bandHtml}${machLbl?`<span class="frs-mch">⚙ ${esc(machLbl)}</span>`:''}<span class="frs-name">🎞 ${esc(refDisp(ref))}</span>${_mlChip}<span class="frs-count ref-sep-count"></span>`;   /* [L293] nom court (dataset.ref garde le nom complet pour le matching) */
   document.getElementById('ficheLines').appendChild(div);
 }
 
@@ -9566,8 +9570,7 @@ async function doLoad(){
   _resumedDraftId=null; _resumedForeignDraftId=null;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
   // [L366] plan du RESTE chargé : le brouillon ⛔ solde jumeau (d_solde_<fiche>) sera consommé à l'envoi (branche _resumedDraftId du balayage, concordance client/n° garantie)
-  _loadedSoldeDraftId=null; try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } }catch(e){}
-  try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] chips recalculées pour le plan chargé (multi-réf : restoreRefGroups ne passe pas par onRefChange)   // [L367 · fix audit] variable dédiée (l'_resumedDraftId mourait au VALIDER bobine mère)
+  _loadedSoldeDraftId=null; try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } }catch(e){}   // [L367 · fix audit] variable dédiée (l'_resumedDraftId mourait au VALIDER bobine mère)
   editingSaveId=null; _editSaveBase=null; // un chargement normal annule un éventuel mode modification
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   const G=id=>document.getElementById(id);
@@ -9639,6 +9642,25 @@ async function doLoad(){
     // commande neuve jamais bloqué (_autosaveLastSig vide).
     const _cur=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(d=>d&&d.id===autosaveId());
     _autosaveLastSig=_cur?JSON.stringify({plan:_st.plan,fiche:_st.fiche,lines:_st.lines}):'';
+  }catch(e){}
+  try{ _l370HabitualWidths(); }catch(e){}   // [L371→L372 · fix] chips recalculées pour le plan chargé — APRÈS la restauration des champs (elles partaient avant : couple client/réf périmé)
+  // [L372 · demande Esteban 20/08] TABLETTE MACHINE : un plan chargé passe sur LA machine du poste (feba@→FEBA…) — plus
+  // d'erreur de machine à la coupe. Seulement si le plan est MONO-machine (un plan qui enchaîne 2 machines est voulu tel
+  // quel) et différent du poste. Défauts bords/lame de la machine appliqués (onRefMachineChange → recalc) ; la fiche
+  // suit à l'import (L359). Toast pour le dire.
+  try{
+    const _post=(typeof _machinePostName==='function')?String(_machinePostName()||'').toLowerCase():'';
+    if(_post&&typeof MACHINE_KEYS!=='undefined'&&MACHINE_KEYS.indexOf(_post)>=0){
+      const _sels=Array.from(document.querySelectorAll('#refBlocks [data-rb="machine"]'));
+      const _vals=[...new Set(_sels.map(el=>String(el.value||'').trim()).filter(Boolean))];
+      if(_sels.length&&_vals.length<=1&&_vals[0]!==_post){
+        const _was=_vals[0]?getMachineLabel(_vals[0]):'';
+        _sels.forEach(el=>{ el.value=_post; });
+        try{ selectMachine(_post); }catch(e){}
+        try{ onRefMachineChange(_sels[0]); }catch(e){}
+        try{ showToast('⚙ Plan chargé sur '+getMachineLabel(_post)+(_was?' (préparé '+_was+')':'')+' — réglages machine appliqués, plan recalculé.'); }catch(e){}
+      }
+    }
   }catch(e){}
   closeLoadModal();showPage(0);
   return true;   // [L316 · fix audit] signal de SUCCÈS : doRedo ne vide n°/date QUE si le chargement a réellement eu lieu (6 chemins de sortie sans chargement sinon destructifs)
@@ -20072,7 +20094,13 @@ function _l340SetupFichePills(){ try{
   document.addEventListener('keydown',function(e){ try{ if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('.fmm-inline-block>.fmm-head[role=button]')){ e.preventDefault(); e.target.click(); } }catch(_){} });
 }catch(e){} })();
 // [L370 · B14] puce « détail » NC : ajoute le texte au détail (sans doublon), rien n'est coché
-function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'+id); if(!t||!btn) return; const txt=String(btn.textContent||'').trim(); const cur=String(t.value||''); if(cur.indexOf(txt)>=0){ btn.classList.add('used'); return; } t.value=(cur.trim()?cur.replace(/\s*$/,'')+' ; ':'')+txt; t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.add('used'); try{ if(document.getElementById('nc_ras_'+id)?.querySelector('input')?.checked){ t.style.borderColor='var(--orange)'; showToast('📝 Détail noté — coche le motif (Angle · Casse · Larg. · Qté) si c\'est une non-conformité.','ok'); } }catch(e){} }catch(e){} }   // [L371 · fix audit] rappel NON-attestant : rien n'est coché à ta place
+function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'+id); if(!t||!btn) return; const txt=String(btn.textContent||'').trim(); const cur=String(t.value||'');
+  if(cur.indexOf(txt)>=0){   // [L372 · demande Esteban] BASCULE : re-tap = retire le texte de la puce (les « ; » se recollent, le texte libre reste)
+    t.value=cur.split(' ; ').map(x=>x.trim()).filter(x=>x&&x!==txt).join(' ; ');
+    t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.remove('used'); return;
+  }
+  t.value=(cur.trim()?cur.replace(/\s*$/,'')+' ; ':'')+txt; t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.add('used');
+  try{ if(document.getElementById('nc_ras_'+id)?.querySelector('input')?.checked){ t.style.borderColor='var(--orange)'; showToast('📝 Détail noté — coche le motif (Angle · Casse · Larg. · Qté) si c\'est une non-conformité.','ok'); } }catch(e){} }catch(e){} }   // [L371 · fix audit] rappel NON-attestant : rien n'est coché à ta place
 // [L370 · B13] clients RÉCENTS en tête du select (optgroup, même nœud portrait) — source mémoire (fichesCache + savesCache), catalogue seulement
 function _l370RecentClients(){ try{ const sel=document.getElementById('planClient'); if(!sel||typeof CLIENT_DATA==='undefined') return; const cur=sel.value; const old=sel.querySelector('optgroup[data-l370]'); if(old) old.remove();
   const seen=new Set(), rec=[]; const all=[].concat((Array.isArray(fichesCache)?fichesCache:[]).map(f=>({c:f&&f.client,t:(f&&f.date)||''})),(Array.isArray(savesCache)?savesCache:[]).filter(x=>x&&!x.deleted).map(x=>({c:x.client,t:x.date||''}))).sort((a,b)=>String(b.t).localeCompare(String(a.t)));
