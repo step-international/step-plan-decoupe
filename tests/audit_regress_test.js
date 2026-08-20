@@ -556,7 +556,7 @@ console.log('── L308 : REDESIGN LOT 14 — un seul aplat ambre (§2.17-A) �
 has(/fl-current/,'L308 : classe fl-current (carte en cours) posée par updateNextAction, retirée à chaque cycle');
 has(/\.fiche-line\.fl-current\{border-color:var\(--action\)/,'L308 : SEUL aplat ambre = la carte en cours');
 has(/\.fiche-line\.coupee:not\(\.flash-cut\)\{opacity:\.55\}/,'L308 : cartes coupées estompées (le flash de confirmation reste visible)');
-has(/#ficheLines:has\(\.fl-current\) \.fiche-line:not\(\.fl-current\) button/,'L308 : ♻ écarts visible seulement sur la carte en cours (§2.13-B)');
+has(/#ficheLines:has\(\.fl-current\):not\(\.chrono-off\) \.fiche-line:not\(\.fl-current\) button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:none\}/,'L308 : ♻ écarts visible seulement sur la carte en cours (§2.13-B) — sauf chrono arrêté (L371 : A15 pose fl-current avant le chrono)');
 
 console.log('── L309 : REDESIGN LOT 5 — HUD segmenté (1 cran/bobine, plafond 40) ──');
 has(/fp-seg-wrap/,'L309 : barre segmentée présente dans le HUD coupeeBanner');
@@ -1001,9 +1001,17 @@ console.log('── L370 : analyse des parcours B13 · B14 · A15 · A19 ──'
 has(/function _l370NcQuick\(id,btn\)/,'L370 B14 : puces détail NC = texte seulement, rien coché');
 has(/function _l370RecentClients\(\)/,'L370 B13 : clients récents en tête du select (source mémoire)');
 has(/function _l370HabitualWidths\(\)/,'L370 B13 : laizes habituelles de la réf en chips (paysage), tap = 1re ligne vide');
-has(/const ln=document\.getElementById\(l\.id\); if\(ln\) ln\.classList\.add\('fl-current'\); \} \} \}catch\(e\)\{\} \}   \/\/ \[L370 · A15\]/,'L370 A15 : 1re bobine déjà « en cours » avant le chrono (paysage), ambre sur DÉMARRER');
+has(/const ln=document\.getElementById\(l\.id\); if\(ln\)\{ ln\.classList\.add\('fl-current'\); try\{ _confAutoH/,'L370 A15 : 1re bobine déjà « en cours » avant le chrono (paysage), ambre sur DÉMARRER — + _confAutoH (L371)');
 has(/<div class="section-title" style="margin:12px 0 8px">Laizes<\/div><!-- \[L370 · A19\]/,'L370 A19 : bloc 2 « Laizes » comme le bloc 1');
 has(/^\.l370-laizes,\.nc-quick\{display:none\}$/m,'L370 : chips/puces masquées en portrait (identique)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L370 présents dans index.html + sw.js');
+console.log('── L371 : correctifs audit L370 ──');
+has(/function _l370FillWidth\(w\)/,'L370 B13 : tap chip = largeur dans la 1re ligne vide (marqueur manquant, ajouté L371)');
+has(/#ficheLines:has\(\.fl-current\):not\(\.chrono-off\) \.fiche-line:not\(\.fl-current\) button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:none\}/,'L371 : chrono arrêté = les ♻ restent visibles (A15 posait fl-current)');
+has(/if\(typeof planManual!=='undefined'&&planManual\)\{ const b0=document\.getElementById\('l370Laizes'\)/,'L371 : chips habituelles coupées en plan manuel');
+has(/\[L371 · fix audit\] chips « Habituelles » vidées/,'L371 : chips vidées au resetAll (plus de laize fantôme)');
+has(/coche le motif \(Angle · Casse · Larg\. · Qté\)/,'L371 : rappel non-attestant si détail rempli avec RAS coché');
+has(/const _mqA15=window\.matchMedia\('\(min-width:1100px\)'\)/,'L371 : rotation = fl-current du mode start recalculé');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L371 présents dans index.html + sw.js');
 process.exit(fail?1:0);

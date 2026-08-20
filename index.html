@@ -879,7 +879,7 @@ html.theme-light #chronoStartBtn:active,html.theme-light #chronoPauseBtn:active,
 .fiche-line:not(.fl-current) [id^="flConf_"]{font-size:15px}
 .fl-current [id^="flConf_"]{font-size:22px;font-weight:700}   /* échelle §2.13-C : la config qu'on lit à 3 m = celle qu'on coupe */
 body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
-#ficheLines:has(.fl-current) .fiche-line:not(.fl-current) button[onclick="recalcEcartsFromFiche()"]{display:none}   /* §2.13-B : ♻ seulement là où on l'utilise — mais si AUCUNE carte courante (chrono arrêté, flux corrections supporté), tous les ♻ restent visibles */
+#ficheLines:has(.fl-current):not(.chrono-off) .fiche-line:not(.fl-current) button[onclick="recalcEcartsFromFiche()"]{display:none}   /* [L371 · fix audit L370] chrono arrêté (A15 pose fl-current) : les ♻ restent visibles (flux corrections) */   /* §2.13-B : ♻ seulement là où on l'utilise — mais si AUCUNE carte courante (chrono arrêté, flux corrections supporté), tous les ♻ restent visibles */
 @media(prefers-reduced-motion:no-preference){.fiche-line{transition:background .2s,opacity .2s,border-color .2s}}
 /* [L309 · LOT 5] HUD segmenté — un cran par bobine dans #coupeeBanner (≤40 bobines) */
 .fp-seg-wrap{display:flex;gap:2px;align-items:stretch}
@@ -3031,7 +3031,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L370';
+const APP_VERSION='2026.08.20-L371';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9566,7 +9566,8 @@ async function doLoad(){
   _resumedDraftId=null; _resumedForeignDraftId=null;
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
   // [L366] plan du RESTE chargé : le brouillon ⛔ solde jumeau (d_solde_<fiche>) sera consommé à l'envoi (branche _resumedDraftId du balayage, concordance client/n° garantie)
-  _loadedSoldeDraftId=null; try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } }catch(e){}   // [L367 · fix audit] variable dédiée (l'_resumedDraftId mourait au VALIDER bobine mère)
+  _loadedSoldeDraftId=null; try{ if(s.resteFromFiche){ const _sd=loadDrafts().find(x=>x&&x.id==='d_solde_'+s.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } }catch(e){}
+  try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] chips recalculées pour le plan chargé (multi-réf : restoreRefGroups ne passe pas par onRefChange)   // [L367 · fix audit] variable dédiée (l'_resumedDraftId mourait au VALIDER bobine mère)
   editingSaveId=null; _editSaveBase=null; // un chargement normal annule un éventuel mode modification
   if(typeof updateSaveBtnLabel==='function') updateSaveBtnLabel();
   const G=id=>document.getElementById(id);
@@ -11455,6 +11456,7 @@ function resetAll(){
   // d'abord, sinon la dernière machine choisie sur ce poste (step_last_machine, déjà utilisée au boot) — corrigeable en 1 tap ; rien n'est attesté
   // (c'est le même défaut qu'au boot ; la fiche hérite via L359). Sans poste ni mémoire : comme avant (selects vides).
   window._l363PkgTouched=false; window._l363PkgClient='';   // [L363 · B5] nouvelle commande = la règle reprend la main
+  try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] chips « Habituelles » vidées (client/réf vides) — plus de laize fantôme sur plan vierge
   { const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; selectMachine(_dm||'feba'); document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value=_dm||'';}); }
   initDefaultRows();
   
@@ -19497,7 +19499,7 @@ function updateNextAction(){
     // l'envoi est réservé à l'émetteur (_shareBlockSend). Le mode « cut » reste utile (le récepteur marque ses coupes).
     if(total){ if(done===total) mode=_viewingSharedId?'none':'confirm'; else if(!chronoRunning) mode='start'; else mode='cut'; }
     if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
-    else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); try{ if(window.innerWidth>=1100){ const l=_nextUncutLine(); if(l){ const ln=document.getElementById(l.id); if(ln) ln.classList.add('fl-current'); } } }catch(e){} }   // [L370 · A15] paysage : la 1re bobine est déjà « en cours » avant le chrono (le ✂ démarre le chrono en 1 tap) ; l'ambre reste sur ▶ DÉMARRER
+    else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); try{ if(window.innerWidth>=1100){ const l=_nextUncutLine(); if(l){ const ln=document.getElementById(l.id); if(ln){ ln.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } } }catch(e){} }   // [L370 · A15] paysage : la 1re bobine est déjà « en cours » avant le chrono (le ✂ démarre le chrono en 1 tap) ; l'ambre reste sur ▶ DÉMARRER
     else if(mode==='cut'){ const l=_nextUncutLine(); if(l){ const _b=document.getElementById('coupeeBtn_'+l.id); if(_b){ _b.classList.add('next-action'); _b.closest('.fiche-line')?.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } }
     try{ renderFlow(); renderNowBar(); hintCoupeeApply(); renderShareWho(); }catch(e){}   // [L320/L322/L326] signalétique + indice + qui-coupe-quoi rafraîchis avec le « vif »   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
     _syncActionBar(mode,done,total);
@@ -19906,7 +19908,8 @@ function outilsChangements(){ try{
 // gardent leurs id, leurs handlers et leur sérialisation ; en portrait (<1100px) rien ne change (pastilles
 // masquées, sections visibles comme avant). Décision Esteban 31/07 : « en-tête en pastilles, tap = ouvrir ».
 // ============================================================
-const _FICHE_COLLAPSIBLE=['ficheHeadSec','fMachineMono','ficheChgSec','etiquetteSoldeFiche','cliSection','planCondSec','cliRecapFiche'];   // [L341] + Plan : multi-clients et emballage repliés en paysage · [L343] + récap emballage par client (fiche)
+const _FICHE_COLLAPSIBLE=['ficheHeadSec','fMachineMono','ficheChgSec','etiquetteSoldeFiche','cliSection','planCondSec','cliRecapFiche'];
+try{ const _mqA15=window.matchMedia('(min-width:1100px)'); const _onA15=function(){ try{ if(typeof updateNextAction==='function') updateNextAction(); }catch(_){} }; if(_mqA15.addEventListener) _mqA15.addEventListener('change',_onA15); else if(_mqA15.addListener) _mqA15.addListener(_onA15); }catch(e){}   // [L371 · fix audit] rotation : fl-current du mode start posé/retiré selon la largeur   // [L341] + Plan : multi-clients et emballage repliés en paysage · [L343] + récap emballage par client (fiche)
 function _isLandscapeFiche(){ try{ return window.matchMedia('(min-width:1100px)').matches; }catch(e){ return false; } }
 function ficheHeadRevealed(){ return ['ficheHeadSec','fMachineMono','ficheChgSec'].some(function(id){ const s=document.getElementById(id); return !!(s&&s.classList.contains('reveal')); }); }   // [L343 · fix audit] l'une des 3 sections dépliée = « ▴ REPLIER »
 function _l340RevealBox(box){ try{ if(!box) return; box.classList.add('reveal'); if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); }catch(e){} }   // [L343 · fix audit BLOQUANT] déplier UNE section (pas les 3 : la pile d'en-tête écrasait la liste)
@@ -20069,7 +20072,7 @@ function _l340SetupFichePills(){ try{
   document.addEventListener('keydown',function(e){ try{ if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('.fmm-inline-block>.fmm-head[role=button]')){ e.preventDefault(); e.target.click(); } }catch(_){} });
 }catch(e){} })();
 // [L370 · B14] puce « détail » NC : ajoute le texte au détail (sans doublon), rien n'est coché
-function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'+id); if(!t||!btn) return; const txt=String(btn.textContent||'').trim(); const cur=String(t.value||''); if(cur.indexOf(txt)>=0) return; t.value=(cur.trim()?cur.replace(/\s*$/,'')+' ; ':'')+txt; t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.add('used'); }catch(e){} }
+function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'+id); if(!t||!btn) return; const txt=String(btn.textContent||'').trim(); const cur=String(t.value||''); if(cur.indexOf(txt)>=0){ btn.classList.add('used'); return; } t.value=(cur.trim()?cur.replace(/\s*$/,'')+' ; ':'')+txt; t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.add('used'); try{ if(document.getElementById('nc_ras_'+id)?.querySelector('input')?.checked){ t.style.borderColor='var(--orange)'; showToast('📝 Détail noté — coche le motif (Angle · Casse · Larg. · Qté) si c\'est une non-conformité.','ok'); } }catch(e){} }catch(e){} }   // [L371 · fix audit] rappel NON-attestant : rien n'est coché à ta place
 // [L370 · B13] clients RÉCENTS en tête du select (optgroup, même nœud portrait) — source mémoire (fichesCache + savesCache), catalogue seulement
 function _l370RecentClients(){ try{ const sel=document.getElementById('planClient'); if(!sel||typeof CLIENT_DATA==='undefined') return; const cur=sel.value; const old=sel.querySelector('optgroup[data-l370]'); if(old) old.remove();
   const seen=new Set(), rec=[]; const all=[].concat((Array.isArray(fichesCache)?fichesCache:[]).map(f=>({c:f&&f.client,t:(f&&f.date)||''})),(Array.isArray(savesCache)?savesCache:[]).filter(x=>x&&!x.deleted).map(x=>({c:x.client,t:x.date||''}))).sort((a,b)=>String(b.t).localeCompare(String(a.t)));
@@ -20077,7 +20080,7 @@ function _l370RecentClients(){ try{ const sel=document.getElementById('planClien
   if(!rec.length) return; const og=document.createElement('optgroup'); og.label='Récents'; og.dataset.l370='1'; rec.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; og.appendChild(o); });
   const ph=sel.options[0]; if(ph&&ph.value==='') sel.insertBefore(og,ph.nextSibling); else sel.insertBefore(og,sel.firstChild); sel.value=cur; }catch(e){} }
 // [L370 · B13] laizes HABITUELLES de cette réf (dernier plan/fiche même client + réf en mémoire) : chips sous « 3 · Laizes » (paysage), tap = pose la largeur dans la 1re ligne vide
-function _l370HabitualWidths(){ try{ const cli=(document.getElementById('planClient')||{}).value||'', ref=(document.getElementById('planRef')||{}).value||''; const blk=document.querySelector('.ref-block[data-ref-idx="0"]'); if(!blk) return; let box=document.getElementById('l370Laizes'); if(!box){ box=document.createElement('div'); box.id='l370Laizes'; box.className='l370-laizes'; const rows=blk.querySelector('.rb-rows'); if(rows&&rows.parentNode) rows.parentNode.insertBefore(box,rows); else return; }
+function _l370HabitualWidths(){ try{ if(typeof planManual!=='undefined'&&planManual){ const b0=document.getElementById('l370Laizes'); if(b0) b0.innerHTML=''; return; }   /* [L371 · fix audit] plan manuel : modifier la demande le rendrait incohérent */ const cli=(document.getElementById('planClient')||{}).value||'', ref=(document.getElementById('planRef')||{}).value||''; const blk=document.querySelector('.ref-block[data-ref-idx="0"]'); if(!blk) return; let box=document.getElementById('l370Laizes'); if(!box){ box=document.createElement('div'); box.id='l370Laizes'; box.className='l370-laizes'; const rows=blk.querySelector('.rb-rows'); if(rows&&rows.parentNode) rows.parentNode.insertBefore(box,rows); else return; }
   box.innerHTML=''; if(!cli||!ref) return; const k=nrm(cli)+'¦'+nrm(ref);
   const cands=[].concat((Array.isArray(savesCache)?savesCache:[]).filter(x=>x&&!x.deleted&&!x.reste).map(x=>({t:x.date||'',rows:x.rows,c:x.client,r:x.ref})),(Array.isArray(fichesCache)?fichesCache:[]).filter(f=>f&&!f.deleted&&f.valide!==false).map(f=>({t:f.date||'',rows:f.rows,c:f.client,r:f.ref}))).filter(x=>nrm(x.c)+'¦'+nrm(x.r)===k&&Array.isArray(x.rows)&&x.rows.length).sort((a,b)=>String(b.t).localeCompare(String(a.t)));
   if(!cands.length) return; const ws=[]; cands[0].rows.forEach(r=>{ const w=parseNum(r&&r.width); if(w>0&&ws.indexOf(w)<0) ws.push(w); }); if(!ws.length) return;
@@ -22021,6 +22024,7 @@ function restoreFicheState(st){
   // Données→Plans (double découpe possible). Brouillons antérieurs (sans champ) : null,
   // comportement d'avant (on n'archive jamais « consommé » un plan jamais coupé).
   loadedSaveId=st.loadedSaveId||null;
+  try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] brouillon restauré : chips du bon couple client+réf
   selectMachine(st.plan.machine||'feba');
   if(g('motherWidth'))g('motherWidth').value=st.plan.mother;
   if(g('bladeWidth'))g('bladeWidth').value=st.plan.blade;
