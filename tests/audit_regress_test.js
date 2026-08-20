@@ -1069,5 +1069,11 @@ has(/reportAuto\('\[G-CONSERVATION\] '/,'L377 §2.23-B : reportAuto sur anomalie
 has(/reportAuto\('permission-denied au chargement/,'L377 §2.23-B : reportAuto sur permission refusée');
 has(/reportAuto\('échec purge brouillons/,'L377 §2.23-B : reportAuto sur échec de purge');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L377 présents dans index.html + sw.js');
+console.log('── L378 : retouches design (grande analyse section 5) ──');
+has(/^  \.fiche-line\.fl-current\{border-color:#b8860b\}$/m,'L378 : cadre « ici » jaune outline (ambre plein = geste seul)');
+has(/\[L378 · A7\] rouge réservé aux NC réelles/,'L378 A7 : compteur de bande neutre sans NC');
+has(/\.fiche-ref-sep \.frs-count,\.fiche-ref-sep \.frs-m\{font-size:13px\}/,'L378 : bande refonly ≥13px');
+has(/html\.theme-light \.stat-tile\.pct-orange b\{color:#ff9d4d\}/,'L378 : thème clair — perte % lisible');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L378 présents dans index.html + sw.js');
 process.exit(fail?1:0);
