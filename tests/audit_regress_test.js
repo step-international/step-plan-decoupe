@@ -993,7 +993,7 @@ console.log('── L369 : bruit résiduel (audit 19/08) ──');
 has(/document\.body\.classList\.toggle\('role-op',currentRole==='operateur'\)/,'L369 : classe rôle opérateur sur body');
 has(/body\.role-op #atelierBtn\{display:none!important\}/,'L369 : ATELIER masqué pour l opérateur (forcé ON de toute façon)');
 has(/@media\(max-width:1099px\)\{#nav\{overflow-x:auto;scrollbar-width:none\}\}/,'L369 : nav portrait défile seule (page immobile)');
-has(/const _chef=\(typeof canViewAnalyse==='function'\)\?!!canViewAnalyse\(\):true;/,'L369 : KPI chef du bandeau Données réservés pilotage/admin');
+has(/const _chef=\(typeof canManageData==='function'\)\?!!canManageData\(\):true;/,'L369 : KPI chef du bandeau Données réservés pilotage/admin (élargi au pilotage en L377 · B5)');
 has(/if\(blf\) blf\.style\.display=canManage\?'':'none';/,'L369 : historique complet réservé pilotage/admin');
 has(/class="btn btn-ghost btn-sm" onclick="toggleTheme\(\)">☀️ Clair \/ sombre<\/button>/,'L369 : CLAIR dans le pied des tiroirs OUTILS (paysage)');
 
@@ -1055,5 +1055,19 @@ has(/signatures autosave posées sur l'état FINAL chargé \(swap compris\)/,'L3
 has(/\[L376 · grande analyse 2\.1\] PASSATION/,'L376 2.1 : passation resumeDraft bascule réellement la machine');
 has(/\[L376 · grande analyse A2\.6\] l'en-tête déplié par la GARDE/,'L376 2.6 : en-tête déplié par la garde initiales se replie après le choix');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L376 présents dans index.html + sw.js');
+console.log('── L377 : grande analyse — recommandations appliquées (go Esteban 20/08) ──');
+has(/\[L377 · grande analyse B3 \(reco appliquée « go » Esteban 20\/08\)\]/,'L377 B3 : verrou dur — bobine d une réf non validée incoupable (multi)');
+has(/⚠ PLAN MANUEL : ce retrait est DÉFINITIF/,'L377 B4 : confirm du ✕ en plan manuel dit que le retrait est définitif');
+has(/\[L369 → L377 · B5\] KPI « œil chef » = pilotage ET admin/,'L377 B5 : KPI chef ouverts au pilotage (canManageData)');
+has(/chip\('À valider',String\(F\.filter/,'L377 B5+ : chip « À valider n » dans le bandeau chef');
+has(/\[L377 · grande analyse B8\] config ÉDITÉE non recalculée = travail terrain/,'L377 B8 : conf-dirty protège la fiche de l import auto');
+has(/function _l377NetWatch\(\)/,'L377 A9 : pastille HORS-LIGNE + flush repli + resync au retour réseau');
+has(/shareWhoGridMirror/,'L377 A10 : grille qui-coupe-quoi visible côté récepteur (vue miroir)');
+has(/window\._l377MachinePrep=_was;/,'L377 B2 : trace durable préparé X → coupé Y (pastille + champ machinePrep)');
+has(/machine,machinePrep,machine2,/,'L377 B2 : champ machinePrep dans la fiche archivée (additif)');
+has(/reportAuto\('\[G-CONSERVATION\] '/,'L377 §2.23-B : reportAuto sur anomalie moteur');
+has(/reportAuto\('permission-denied au chargement/,'L377 §2.23-B : reportAuto sur permission refusée');
+has(/reportAuto\('échec purge brouillons/,'L377 §2.23-B : reportAuto sur échec de purge');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L377 présents dans index.html + sw.js');
 process.exit(fail?1:0);

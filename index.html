@@ -1450,6 +1450,7 @@ body.atelier .stat-tile b{font-size:36px}
   .fh-pill{max-width:100%;overflow:hidden;text-overflow:ellipsis}   /* [fix audit] multi-réf : la pastille réf ne déborde jamais de la colonne */
   .fh-pill.fh-miss{border-color:#8a2b2f;color:#ff8a8f}
   .fh-pill.fh-m{color:#141310;border-color:transparent}
+  .fh-pill.fh-prep{color:var(--text2);border-style:dashed}   /* [L377 · B2] « prép. FEBA » discret */
   .fh-pill.fh-m-feba{background:var(--feba)} .fh-pill.fh-m-maveg{background:var(--maveg)} .fh-pill.fh-m-cevenini{background:var(--cevenini)}
   .fh-pill.fh-chg{border-color:#b06a00;background:#241905;color:#ffb968}
   .fh-arrow{margin-left:auto;font:700 14px/1 var(--f-head);letter-spacing:.04em;color:var(--text3);white-space:nowrap}
@@ -3046,7 +3047,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.20-L376';
+const APP_VERSION='2026.08.20-L377';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3494,7 +3495,8 @@ async function loadFirestoreData(){
     const _perm=/permission|insufficient/i.test(String(e&&e.message||''));
     const _theUid=(_perm&&firebase.auth&&firebase.auth().currentUser)?firebase.auth().currentUser.uid:'';
     const _uidHint=_theUid?('\n🔑 UID de ce compte : '+_theUid+'\n(touche cette bannière pour COPIER l\'UID — à donner à l\'admin)'):'';
-    if(errEl){errEl.textContent='⚠ Erreur connexion base de données : '+e.message+_uidHint;errEl.dataset.uid=_theUid;errEl.style.display='block';}   // [L161 · revue #4] dataset.uid → le tap copie au lieu de fermer
+    if(errEl){errEl.textContent='⚠ Erreur connexion base de données : '+e.message+_uidHint;errEl.dataset.uid=_theUid;errEl.style.display='block';}
+    try{ if(_perm&&typeof reportAuto==='function') reportAuto('permission-denied au chargement — compte '+((currentUser&&currentUser.nom)||'?')+' · UID '+_theUid,'firestore'); }catch(_){}   // [L377 · §2.23-B]   // [L161 · revue #4] dataset.uid → le tap copie au lieu de fermer
   }finally{
     if(spin) spin.style.display='none';
   }
@@ -3585,7 +3587,7 @@ async function purgeExpiredItems(){
   if(!db) return;
   // [L73 · Lot 5 · B10] passe jumelle sur 'brouillons' (restes techniques : consumed anciens,
   // partages orphelins) — best-effort, jamais bloquante pour la purge corbeille.
-  try{ await purgeExpiredBrouillons(); }catch(e){ console.warn('Purge brouillons :',e&&e.message); }
+  try{ await purgeExpiredBrouillons(); }catch(e){ console.warn('Purge brouillons :',e&&e.message); try{ if(typeof reportAuto==='function') reportAuto('échec purge brouillons : '+(e&&e.message||e),'hygiene'); }catch(_){} }   // [L377 · §2.23-B]
   const now=Date.now();
   const dayMs=24*60*60*1000;
   const retentionFor=item=>{
@@ -5685,7 +5687,8 @@ function isFicheUntouched(){
     if(document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')) return false;
     if(document.getElementById('flDevi_'+id)?.checked) return false;
     if(document.getElementById('flDroit_'+id)?.checked) return false;
-    if(document.getElementById('flTest2nc_'+id)?.checked) return false;   // [L290 · audit 30/07 #NC] ⚠ NC test 2ᵉ = travail terrain : la fiche n'est plus « vierge » (l'import auto ne l'écrase plus)
+    if(document.getElementById('flTest2nc_'+id)?.checked) return false;   // [L290 · audit 30/07 #NC] ⚠ NC test 2ᵉ = travail terrain : la fiche n'est plus « vierge » (l'import auto ne l'écrase
+    if(typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)) return false;   // [L377 · grande analyse B8] config ÉDITÉE non recalculée = travail terrain : l'import auto ne l'écrase plus en silence plus)
   }
   return true;
 }
@@ -6000,10 +6003,11 @@ function renderDataSummary(){
     try{ F.forEach(function(f){ const t=f.date||f.ts||f.at||f.createdAt; const d=t?new Date(t):null; if(!(d&&!isNaN(d)&&d>=monday)) return; if(f.valide===false||f.manqueMatiere) return;   /* [L346 · audit] MÊME règle que le KPI mensuel (buildMonthlyKpi) : refusées et manque-matière exclues */
       const nb=parseInt(f.totalBobines,10); if(nb>0) wkBob+=nb; const pc=parseFloat(String(f.pct||'').replace(',','.')); if(!isNaN(pc)&&nb>0){ wkPctSum+=pc*nb; wkPctN+=nb; } }); }catch(e){}
     const wkPct=wkPctN?(wkPctSum/wkPctN):null;   /* pondérée par bobines (règle KPI) */
-    const _chef=(typeof canViewAnalyse==='function')?!!canViewAnalyse():true;   // [L369] KPI « œil chef » (semaine / bobines / perte) = pilotage/admin ; l'opérateur garde planning · BL · lame
+    const _chef=(typeof canManageData==='function')?!!canManageData():true;   // [L369 → L377 · B5] KPI « œil chef » = pilotage ET admin (canViewAnalyse ne couvrait que l'admin) ; l'opérateur garde planning · BL · lame
     el.innerHTML=(_chef?chip('Cette semaine',(wkKnown?wk+' fiche'+(wk>1?'s':''):'—'),false)
       +chip('Bobines',(wkKnown&&wkBob>0)?String(wkBob):'—',false)
       +chip('Perte moy.',(wkPct!=null)?(wkPct.toFixed(1).replace('.',',')+' %'):'—',(wkPct!=null&&wkPct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5))):'')
+      +(_chef?chip('À valider',String(F.filter(function(f){ return f&&!f.valide&&!f.refuse; }).length),F.some(function(f){ return f&&!f.valide&&!f.refuse; })):'')
       +chip('Planning du jour',plnTxt,false)   /* [L346] f/T depuis la source du Planning (mémoire) */
       +chip('BL à joindre',(noBL===0?'0':noBL),(typeof noBL==='number'&&noBL>0))
       +chip('Lame',lame,lameWarn);
@@ -7994,7 +7998,7 @@ function recalcPlan(){
       Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ got[w]=(got[w]||0)+(Number(q)||0); });
       Object.keys(want).forEach(w=>{ const d=(want[w]||0)-(got[w]||0); if(d>0){ _miss+=d; _detail.push(d+'×'+w+'mm ('+(c.ref||'?')+')'); } });
     });
-    if(_miss>0){ console.error('[G-CONSERVATION] '+_miss+' pièce(s) NON placée(s) sans troncature :',_detail); heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ANOMALIE PLAN : '+_miss+' pièce(s) commandée(s) NON présente(s) dans le plan ('+esc(_detail.slice(0,4).join(', '))+'). Vérifie les largeurs/quantités avant toute découpe.</div>'; }
+    if(_miss>0){ console.error('[G-CONSERVATION] '+_miss+' pièce(s) NON placée(s) sans troncature :',_detail); try{ if(typeof reportAuto==='function') reportAuto('[G-CONSERVATION] '+_miss+' pièce(s) non placée(s) : '+_detail.join(', '),'moteur'); }catch(_){} /* [L377 · §2.23-B] */ heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ANOMALIE PLAN : '+_miss+' pièce(s) commandée(s) NON présente(s) dans le plan ('+esc(_detail.slice(0,4).join(', '))+'). Vérifie les largeurs/quantités avant toute découpe.</div>'; }
   }catch(e){ console.warn('[G-CONSERVATION]',e); } }
   if(packTruncated){
     const _placed=[].concat(...computed.map(c=>c.bobines)).reduce((s,b)=>s+b.reduce((a,x)=>a+(Number(x.qty)||0),0),0);
@@ -11001,6 +11005,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   const ini2=g('fOp2Active').checked?(g('fInitiales2').value||'—'):'';
   const op2Bob=g('fOp2Active').checked?(g('fOp2Bobine').value||''):'';
   const machine=getMachineLabel(ficheMachine);
+  const machinePrep=(window._l377MachinePrep&&window._l377MachinePrep!==machine)?window._l377MachinePrep:'';   // [L377 · B2] champ ADDITIF : la fiche archive « préparé X » quand la commande a changé de machine
   const machine2=(g('fOp2Active').checked&&g('fOp2DiffMachine')?.checked&&ficheMachine2)?getMachineLabel(ficheMachine2):'';
   const op2Diff=g('fOp2Active').checked&&g('fOp2DiffMachine')?.checked;
   const mother2=op2Diff?(g('fMother2')?.value||''):'';
@@ -11127,7 +11132,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   }
   const ficheEntry={
     appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''),   // [L272 · audit #12] version qui a produit la fiche (traçabilité ISO sur parc hétérogène)
-    name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,machine2,mother2,edge2,blade2,useful2,lame,lameChg,lameNew,lameChgBob,machineChg:machChg,numJour,longueur,mother,rows,
+    name:planName,date:isoNow(),client,ref,ini,ini2,op2Bob,machine,machinePrep,machine2,mother2,edge2,blade2,useful2,lame,lameChg,lameNew,lameChgBob,machineChg:machChg,numJour,longueur,mother,rows,
     refGroups:multi?serializeRefGroups():null,
     film:multi?'':(getRefGroups()[0]?.film||''), veka:multi?'':(getRefGroups()[0]?.veka||''),
     mandrinByWidth:(()=>{const m={};getRefGroups().forEach(g=>(g.rows||[]).forEach(r=>{if(r.mandrin)m[r.width]=r.mandrin;}));return m;})(),
@@ -11478,7 +11483,7 @@ function resetAll(){
   // [L363 · analyse parcours B3 (validée Esteban 19/08)] machine PRÉ-CHOISIE pour la commande suivante : compte machine « Poste X »
   // d'abord, sinon la dernière machine choisie sur ce poste (step_last_machine, déjà utilisée au boot) — corrigeable en 1 tap ; rien n'est attesté
   // (c'est le même défaut qu'au boot ; la fiche hérite via L359). Sans poste ni mémoire : comme avant (selects vides).
-  window._l363PkgTouched=false; window._l363PkgClient='';   // [L363 · B5] nouvelle commande = la règle reprend la main
+  window._l363PkgTouched=false; window._l363PkgClient=''; window._l377MachinePrep=null;   // [L363 · B5] nouvelle commande = la règle reprend la main · [L377 · B2] trace machine remise à zéro
   try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] chips « Habituelles » vidées (client/réf vides) — plus de laize fantôme sur plan vierge
   { const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; selectMachine(_dm||'feba'); document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value=_dm||'';}); }
   initDefaultRows();
@@ -19052,7 +19057,7 @@ async function removeFicheLine(id){
   const lbl=(document.getElementById('flLabel_'+id)?.value||'').trim();
   const conf=(document.getElementById('flConf_'+id)?.value||'').trim();
   const desc=lbl?('« '+lbl+' »'):(conf?('('+conf+')'):'');
-  if(!await confirmDlg('Retirer cette bobine mère '+desc+' du plan de découpe ?\n\nSa saisie (config, photo, test, NC) sera retirée de la fiche en cours. Rien d\'enregistré n\'est touché.',{danger:true,ok:'Retirer'})) return;   // [L121 · T1] modale stylée uniforme + verbe « Retirer » (mémoire non enregistrée)
+  if(!await confirmDlg('Retirer cette bobine mère '+desc+' du plan de découpe ?\n\n'+((typeof planManual!=='undefined'&&planManual)?'⚠ PLAN MANUEL : ce retrait est DÉFINITIF (aucun recalcul ne la re-créera).\n\n':'')+'Sa saisie (config, photo, test, NC) sera retirée de la fiche en cours. Rien d\'enregistré n\'est touché.',{danger:true,ok:'Retirer'})) return;   // [L121 · T1] modale stylée uniforme + verbe « Retirer » (mémoire non enregistrée)
   document.getElementById(id)?.remove();
   ficheLines=ficheLines.filter(l=>l.id!==id);
   delete ficholinePhotos[id];
@@ -19100,6 +19105,19 @@ let _lastCoupeeMarkMs=0;
 function coupeeTapOne(id){
   const line=document.getElementById(id);
   if(!line){ return; }
+  // [L377 · grande analyse B3 (reco appliquée « go » Esteban 20/08)] MULTI-RÉF : la bobine d'une réf NON VALIDÉE ne se coupe pas —
+  // la validation de la bobine mère par réf est déjà la règle (L176) ; seul le 1er départ était verrouillé (trou ISO préexistant L303).
+  if(!line.classList.contains('coupee')&&typeof fmmIsMulti==='function'&&fmmIsMulti()){
+    try{
+      const _lref=(ficheLines.find(x=>x&&x.id===id)||{}).ref||'';
+      const _r=(typeof fmmRawRefs==='function')?fmmRawRefs().find(r=>nrm(r.ref||'')===nrm(_lref)):null;
+      if(_r&&typeof ficheRefValidated!=='undefined'&&!ficheRefValidated.has(_r.idx)){
+        showToast('🔒 Valide d\'abord la bobine mère de '+(_lref?refDisp(_lref):'cette référence')+' (bouton bleu) avant de couper.','err');
+        try{ const _b=document.querySelector('.fmm-inline-block.active .btn-blue')||document.querySelector('.fmm-inline-block .btn-blue'); if(_b){ _b.scrollIntoView({behavior:'smooth',block:'center'}); _b.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
+        return;
+      }
+    }catch(e){}
+  }
   // [L345 · demande Esteban] config MODIFIÉE et pas recalculée → pas de coupe : le plan (écarts) doit d'abord être recalculé
   if(!line.classList.contains('coupee')&&typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)){   // [L351 · audit] la garde ne vise que la COUPE : le dé-marquage garde son confirm historique
     if(document.body.classList.contains('plan-drift')){   // [L376 · grande analyse A5] la bannière masque le chip (L374) : pointer le GROS bouton, pas un bouton invisible
@@ -19422,8 +19440,11 @@ function renderShareWho(){
       else { const b=document.getElementById('coupeeBtn_'+l.id); if(b&&b.classList.contains('next-action')) st='<b style="color:#ffd45e">toi, maintenant</b>'; }
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums">'+(ix+1)+' · '+esc(conf||'—')+'</span>'+st+'</div>';
     }).join('');
-    g.innerHTML='<div style="font-size:10px;letter-spacing:.08em;color:var(--muted);font-weight:800;margin-bottom:4px">QUI COUPE QUOI · '+done+'/'+ficheLines.length+'</div>'+rows;
+    const html='<div style="font-size:11px;letter-spacing:.08em;color:var(--muted);font-weight:800;margin-bottom:4px">QUI COUPE QUOI · '+done+'/'+ficheLines.length+'</div>'+rows;
+    g.innerHTML=html;
     g.style.display='block';
+    // [L377 · A10 · §2.9] côté RÉCEPTEUR (vue miroir) le bloc émetteur est masqué : la grille vit dans le bandeau de vue miroir
+    try{ if(typeof _viewingSharedId!=='undefined'&&_viewingSharedId){ const bar=document.getElementById('sharedViewingBar'); if(bar&&bar.style.display!=='none'){ let m=document.getElementById('shareWhoGridMirror'); if(!m){ m=document.createElement('div'); m.id='shareWhoGridMirror'; m.style.cssText='margin:8px auto 0;max-width:820px;padding:0 16px'; bar.appendChild(m); } m.innerHTML=html; m.style.display='block'; } } else { const m=document.getElementById('shareWhoGridMirror'); if(m){ m.style.display='none'; m.innerHTML=''; } } }catch(e){}
   }catch(e){}
 }
 function openMonTableau(ini){
@@ -19999,6 +20020,7 @@ function renderFicheHeadPills(){ try{
   h+=pill(esc(cli||'CLIENT ?'),cli?'':'fh-miss');
   if(ref) h+=pill(esc(ref));
   if(mLbl) h+=pill(mLbl,'fh-m fh-m-'+m);
+  try{ if(window._l377MachinePrep&&window._l377MachinePrep!==mLbl) h+=pill('prép. '+window._l377MachinePrep,'fh-prep'); }catch(e){}   // [L377 · B2] trace « préparé X → coupé Y » visible
   h+=pill(lbl('OP',ini||'?'),ini?'':'fh-miss');
   if(!lame) h+=pill(lbl('LAME N°','?'),'fh-miss');
   if(planKo) h+=pill('⚠ CHANGEMENT PLAN REQUIS','fh-miss');
@@ -20152,9 +20174,21 @@ function _l376PostMachineSwap(withFiche){ try{
     }catch(e){}
   }
   try{ recalcPlan(); }catch(e){}
+  try{ if(_was) window._l377MachinePrep=_was; }catch(e){}   // [L377 · B2] trace durable « préparé X → coupé Y » (pastille + archive)
   try{ showToast('⚙ Commande passée sur '+getMachineLabel(_post)+(_was?' (préparée '+_was+')':'')+' — bords/lame personnalisés conservés.'); }catch(e){}
   return {swapped:true,was:_was};
 }catch(e){ return null; } }
+// [L377 · A9] réseau : pastille 📡 HORS-LIGNE dans la nav + flush du repli brouillon et re-render de la barre miroir au retour
+(function _l377NetWatch(){ try{
+  const upd=function(on){ try{
+    let b=document.getElementById('netOffBadge');
+    if(!on){ if(!b){ b=document.createElement('span'); b.id='netOffBadge'; b.textContent='📡 HORS-LIGNE'; b.style.cssText='display:inline-flex;align-items:center;background:#3d2a00;color:#f0742a;font:800 13px/1 var(--f-head);letter-spacing:.04em;padding:5px 10px;border-radius:8px;margin-left:6px;white-space:nowrap'; const vt=document.getElementById('verTag'); const nav=document.getElementById('nav'); if(vt&&vt.parentNode) vt.parentNode.insertBefore(b,vt); else if(nav) nav.appendChild(b); } b.style.display='inline-flex'; }
+    else if(b) b.style.display='none';
+  }catch(e){} };
+  window.addEventListener('offline',function(){ upd(false); try{ showToast('📡 Hors-ligne — la saisie continue, tout partira au retour du réseau.'); }catch(e){} });
+  window.addEventListener('online',function(){ upd(true); try{ if(typeof flushDraftFallbacks==='function') flushDraftFallbacks(); }catch(e){} try{ if(typeof renderShareWho==='function') renderShareWho(); }catch(e){} try{ showToast('📡 Réseau rétabli.'); }catch(e){} });
+  if(navigator.onLine===false) upd(false);
+}catch(e){} })();
 // [L370 · B14] puce « détail » NC : ajoute le texte au détail (sans doublon), rien n'est coché
 function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'+id); if(!t||!btn) return; const txt=String(btn.textContent||'').trim(); const cur=String(t.value||'');
   if(cur.indexOf(txt)>=0){   // [L372 · demande Esteban] BASCULE : re-tap = retire le texte de la puce (les « ; » se recollent, le texte libre reste)
