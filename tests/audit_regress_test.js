@@ -997,5 +997,13 @@ has(/const _chef=\(typeof canViewAnalyse==='function'\)\?!!canViewAnalyse\(\):tr
 has(/if\(blf\) blf\.style\.display=canManage\?'':'none';/,'L369 : historique complet réservé pilotage/admin');
 has(/class="btn btn-ghost btn-sm" onclick="toggleTheme\(\)">☀️ Clair \/ sombre<\/button>/,'L369 : CLAIR dans le pied des tiroirs OUTILS (paysage)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L369 présents dans index.html + sw.js');
+console.log('── L370 : analyse des parcours B13 · B14 · A15 · A19 ──');
+has(/function _l370NcQuick\(id,btn\)/,'L370 B14 : puces détail NC = texte seulement, rien coché');
+has(/function _l370RecentClients\(\)/,'L370 B13 : clients récents en tête du select (source mémoire)');
+has(/function _l370HabitualWidths\(\)/,'L370 B13 : laizes habituelles de la réf en chips (paysage), tap = 1re ligne vide');
+has(/const ln=document\.getElementById\(l\.id\); if\(ln\) ln\.classList\.add\('fl-current'\); \} \} \}catch\(e\)\{\} \}   \/\/ \[L370 · A15\]/,'L370 A15 : 1re bobine déjà « en cours » avant le chrono (paysage), ambre sur DÉMARRER');
+has(/<div class="section-title" style="margin:12px 0 8px">Laizes<\/div><!-- \[L370 · A19\]/,'L370 A19 : bloc 2 « Laizes » comme le bloc 1');
+has(/^\.l370-laizes,\.nc-quick\{display:none\}$/m,'L370 : chips/puces masquées en portrait (identique)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L370 présents dans index.html + sw.js');
 process.exit(fail?1:0);

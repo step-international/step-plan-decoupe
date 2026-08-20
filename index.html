@@ -2037,6 +2037,18 @@ body.role-op #atelierBtn{display:none!important}
 @media(max-width:1099px){#nav{overflow-x:auto;scrollbar-width:none}}
 @media(min-width:1100px){#themeBtn{display:none!important}#savesCount{display:none}}
 body.atelier .app-footer .btn,body.atelier .outils-foot .btn{font-size:14px;min-height:44px;padding:8px 12px}
+/* [L370 · B13 · B14 · A15 · A19 (analyse des parcours, validés Esteban)] chips laizes habituelles (paysage), puces détail NC (paysage), carte en cours avant chrono */
+.l370-laizes,.nc-quick{display:none}
+@media(min-width:1100px){
+  .l370-laizes{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px}
+  .l370-laizes:empty{display:none}
+  .l370-l{font:700 13px/1 var(--f-head);letter-spacing:.06em;color:var(--text3);text-transform:uppercase;margin-right:4px}
+  .l370-w{min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--border2);background:var(--card);color:var(--text);font:700 16px/1 var(--f-head);font-variant-numeric:tabular-nums;cursor:pointer}
+  .l370-w:active{background:var(--s2)}
+  .nc-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .nc-q{min-height:44px;padding:0 12px;border-radius:9px;border:1px solid var(--border2);background:var(--card);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer}
+  .nc-q.used{border-color:var(--text3);color:var(--text)}
+}
 </style>
 </head>
 <body>
@@ -3019,7 +3031,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.19-L369';
+const APP_VERSION='2026.08.19-L370';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5981,6 +5993,7 @@ function renderDataSummary(){
     if(_blfIn) el.appendChild(_blf);
     try{ if(typeof _l342PlaceLoadFull==='function') _l342PlaceLoadFull(); }catch(_){}   // [L342 · maquette 19] 📥 HISTORIQUE COMPLET à droite du bandeau (paysage)
   }catch(e){}
+  try{ _l370RecentClients(); }catch(e){}   // [L370 · B13] clients récents en tête du select Plan (source mémoire)
 }
 function switchTab(tab){
   try{ renderDataSummary(); }catch(e){}   // [L317 · LOT 16] résumé rafraîchi à chaque entrée d'onglet (données mémoire)
@@ -6147,6 +6160,7 @@ function onClientChange(){
   updateMandrinVisibility();
   if(client) applyPackagingRules(client);
   recalcPlan();
+  try{ _l370HabitualWidths(); }catch(e){}   // [L370 · B13] (vide si la réf n'est pas encore choisie)
 }
 
 // [L314 · LOT 4 · §2.4] chips date : +N jours depuis AUJOURD'HUI (pas depuis la valeur — geste « livraison
@@ -6187,6 +6201,7 @@ function onRefChange(){
   // Re-appliquer packaging pour détecter KX dans la nouvelle réf
   if(client) applyPackagingRules(client);
   recalcPlan();
+  try{ _l370HabitualWidths(); }catch(e){}   // [L370 · B13]
 }
 
 // ============================================================
@@ -6670,7 +6685,7 @@ function addRefBlock(){
       </div>
     </div>
     <input type="hidden" data-rb="largeur">
-    <div class="section-title" style="margin:12px 0 8px">Largeurs à découper</div>
+    <div class="section-title" style="margin:12px 0 8px">Laizes</div><!-- [L370 · A19] même mot que le bloc 1 -->
     <div class="rb-rows" data-rb="rows"></div>
     <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ligne</button>
@@ -18942,7 +18957,8 @@ function addFicheLine(data){
           <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
           <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Qté</label>
         </div>
-        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" oninput="this.style.borderColor=(this.value.trim()||document.getElementById('nc_ras_${id}')?.querySelector('input')?.checked)?'':'var(--orange)'" style="margin-top:8px;min-height:36px" rows="2"></textarea><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise · [L132 · revue] rétablie si on revide le champ alors qu'une NC reste cochée -->
+        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" oninput="this.style.borderColor=(this.value.trim()||document.getElementById('nc_ras_${id}')?.querySelector('input')?.checked)?'':'var(--orange)'" style="margin-top:8px;min-height:36px" rows="2"></textarea>
+        <div class="nc-quick" aria-label="Détails rapides"><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Largeur hors tolérance</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Bord / angle non droit</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Casse / déchirure</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Quantité manquante</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Défaut film (bulle, rayure)</button></div><!-- [L370 · B14 · §2.22] puces « détail » pré-rédigées : remplissent le texte, ne COCHENT rien (ISO : le motif reste un choix explicite) --><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise · [L132 · revue] rétablie si on revide le champ alors qu'une NC reste cochée -->
       </div>
       <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes · [L110] la photo est remontée dans l'en-tête de carte -->
         <label id="ncActLbl_${id}">Action</label><!-- [L132 · revue] libellé qui passe « ⚠ requise » quand une NC est cochée sans destination -->
@@ -19481,7 +19497,7 @@ function updateNextAction(){
     // l'envoi est réservé à l'émetteur (_shareBlockSend). Le mode « cut » reste utile (le récepteur marque ses coupes).
     if(total){ if(done===total) mode=_viewingSharedId?'none':'confirm'; else if(!chronoRunning) mode='start'; else mode='cut'; }
     if(mode==='confirm'){ document.getElementById('sendPlanBtn')?.classList.add('next-action'); }
-    else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); }
+    else if(mode==='start'){ document.getElementById('chronoStartBtn')?.classList.add('next-action'); try{ if(window.innerWidth>=1100){ const l=_nextUncutLine(); if(l){ const ln=document.getElementById(l.id); if(ln) ln.classList.add('fl-current'); } } }catch(e){} }   // [L370 · A15] paysage : la 1re bobine est déjà « en cours » avant le chrono (le ✂ démarre le chrono en 1 tap) ; l'ambre reste sur ▶ DÉMARRER
     else if(mode==='cut'){ const l=_nextUncutLine(); if(l){ const _b=document.getElementById('coupeeBtn_'+l.id); if(_b){ _b.classList.add('next-action'); _b.closest('.fiche-line')?.classList.add('fl-current'); try{ _confAutoH(document.getElementById('flConf_'+l.id)); }catch(e){} } } }
     try{ renderFlow(); renderNowBar(); hintCoupeeApply(); renderShareWho(); }catch(e){}   // [L320/L322/L326] signalétique + indice + qui-coupe-quoi rafraîchis avec le « vif »   // [L308 · LOT 14 · §2.17-A] la CARTE de la bobine en cours porte fl-current = le SEUL aplat ambre de l'écran
     _syncActionBar(mode,done,total);
@@ -20052,6 +20068,21 @@ function _l340SetupFichePills(){ try{
   }catch(_){} });
   document.addEventListener('keydown',function(e){ try{ if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('.fmm-inline-block>.fmm-head[role=button]')){ e.preventDefault(); e.target.click(); } }catch(_){} });
 }catch(e){} })();
+// [L370 · B14] puce « détail » NC : ajoute le texte au détail (sans doublon), rien n'est coché
+function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'+id); if(!t||!btn) return; const txt=String(btn.textContent||'').trim(); const cur=String(t.value||''); if(cur.indexOf(txt)>=0) return; t.value=(cur.trim()?cur.replace(/\s*$/,'')+' ; ':'')+txt; t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.add('used'); }catch(e){} }
+// [L370 · B13] clients RÉCENTS en tête du select (optgroup, même nœud portrait) — source mémoire (fichesCache + savesCache), catalogue seulement
+function _l370RecentClients(){ try{ const sel=document.getElementById('planClient'); if(!sel||typeof CLIENT_DATA==='undefined') return; const cur=sel.value; const old=sel.querySelector('optgroup[data-l370]'); if(old) old.remove();
+  const seen=new Set(), rec=[]; const all=[].concat((Array.isArray(fichesCache)?fichesCache:[]).map(f=>({c:f&&f.client,t:(f&&f.date)||''})),(Array.isArray(savesCache)?savesCache:[]).filter(x=>x&&!x.deleted).map(x=>({c:x.client,t:x.date||''}))).sort((a,b)=>String(b.t).localeCompare(String(a.t)));
+  all.forEach(x=>{ const c=String(x.c||'').trim(); if(rec.length<6&&c&&CLIENT_DATA[c]&&!seen.has(c)){ seen.add(c); rec.push(c); } });
+  if(!rec.length) return; const og=document.createElement('optgroup'); og.label='Récents'; og.dataset.l370='1'; rec.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; og.appendChild(o); });
+  const ph=sel.options[0]; if(ph&&ph.value==='') sel.insertBefore(og,ph.nextSibling); else sel.insertBefore(og,sel.firstChild); sel.value=cur; }catch(e){} }
+// [L370 · B13] laizes HABITUELLES de cette réf (dernier plan/fiche même client + réf en mémoire) : chips sous « 3 · Laizes » (paysage), tap = pose la largeur dans la 1re ligne vide
+function _l370HabitualWidths(){ try{ const cli=(document.getElementById('planClient')||{}).value||'', ref=(document.getElementById('planRef')||{}).value||''; const blk=document.querySelector('.ref-block[data-ref-idx="0"]'); if(!blk) return; let box=document.getElementById('l370Laizes'); if(!box){ box=document.createElement('div'); box.id='l370Laizes'; box.className='l370-laizes'; const rows=blk.querySelector('.rb-rows'); if(rows&&rows.parentNode) rows.parentNode.insertBefore(box,rows); else return; }
+  box.innerHTML=''; if(!cli||!ref) return; const k=nrm(cli)+'¦'+nrm(ref);
+  const cands=[].concat((Array.isArray(savesCache)?savesCache:[]).filter(x=>x&&!x.deleted&&!x.reste).map(x=>({t:x.date||'',rows:x.rows,c:x.client,r:x.ref})),(Array.isArray(fichesCache)?fichesCache:[]).filter(f=>f&&!f.deleted&&f.valide!==false).map(f=>({t:f.date||'',rows:f.rows,c:f.client,r:f.ref}))).filter(x=>nrm(x.c)+'¦'+nrm(x.r)===k&&Array.isArray(x.rows)&&x.rows.length).sort((a,b)=>String(b.t).localeCompare(String(a.t)));
+  if(!cands.length) return; const ws=[]; cands[0].rows.forEach(r=>{ const w=parseNum(r&&r.width); if(w>0&&ws.indexOf(w)<0) ws.push(w); }); if(!ws.length) return;
+  box.innerHTML='<span class="l370-l">Habituelles</span>'+ws.map(w=>'<button type="button" class="l370-w" onclick="_l370FillWidth('+w+')">'+fmt(w)+' mm</button>').join(''); }catch(e){} }
+function _l370FillWidth(w){ try{ const blk=document.querySelector('.ref-block[data-ref-idx="0"]'); if(!blk) return; const rows=blk.querySelector('.rb-rows'); let target=Array.from(rows.querySelectorAll('.order-row')).find(r=>{ const i=r.querySelector('input[data-type="width"]'); return i&&!String(i.value||'').trim(); }); if(!target){ target=makeOrderRow(); rows.appendChild(target); } const i=target.querySelector('input[data-type="width"]'); if(i){ i.value=String(w); i.dispatchEvent(new Event('input',{bubbles:true})); const q=target.querySelector('input[data-type="qty"]'); if(q&&!q.value){ try{ q.focus({preventScroll:true}); }catch(e){} } } }catch(e){} }
 // [L363 · B3] machine par défaut : compte machine « Poste FEBA/MAVEG/CEVENINI » > dernière machine choisie sur ce poste > '' (comme avant)
 function _l363DefaultMachine(){ try{ const p=(typeof _machinePostName==='function')?String(_machinePostName()||'').toLowerCase():''; if(p&&MACHINE_KEYS.indexOf(p)>=0) return p; let lm=''; try{ lm=localStorage.getItem('step_last_machine')||''; }catch(e){} return (lm&&MACHINE_KEYS.indexOf(lm)>=0)?lm:''; }catch(e){ return ''; } }
 function _l352Restore(n){ try{
