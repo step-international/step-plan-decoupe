@@ -1036,5 +1036,11 @@ has(/#ficheRail>#hideCoupeesBtn\.rail-hide\{order:3;border:1px solid #2e6b47/,'L
 has(/^  #ficheRail>#etiquetteSoldeFiche\{order:9\}$/m,'L374 : ÉTIQUETTE SOLDE tout en bas du rail');
 has(/function _l374PlanOutilsTop\(\)/,'L374 : lanceur ⚙ OUTILS au-dessus de chaque bloc réf du Plan (paysage, teinté, badge synchronisé)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L374 présents dans index.html + sw.js');
+console.log('── L375 : enquête impression / dérive fiche→plan (20/08) ──');
+has(/\[L375 · enquête impression 20\/08\] ✕ RETIRER = dérive fiche→plan signalée TOUT DE SUITE/,'L375 : retirer une bobine déclenche la bannière immédiatement');
+has(/bobine retirée \?\) — ⚠ « Appliquer » RE-CRÉERA ces laizes/,'L375 : la bannière dit la vérité (le recalcul re-crée les laizes retirées)');
+has(/Imprimer le PLAN RECALCULÉ à la place \? Il peut différer des bobines affichées/,'L375 : repli d impression jamais silencieux (confirm)');
+has(/🖨 Instantané enregistré'\+\(_d\?' le '\+_d:''\)/,'L375 : impression d un plan archivé = toast « instantané »');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L375 présents dans index.html + sw.js');
 process.exit(fail?1:0);

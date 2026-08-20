@@ -3045,7 +3045,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.20-L374';
+const APP_VERSION='2026.08.20-L375';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5510,7 +5510,7 @@ function _fichePlanDriftCheck(opts){
             if(need>have) lack.push((need-have)+'×'+fmt(w));
             else if(have>need && !overW.has(w)) extra.push((have-need)+'×'+fmt(w));   // overW : déjà porté par le message sur-coupe (pas de doublon)
           });
-          if(lack.length){ msgs.push('manque '+lack.join(' + ')+' mm dans le reste à couper → recalculer'); needClick=true; }
+          if(lack.length){ msgs.push('manque '+lack.join(' + ')+' mm dans le reste (bobine retirée ?) — ⚠ « Appliquer » RE-CRÉERA ces laizes en nouvelles bobines'); needClick=true; }   // [L375 · enquête impression] le recalcul ressuscite un bobineau retiré : le dire AVANT le tap
           if(extra.length){ msgs.push(extra.join(' + ')+' mm en TROP dans le reste (couverts par le stock / déjà produits) → recalculer'); needClick=true; }
         }
       }catch(e){}
@@ -8891,6 +8891,7 @@ function getPlanHTML(){
 function printSavedPlan(id){
   const s=savesCache.find(x=>x._id===id);
   if(!s){showToast('Plan introuvable.','err');return;}
+  try{ const _d=s.date?new Date(s.date).toLocaleDateString('fr-FR'):''; showToast('🖨 Instantané enregistré'+(_d?' le '+_d:'')+' — la fiche en cours peut différer.'); }catch(e){}   // [L375]
   const arr=(Array.isArray(s.refGroups)&&s.refGroups.length)
     ? s.refGroups
     : [{ref:s.ref,longueur:s.longueur,mother:parseNum(s.mother),edge:parseNum(s.edgeLoss),blade:parseNum(s.blade),rows:s.rows||[]}];
@@ -18554,7 +18555,9 @@ function printFichePlan(){
   // correspondant plus à celles déjà coupées → papier faux. Ici le papier reflète TOUJOURS la fiche affichée.
   if(typeof ficheLines!=='undefined' && ficheLines && ficheLines.length){
     if(typeof _recalcPending!=='undefined' && _recalcPending){ showToast('♻ Recalcul en cours — réessaie dans une seconde (la fiche se reconstruit).','err'); return; }
-    try{ openPrintWindow(_buildFichePlanPrintHTML()); return; }catch(e){ console.warn('impression plan depuis fiche:',e); /* repli : plan recalculé */ }
+    try{ openPrintWindow(_buildFichePlanPrintHTML()); return; }catch(e){ console.warn('impression plan depuis fiche:',e);
+      if(!confirm('⚠ Papier depuis la FICHE impossible (erreur interne).\n\nImprimer le PLAN RECALCULÉ à la place ? Il peut différer des bobines affichées sur la fiche.')) return;   // [L375] plus jamais un autre papier SANS prévenir
+    }
   }
   // En mono-réf, recopier la mère/bords/lame de la fiche vers le bloc plan #1.
   // En multi-réf, chaque bloc plan porte déjà ses propres valeurs (écrites à
@@ -19073,6 +19076,7 @@ async function removeFicheLine(id){
   updateCoupeeStatus();
   refreshOp2BobineList();
   renumberFicheLines();
+  if(typeof _scheduleDriftCheck==='function') _scheduleDriftCheck();   // [L375 · enquête impression 20/08] ✕ RETIRER = dérive fiche→plan signalée TOUT DE SUITE (bannière non destructive) — avant, elle n'apparaissait qu'au prochain geste
 }
 function resetFicheBobines(){
   if(!ficheLines.length){showToast('Aucune bobine à réinitialiser.','err');return;}
