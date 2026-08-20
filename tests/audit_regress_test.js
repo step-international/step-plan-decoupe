@@ -1029,5 +1029,12 @@ has(/\[L373 · audit chrono E5\] rejet DUR après le timeout/,'L373 E5 : rejet F
 has(/\[L373 · audit chrono E6\] un listener mort gelait/,'L373 E6 : listener brouillons signalé + re-abonnement borné');
 { const rules=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/firestore.rules','utf8'); const okR=/email\.lower\(\)\.matches/.test(rules); console.log((okR?'✅ ':'❌ ')+'L373 : firestore.rules du repo — compte machine insensible à la casse (à PUBLIER en console)'); if(!okR) fail++; }
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L373 présents dans index.html + sw.js');
+console.log('── L374 : retours recette Esteban (20/08 après-midi) ──');
+has(/body\.plan-drift \.fiche-line\.conf-dirty \.fl-edit-chip,body\.plan-drift #ficheLines button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:none!important\}/,'L374 : bannière « plan a changé » visible = le gros bouton est le SEUL chemin (♻ par carte masqués, paysage)');
+has(/mère <b>'\+fmt\(mo\)\+' mm<\/b> — habituel <b>'\+fmt\(std\)\+' mm<\/b>\. Vérifie le rouleau\./,'L374 : avertissement bobine mère raccourci (écran)');
+has(/#ficheRail>#hideCoupeesBtn\.rail-hide\{order:3;border:1px solid #2e6b47/,'L374 : VOIR LES COUPÉES teinté vert, au-dessus d OUTILS');
+has(/^  #ficheRail>#etiquetteSoldeFiche\{order:9\}$/m,'L374 : ÉTIQUETTE SOLDE tout en bas du rail');
+has(/function _l374PlanOutilsTop\(\)/,'L374 : lanceur ⚙ OUTILS au-dessus de chaque bloc réf du Plan (paysage, teinté, badge synchronisé)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L374 présents dans index.html + sw.js');
 process.exit(fail?1:0);

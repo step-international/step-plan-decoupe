@@ -2052,6 +2052,17 @@ body.atelier .app-footer .btn,body.atelier .outils-foot .btn{font-size:14px;min-
 /* [L372 · demandes Esteban 20/08] bande de passage de réf dans la pile (paysage — portrait garde les blocs « Réf N ») */
 .fiche-ref-sep.refonly{display:none}
 @media(min-width:1100px){.fiche-ref-sep.refonly{display:flex;margin:14px 0 6px}}
+/* [L374 · demandes Esteban 20/08] bannière « plan a changé » = seul chemin ; rail réordonné (VOIR LES COUPÉES teinté au-dessus
+   d'OUTILS, ÉTIQUETTE SOLDE tout en bas) ; ⚙ OUTILS du Plan au-dessus des blocs de réf, grand et teinté. Tout ≥1100px. */
+.plan-outils-top{display:none}
+@media(min-width:1100px){
+  body.plan-drift .fiche-line.conf-dirty .fl-edit-chip,body.plan-drift #ficheLines button[onclick="recalcEcartsFromFiche()"]{display:none!important}
+  #ficheRail>#hideCoupeesBtn.rail-hide{order:3;border:1px solid #2e6b47;color:#8fd8ab;background:#12271a}   /* juste au-dessus d'OUTILS (4) */
+  #ficheRail>#etiquetteSoldeFiche{order:9}
+  .ref-block .flex.mt8 #outilsPlanBtn,#planLeft>.flex.mt8 #outilsPlanBtn{display:none!important}   /* remplacé par les lanceurs du haut */
+  .plan-outils-top{display:flex;width:100%;align-items:center;justify-content:space-between;min-height:60px;margin:14px 0 8px;font:800 17px/1 var(--f-head);letter-spacing:.04em;background:#16283d;border:1px solid #2b4a6f;color:var(--text);border-radius:12px;padding:0 18px}
+  .plan-outils-top .outils-badge{font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -3034,7 +3045,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.20-L373';
+const APP_VERSION='2026.08.20-L374';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5344,7 +5355,7 @@ function _snapFicheChutes(){
 function _fichePlanDriftCheck(opts){
   opts=opts||{};   // [L286] opts.autoApply : posé UNIQUEMENT par showPage(1) — dérives « sûres » appliquées seules à l'arrivée sur la fiche
   const el=document.getElementById('planDriftBanner'); if(!el) return;
-  const hide=()=>{ el.style.display='none'; el.innerHTML=''; };
+  const hide=()=>{ el.style.display='none'; el.innerHTML=''; try{ document.body.classList.remove('plan-drift'); }catch(e){} };   // [L374]
   try{
     if(typeof isFicheUntouched==='function'&&isFicheUntouched()){ hide(); return; }   // fiche vierge : l'import auto vient de tourner, pas de dérive possible
     if(!ficheLines.length){ hide(); return; }
@@ -5545,7 +5556,8 @@ function _fichePlanDriftCheck(opts){
     el.innerHTML='⚠ <b>Le plan a changé</b> mais la fiche ne le reflète pas encore :<br>'+drifts.join('<br>')
       +(shared
         ?'<div style="margin-top:6px">🔒 Commande PARTAGÉE : arrête le partage, puis clique « 🔄 Changement plan » pour répercuter (les bobines coupées seront conservées).</div>'
-        :'<div style="margin-top:8px"><button class="btn btn-red" id="planDriftApplyBtn" onclick="_applyPlanDriftFix()">🔄 Appliquer le changement de plan — les bobines coupées sont conservées</button></div>');   // [L273 · demande Esteban] ROUGE tant que non appliqué → VERT au clic (voir _applyPlanDriftFix)
+        :'<div style="margin-top:8px"><button class="btn btn-red" id="planDriftApplyBtn" onclick="_applyPlanDriftFix()">🔄 Appliquer le changement de plan — les bobines coupées sont conservées</button></div>');
+    try{ document.body.classList.add('plan-drift'); }catch(e){}   // [L374 · demande Esteban] bannière visible = UN SEUL chemin (le gros bouton) : les ♻ RECALCULER par carte sont masqués en paysage   // [L273 · demande Esteban] ROUGE tant que non appliqué → VERT au clic (voir _applyPlanDriftFix)
     el.style.display='';
   }catch(e){ hide(); }
 }
@@ -6708,6 +6720,7 @@ function addRefBlock(){
   updateCartonVisibility();
   updateVekaVisibility();
   renumberRefBlocks();
+  try{ _l374PlanOutilsTop(); }catch(e){}   // [L374] le bloc réf 2+ reçoit aussi son lanceur OUTILS
   recalcPlan();
 }
 async function removeRefBlock(btn){
@@ -8005,7 +8018,7 @@ function recalcPlan(){
     if(!c.rows.length) return;
     const std=refStdMother(c.ref), mo=Number(c.mother)||0;
     if(std>0 && mo>0 && Math.abs(mo-std)>=50){   // [L73 · Lot 5 · B44] seuil ≥50 : un écart de 50 mm pile n'alertait pas
-      heavyBanner+='<div class="plan-banner-warn">⚠ '+esc(c.ref||('Réf '+(ci+1)))+' : bobine mère saisie <b>'+fmt(mo)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(std)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
+      heavyBanner+='<div class="plan-banner-warn">⚠ '+esc(c.ref||('Réf '+(ci+1)))+' : mère <b>'+fmt(mo)+' mm</b> — habituel <b>'+fmt(std)+' mm</b>. Vérifie le rouleau.</div>';   /* [L374 · demande Esteban] court */
     }
   });
   // planGroups global = concat des configs de toutes les réfs (pour le reste de l'app)
@@ -8426,7 +8439,7 @@ function renderPlanManual(){
   planManual.forEach((r,ri)=>{
     const stdPM=refStdMother(r.ref), moPM=Number(r.mother)||0;
     if(stdPM>0 && moPM>0 && Math.abs(moPM-stdPM)>=50){
-      html+='<div class="plan-banner-warn">⚠ '+esc(r.ref||('Réf '+(ri+1)))+' : bobine mère saisie <b>'+fmt(moPM)+' mm</b>, mais cette référence est habituellement en <b>'+fmt(stdPM)+' mm</b>. Vérifie le rouleau — une mère plus étroite augmente le nombre de bobines mères.</div>';
+      html+='<div class="plan-banner-warn">⚠ '+esc(r.ref||('Réf '+(ri+1)))+' : mère <b>'+fmt(moPM)+' mm</b> — habituel <b>'+fmt(stdPM)+' mm</b>. Vérifie le rouleau.</div>';   /* [L374] court */
     }
   });
   // [L289 · choix Esteban 30/07] rouleaux ♻ visibles en LECTURE SEULE dans l'éditeur (gérés en auto) —
@@ -19902,6 +19915,7 @@ function _l361SyncOutilsBadges(){ try{
     const btn=document.getElementById(pair[0]), dlg=document.getElementById(pair[1]); if(!btn||!dlg) return;
     const n=Array.from(dlg.querySelectorAll('.modal>div:not(.outils-foot)>button.btn')).filter(function(b){ return b.style.display!=='none'&&getComputedStyle(b).display!=='none'; }).length;
     const bd=btn.querySelector('.outils-badge'); if(bd&&n>0) bd.textContent=String(n);
+    if(pair[0]==='outilsPlanBtn'&&n>0) document.querySelectorAll('.plan-outils-top .outils-badge').forEach(function(x){ x.textContent=String(n); });   // [L374] lanceurs du haut
   });
 }catch(e){} }
 // [L361] ré-affiche les bandes « Réf N validée » (masquées en paysage) pour 🔄 recorriger ; la classe tombe au prochain rendu des blocs
@@ -20099,6 +20113,17 @@ function _l340SetupFichePills(){ try{
   }catch(_){} });
   document.addEventListener('keydown',function(e){ try{ if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('.fmm-inline-block>.fmm-head[role=button]')){ e.preventDefault(); e.target.click(); } }catch(_){} });
 }catch(e){} })();
+// [L374 · demande Esteban 20/08] ⚙ OUTILS du Plan : un lanceur AU-DESSUS de chaque bloc de référence (paysage), plus grand, teinté.
+function _l374PlanOutilsTop(){ try{
+  document.querySelectorAll('#refBlocks .ref-block').forEach(function(blk){
+    if(blk.previousElementSibling&&blk.previousElementSibling.classList&&blk.previousElementSibling.classList.contains('plan-outils-top')) return;
+    const b=document.createElement('button'); b.type='button'; b.className='btn plan-outils-top';
+    b.setAttribute('onclick',"openOutilsDlg('outilsPlanDlg')");
+    b.innerHTML='⚙ OUTILS <span class="outils-badge">4</span>';
+    blk.parentNode.insertBefore(b,blk);
+  });
+  try{ _l361SyncOutilsBadges(); }catch(e){}
+}catch(e){} }
 // [L370 · B14] puce « détail » NC : ajoute le texte au détail (sans doublon), rien n'est coché
 function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'+id); if(!t||!btn) return; const txt=String(btn.textContent||'').trim(); const cur=String(t.value||'');
   if(cur.indexOf(txt)>=0){   // [L372 · demande Esteban] BASCULE : re-tap = retire le texte de la puce (les « ; » se recollent, le texte libre reste)
@@ -22431,6 +22456,7 @@ function toggleChangements(){
   recalcPlan();
   _l79SetupChangements();   // [L79] regroupe lame/machine/op.2 sous le bouton « Changements »
   try{ _l361SyncOutilsBadges(); const _mqb=window.matchMedia('(min-width:1100px)'); const _onb=function(){ try{ _l361SyncOutilsBadges(); }catch(_){} }; if(_mqb.addEventListener) _mqb.addEventListener('change',_onb); else if(_mqb.addListener) _mqb.addListener(_onb); }catch(e){}   // [L361] badges OUTILS = entrées visibles
+  try{ _l374PlanOutilsTop(); }catch(e){}   // [L374] OUTILS au-dessus des blocs réf (paysage)
   try{ _l340SetupFichePills(); }catch(e){}   // [L340 · maquette 17] pastilles d'en-tête + carte solde repliable (paysage) — APRÈS _l79SetupChangements (nœuds déplacés au boot)
   try{ const _pc=document.getElementById('planCondSec'); if(_pc){ ['input','change'].forEach(function(ev){ _pc.addEventListener(ev,function(e){ try{ if(e.isTrusted) window._l363PkgTouched=true; }catch(_){} }); }); } }catch(e){}   // [L363 · B5] saisie manuelle (événement utilisateur) → la règle ne réécrit plus les champs remplis
   try{ _l341SetupPlan(); }catch(e){}   // [L341 · maquette 18] plan paysage : tuile utile, OUTILS en bas de colonne, résumé emballage
