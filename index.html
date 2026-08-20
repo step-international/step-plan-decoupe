@@ -3034,7 +3034,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.20-L372';
+const APP_VERSION='2026.08.20-L373';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9845,6 +9845,7 @@ function chronoReset(force){
   document.getElementById('chronoStatus').textContent='';   // [L188] prompt inutile retiré (demande Esteban)
   stopAutosave();
   persistChronoLive();
+  try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) autosaveDraftTick(true); }catch(e){}   // [L373 · audit chrono P5] refiger le brouillon (wasRunning:false) — sans ça un chrono ANNULÉ ressuscitait EN MARCHE après un crash
   if(force){ try{ localStorage.removeItem(CHRONO_LS_KEY); _wroteChronoLive=false; }catch(e){} }   // [L103 · audit-max] frontière de commande (envoi / nouveau plan / reset site) : purge INCONDITIONNELLE — une clé périmée d'une session plantée ne doit jamais ressusciter (L79)
   releaseWakeLock();
   try{ updateCoupeeStatus(); }catch(e){}   // [L102 · M2-A/B]   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
@@ -9935,6 +9936,11 @@ function persistChronoLive(){
       // [L298 · audit v2] miroir + chrono EN PAUSE (⏸ ou arrêt auto 16h15) : les autosaves sont neutralisés en
       // vue miroir → ce temps ne vivait NULLE PART. Clé MIR dédiée, identité du partage incluse.
       localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({sec:chronoSec,startTs:chronoStartTs||null,override:_chronoAutoStopOverride||'',mir:_viewingSharedId,paused:true}));
+    }else if(!(typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof chronoSec==='number'&&chronoSec>0)&&chronoStartTs){
+      // [L373 · audit chrono P4] chrono PERSO EN PAUSE : repli localStorage (avant, seul le write Firestore forcé
+      // portait la pause — refus persistant + onglet tué = reprise EN MARCHE sur un vieux runStart).
+      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({sec:chronoSec,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',paused:true}));
+      _wroteChronoLive=true;
     }else{
       // [L103 · audit-max] 2 onglets sur la même tablette : l'onglet au chrono ARRÊTÉ effaçait
       // (visibilitychange/pagehide) la sauvegarde live du chrono qui TOURNE dans l'autre onglet
@@ -10202,7 +10208,7 @@ function _commitRace(batch,ms){
     const t=setTimeout(()=>{ if(!settled){ settled=true; resolve({timeout:true}); } },ms);
     batch.commit().then(
       ()=>{ if(!settled){ settled=true; clearTimeout(t); resolve({ok:true}); } },
-      (err)=>{ if(!settled){ settled=true; clearTimeout(t); reject(err); } }  // sinon (déjà timeout) : ignoré silencieusement
+      (err)=>{ if(!settled){ settled=true; clearTimeout(t); reject(err); } else { try{ const _m=String(err&&err.message||err); if(!/offline|network|unavailable/i.test(_m)) showToast('⛔ L\'envoi mis en file a été REFUSÉ par la base ('+_m.slice(0,80)+') — vérifie dans Données > Fiches, sinon renvoie depuis Brouillons.','err'); }catch(_){} } }  // [L373 · audit chrono E5] rejet DUR après le timeout : l'alert promettait « aucun doublon, partira au retour réseau » — faux si permission refusée → on le dit
     );
   });
 }
@@ -19165,7 +19171,7 @@ function toggleCoupee(id){
     showToast('🔒 Bobine déjà coupée par '+(_lock.i||'un collègue')+' — verrouillée (commande partagée).','err');
     return;
   }
-  if(!chronoRunning){
+  if(!chronoRunning && !line.classList.contains('coupee')){   // [L373 · audit chrono G1] un tap sur une bobine DÉJÀ coupée = dé-marquage : il ne doit pas (re)lancer le chrono — surtout si l'opérateur ANNULE le confirm
     // [L306 · LOT 3 · §2.3 · accord Esteban Q1 11/08] DÉMARRAGE AUTO : le 1er ✂ lance le chrono au lieu de
     // refuser (l'erreur la plus fréquente de l'atelier). chronoStart() GARDE toutes ses gardes (champ
     // manquant, plan non re-validé, réf multi non validée, reprise après crash) : s'il refuse, il l'explique
@@ -21277,7 +21283,12 @@ function startBrouillons(){
     try{ renderSharedViewBar(); }catch(e){}
     try{ if(_isDataTabVisible('brouillons')) renderDrafts(); }catch(e){}   // [L80·PERF-5] ne reconstruit la liste des brouillons QUE si l'onglet est visible (avant : liste complète rebâtie à chaque snapshot de fond d'un autre poste) — switchTab la rend à la navigation
     try{ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }catch(e){}
-  }, function(err){ console.warn('Brouillons (sync) :',err.message); });
+  }, function(err){ console.warn('Brouillons (sync) :',err.message);
+    // [L373 · audit chrono E6] un listener mort gelait partage / verrous ✂ / passation SANS RIEN DIRE jusqu'au reload.
+    try{ showToast('⚠ Synchro des brouillons interrompue ('+String(err&&err.message||'').slice(0,60)+') — reconnexion…','err'); }catch(_){}
+    _brouillonsUnsub=null;
+    try{ if((window._l373BrRetries||0)<5){ window._l373BrRetries=(window._l373BrRetries||0)+1; setTimeout(function(){ try{ if(!_brouillonsUnsub) startBrouillons(); }catch(_){} },8000*window._l373BrRetries); } }catch(_){}
+  });
 }
 function stopBrouillons(){ if(_brouillonsUnsub){ try{_brouillonsUnsub();}catch(e){} _brouillonsUnsub=null; } brouillonsCache=[]; }
 // Lecture synchrone depuis le cache (compatibilité avec les appelants existants).
@@ -21400,6 +21411,7 @@ async function saveDraftManual(){
   const _btnDM=document.getElementById('btnDraftManual'); if(_btnDM) _btnDM.disabled=true;   // [L73 · Lot 5 · B41] retour visuel + blocage du tap pendant l'écriture
   try{   // [L73 · Lot 5 · B41] verrou libéré en finally, même si serializeFicheState/Firestore jette
   const st=serializeFicheState();
+  if(st&&st.chrono&&st.chrono.wasRunning){ st.chrono=Object.assign({},st.chrono,{sec:(typeof chronoSec==='number'?chronoSec:st.chrono.sec),wasRunning:false,runStart:null}); }   // [L373 · audit chrono P6] un brouillon PARQUÉ n'est jamais « en marche » : sans ça la reprise comptait tout l'interlude passé sur une AUTRE commande (même règle que newCmdPark L103)
   const label=(st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°');
   const draft={id:'d_'+Date.now(),savedAt:isoNow(),label,state:st,owner:_ini(),ownerPost:_machinePostName()};   // [L113 · audit #7] owner → la garde « jamais le brouillon d'un AUTRE poste » redevient effective (anti-doublon L109) · [L185] ownerPost = poste machine pour l'affichage « CEVENINI / JF »
   const stripped=_draftStrip(draft);
@@ -21643,7 +21655,8 @@ async function maybeResumeRunningChrono(){
     // [L298 · audit v2] SAUF si la sauvegarde live vient d'une VUE MIROIR (live.mir) : ce temps mesure la
     // commande PARTAGÉE d'un collègue — le greffer sur le brouillon PERSO ressuscitait la vieille commande
     // avec un temps qui n'est pas le sien. La clé live est laissée pour la réouverture du partage.
-    if(c && (!c.wasRunning||!c.runStart) && live && live.runStart && !live.mir){ c.runStart=live.runStart; c.wasRunning=true; if(live.startTs)c.startTs=live.startTs; }
+    if(c && (!c.wasRunning||!c.runStart) && live && live.runStart && !live.mir && !live.paused){ c.runStart=live.runStart; c.wasRunning=true; if(live.startTs)c.startTs=live.startTs; }
+    if(c && live && live.paused && !live.mir && live.startTs && c.startTs===live.startTs){ c.wasRunning=false; c.runStart=null; if(typeof live.sec==='number'&&live.sec>=(c.sec||0)) c.sec=live.sec; }   // [L373 · P4] la PAUSE locale fait foi : jamais de reprise « en marche » d'un chrono mis en pause
 
     // POINT 4 — modèle unifié : on propose la DERNIÈRE commande NON ENVOYÉE de ce
     // poste dès qu'un brouillon fiche exploitable existe, qu'elle soit EN COURS ou

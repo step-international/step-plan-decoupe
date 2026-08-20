@@ -343,7 +343,7 @@ has(/réinjection TOUJOURS FIGÉE \(wasRunning:false\)/,'L298 (revue P2) : réou
 has(/le temps miroir en attente est jeté aussi/,'L298 (revue ×2) : clé MIR purgée à TOUT reset confirmé (manuel compris — un temps jeté ne ressuscite jamais)');
 has(/localStorage\.removeItem\(CHRONO_MIR_LS_KEY\); \}catch\(e\)\{\} \}catch\(e2\)\{\}|clé consommée \+ geste conscient/,'L298 (revue) : clé MIR consommée à la réinjection + toast « appuie sur ▶ »');
 has(/miroir \+ chrono EN PAUSE/,'L298 : chrono miroir en PAUSE persisté (16h15/⏸ + purge iOS ne perdent plus le temps du récepteur)');
-has(/&& !live\.mir\)/,'L298 : un chrono de vue MIROIR n\'est jamais greffé sur un brouillon perso');
+has(/&& !live\.mir && !live\.paused\)/,'L298 : un chrono de vue MIROIR n\'est jamais greffé sur un brouillon perso');
 has(/GARDE D'IDENTITÉ sur la préservation L294/,'L298 : le chrono d\'une AUTRE commande ne se déverse plus sur un miroir ouvert');
 has(/function refDispCtx\(ref\)/,'L298 : noms courts en collision désambiguïsés par la longueur (KX1045-1 · 100 ml vs · 500 ml)');
 has(/le PDF archive dit la MÊME consigne que le papier atelier/,'L298 : migration des vieux textes SPÉCIFICITÉ sur TOUTES les surfaces (écran, popup planning, PDF archive)');
@@ -1019,5 +1019,15 @@ has(/^\.fiche-ref-sep\.refonly\{display:none\}$/m,'L372 : bande refonly masquée
 has(/TABLETTE MACHINE : un plan chargé passe sur LA machine du poste/,'L372 : plan chargé sur compte machine = machine du poste (mono-machine seulement, toast)');
 has(/t\.value=cur\.split\(' ; '\)\.map\(x=>x\.trim\(\)\)\.filter\(x=>x&&x!==txt\)\.join\(' ; '\);/,'L372 : puce détail NC = bascule (re-tap retire le texte, texte libre conservé)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L372 présents dans index.html + sw.js');
+console.log('── L373 : audit intégral du chrono (20/08) ──');
+has(/if\(!chronoRunning && !line\.classList\.contains\('coupee'\)\)\{   \/\/ \[L373 · audit chrono G1\]/,'L373 G1 : le dé-marquage d une coupée ne (re)lance plus le chrono');
+has(/\[L373 · audit chrono P5\] refiger le brouillon/,'L373 P5 : chronoReset refige le brouillon (un chrono annulé ne ressuscite plus en marche)');
+has(/paused:true\}\)\);\n      _wroteChronoLive=true;/,'L373 P4 : pause perso écrite en localStorage (repli si Firestore refuse)');
+has(/la PAUSE locale fait foi/,'L373 P4 : la reprise respecte la pause locale');
+has(/\[L373 · audit chrono P6\] un brouillon PARQUÉ n'est jamais « en marche »/,'L373 P6 : 💾 manuel = chrono figé (pas d interlude compté)');
+has(/\[L373 · audit chrono E5\] rejet DUR après le timeout/,'L373 E5 : rejet Firestore tardif signalé (plus d alert mensongère)');
+has(/\[L373 · audit chrono E6\] un listener mort gelait/,'L373 E6 : listener brouillons signalé + re-abonnement borné');
+{ const rules=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/firestore.rules','utf8'); const okR=/email\.lower\(\)\.matches/.test(rules); console.log((okR?'✅ ':'❌ ')+'L373 : firestore.rules du repo — compte machine insensible à la casse (à PUBLIER en console)'); if(!okR) fail++; }
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L373 présents dans index.html + sw.js');
 process.exit(fail?1:0);
