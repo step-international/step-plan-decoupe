@@ -66,23 +66,29 @@ exports.assistReply = onDocumentWritten(
       return;
     }
 
+    // [L381 · fix audit n°3] l'interrupteur config/assistant est appliqué ICI, côté serveur :
+    // enabled !== true → aucun appel API, quel que soit l'état des tablettes. Coupe aussi tout abus.
     const db = getFirestore();
-    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+    const cfg = await db.doc("config/assistant").get();
+    if (!cfg.exists || cfg.data().enabled !== true) return;
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value(), timeout: 90_000 }); // [L381 · n°7] < timeoutSeconds : le repli d'erreur s'exécute toujours
 
-    // Fil opérateur/assistant → messages API (le contexte scanné accompagne le 1er tour).
-    const apiMessages = [];
-    msgs.forEach((m, i) => {
-      const role = m.role === "assistant" ? "assistant" : "user";
-      let text = String(m.text || "").slice(0, 2000);
-      if (i === 0 && role === "user") {
-        text =
+    // [L381 · fix audit n°1] le CONTEXTE est un tour user SÉPARÉ, toujours en tête : le fil peut
+    // commencer par un tour assistant (historique long) et l'API exige un 1er tour user — la fusion
+    // des rôles consécutifs absorbe le reste.
+    const apiMessages = [
+      {
+        role: "user",
+        content:
           "CONTEXTE SCANNÉ (état de l'app au moment du signalement) :\n" +
           String(data.context || "(indisponible)").slice(0, 6000) +
           "\n\nTYPE : " + (data.kind || "bug") +
-          "\nPOSTE : " + (data.poste || "?") + " · OPÉRATEUR : " + (data.ini || "?") +
-          "\n\nMESSAGE DE L'OPÉRATEUR : " + text;
-      }
-      // L'API exige une alternance user/assistant : fusionner les tours consécutifs du même rôle.
+          "\nPOSTE : " + (data.poste || "?") + " · OPÉRATEUR : " + (data.ini || "?"),
+      },
+    ];
+    msgs.forEach((m) => {
+      const role = m.role === "assistant" ? "assistant" : "user";
+      const text = String(m.text || "").slice(0, 2000);
       const last = apiMessages[apiMessages.length - 1];
       if (last && last.role === role) last.content += "\n" + text;
       else apiMessages.push({ role, content: text });
@@ -92,7 +98,7 @@ exports.assistReply = onDocumentWritten(
     try {
       const response = await client.messages.create({
         model: "claude-opus-5",
-        max_tokens: 1500,
+        max_tokens: 3000, // [L381 · n°8] thinking adaptatif compris dans le budget sur claude-opus-5
         system: SYSTEM,
         messages: apiMessages,
       });
@@ -106,6 +112,7 @@ exports.assistReply = onDocumentWritten(
           .join("\n")
           .trim();
         if (!replyText) replyText = "…(réponse vide — l'équipe est prévenue par mail.)";
+        if (response.stop_reason === "max_tokens") replyText += "\n…(réponse tronquée)"; // [L381 · n°8]
       }
     } catch (e) {
       console.error("assistReply:", (e && e.message) || e);

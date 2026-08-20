@@ -3076,7 +3076,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.20-L380';
+const APP_VERSION='2026.08.20-L381';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3278,7 +3278,7 @@ function _assistListen(id){ try{
   if(!db||!id) return;
   _assistUnsub=db.collection('assist').doc(id).onSnapshot(function(d){ try{
     if(!d.exists) return; const data=d.data()||{}; const msgs=Array.isArray(data.messages)?data.messages:[];
-    _assistRender(msgs.concat(data.status==='pending'?[{role:'assistant',text:'⏳ …'}]:[]));
+    _assistRender(msgs.concat(data.status==='pending'?[{role:'assistant',text:(navigator.onLine===false?'⏳ hors-ligne — la réponse arrivera au retour du réseau.':'⏳ …')}]:[]));   // [L381 · n°9]
     const nA=msgs.filter(function(m){return m.role==='assistant';}).length;
     if(nA>_assistSeen){ _assistSeen=nA;
       if(!document.getElementById('assistOverlay')?.classList.contains('open')){ try{ document.getElementById('reportBubble')?.classList.add('assist-new'); showToast('🤖 L\'assistant a répondu — touche la bulle 💬 pour lire.','ok'); }catch(e){} }
@@ -3290,7 +3290,9 @@ function _l380AssistSend(kind,txt){ try{
   if(!_l380AssistEnabled()||!db) return;
   const msg={role:'operator',text:(txt||'(signalement sans texte — voir le contexte)'),at:isoNow()};
   const doc={createdAt:isoNow(),kind:kind||'bug',poste:(typeof _machinePostName==='function'?_machinePostName():'')||'',ini:(typeof _ini==='function'?_ini():'')||'',version:APP_VERSION,context:_l380Snapshot(),messages:[msg],status:'pending'};
+  try{ doc.createdTs=firebase.firestore.FieldValue.serverTimestamp(); }catch(e){}   // [L381 · n°11] Timestamp réel → TTL Firestore possible en console
   const ref=db.collection('assist').doc(); _assistDocId=ref.id; _assistSeen=0;
+  try{ sessionStorage.setItem('step_assist_doc',JSON.stringify({id:ref.id,at:Date.now()})); }catch(e){}   // [L381 · n°12] le fil survit à un reload (reprise ≤1 h)
   ref.set(doc).catch(function(){});
   _assistRender(doc.messages); assistOpen(); _assistListen(ref.id);
 }catch(e){} }
@@ -3298,8 +3300,13 @@ function assistFollowUp(){ try{
   const t=document.getElementById('assistInput'); const txt=(t&&t.value||'').trim().slice(0,800); if(!txt) return; t.value='';
   if(typeof trainingGuard==='function'&&trainingGuard()){ showToast('🎓 Entraînement — assistant désactivé.'); return; }
   if(!db||!_assistDocId){ _l380AssistSend('question',txt); return; }
-  const ref=db.collection('assist').doc(_assistDocId);
-  db.runTransaction?db.runTransaction(function(tx){ return tx.get(ref).then(function(d){ const data=d.exists?(d.data()||{}):{messages:[]}; const msgs=(Array.isArray(data.messages)?data.messages:[]).concat([{role:'operator',text:txt,at:isoNow()}]).slice(-24); tx.set(ref,{messages:msgs,status:'pending',context:_l380Snapshot()},{merge:true}); }); }).catch(function(){}):ref.set({status:'pending'},{merge:true});
+  // [L381 · fix audit n°2 · règle L272] arrayUnion en set-merge (s'enfile HORS-LIGNE et repart au retour du réseau) —
+  // la transaction d'origine échouait en silence hors-ligne APRÈS avoir vidé le champ = relance perdue. Le cap de
+  // longueur vit côté fonction (>24 messages → status "closed").
+  db.collection('assist').doc(_assistDocId).set({
+    messages:firebase.firestore.FieldValue.arrayUnion({role:'operator',text:txt,at:isoNow()}),
+    status:'pending',context:_l380Snapshot()
+  },{merge:true}).catch(function(){});
 }catch(e){} }
 function openReport(){ try{ _repKind='bug'; document.querySelectorAll('.rep-choice').forEach(function(b){ b.style.outline=''; }); var t=document.getElementById('reportText'); if(t) t.value=''; var c=document.getElementById('reportCtx'); if(c){ var x=_reportCtx(); c.textContent='Joint automatiquement : '+x.ecran+' · '+(x.machine||'—')+' · '+(x.client||'sans commande')+(x.numCmd?(' '+x.numCmd):'')+(x.bobine?(' · bobine '+x.bobine):'')+' · '+x.version; } document.getElementById('reportOverlay')?.classList.add('open'); }catch(e){} }
 function closeReport(){ try{ document.getElementById('reportOverlay')?.classList.remove('open'); }catch(e){} }
@@ -4098,6 +4105,7 @@ document.addEventListener('keydown',function(e){
         currentRole=profile.role;
         currentUser=Object.assign({}, profile);
         applyRole();
+        try{ _l380CheckEnabled(); }catch(e){}   // [L381 · fix audit n°4] l'interrupteur assistant se relit à CHAQUE auth (le check du boot pouvait tomber avant la connexion → permission-denied avalé = assistant muet toute la session)
         // Rafraîchir le token App Check AVANT de charger les données, pour éviter
         // un token reCAPTCHA périmé qui ferait échouer les écritures Firestore/Storage.
         await refreshAppCheckToken();
@@ -22631,6 +22639,7 @@ function toggleChangements(){
   try{ _l361SyncOutilsBadges(); const _mqb=window.matchMedia('(min-width:1100px)'); const _onb=function(){ try{ _l361SyncOutilsBadges(); }catch(_){} }; if(_mqb.addEventListener) _mqb.addEventListener('change',_onb); else if(_mqb.addListener) _mqb.addListener(_onb); }catch(e){}   // [L361] badges OUTILS = entrées visibles
   try{ _l374PlanOutilsTop(); }catch(e){}   // [L374] OUTILS au-dessus des blocs réf (paysage)
   try{ setTimeout(_l380CheckEnabled,2500); }catch(e){}   // [L380] l'assistant est-il déployé ? (doc config/assistant)
+  try{ const _ad=JSON.parse(sessionStorage.getItem('step_assist_doc')||'null'); if(_ad&&_ad.id&&(Date.now()-_ad.at)<3600000){ _assistDocId=_ad.id; setTimeout(function(){ _assistListen(_ad.id); },3000); } }catch(e){}   // [L381 · n°12] reprise du fil après reload
   try{ _l340SetupFichePills(); }catch(e){}   // [L340 · maquette 17] pastilles d'en-tête + carte solde repliable (paysage) — APRÈS _l79SetupChangements (nœuds déplacés au boot)
   try{ const _pc=document.getElementById('planCondSec'); if(_pc){ ['input','change'].forEach(function(ev){ _pc.addEventListener(ev,function(e){ try{ if(e.isTrusted) window._l363PkgTouched=true; }catch(_){} }); }); } }catch(e){}   // [L363 · B5] saisie manuelle (événement utilisateur) → la règle ne réécrit plus les champs remplis
   try{ _l341SetupPlan(); }catch(e){}   // [L341 · maquette 18] plan paysage : tuile utile, OUTILS en bas de colonne, résumé emballage

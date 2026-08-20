@@ -1101,5 +1101,14 @@ has(/#reportBubble\.assist-new::after/,'L380 : pastille « réponse reçue » su
   const okR=/match \/assist\/\{id\}/.test(rules)&&/match \/config\/\{id\}/.test(rules);
   console.log((okR?'✅ ':'❌ ')+'L380 : règles assist + config (à publier en console)'); if(!okR) fail++; }
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L380 présents dans index.html + sw.js');
+console.log('── L381 : correctifs audit assistant IA ──');
+has(/messages:firebase\.firestore\.FieldValue\.arrayUnion\(\{role:'operator'/,'L381 n°2 : relance en arrayUnion (s enfile hors-ligne — règle L272, plus de transaction nue)');
+has(/\[L381 · fix audit n°4\] l'interrupteur assistant se relit à CHAQUE auth/,'L381 n°4 : interrupteur relu à l authentification');
+has(/step_assist_doc/,'L381 n°12 : le fil survit à un reload (reprise ≤1 h)');
+has(/hors-ligne — la réponse arrivera au retour du réseau/,'L381 n°9 : attente honnête hors-ligne');
+{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+  const okF=/data\.status !== "pending"/.test(fx)&&/cfg\.data\(\)\.enabled !== true\) return;/.test(fx)&&/CONTEXTE SCANNÉ/.test(fx)&&fx.indexOf('apiMessages = [')<fx.indexOf('msgs.forEach')&&/timeout: 90_000/.test(fx)&&/max_tokens: 3000/.test(fx);
+  console.log((okF?'✅ ':'❌ ')+'L381 : fonction — interrupteur serveur, contexte en tour user de tête, timeout SDK, budget 3000'); if(!okF) fail++; }
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L381 présents dans index.html + sw.js');
 process.exit(fail?1:0);
