@@ -255,7 +255,7 @@ has(/const _ovc=\(c\.oversize\|\|\[\]\)\.filter\(r=>r&&Number\(r\.qty\)>0\);/,'L
 has(/reste des pièces NON produites \(voir ci-dessous\)/,'L263 : plus de « commande couverte » quand des laizes sont trop larges (sous-livraison rendue VISIBLE)');
 
 console.log('── L267 : audit (choix Esteban) — indicateur test 2ᵉ + photos hors-ligne ──');
-has(/classList\.toggle\('t2-todo',!!_t2nc&&!test2Resolved\(id\)\)/,'L267 (révisé L307 · décision Esteban §6.1) : t2-todo posé seulement sur le chemin NC — le tap unique auto-résout le chemin sain');
+has(/classList\.toggle\('t2-todo',\(!!_t2nc\|\|ncMode\)&&!test2Resolved\(id\)\)/,'L267 (révisé L307, élargi L376) : t2-todo sur test-2ᵉ-NC ET bobine NC (le ✂ refusait en silence sur NC — grande analyse A4)');
 has(/\.fiche-line\.t2-todo:not\(\.coupee\) \[id\^="coupeeBtn_"\]::after\{content:" · ⚠ test 2ᵉ à cocher"/,'L267 : le ✂ affiche « test 2ᵉ à cocher » (chrono tournant)');
 has(/function flushPendingLocalPhotos\(\)/,'L267 : re-téléversement des photos gardées en base64 au retour réseau');
 has(/window\.addEventListener\('online',function\(\)\{ setTimeout\(flushPendingLocalPhotos/,'L267 : déclenché sur l\'événement online');
@@ -435,7 +435,7 @@ has(/_autosaveLastSig=_cur\?JSON\.stringify\(\{plan:_st\.plan,fiche:_st\.fiche,l
 console.log('── L291 : suite audit 30/07 (PDF-depuis-fiche + surplus + doLoad) ──');
 has(/\|'\+\(l\.phaseEnd\?'P':''\)/,'L291 : FIN DE PHASE conservée sur le PDF-depuis-fiche (marquage « Solde à CONSERVER » plus jamais fusionné)');
 has(/const cmd=\{\}, _disp=\{\};/,'L291 : récap « Coupé EN PLUS » clé par nom NORMALISÉ (une casse/espace ≠ ne fabrique plus une fausse sur-coupe totale)');
-has(/doLoad écrasait en ~10-15 s la SEULE sauvegarde auto/,'L291 : doLoad pose les signatures d\'autosave sur l\'état chargé — la sauvegarde auto de la commande précédente survit jusqu\'à la 1re vraie modification');
+has(/signatures autosave posées sur l'état FINAL chargé \(swap compris\)/,'L291 : doLoad pose les signatures d autosave sur l état chargé (déplacées APRÈS le swap machine en L376) — la sauvegarde auto de la commande précédente survit');
 has(/\{ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000\}/,'L290→L295 : réf DH1006-2 transparent 1000 ml (« DH100-2 » = faute de frappe confirmée par Esteban) — MOREY + FEILO SYLVANIA + EPSOTECH');
 absent(/DH100-2",largeur/,'L295 : plus aucune réf « DH100-2 » (faute de frappe corrigée)');
 
@@ -539,7 +539,7 @@ has(/rollback des coches automatiques/,'L307 : refus d une garde → DÉ-coche l
 has(/coupeeTapOne\('\$\{id\}'\)/,'L307 : le bouton ✂ passe par coupeeTapOne (toggleCoupee reste le chemin gardé)');
 has(/✂ Coupée — Test OK/,'L307 : libellé repos « ✂ Coupée — Test OK »');
 has(/id="flDevi_\$\{id\}" aria-label/,'L307 : inputs test 2ᵉ CONSERVÉS avec aria-label (déplacés dans ⚠ Défaut, jamais supprimés)');
-has(/_t2nc&&!test2Resolved\(id\)/,'L307 : indice t2-todo réservé au chemin NC (le chemin sain est auto-résolu)');
+has(/\(!!_t2nc\|\|ncMode\)&&!test2Resolved\(id\)/,'L307 : indice t2-todo — chemin sain auto-résolu ; étendu aux bobines NC en L376');
 has(/ncEl&&ncEl\.checked/,'L307 : NC cochée → AUCUNE coche auto (chemin défaut strictement inchangé)');
 
 console.log('── L307b : fixes audit lot 2 + photos pied (décision Esteban 11/08) ──');
@@ -1016,7 +1016,7 @@ has(/const _mqA15=window\.matchMedia\('\(min-width:1100px\)'\)/,'L371 : rotation
 console.log('── L372 : retours recette Esteban (20/08) ──');
 has(/if\(!bandHtml\) div\.classList\.add\('refonly'\);/,'L372 : bande de passage de réf toujours rendue (refonly sans changement de machine)');
 has(/^\.fiche-ref-sep\.refonly\{display:none\}$/m,'L372 : bande refonly masquée en portrait (les blocs Réf N y restent)');
-has(/TABLETTE MACHINE : un plan chargé passe sur LA machine du poste/,'L372 : plan chargé sur compte machine = machine du poste (mono-machine seulement, toast)');
+has(/SWAP MACHINE DU POSTE, version sûre et partagée/,'L372 (révisé L376) : plan chargé sur compte machine = machine du poste via le helper commun');
 has(/t\.value=cur\.split\(' ; '\)\.map\(x=>x\.trim\(\)\)\.filter\(x=>x&&x!==txt\)\.join\(' ; '\);/,'L372 : puce détail NC = bascule (re-tap retire le texte, texte libre conservé)');
 
 console.log('── L373 : audit intégral du chrono (20/08) ──');
@@ -1042,5 +1042,18 @@ has(/bobine retirée \?\) — ⚠ « Appliquer » RE-CRÉERA ces laizes/,'L375 :
 has(/Imprimer le PLAN RECALCULÉ à la place \? Il peut différer des bobines affichées/,'L375 : repli d impression jamais silencieux (confirm)');
 has(/🖨 Instantané enregistré'\+\(_d\?' le '\+_d:''\)/,'L375 : impression d un plan archivé = toast « instantané »');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L375 présents dans index.html + sw.js');
+console.log('── L376 : grande analyse (12 agents, 20/08) — correctifs confirmés ──');
+has(/#roleTag\.role-op,\.role-op:not\(body\)\{background:#142a1a/,'L376 A2 : fuite .role-op sur body corrigée (fond vert partout, portrait compris)');
+has(/return \[\.\.\.cumEl\.children\]\.map\(function\(n\)\{ return n\.classList\.contains\('cumul-card'\)\?fmtCard\(n\):n\.innerText/,'L376 A1 : papier fiche — cumul dans l ORDRE DU DOCUMENT (multi-clients / rebut à leur place L303)');
+has(/line\.classList\.toggle\('t2-todo',\(!!_t2nc\|\|ncMode\)&&!test2Resolved\(id\)\);/,'L376 A4 : indice test 2ᵉ aussi sur bobine NC');
+has(/tape le bouton ROUGE de la bannière en haut/,'L376 A5 : garde ✂ sous plan-drift pointe le gros bouton');
+has(/#page0 \.btn\.plan-outils-top/,'L376 2.3 : lanceur OUTILS réellement teinté (spécificité)');
+has(/\[L376 · A2\.10\] Annuler ne consomme PAS la question/,'L376 2.10 : question chutes reposée si Annuler');
+has(/if\(first\) document\.body\.classList\.add\('show-ref-bands'\);/,'L376 2.11 : recorriger sans réf validée = no-op propre');
+has(/function _l376PostMachineSwap\(withFiche\)/,'L376 1.4/1.5/2.1 : swap machine du poste unifié (bords/lame personnalisés conservés)');
+has(/signatures autosave posées sur l'état FINAL chargé \(swap compris\)/,'L376 1.4 : signatures autosave APRÈS le swap (protection L291 rétablie)');
+has(/\[L376 · grande analyse 2\.1\] PASSATION/,'L376 2.1 : passation resumeDraft bascule réellement la machine');
+has(/\[L376 · grande analyse A2\.6\] l'en-tête déplié par la GARDE/,'L376 2.6 : en-tête déplié par la garde initiales se replie après le choix');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L376 présents dans index.html + sw.js');
 process.exit(fail?1:0);
