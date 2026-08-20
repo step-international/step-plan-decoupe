@@ -1087,5 +1087,19 @@ has(/\[L379 · fix audit n°12\] trace « prép\. X » d'une commande abandonné
 has(/\[L379 · n°12\] la reprise repart proprement/,'L379 n°12 : machinePrep purgé à la reprise de brouillon');
 has(/#shareWhoGridMirror\{max-height:240px;overflow-y:auto\}/,'L379 n°11 : grille miroir bornée');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L379 présents dans index.html + sw.js');
+console.log('── L380 : assistant IA de la bulle 💬 (demande Esteban 20/08) ──');
+has(/function _l380Snapshot\(\)/,'L380 : scan de contexte texte (page, plan, fiche, erreurs) au signalement');
+has(/function _l380AssistSend\(kind,txt\)/,'L380 : signalement → doc assist (fil IA) EN PLUS du mail');
+has(/if\(typeof trainingGuard==='function'&&trainingGuard\(\)\) return;   \/\/ entraînement : rien n'est écrit/,'L380 : assistant inactif en mode entraînement');
+has(/db\.collection\('config'\)\.doc\('assistant'\)/,'L380 : interrupteur config/assistant (enabled) — mail-seul tant que non déployé');
+has(/id="assistOverlay"/,'L380 : panneau de fil assistant');
+has(/#reportBubble\.assist-new::after/,'L380 : pastille « réponse reçue » sur la bulle');
+{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+  const okF=/claude-opus-5/.test(fx)&&/stop_reason === "refusal"/.test(fx)&&/defineSecret\("ANTHROPIC_API_KEY"\)/.test(fx)&&/msgs\[msgs\.length - 1\]\.role !== "operator"/.test(fx);
+  console.log((okF?'✅ ':'❌ ')+'L380 : Cloud Function assistReply (secret, anti-boucle, refus géré)'); if(!okF) fail++; }
+{ const rules=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/firestore.rules','utf8');
+  const okR=/match \/assist\/\{id\}/.test(rules)&&/match \/config\/\{id\}/.test(rules);
+  console.log((okR?'✅ ':'❌ ')+'L380 : règles assist + config (à publier en console)'); if(!okR) fail++; }
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L380 présents dans index.html + sw.js');
 process.exit(fail?1:0);

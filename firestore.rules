@@ -144,6 +144,18 @@ service cloud.firestore {
     }
 
     // ===== BROUILLONS (scratch collaboratif) =====
+    match /config/{id} {
+      // [L380] config lisible par tout compte connu (doc "assistant" : {enabled:true} affiche la
+      // note IA dans la bulle). Écriture réservée à l'admin (console ou compte admin).
+      allow read: if isKnown();
+      allow write: if isAdmin();
+    }
+    match /assist/{id} {
+      // [L380] fil de discussion avec l'assistant IA (bulle 💬). Le client crée le doc et ajoute
+      // ses messages (status: "pending") ; la Cloud Function assistReply répond via l'Admin SDK
+      // (qui contourne ces règles). Pas de delete côté client — purge par la fonction/console.
+      allow read, create, update: if isKnown();
+    }
     match /brouillons/{id} {
       allow read, create: if isKnown();
       allow update, delete: if isKnown();
