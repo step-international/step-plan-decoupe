@@ -1161,5 +1161,9 @@ has(/titre discret à droite — toute la place au plan/,'L386 : titre Plan de d
 has(/COMMENCER À COUPER plus discret/,'L386 : COMMENCER À COUPER réduit en paysage');
 has(/le résumé ✓ \(machine·mère·bords \+ ✎ MODIFIER\) TOUJOURS visible/,'L386 : résumé validé + ✎ MODIFIER visibles dans l en-tête');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L386 présents dans index.html + sw.js');
+console.log('── L387 : audit ambre du bouton COUPÉE ──');
+{ const n=(src.match(/\[L387 · audit ambre\]/g)||[]).length;
+  console.log((n===3?'✅ ':'❌ ')+'L387 : ambre re-calculé aux 3 sorties d état (quitter miroir, partage terminé, resetAll) — '+n+'/3'); if(n!==3) fail++; }
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L387 présents dans index.html + sw.js');
 process.exit(fail?1:0);
