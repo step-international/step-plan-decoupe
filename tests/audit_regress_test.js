@@ -401,7 +401,7 @@ has(/Une sauvegarde AUTO plus récente existe/,'L287 : reprise d\'un brouillon p
 
 console.log('── L288 : les 6 tâches du 29/07 (décisions Esteban) ──');
 has(/body\.atelier \.nc-check\.ras,body\.atelier \.test2-sub,body\.atelier \.test2-nc\{font-size:17px;min-height:48px;padding:8px 14px\}/,'L288 T1 : test 2ᵉ compacté à 48px (plancher gants), puces Défaut inchangées à 60px');
-has(/bn\.dataset\.covTok=_tok/,'L288 T2 : bandeau violet « bobines ajoutées » auto-restauré après 5 s (jeton anti-course, retour via updateCoupeeStatus — jamais de display:none sec)');
+has(/bandeau violet récap supprimé/,'L288 T2 (retiré L391 — décision Esteban) : bandeau violet supprimé, surlignage RESTE- conservé');
 has(/bande orange « ✂ Chutes en stock utilisées » SUPPRIMÉE/,'L288 T3→L292 : le stock vit dans la colonne ✂ EN STOCK du tableau par laize (bande orange supprimée — feuille annotée Esteban 30/07)');
 
 console.log('── L289 : PDF tableau par laize + Total supprimé + édition manuelle avec rouleaux (choix Esteban 30/07) ──');
@@ -1194,5 +1194,13 @@ has(/bandeau-résumé SUPPRIMÉ/,'L390 : bandeau Données supprimé');
 has(/pleine largeur \+ colonne plan élargie/,'L390 : plan pleine largeur, colonne 430px');
 has(/emballage compact/,'L390 : résumé emballage compact');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L390 présents dans index.html + sw.js');
+console.log('── L391 : fluidité après APPLIQUER (21/08 soir) ──');
+has(/on RESTE sur la bobine en cours \(le défilement vers la ligne ajoutée/,'L391 : plus de descente auto après APPLIQUER — la bobine en cours reste en vue');
+has(/bandeau violet récap supprimé/,'L391 : bandeau violet récap retiré (surlignage orange + RESTE- suffisent)');
+has(/une ligne — le récap multi-lignes faisait pop-up/,'L391 : toast de recalcul en une ligne');
+has(/alerte volume UNIQUEMENT à partir de 60 bobines mères/,'L391 : bannière volume seulement ≥60 bobines mères (sinon rien)');
+absent(/Commande volumineuse \(nombreuses laizes distinctes/,'L391 : bannière « commande volumineuse » retirée');
+has(/petit, à droite des onglets — plus de bande dédiée/,'L391 : 📥 Historique complet discret dans la rangée d onglets');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L391 présents dans index.html + sw.js');
 process.exit(fail?1:0);

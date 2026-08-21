@@ -1635,7 +1635,7 @@ body.atelier .stat-tile b{font-size:36px}
    ============================================================ */
 @media(min-width:1100px){
   #dataSummary{padding:8px 12px;gap:0}
-  #dataSummary #btnLoadFull{margin-left:auto;min-height:48px;font-size:14px}
+  .tab-bar #btnLoadFull{margin-left:auto;min-height:34px;font-size:12px;padding:4px 10px;white-space:nowrap;align-self:center;flex:0 0 auto}   /* [L391] discret dans la rangée d onglets */
   /* [L389 · demande Esteban] fiches sur 2 COLONNES comme les Plans (l'override 1 colonne est retiré) + carte compactée */
   #fichesList .fiche-card{padding:12px 14px}
   #fichesList .fc-btn{min-height:44px;font-size:13px;padding:10px 8px}
@@ -3092,7 +3092,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.21-L390';
+const APP_VERSION='2026.08.21-L391';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8127,15 +8127,7 @@ function recalcPlan(){
   // Avertissement (non bloquant) : l'optimisation devient coûteuse quand une réf cumule
   // beaucoup de largeurs DISTINCTES et une grosse quantité (calcul ~quadratique).
   // On NE bloque PAS : on prévient que le calcul peut prendre quelques secondes, puis on calcule.
-  const heavy=groups.find(g=>{
-    const widths=new Set(g.rows.filter(r=>r.qty>0&&r.width>0).map(r=>r.width));
-    const qty=g.rows.reduce((s,r)=>s+(r.qty>0?r.qty:0),0);
-    return widths.size>=40 && qty>=400;
-  });
-  let heavyBanner='';
-  if(heavy){
-    heavyBanner='<div class="plan-banner-warn">📊 Commande volumineuse (nombreuses laizes distinctes + grosse quantité) — vérifie bien le plan ci-dessous.</div>';   // [L92 · Audit #12] libellé factuel : l'ancien « patiente » s'affichait APRÈS le calcul
-  }
+  let heavyBanner='';   /* [L92 → recalibré L391 · demande Esteban] bannière « commande volumineuse » retirée — seul le seuil 60 bobines mères parle (plus bas) */
   packTruncated=false;   // reset avant calcul : pack() le lèvera si la saisie est aberrante
   const computed=packRefGroupsPal(groups);   // [L82] enveloppe palettes (moteur intact)
   // [L92 · Audit #3] contrainte atelier ≤4 palettes NON tenable (chutes/rouleaux présents ou >12
@@ -8184,9 +8176,9 @@ function recalcPlan(){
   // (une ligne >1000 pièces OU plan >30 bobines mères) qui passe sous les seuils durs
   // ci-dessus (5000 pièces / 150 bobines). Pas affichée si une bannière rouge couvre déjà
   // le cas. Calibrage prudent, à valider avec l'atelier.
-  const bigQtyRow=groups.some(g=>(g.rows||[]).some(r=>r.qty>1000));   // [L73 · Lot 5 · B43]
-  if(!badQtyRow && !packTruncated && totalBobChk<=150 && (bigQtyRow || totalBobChk>30)){   // [L73 · Lot 5 · B43]
-    heavyBanner+='<div class="plan-banner-warn">⚠ Quantité inhabituelle ('+(bigQtyRow?'une ligne dépasse 1 000 pièces':totalBobChk+' bobines mères')+') — zéro en trop ? Vérifie la saisie avant d\'envoyer.</div>';   // [L73 · Lot 5 · B43]
+  // [L73 B43 → recalibré L391 · demande Esteban 21/08] alerte volume UNIQUEMENT à partir de 60 bobines mères — sinon rien
+  if(!badQtyRow && !packTruncated && totalBobChk<=150 && totalBobChk>=60){
+    heavyBanner+='<div class="plan-banner-warn">⚠ '+totalBobChk+' bobines mères à couper — zéro en trop ? Vérifie la saisie avant d\'envoyer.</div>';
   }
   // Alerte non bloquante : bobine mère saisie très différente de la mère STANDARD
   // connue de la référence. Cause typique du "trop de bobines" (ex. VEKA 41313870,
@@ -11067,18 +11059,8 @@ function recalcEcartsFromFiche(opts){
     // dessus, et le bandeau violet garde le récap (le toast, lui, disparaît en 5 s).
     if(totalAdded>0&&_firstAddedId){
       const _eln=document.getElementById(_firstAddedId);
-      if(_eln){ _eln.classList.add('reste-new'); setTimeout(function(){ try{_eln.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){} },200); setTimeout(function(){ _eln.classList.remove('reste-new'); },8000); }
-      setTimeout(function(){ const bn=document.getElementById('coupeeBanner');
-        if(bn){ bn.style.display='block'; bn.style.background='#1f1535'; bn.style.borderColor='var(--violet)'; bn.style.color='var(--violet)';
-          bn.innerHTML='♻ <b>'+totalAdded+' bobine(s) ajoutée(s)</b> pour couvrir la commande — repérée(s) « RESTE- », surlignée(s) en orange ci-dessous.';
-          // [L288 · T2 · demande Esteban 29/07] le cadre violet restait jusqu'au prochain geste (impression de
-          // « bloqué ») → retour AUTOMATIQUE à la barre normale « X/N coupées » après 5 s, via updateCoupeeStatus
-          // (JAMAIS de display:none sec : le suivi permanent doit rester). Anti-course : jeton daté — un recalcul
-          // plus récent réécrit un nouveau violet avec un autre jeton → l'ancien timer ne restaure pas par-dessus.
-          const _tok=String(Date.now());
-          bn.dataset.covTok=_tok;
-          setTimeout(function(){ try{ const b2=document.getElementById('coupeeBanner'); if(b2&&b2.dataset.covTok===_tok&&typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){} },5000);
-        } },50);
+      if(_eln){ _eln.classList.add('reste-new'); setTimeout(function(){ try{ var _cu=document.querySelector('.fiche-line.fl-current'); (_cu||_eln).scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} },200); setTimeout(function(){ _eln.classList.remove('reste-new'); },8000); }   /* [L391 · demande Esteban] on RESTE sur la bobine en cours (le défilement vers la ligne ajoutée en bas perdait l'opérateur) — la « RESTE- » reste surlignée orange */
+      /* [L288 → retiré L391 · demande Esteban] bandeau violet récap supprimé — le surlignage orange + le préfixe « RESTE- » suffisent */
     }
 
     const head=op2
@@ -11088,7 +11070,8 @@ function recalcEcartsFromFiche(opts){
             ? '♻ Plan recalculé avec les nouvelles dimensions — les bobines déjà coupées sont conservées.'
             : '♻ Recalcul terminé — bobines déjà coupées conservées, le reste de la commande est couvert.')
          : (totalAdded>0?'♻ Plan ré-optimisé.':'♻ Recalcul terminé — commande couverte.'));
-    showToast(head+'\n\n'+recap.join('\n'),'ok');
+    showToast(head,'ok');   /* [L391 · demande Esteban] une ligne — le récap multi-lignes faisait pop-up (détail toujours en console) */
+    try{ console.log('[recalc]',recap.join(' | ')); }catch(e){}
     if(op2||force){ fichePlanValidated=true; updateFPlanHint(); }
     _snapFicheChutes();   // [L278] chutes appliquées → re-baser l'instantané → la bannière « bobineaux ajoutés » se referme
     if(typeof opts.onApplied==='function'){ try{ opts.onApplied(); }catch(e){ console.warn('onApplied:',e); } }   // [L70 · Audit B30]
@@ -20648,8 +20631,8 @@ function _l341SetupPlan(){ try{
 // ============================================================
 function _l342PlaceLoadFull(){ try{
   const b=document.getElementById('btnLoadFull'); if(!b) return;
-  const strip=document.getElementById('dataSummary'); const home=document.querySelector('#tabContentSaves>.flex-wrap');
-  if(_isLandscapeFiche()){ if(strip&&b.parentElement!==strip) strip.appendChild(b); }
+  const bar=document.querySelector('#page2 .tab-bar'); const home=document.querySelector('#tabContentSaves>.flex-wrap');
+  if(_isLandscapeFiche()){ if(bar&&b.parentElement!==bar) bar.appendChild(b); }   /* [L391 · demande Esteban] petit, à droite des onglets — plus de bande dédiée */
   else if(home&&b.parentElement!==home){ home.insertBefore(b,home.firstChild); }
 }catch(e){} }
 function _l342SetupDonnees(){ try{
