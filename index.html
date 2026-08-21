@@ -3081,7 +3081,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.21-L383';
+const APP_VERSION='2026.08.21-L384';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7953,7 +7953,7 @@ function mergeDupRefNow(di){
       bl.querySelectorAll('.rb-chutes .rb-chute-row').forEach(r=>{ if(chT) chT.appendChild(r); });
       const rcT=target.querySelector('.rb-recuts');
       bl.querySelectorAll('.rb-recuts .rb-recut-row').forEach(r=>{ if(rcT) rcT.appendChild(r); });
-      if(bl.classList.contains('extra')) bl.remove();
+      if(bl.classList.contains('extra')){ try{ const _lt=bl.previousElementSibling; if(_lt&&_lt.classList&&_lt.classList.contains('plan-outils-top')) _lt.remove(); }catch(e){} bl.remove(); }   // [L384 · audit final] le lanceur ⚙ OUTILS part avec le bloc fusionné (5e chemin de suppression)
       merged++;
       const mlT=parseNum(target.querySelector('[data-rb="longueur"]')?.value)||0;
       label=(target.querySelector('[data-rb="ref"]')?.value||'?')+(mlT?' · '+fmt(mlT)+' ml':'');
@@ -8186,6 +8186,7 @@ function recalcPlan(){
     ${resteRouleauxMm>0?`<div class="stat-chip" style="border-color:#115e52;background:#06231c">♻ Reste rouleaux <span style="color:#5eead4">${fmt(resteRouleauxMm)} mm</span></div>`:''}
     <div class="stat-chip sc-solde">✂ Chute stock <span style="font-weight:700;color:var(--orange)">${fmt(chuteStockMm)} mm</span></div><!-- [L146 · audit ergo #12] « Chute stock » unifié en ORANGE (convention ✂ chute partout, CSS 192-215) — était vert ici vs orange ailleurs pour la même notion -->
     ${recutCountAll>0?`<div class="stat-chip" style="border-color:#115e52;background:#06231c">♻ <span style="color:#5eead4">${recutCountAll} rouleau${recutCountAll>1?'x':''} chute recoupé${recutCountAll>1?'s':''}</span></div>`:''}`;
+  if(statsEl){ try{ statsEl.dataset.l384Fresh='1'; }catch(_){} }   /* [L384 · audit final] marque « rendu frais » : seule une barre re-rendue autorise la purge des chips du titre (un polish à vide les mangeait) */
   // [L337, helper L339 · §2.14 · maquette 18] part de bobine par ligne de laize (largeur / utile, « 23 % ») —
   // affichage pur, mono-réf seulement (en multi chaque bloc a son utile propre → pas de % plutôt qu'un % faux).
   try{ _updateRowShares(multi?0:(((computed.find(c=>(c.rows||[]).length)||computed[0]||{}).useful)||0)); }catch(_){}
@@ -9946,7 +9947,7 @@ function chronoReset(force){
   // (persistChronoLive plus bas la purge car chronoRunning=false). Sans ça, un « Annuler » laissait
   // survivre un vieux runStart (~2 h) qui ressuscitait sur la commande suivante = chrono faux.
   if(!force&&chronoSec>0&&typeof confirm==='function'&&!confirm('Remettre le chronomètre à zéro ?\n\nLe temps affiché ('+fmtTime(chronoSec)+') sera perdu.')) return;
-  try{ localStorage.removeItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L298 · revue ×2] reset CONFIRMÉ (manuel OU frontière force) : le temps miroir en attente est jeté aussi — un ↺ Reset en vue miroir ne doit JAMAIS ressusciter à la réouverture
+  try{ if(typeof trainingGuard!=='function'||!trainingGuard()) localStorage.removeItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L298 · revue ×2] reset CONFIRMÉ (manuel OU frontière force) : le temps miroir en attente est jeté aussi — un ↺ Reset en vue miroir ne doit JAMAIS ressusciter à la réouverture · [L384 · audit final] SAUF en entraînement : un reset/envoi d'EXERCICE ne jette pas un temps miroir RÉEL en attente (les resetAll d'entrée/sortie du mode tournent hors _trainingMode et restent couverts)
   chronoRunning=false;
   clearInterval(chronoInterval);
   chronoSec=0;chronoStartTs=null;chronoRunStart=null;_chronoAutoStopOverride=null;
@@ -11050,11 +11051,11 @@ function trainingGuard(){ return _trainingMode; }
 function startTraining(){
   try{
     if(_trainingMode) return;
-    const hasWork=(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length)||(typeof planHasContent==='function'&&planHasContent());   // [L327 · fix audit] planHasContent couvre AUSSI réf/n°/laizes saisies sans client
+    const hasWork=(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length)||(typeof planHasContent==='function'&&planHasContent())||(typeof chronoRunning!=='undefined'&&chronoRunning)||(typeof chronoSec!=='undefined'&&chronoSec>0);   // [L327 · fix audit] planHasContent couvre AUSSI réf/n°/laizes saisies sans client · [L384 · audit final] un chrono en marche/en pause compte aussi : le resetAll d'entrée le détruisait SANS confirm quand l'écran était vide
     if(hasWork && typeof confirm==='function' && !confirm('🎓 Passer en mode ENTRAÎNEMENT ?\n\nLa commande en cours à l\'écran sera remplacée par un exemple. Rien de ce que tu feras en entraînement ne sera enregistré.')) return;
-    let _mirBak=null; try{ _mirBak=localStorage.getItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L383 · audit fusion] le temps MIROIR en attente (récepteur d'un partage) ne vit QUE dans cette clé : l'entraînement ne doit rien perdre de réel
+    _trainingLsBak=null; try{ _trainingLsBak=localStorage.getItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L383 · audit fusion, durci L384] le temps MIROIR en attente (récepteur d'un partage) ne vit QUE dans cette clé : backup MODULE (pas local) — un resetAll PENDANT l'entraînement (✓ envoi d'exercice, ↺ reset) ne doit pas le perdre non plus (chronoReset est aussi gardé par trainingGuard)
     try{ resetAll(); }catch(e){}   // [L327 · fix audit] resetAll AVANT d'armer le mode : le cleanup d'entrée (fin de partage éventuel) est une action RÉELLE légitime, jamais une écriture « sous couvert d'entraînement »
-    try{ if(_mirBak!=null) localStorage.setItem(CHRONO_MIR_LS_KEY,_mirBak); }catch(e){}   // [L383] préservé autour du resetAll d'entrée/sortie d'entraînement
+    try{ if(_trainingLsBak!=null) localStorage.setItem(CHRONO_MIR_LS_KEY,_trainingLsBak); }catch(e){}   // [L383] préservé autour du resetAll d'entrée/sortie d'entraînement
     _trainingMode=true;
     document.body.classList.add('training');
     if(!document.getElementById('trainingBanner')){
@@ -11079,12 +11080,22 @@ function stopTraining(){
     _trainingMode=false;
     document.body.classList.remove('training');
     document.getElementById('trainingBanner')?.remove();
-    let _mirBak=null; try{ _mirBak=localStorage.getItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L383] même préservation qu'à l'entrée
     try{ resetAll(); }catch(e){}
-    try{ if(_mirBak!=null) localStorage.setItem(CHRONO_MIR_LS_KEY,_mirBak); }catch(e){}
+    try{ if(_trainingLsBak!=null) localStorage.setItem(CHRONO_MIR_LS_KEY,_trainingLsBak); }catch(e){}   // [L384 · audit final] restauré depuis le backup d'ENTRÉE (module) : une purge pendant l'entraînement ne peut plus le perdre — rien n'écrit cette clé en entraînement (openSharedCommand bloqué), le backup est donc toujours la vérité
+    _trainingLsBak=null;
     try{ showToast('Entraînement terminé — retour au travail réel.'); }catch(e){}
   }catch(e){}
 }
+// [L383 · audit fusion, replacé L384 · audit final] _loadedSoldeDraftId (RAM) meurt au rechargement de l'app :
+// re-dérivé depuis loadedSaveId (qui, lui, survit via l'autosave) — sinon le solde ⛔ jumeau restait
+// « ▶ Reprendre » après la coupe du reste = double découpe possible. DOIT être appelé AVANT le bloc #5
+// de saveCommandeFiche (qui nulle loadedSaveId) — la 1re version, placée après, était du code mort.
+function _l384DeriveSoldeTwin(){ try{
+  if(!_loadedSoldeDraftId&&loadedSaveId){
+    const _sv=(Array.isArray(savesCache)?savesCache:[]).find(x=>x&&x._id===loadedSaveId);
+    if(_sv&&_sv.resteFromFiche){ const _sd=(typeof loadDrafts==='function'?loadDrafts():[]).find(x=>x&&x.id==='d_solde_'+_sv.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; }
+  }
+}catch(e){} }
 async function saveCommandeFiche(rows,useful,blade,opts){
   const _l355Same=(function(){ try{ const v=window._l355SameClient; window._l355SameClient=null; return (v&&v.cli&&!(opts&&opts.manqueMatiere)&&(Date.now()-v.ts)<120000)?v.cli:null; }catch(e){ return null; } })();   // [L355 · §2.22-2 · fix audit : jamais sur un envoi manque-matière] consommée ICI, une seule fois, quelle que soit l'issue de l'envoi (entraînement compris : jamais reportée sur un envoi réel suivant)
   if(trainingGuard()){ try{ showToast('🎓 ENTRAÎNEMENT — fiche NON envoyée (rien en base). Remise à zéro.'); }catch(e){} try{ resetAll(); }catch(e){} return null; }
@@ -11395,6 +11406,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       catch(e){ console.warn('Détection lame:',e); }
       chronoReset(true);      // [L79] reset forcé (envoi) — pas de confirm, purge la clé live
       clearCurrentDraft(ficheRef.id);    // …puis purge FIABLE des brouillons AUTO (delete attendu, repli consumed) — DRAFT-4
+      try{ _l384DeriveSoldeTwin(); }catch(e){}   // [L384 · audit final] AVANT le bloc #5 : loadedSaveId encore vivant
       // #5 : si la fiche vient d'un plan sauvegardé chargé, on retire ce plan de Données→Plans (archive douce)
       if(loadedSaveId){
         try{
@@ -11439,10 +11451,6 @@ async function saveCommandeFiche(rows,useful,blade,opts){
         //  \u00b7 le balayage par CL\u00c9 exige un n\u00b0 de commande NON vide (deux commandes l\u00e9gitimement
         //    identiques sans n\u00b0 ne se touchent jamais). Soft (consumed:true) + logAudit, comme DRAFT-4.
         try{
-          // [L383 · audit fusion] _loadedSoldeDraftId (RAM) meurt au rechargement de l'app : re-dérivé depuis
-          // loadedSaveId (qui, lui, survit via l'autosave) — sinon le solde ⛔ jumeau restait « ▶ Reprendre »
-          // après la coupe du reste = double découpe possible.
-          try{ if(!_loadedSoldeDraftId&&loadedSaveId){ const _sv=(Array.isArray(savesCache)?savesCache:[]).find(x=>x&&x._id===loadedSaveId); if(_sv&&_sv.resteFromFiche){ const _sd=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(x=>x&&x.id==='d_solde_'+_sv.resteFromFiche&&!x.consumed); if(_sd) _loadedSoldeDraftId=_sd.id; } } }catch(e){}
           const _mineIni=_ini();
           const _victims=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>{
             if(!d||d.consumed||d.kind==='shared'||/^d_shared_/.test(String(d.id))) return false;
@@ -20456,7 +20464,9 @@ function _l341PlanPolish(){ try{
   // à côté du titre « Plan de découpe » (paysage) — le plan des bobines se voit plus haut.
   try{
     const ttl=document.querySelector('#planResultSec>.section-title');
-    if(ttl&&land){ ttl.querySelectorAll('.title-chip').forEach(function(o){ o.remove(); });   // chaque recalc re-rend les chips : purger les anciennes déplacées
+    if(ttl&&land){ const _sbF=document.getElementById('statsBar');
+      if(_sbF&&_sbF.dataset&&_sbF.dataset.l384Fresh){ delete _sbF.dataset.l384Fresh;   // [L384 · audit final] purge SEULEMENT après un rendu frais de #statsBar — un polish sans re-rendu (outilsReveal…) ne mange plus les chips
+        ttl.querySelectorAll('.title-chip').forEach(function(o){ o.remove(); }); }   // chaque recalc re-rend les chips : purger les anciennes déplacées
       document.querySelectorAll('#statsBar .stat-chip').forEach(function(c){ const t=c.textContent||''; if(/référence|clients/.test(t)&&c.parentElement!==ttl){ c.classList.add('title-chip'); ttl.appendChild(c); } }); }
     else if(ttl){ const sb=document.getElementById('statsBar');   // [L383 · audit fusion] rotation en portrait : les chips REVIENNENT dans #statsBar (layout historique) au lieu de rester collées au titre
       ttl.querySelectorAll('.title-chip').forEach(function(o){ o.classList.remove('title-chip');

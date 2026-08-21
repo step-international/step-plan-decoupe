@@ -1127,5 +1127,16 @@ has(/re-dérivé depuis\n          \/\/ loadedSaveId|_loadedSoldeDraftId \(RAM\)
   const okF=/maxRetries: 0/.test(fx);
   console.log((okF?'✅ ':'❌ ')+'L383 : fonction — maxRetries:0 (le repli d erreur s exécute toujours, plus de doc « pending » à vie)'); if(!okF) fail++; }
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L383 présents dans index.html + sw.js');
+console.log('── L384 : contre-audit final (les casseurs avaient raison) ──');
+{ const okP=src.indexOf('_l384DeriveSoldeTwin(); }catch(e){}')>=0&&src.indexOf('_l384DeriveSoldeTwin(); }catch(e){}')<src.indexOf('// #5 : si la fiche vient');
+  console.log((okP?'✅ ':'❌ ')+'L384 : re-dérivation solde AVANT le bloc #5 (la v1 après = code mort, loadedSaveId déjà nul)'); if(!okP) fail++; }
+has(/function _l384DeriveSoldeTwin\(\)/,'L384 : helper solde jumeau extrait (testable)');
+has(/SAUF en entraînement : un reset\/envoi d'EXERCICE/,'L384 : chronoReset ne jette plus le temps miroir réel pendant l entraînement');
+has(/_trainingLsBak=null; try\{ _trainingLsBak=localStorage\.getItem\(CHRONO_MIR_LS_KEY\)/,'L384 : backup miroir au niveau MODULE (survit à toute purge pendant l entraînement)');
+has(/dataset\.l384Fresh='1'/,'L384 : drapeau rendu frais sur #statsBar');
+has(/purge SEULEMENT après un rendu frais/,'L384 : un polish sans re-rendu ne mange plus les chips du titre');
+has(/5e chemin de suppression/,'L384 : lanceur OUTILS purgé aussi à la fusion de blocs doublons');
+has(/un chrono en marche\/en pause compte aussi/,'L384 : confirm d entraînement si un chrono tourne sur écran vide');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L384 présents dans index.html + sw.js');
 process.exit(fail?1:0);
