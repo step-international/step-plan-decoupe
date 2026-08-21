@@ -1586,12 +1586,12 @@ body.atelier .stat-tile b{font-size:36px}
   .order-row .row-share{position:absolute;right:112px;top:50%;transform:translateY(-50%);font-size:15px;color:#bcbcb5;margin:0;pointer-events:none}   /* [fix audit design] la part de bobine s'affiche DANS la carte de largeur (maquette) */
   .order-row input[data-type="width"]{padding-right:70px}
   /* — plan calculé : lignes NEUTRES une rangée (sans « utilisé / utile »), chute à droite, SOLDE orange — */
-  #planCards .bobine-card{border-left:1px solid var(--border);background:#1a1a18;padding:12px 16px}
+  #planCards .bobine-card{border-left:1px solid var(--border);background:#1a1a18;padding:15px 18px}   /* [L385] le plan des bobines respire — demande « plus lisible et gros » */
   #planCards .bobine-card.solde{border-color:#b06a00;border-left-color:#b06a00;background:#241905}
   #planCards .bobine-card .card-sub:has(>.v){display:none}
-  #planCards .bc-count{font-size:16px;min-width:56px;color:var(--text3)}
-  #planCards .card-config{font-size:24px}
-  #planCards .bobine-card .badge.bc-waste{font-size:15px}
+  #planCards .bc-count{font-size:19px;min-width:64px;color:var(--text3)}
+  #planCards .card-config{font-size:31px}   /* [L385 · demande Esteban 21/08] les compositions en GROS — c'est LA lecture de l'écran Plan */
+  #planCards .bobine-card .badge.bc-waste{font-size:16px}
   #statsBar .stat-chip.sc-utile,#statsBar .stat-chip.sc-solde{display:none}   /* doublons des tuiles/lignes (utile = tuile bleue, solde = dernière ligne) */
   #statsBar{gap:10px}
   #statsBar .stat-tile{flex:1 1 150px;min-width:0}   /* [fix audit] les chips (références/clients/rouleaux) passent à la rangée suivante au lieu d'écraser les tuiles */
@@ -2020,7 +2020,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
 }
 /* [L363 · analyse parcours — logique validée : B3 machine du poste · B4 réf unique · B5 emballage main gagne · B11 config lecture seule · B15 3 lignes/600 ms · A16 · A17 · A20] */
 @media(min-width:1100px){
-  #planSaveBtn{display:inline-flex;min-height:40px;width:auto;justify-content:center;font-size:13px;padding:6px 14px;margin-left:auto}   /* [L382] petit — la place va au plan des bobines */
+  #planSaveBtn{display:inline-flex;min-height:64px;width:auto;justify-content:center;align-items:center;font-size:16px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;padding:10px 20px;margin:0}   /* [L382 → L385 · demande Esteban 21/08] 💾 en GRAND, dans #statsBar à côté de la tuile perte (déplacé par _l341PlanPolish) */
   #planResultSec>.section-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   #planResultSec .title-chip{font-size:13px;padding:5px 10px;text-transform:none;letter-spacing:0}
   #planResultSec .action-bar{margin:2px 0 6px}
@@ -2864,8 +2864,8 @@ html.theme-light .fp-num small{color:#8a8a84}
     <div id="loadModalInfo" class="text-muted" style="margin-bottom:12px;font-size:14px"></div>
     <div class="modal-btns">
       <button class="btn btn-ghost btn-sm" onclick="closeLoadModal()">Annuler</button>
-      <button class="btn btn-blue btn-sm" onclick="doRedo()" title="Recharge client, références, laizes, cotes et emballage — mais VIDE le n° de commande et la date de livraison (nouvelle commande identique)">⟳ Refaire (nouveau n°)</button><!-- [L316 · LOT 24 · §2.22-1] réutilise doLoad et SES dialogues — pas un 4ᵉ chemin -->
-      <button class="btn btn-green btn-sm" onclick="doLoad()">Charger</button>
+      <button class="btn btn-green btn-sm" onclick="doLoad()">Charger</button><!-- [L385 · demande Esteban 21/08] « ⟳ Refaire (nouveau n°) » supprimé (inutile) — cette modale n'est d'ailleurs plus ouverte : 📂 Charger charge directement -->
+
     </div>
   </div>
 </div>
@@ -3081,7 +3081,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.21-L384';
+const APP_VERSION='2026.08.21-L385';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8146,6 +8146,7 @@ function recalcPlan(){
   const anyRows=computed.some(c=>c.rows.length);
   if(!anyRows){
     planOversize=[];
+    try{ const _psb=document.getElementById('planSaveBtn'); if(_psb&&statsEl&&statsEl.contains(_psb)){ const _tl=document.querySelector('#planResultSec>.section-title'); if(_tl) _tl.appendChild(_psb); } }catch(_){}   /* [L385] 💾 vit dans #statsBar (paysage) : le sortir avant de réécrire innerHTML sinon il serait détruit */
     if(statsEl) statsEl.innerHTML='';
     if(cardsEl) cardsEl.innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
     try{ _updateRowShares(0); }catch(_){}   /* [L339 · audit] plan vidé : % de part vidés aussi */
@@ -8177,6 +8178,7 @@ function recalcPlan(){
   const halfBanner=_halfN
     ? `<div style="flex-basis:100%;width:100%;background:#3d2a00;border:2px solid var(--orange);color:var(--orange);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ ${_halfN} ligne(s) de commande incomplète(s) (quantité sans largeur, ou largeur illisible) — NON comprises dans le plan. Complète ou vide ces lignes.</div>`
     : '';
+  try{ const _psb=document.getElementById('planSaveBtn'); if(_psb&&statsEl&&statsEl.contains(_psb)){ const _tl=document.querySelector('#planResultSec>.section-title'); if(_tl) _tl.appendChild(_psb); } }catch(_){}   /* [L385] 💾 sauvé avant la réécriture d'innerHTML (re-posé par _l341PlanPolish juste après) */
   if(statsEl) statsEl.innerHTML=heavyBanner+oversizeBanner+halfBanner+`
     <div class="stat-tile"><b>${totalBobines}</b><i>bobine${totalBobines>1?'s':''} mère${totalBobines>1?'s':''}</i></div><!-- [L336 · maquette 18] 3 TUILES verticales en tête (chiffre 32px + libellé dessous) — mêmes données, présentation §2.14 · [L191] chip « ⚙ N configs » retiré (demande Esteban) -->
     <div class="stat-tile ${perteCls}"><b>${pertePct.toFixed(1).replace('.',',')} %</b><i>de perte${multi?' globale':''} · ${fmt(perteMereMm)} mm</i></div>
@@ -9542,8 +9544,7 @@ function openLoadModal(id){
   loadTargetIdx=id;
   const s=savesCache.find(x=>x._id===id);
   if(!s) return;
-  document.getElementById('loadModalInfo').textContent=`${s.client} — ${s.ref} · ${new Date(s.date).toLocaleDateString('fr-FR')}`;
-  document.getElementById('loadModal').classList.add('open');
+  doLoad();   // [L385 · demande Esteban 21/08] chargement INSTANTANÉ : plus de modale de confirmation — les gardes de doLoad restent seules juges (partage actif, commande en cours → parquer/effacer, revérif serveur du plan)
 }
 function closeLoadModal(){document.getElementById('loadModal').classList.remove('open');loadTargetIdx=null;}
 
@@ -20369,7 +20370,30 @@ function _l352SyncHeadSide(){ try{
   try{ const v=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; }; sec.classList.toggle('l352-idok',!!(v('fClient')&&v('fRef'))); }catch(e){}   // [fix audit] client + réf manquants → les champs restent visibles dans l'en-tête dépliée
   const multi=(typeof fmmIsMulti==='function')&&fmmIsMulti();
   const mono=document.getElementById('fMachineMono');
-  const node=!want?null:(multi?document.querySelector('.fmm-inline-block.active'):mono);
+  // [L385 · demande Esteban 21/08] l'en-tête suit la réf EN COURS même VALIDÉE (le résumé ✓ + « 🔄 recorriger »
+  // reste sous la main : re-modifiable à tout moment), passe à la réf suivante, et la colonne DISPARAÎT quand
+  // toutes les bobines sont coupées. Avant : réf validée → plus aucun bloc .active → colonne vide en pleine coupe.
+  let node=null;
+  if(want){
+    let firstUncut=null, anyLine=false;
+    try{ for(const l of (typeof ficheLines!=='undefined'&&Array.isArray(ficheLines)?ficheLines:[])){ if(!l) continue; anyLine=true; const d=document.getElementById(l.id); if(d&&!d.classList.contains('coupee')){ firstUncut=l; break; } } }catch(e){}
+    if(anyLine&&!firstUncut) node=null;   // fiche 100 % coupée → plus rien à préparer : le slot se vide
+    else if(multi){
+      // PRIORITÉ à la réf DONT ON COUPE les bobines (validée → résumé ✓ + 🔄 recorriger sous la main).
+      // Identité de la réf : refIdx si la ligne l'a, sinon refIdKey puis nom via fmmRawRefs — MÊME cascade
+      // que le verrou B3 (les lignes fraîchement importées n'ont pas refIdx : le moteur gelé ne le porte pas).
+      let curIdx=null;
+      if(firstUncut){
+        if(typeof firstUncut.refIdx==='number') curIdx=firstUncut.refIdx;
+        else if(firstUncut.refIdKey&&typeof fmmRawRefs==='function'){ const _r=fmmRawRefs().find(function(r){ return (r.refKey||null)===firstUncut.refIdKey; }); if(_r) curIdx=_r.idx; }
+        if(curIdx==null&&firstUncut.ref&&typeof fmmRawRefs==='function'){ const _r=fmmRawRefs().find(function(r){ return nrm(r.ref||'')===nrm(firstUncut.ref||''); }); if(_r) curIdx=_r.idx; }
+      }
+      node=(curIdx!=null?document.querySelector('.fmm-inline-block[data-ref-idx="'+curIdx+'"]'):null)
+      ||document.querySelector('.fmm-inline-block.active')
+      ||document.querySelector('.fmm-inline-block:not(.ref-done)')   // réfs terminées (pastille repliée) jamais montrées : la 1re non finie = la réf en cours (ordre DOM = ordre de coupe)
+      ||document.querySelector('.fmm-inline-block'); }
+    else node=mono;
+  }
   const _ae=document.activeElement; const _keep=(_ae&&_ae!==document.body&&(slot.contains(_ae)||(node&&node.contains(_ae))))?_ae:null;   // [fix audit] rotation clavier ouvert : le nœud déplacé perdrait le focus
   Array.from(slot.children).forEach(function(n){ if(n!==node) _l352Restore(n); });   // tout ce qui n'a plus sa place repart chez lui
   if(node&&node.parentNode!==slot){
@@ -20467,10 +20491,12 @@ function _l341PlanPolish(){ try{
     if(ttl&&land){ const _sbF=document.getElementById('statsBar');
       if(_sbF&&_sbF.dataset&&_sbF.dataset.l384Fresh){ delete _sbF.dataset.l384Fresh;   // [L384 · audit final] purge SEULEMENT après un rendu frais de #statsBar — un polish sans re-rendu (outilsReveal…) ne mange plus les chips
         ttl.querySelectorAll('.title-chip').forEach(function(o){ o.remove(); }); }   // chaque recalc re-rend les chips : purger les anciennes déplacées
-      document.querySelectorAll('#statsBar .stat-chip').forEach(function(c){ const t=c.textContent||''; if(/référence|clients/.test(t)&&c.parentElement!==ttl){ c.classList.add('title-chip'); ttl.appendChild(c); } }); }
+      document.querySelectorAll('#statsBar .stat-chip').forEach(function(c){ const t=c.textContent||''; if(/référence|clients/.test(t)&&c.parentElement!==ttl){ c.classList.add('title-chip'); ttl.appendChild(c); } });
+      try{ const _psb=document.getElementById('planSaveBtn'); const _tiles=_sbF?_sbF.querySelectorAll('.stat-tile'):null; if(_psb&&_tiles&&_tiles.length&&_psb.parentElement!==_sbF){ (_tiles[1]||_tiles[0]).after(_psb); } }catch(e){} }   // [L385 · demande Esteban 21/08] 💾 SAUVEGARDER en GRAND, posé à côté de la tuile PERTE
     else if(ttl){ const sb=document.getElementById('statsBar');   // [L383 · audit fusion] rotation en portrait : les chips REVIENNENT dans #statsBar (layout historique) au lieu de rester collées au titre
       ttl.querySelectorAll('.title-chip').forEach(function(o){ o.classList.remove('title-chip');
-        if(sb&&!Array.from(sb.querySelectorAll('.stat-chip')).some(function(c){ return c.textContent===o.textContent; })) sb.appendChild(o); else o.remove(); }); }
+        if(sb&&!Array.from(sb.querySelectorAll('.stat-chip')).some(function(c){ return c.textContent===o.textContent; })) sb.appendChild(o); else o.remove(); });
+      try{ const _psb=document.getElementById('planSaveBtn'); if(_psb&&sb&&sb.contains(_psb)){ const _tl2=document.querySelector('#planResultSec>.section-title'); if(_tl2) _tl2.appendChild(_psb); } }catch(e){} }   // [L385] portrait : 💾 revient à sa place historique (masqué, tiroir OUTILS)
   }catch(e){}
   // 1) tuile utile
   const ud=document.getElementById('usefulDisplay');

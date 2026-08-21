@@ -945,7 +945,7 @@ has(/var _keep=!!\(window\._l363PkgTouched&&window\._l363PkgClient===clientName\
 has(/if\(t\.dataset\.l363edit!=='1'\) t\.readOnly=true;/,'L363 B11 : config en lecture seule tant que ✎ MODIFIER n est pas tapé (paysage)');
 has(/function initDefaultRows\(\)\{for\(let i=0;i<3;i\+\+\) addOrderRow\(\);\}/,'L363 B15 : 3 lignes vides par défaut (la suivante s ajoute seule)');
 has(/let delay=600;/,'L363 B15 : recalcul du plan léger à 600 ms');
-has(/#planSaveBtn\{display:inline-flex;min-height:40px;width:auto/,'L363 A17 (révisé L382) : 💾 Sauvegarder à 1 tap, en PETIT (gating rôle intact)');
+has(/#planSaveBtn\{display:inline-flex;min-height:64px;width:auto/,'L363 A17 (révisé L382 puis L385 — décision Esteban 21/08) : 💾 Sauvegarder à 1 tap, en GRAND à côté de la perte');
 has(/body\.calc-pending #planCards/,'L363 A20 : plan périmé signalé pendant le recalcul');
 
 console.log('── L364 : correctifs audit L359→L363 ──');
@@ -1138,5 +1138,13 @@ has(/purge SEULEMENT après un rendu frais/,'L384 : un polish sans re-rendu ne m
 has(/5e chemin de suppression/,'L384 : lanceur OUTILS purgé aussi à la fusion de blocs doublons');
 has(/un chrono en marche\/en pause compte aussi/,'L384 : confirm d entraînement si un chrono tourne sur écran vide');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L384 présents dans index.html + sw.js');
+console.log('── L385 : retours prod Esteban (21/08 matin) ──');
+has(/chargement INSTANTANÉ : plus de modale de confirmation/,'L385 : 📂 Charger = chargement direct (modale + Refaire supprimés, gardes doLoad intactes)');
+absent(/onclick="doRedo\(\)"/,'L385 : bouton « ⟳ Refaire (nouveau n°) » retiré de la modale');
+has(/l'en-tête suit la réf EN COURS même VALIDÉE/,'L385 : en-tête fiche = réf en cours toujours visible (recorrigeable), vidée quand tout est coupé');
+has(/💾 SAUVEGARDER en GRAND, posé à côté de la tuile PERTE/,'L385 : 💾 à côté de la tuile perte, en grand');
+has(/le sortir avant de réécrire innerHTML sinon il serait détruit/,'L385 : 💾 sauvé avant chaque réécriture de #statsBar (2 branches)');
+has(/#planCards \.card-config\{font-size:31px\}/,'L385 : compositions du plan en gros (31px)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L385 présents dans index.html + sw.js');
 process.exit(fail?1:0);
