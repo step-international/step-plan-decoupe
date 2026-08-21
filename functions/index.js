@@ -76,21 +76,34 @@ exports.assistReply = onDocumentWritten(
     // [L381 · fix audit n°1] le CONTEXTE est un tour user SÉPARÉ, toujours en tête : le fil peut
     // commencer par un tour assistant (historique long) et l'API exige un 1er tour user — la fusion
     // des rôles consécutifs absorbe le reste.
+    const ctxText =
+      "CONTEXTE SCANNÉ (état de l'app au moment du signalement) :\n" +
+      String(data.context || "(indisponible)").slice(0, 6000) +
+      "\n\nTYPE : " + (data.kind || "bug") +
+      "\nPOSTE : " + (data.poste || "?") + " · OPÉRATEUR : " + (data.ini || "?");
+    // [L388] captures d'écran (URLs Storage publiques à jeton) → Claude VOIT l'écran Plan / Fiche de l'opérateur.
+    const shotBlocks = [];
+    const shots = data.shots || {};
+    [["plan", "ÉCRAN PLAN"], ["fiche", "ÉCRAN FICHE DE DÉCOUPE"]].forEach(([k, lbl]) => {
+      const u = shots[k];
+      if (typeof u === "string" && /^https:\/\/firebasestorage\.googleapis\.com\//.test(u)) {
+        shotBlocks.push({ type: "text", text: lbl + " (capture au moment du signalement) :" });
+        shotBlocks.push({ type: "image", source: { type: "url", url: u } });
+      }
+    });
     const apiMessages = [
-      {
-        role: "user",
-        content:
-          "CONTEXTE SCANNÉ (état de l'app au moment du signalement) :\n" +
-          String(data.context || "(indisponible)").slice(0, 6000) +
-          "\n\nTYPE : " + (data.kind || "bug") +
-          "\nPOSTE : " + (data.poste || "?") + " · OPÉRATEUR : " + (data.ini || "?"),
-      },
+      { role: "user", content: shotBlocks.length ? [...shotBlocks, { type: "text", text: ctxText }] : ctxText },
     ];
+    // [L388] la fusion des rôles consécutifs gère AUSSI un content en tableau (le tour de tête avec images)
+    const appendTo = (m, text) => {
+      if (Array.isArray(m.content)) m.content.push({ type: "text", text });
+      else m.content += "\n" + text;
+    };
     msgs.forEach((m) => {
       const role = m.role === "assistant" ? "assistant" : "user";
       const text = String(m.text || "").slice(0, 2000);
       const last = apiMessages[apiMessages.length - 1];
-      if (last && last.role === role) last.content += "\n" + text;
+      if (last && last.role === role) appendTo(last, text);
       else apiMessages.push({ role, content: text });
     });
 

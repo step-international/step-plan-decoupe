@@ -1089,7 +1089,7 @@ has(/#shareWhoGridMirror\{max-height:240px;overflow-y:auto\}/,'L379 n°11 : gril
 
 console.log('── L380 : assistant IA de la bulle 💬 (demande Esteban 20/08) ──');
 has(/function _l380Snapshot\(\)/,'L380 : scan de contexte texte (page, plan, fiche, erreurs) au signalement');
-has(/function _l380AssistSend\(kind,txt\)/,'L380 : signalement → doc assist (fil IA) EN PLUS du mail');
+has(/_l380AssistSend\(_repKind,txt,shots\)/,'L380 (enrichi L388) : signalement → doc assist (fil IA) EN PLUS du mail, avec les écrans');
 has(/if\(typeof trainingGuard==='function'&&trainingGuard\(\)\) return;   \/\/ entraînement : rien n'est écrit/,'L380 : assistant inactif en mode entraînement');
 has(/db\.collection\('config'\)\.doc\('assistant'\)/,'L380 : interrupteur config/assistant (enabled) — mail-seul tant que non déployé');
 has(/id="assistOverlay"/,'L380 : panneau de fil assistant');
@@ -1165,5 +1165,14 @@ console.log('── L387 : audit ambre du bouton COUPÉE ──');
 { const n=(src.match(/\[L387 · audit ambre\]/g)||[]).length;
   console.log((n===3?'✅ ':'❌ ')+'L387 : ambre re-calculé aux 3 sorties d état (quitter miroir, partage terminé, resetAll) — '+n+'/3'); if(n!==3) fail++; }
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L387 présents dans index.html + sw.js');
+console.log('── L388 : captures d écran dans les signalements ──');
+has(/html2canvas 1\.4\.1 EMBARQUÉ/,'L388 : html2canvas embarqué (hors-ligne, zéro CDN)');
+has(/async function _l388CaptureShots/,'L388 : capture Plan + Fiche (JPEG, plafonnée, jamais bloquante)');
+has(/ecran-plan\.jpg/,'L388 : pièces jointes du mail (Trigger Email télécharge les URLs)');
+has(/Claude verra ce que voit l'opérateur/,'L388 : captures dans le doc assist');
+{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+  const okF=/type: "image", source: \{ type: "url"/.test(fx)&&/appendTo/.test(fx);
+  console.log((okF?'✅ ':'❌ ')+'L388 : fonction — images en vision + fusion des tours compatible tableau'); if(!okF) fail++; }
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L388 présents dans index.html + sw.js');
 process.exit(fail?1:0);
