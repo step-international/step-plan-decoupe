@@ -792,7 +792,7 @@ has(/function _l345ConfDirty/,'L345 : MODIFIER et ÉCARTS = un bouton ; config m
 has(/if\(!line\.classList\.contains\('coupee'\)&&typeof _l345ConfDirty==='function'&&_l345ConfDirty\(id\)\)\{/,'L345 : garde ✂ — pas de coupe tant que les écarts ne sont pas recalculés après modification (toast + halo) — L351 : jamais sur le dé-marquage');
 has(/data-conf0="\$\{esc\(\(data\.conf0!==undefined\?data\.conf0:data\.conf\)\|\|''\)\}"/,'L345 : config de référence posée à la création de la ligne (conf0 restauré prioritaire depuis L379)');
 has(/#changementsZone\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:8px\}/,'L345 : 🔧 Changements = 3 choix compacts, le détail s ouvre pour le choix coché seulement (paysage)');
-has(/chip\('Perte moy\.'/,'L345 : bandeau Données « chef » — bobines + perte moyenne de la semaine (données en cache, aucune requête)');
+has(/\[L390 · demande Esteban 21\/08\] bandeau-résumé SUPPRIMÉ/,'L345/L377 (retirés L390 — décision Esteban) : bandeau Données supprimé, 📥 Historique conservé');
 
 console.log('── L346 : audit Données (œil chef) — quick wins ──');
 has(/lameAlerts\(maintenanceCache,Date\.now\(\)\):\[\];/,'L346 : chip LAME lu à la source (lameAlerts) — le bandeau éphémère le rendait faux 99 % du temps');
@@ -1059,7 +1059,7 @@ console.log('── L377 : grande analyse — recommandations appliquées (go Es
 has(/\[L377 · grande analyse B3 \(reco appliquée « go » Esteban 20\/08\)\]/,'L377 B3 : verrou dur — bobine d une réf non validée incoupable (multi)');
 has(/⚠ PLAN MANUEL : ce retrait est DÉFINITIF/,'L377 B4 : confirm du ✕ en plan manuel dit que le retrait est définitif');
 has(/\[L369 → L377 · B5\] KPI « œil chef » = pilotage ET admin/,'L377 B5 : KPI chef ouverts au pilotage (canManageData)');
-has(/chip\('À valider',String\(F\.filter/,'L377 B5+ : chip « À valider n » dans le bandeau chef');
+absent(/chip\('À valider'/,'L377 B5+ (retiré L390) : plus de chips dans le bandeau');
 has(/\[L377 · grande analyse B8\] config ÉDITÉE non recalculée = travail terrain/,'L377 B8 : conf-dirty protège la fiche de l import auto');
 has(/function _l377NetWatch\(\)/,'L377 A9 : pastille HORS-LIGNE + flush repli + resync au retour réseau');
 has(/shareWhoGridMirror/,'L377 A10 : grille qui-coupe-quoi visible côté récepteur (vue miroir)');
@@ -1081,7 +1081,7 @@ has(/refIdKey:_refIdKey\(c\), refIdx:c\.idx,/,'L379 n°2 : refIdx posé à la g�
 has(/st\.fiche\.refValidated=\[\]; st\.fiche\.refOrder=\[\];/,'L379 n°3 : les mères du SOLDE se re-valident (index ré-alignés)');
 has(/if\(_blockCut\)\{   \/\/ \[L379 · n°4\] décision HORS du try/,'L379 n°4 : verrou fail-closed');
 has(/conf0:\(get\('flConf'\)\?\.dataset\.conf0!==undefined/,'L379 n°6 : baseline conf0 sérialisée (la protection B8 survit au brouillon)');
-has(/return f&&f\.valide==null; \}\).length\)/,'L379 n°7 : « À valider » = valide==null (les refusées ne gonflent plus la chip)');
+has(/valide==null/,'L379 n°7 : « À valider » = valide==null (compteurs restants : onglet Fiches)');
 has(/annulé L386 · demande Esteban : « met tout en jaune »/,'L379 n°14 (annulé L386 — décision Esteban) : carte en cours 100 % ambre');
 has(/\[L379 · fix audit n°12\] trace « prép\. X » d'une commande abandonnée/,'L379 n°12 : machinePrep purgé à doLoad');
 has(/\[L379 · n°12\] la reprise repart proprement/,'L379 n°12 : machinePrep purgé à la reprise de brouillon');
@@ -1180,10 +1180,19 @@ absent(/Revoir l'accueil<\/button>/,'L389 : bouton « ? Revoir l accueil » supp
 absent(/foot-accueil/,'L389 : boutons « ? Accueil » supprimés des tiroirs OUTILS');
 has(/✓ APPLIQUER LES CHANGEMENTS/,'L389 : le chip dit APPLIQUER (recalcul auto, ✂ redevient jaune)');
 has(/l exception badge-rouge retirée/,'L389 : plus de bouton ♻ écarts sur la carte en cours (bannière + APPLIQUER seuls)');
-has(/#sendPlanBtn\{font-size:16px!important;min-height:46px\}/,'L389 : COMMENCER À COUPER réduit ×2');
+has(/#sendPlanBtn\{font-size:15px!important;min-height:42px\}/,'L389-L390 : COMMENCER À COUPER réduit ×3');
 has(/idx0 = fiches SANS n°/,'L389 : hygiène auto étendue aux plans sans n° (décision Esteban)');
 has(/hygiène auto après l'envoi/,'L389 : hygiène déclenchée après chaque envoi');
 absent(/id="hygieneBtn"/,'L389 : bouton « 🧹 Nettoyer les plans déjà coupés » supprimé (devenu inutile)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L389 présents dans index.html + sw.js');
+console.log('── L390 : simplifications Esteban (21/08 soir) ──');
+{ const n=(src.match(/retiré L390 · décision Esteban|retiré L390 · décision Esteban 21\/08/g)||[]).length+(src.match(/\[retiré L390 · décision Esteban\]/g)||[]).length;
+  console.log(((n>=4)?'✅ ':'❌ ')+'L390 : 4 confirm conservateurs retirés (décision Esteban — les coupées sont conservées, geste déjà explicite) — '+n); if(n<4) fail++; }
+has(/après le gros bouton rouge, les configs À L'ÉCRAN deviennent la référence/,'L390 : gros bouton rouge → conf0 re-basé partout, chip APPLIQUER éteint');
+has(/✂ redevient AMBRE tout de suite : on peut couper-tester dans la foulée/,'L390 : ✂ re-ambre juste après le gros bouton rouge');
+has(/bandeau-résumé SUPPRIMÉ/,'L390 : bandeau Données supprimé');
+has(/pleine largeur \+ colonne plan élargie/,'L390 : plan pleine largeur, colonne 430px');
+has(/emballage compact/,'L390 : résumé emballage compact');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L390 présents dans index.html + sw.js');
 process.exit(fail?1:0);
