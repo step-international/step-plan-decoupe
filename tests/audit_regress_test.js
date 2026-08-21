@@ -750,14 +750,14 @@ has(/class="stat-chip sc-utile"/,'L341 : chip utile classée (masquée en paysag
 has(/\.cond-summary\{display:none\}/,'L341 : portrait STRICTEMENT inchangé (résumé emballage inexistant <1100px)');
 has(/try\{ _l341SetupPlan\(\); \}catch\(e\)\{\}/,'L341 : initialisation au boot + rotation (matchMedia) — reparentage réversible');
 absent(/#planLeft \.field>label\{[^}]*text-transform:uppercase/,'L341 : aucun uppercase global sur les labels du plan (unités (mm)/(m) préservées)');
-has(/#statsBar \.stat-tile\{flex:1 1 150px;min-width:0\}/,'L341 fix audit : tuiles du plan jamais écrasées par les chips (multi-réf / multi-clients)');
+has(/#statsBar \.stat-tile\{flex:1 1 0;min-width:0\}/,'L341 (recalibré L386) : tuiles du plan jamais écrasées, une seule rangée avec 💾');
 has(/#planCondSec\.cond-has-alert\{border-color:#59584f;background:#1a1a18\}/,'L341 fix audit design : carte emballage NEUTRE même avec alerte (§2.17-B : pas de 3e orange sur le Plan)');
 has(/const f=e\.target\.closest\('\.field'\); if\(!f\|\|!pl\.contains\(f\)\) return;/,'L341 fix audit : tap sur la carte de saisie (libellé/marge) → focus du champ (plus de bande morte)');
 
 console.log('── L342 : fidélité maquette 19 — données paysage (historique dans le bandeau, cartes une rangée) ──');
 has(/function _l342PlaceLoadFull/,'L342 : 📥 historique complet dans le bandeau résumé en paysage (nœud unique, retour dans l onglet Plans en portrait)');
 has(/if\(_blfIn\) el\.removeChild\(_blf\);/,'L342 : le bouton est SORTI du bandeau avant la réécriture innerHTML (sinon détruit — bug attrapé en test)');
-has(/#fichesList \.fiche-card:not\(\.fc-open\)\{display:flex;flex-direction:row/,'L342 : cartes de fiche en UNE RANGÉE en paysage (tap = carte complète .fc-open) — ids/handlers/boutons intacts');
+has(/\[L342 → retiré L386 · demande Esteban 21\/08\]/,'L342 (retiré L386 — décision Esteban) : cartes de fiche au format complet');
 has(/card\.classList\.toggle\('fc-open'\)/,'L342 : dépliage au tap sur la carte, jamais sur un contrôle');
 has(/try\{ _l342SetupDonnees\(\); \}catch\(e\)\{\}/,'L342 : initialisation au boot + rotation (matchMedia)');
 
@@ -945,7 +945,7 @@ has(/var _keep=!!\(window\._l363PkgTouched&&window\._l363PkgClient===clientName\
 has(/if\(t\.dataset\.l363edit!=='1'\) t\.readOnly=true;/,'L363 B11 : config en lecture seule tant que ✎ MODIFIER n est pas tapé (paysage)');
 has(/function initDefaultRows\(\)\{for\(let i=0;i<3;i\+\+\) addOrderRow\(\);\}/,'L363 B15 : 3 lignes vides par défaut (la suivante s ajoute seule)');
 has(/let delay=600;/,'L363 B15 : recalcul du plan léger à 600 ms');
-has(/#planSaveBtn\{display:inline-flex;min-height:64px;width:auto/,'L363 A17 (révisé L382 puis L385 — décision Esteban 21/08) : 💾 Sauvegarder à 1 tap, en GRAND à côté de la perte');
+has(/#planSaveBtn\{display:inline-flex;min-height:52px;width:auto/,'L363 A17 (révisé L385-L386) : 💾 Sauvegarder à 1 tap, à côté de la perte, une seule rangée');
 has(/body\.calc-pending #planCards/,'L363 A20 : plan périmé signalé pendant le recalcul');
 
 console.log('── L364 : correctifs audit L359→L363 ──');
@@ -1070,7 +1070,7 @@ has(/reportAuto\('permission-denied au chargement/,'L377 §2.23-B : reportAuto s
 has(/reportAuto\('échec purge brouillons/,'L377 §2.23-B : reportAuto sur échec de purge');
 
 console.log('── L378 : retouches design (grande analyse section 5) ──');
-has(/\.fiche-line\.fl-current\{border-color:#b8860b;border-left-color:var\(--mc,#b8860b\)\}/,'L378 : cadre « ici » jaune outline (ambre plein = geste seul ; bord machine conservé L379)');
+has(/\.fiche-line\.fl-current \[id\^="coupeeBtn_"\]\{min-height:92px!important/,'L378 (recalibré L386) : la carte en cours domine — ✂ COUPÉE 92px');
 has(/\[L378 · A7\] rouge réservé aux NC réelles/,'L378 A7 : compteur de bande neutre sans NC');
 has(/\.fiche-ref-sep \.frs-count,\.fiche-ref-sep \.frs-m\{font-size:13px\}/,'L378 : bande refonly ≥13px');
 has(/html\.theme-light \.stat-tile\.pct-orange b\{color:#ff9d4d\}/,'L378 : thème clair — perte % lisible');
@@ -1082,7 +1082,7 @@ has(/st\.fiche\.refValidated=\[\]; st\.fiche\.refOrder=\[\];/,'L379 n°3 : les m
 has(/if\(_blockCut\)\{   \/\/ \[L379 · n°4\] décision HORS du try/,'L379 n°4 : verrou fail-closed');
 has(/conf0:\(get\('flConf'\)\?\.dataset\.conf0!==undefined/,'L379 n°6 : baseline conf0 sérialisée (la protection B8 survit au brouillon)');
 has(/return f&&f\.valide==null; \}\).length\)/,'L379 n°7 : « À valider » = valide==null (les refusées ne gonflent plus la chip)');
-has(/\.fiche-line\.fl-current\{border-color:#b8860b;border-left-color:var\(--mc,#b8860b\)\}/,'L379 n°14 : repère machine conservé sur la carte en cours');
+has(/annulé L386 · demande Esteban : « met tout en jaune »/,'L379 n°14 (annulé L386 — décision Esteban) : carte en cours 100 % ambre');
 has(/\[L379 · fix audit n°12\] trace « prép\. X » d'une commande abandonnée/,'L379 n°12 : machinePrep purgé à doLoad');
 has(/\[L379 · n°12\] la reprise repart proprement/,'L379 n°12 : machinePrep purgé à la reprise de brouillon');
 has(/#shareWhoGridMirror\{max-height:240px;overflow-y:auto\}/,'L379 n°11 : grille miroir bornée');
@@ -1113,7 +1113,7 @@ has(/hors-ligne — la réponse arrivera au retour du réseau/,'L381 n°9 : atte
 console.log('── L382 : retours recette Esteban (21/08) ──');
 has(/les chips « n références » \/ « n clients » remontent/,'L382 : chip n références à côté du titre Plan de découpe (purge anti-accumulation)');
 has(/ttl\.querySelectorAll\('\.title-chip'\)\.forEach\(function\(o\)\{ o\.remove\(\); \}\);/,'L382 : purge des chips déplacées à chaque recalc');
-has(/#statsBar \.stat-tile b\{font-size:24px\}/,'L382 : tuiles compactes — le plan des bobines se voit plus haut');
+has(/#statsBar \.stat-tile b\{font-size:20px\}/,'L382 (recalibré L386) : tuiles compactes — le plan des bobines se voit plus haut');
 has(/\[L372 → retiré L382 · décision Esteban 21\/08\] la bande de passage de réf est MASQUÉE/,'L382 : bande refonly retirée (le rail suffit) — bandes rouges machine conservées');
 
 console.log('── L383 : correctifs de l audit de fusion (nuit du 21/08) ──');
@@ -1144,7 +1144,22 @@ absent(/onclick="doRedo\(\)"/,'L385 : bouton « ⟳ Refaire (nouveau n°) » ret
 has(/l'en-tête suit la réf EN COURS même VALIDÉE/,'L385 : en-tête fiche = réf en cours toujours visible (recorrigeable), vidée quand tout est coupé');
 has(/💾 SAUVEGARDER en GRAND, posé à côté de la tuile PERTE/,'L385 : 💾 à côté de la tuile perte, en grand');
 has(/le sortir avant de réécrire innerHTML sinon il serait détruit/,'L385 : 💾 sauvé avant chaque réécriture de #statsBar (2 branches)');
-has(/#planCards \.card-config\{font-size:31px\}/,'L385 : compositions du plan en gros (31px)');
+has(/#planCards \.card-config\{font-size:26px;line-height:1\.1\}/,'L385 (recalibré L386) : compositions lisibles ET serrées — plus de lignes visibles');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L385 présents dans index.html + sw.js');
+console.log('── L386 : gros lot de retours prod Esteban (21/08) ──');
+has(/\[L342 → retiré L386 · demande Esteban 21\/08\] cartes compactes une-rangée SUPPRIMÉES/,'L386 : fiches découpe — retour au format complet historique');
+has(/#welcomeHelpBtn\{display:none!important\}/,'L386 : « ? Revoir l accueil » retiré (accueil+apprenti+entraînement)');
+has(/accueil 3 cartes RETIRÉ \(avec ses entrées mode apprenti/,'L386 : maybeWelcome désarmé');
+has(/✕ pour supprimer \(puis 📷＋ juste à côté/,'L386 : ✕ de suppression sur les photos étiquettes');
+has(/blur = APPLIQUER : la config modifiée lance ELLE-MÊME le recalcul/,'L386 : appliquer une config modifiée relance le recalcul (1 seul geste)');
+has(/tap sur la barre de config = ✎ MODIFIER/,'L386 : tap direct sur la barre de config');
+has(/annulé L386 · demande Esteban : « met tout en jaune »/,'L386 : carte en cours 100 % ambre (plus de vert machine sur le bord)');
+has(/la bobine À COUPER domine l'écran/,'L386 : bobine en cours agrandie (config 30px, ✂ 92px)');
+has(/minmax\(0,…\) : une carte ne peut plus élargir la grille hors écran/,'L386 : brouillons — plus de glissement horizontal');
+has(/sans le client : il prenait 3 lignes/,'L386 : titre 📦 EMBALLAGE court');
+has(/titre discret à droite — toute la place au plan/,'L386 : titre Plan de découpe discret à droite');
+has(/COMMENCER À COUPER plus discret/,'L386 : COMMENCER À COUPER réduit en paysage');
+has(/le résumé ✓ \(machine·mère·bords \+ ✎ MODIFIER\) TOUJOURS visible/,'L386 : résumé validé + ✎ MODIFIER visibles dans l en-tête');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L386 présents dans index.html + sw.js');
 process.exit(fail?1:0);
