@@ -838,7 +838,7 @@ has(/if\(confirm\('Enregistrer la fiche définitivement et vider le plan \?'\)\)
 has(/window\._lastPertePct=null;/,'L351 : perte % du volet remise à zéro au reset (plus de valeur périmée)');
 has(/format papier L303 restauré/,'L351 : fiche papier printFiche — colonne Cumul au format L303 (« 502 mm : 5 / 9 »), régression L334 corrigée');
 has(/👥 Multi-clients — ＋ 2ᵉ client/,'L351 : 2ᵉ client en 2 taps depuis ⚙ OUTILS Plan');
-has(/#ficheLines:has\(\.fl-badge\.badge-red\) \.fl-current \.fiche-grid>\.field:has\(\.cumul-box\) button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:inline-flex!important\}/,'L351 : ♻ recalcul atteignable en 1 tap dès qu une bobine est NC (rebut)');
+has(/l exception badge-rouge retirée/,'L351 (révisé L389 — décision Esteban) : le recalcul après NC passe par la bannière rouge / ✓ APPLIQUER');
 
 console.log('── L352 : en-tête fiche compacte 2 colonnes (demande Esteban 19/08) ──');
 has(/#ficheHeadSec\.reveal\.l352-idok \.hdr-mini\{display:none\}/,'L352 : Client + Réf. produit masqués dans l en-tête dépliée en paysage (déjà dans les pastilles) — seulement s ils sont renseignés (fix audit)');
@@ -1158,7 +1158,7 @@ has(/la bobine À COUPER domine l'écran/,'L386 : bobine en cours agrandie (conf
 has(/minmax\(0,…\) : une carte ne peut plus élargir la grille hors écran/,'L386 : brouillons — plus de glissement horizontal');
 has(/sans le client : il prenait 3 lignes/,'L386 : titre 📦 EMBALLAGE court');
 has(/titre discret à droite — toute la place au plan/,'L386 : titre Plan de découpe discret à droite');
-has(/COMMENCER À COUPER plus discret/,'L386 : COMMENCER À COUPER réduit en paysage');
+has(/COMMENCER À COUPER discret/,'L386-L389 : COMMENCER À COUPER réduit en paysage');
 has(/le résumé ✓ \(machine·mère·bords \+ ✎ MODIFIER\) TOUJOURS visible/,'L386 : résumé validé + ✎ MODIFIER visibles dans l en-tête');
 
 console.log('── L387 : audit ambre du bouton COUPÉE ──');
@@ -1174,5 +1174,16 @@ has(/Claude verra ce que voit l'opérateur/,'L388 : captures dans le doc assist'
   const okF=/type: "image", source: \{ type: "url"/.test(fx)&&/appendTo/.test(fx);
   console.log((okF?'✅ ':'❌ ')+'L388 : fonction — images en vision + fusion des tours compatible tableau'); if(!okF) fail++; }
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L388 présents dans index.html + sw.js');
+console.log('── L389 : retours prod Esteban (21/08 après-midi) ──');
+has(/fiches sur 2 COLONNES comme les Plans/,'L389 : fiches découpe sur 2 colonnes, cartes compactées');
+absent(/Revoir l'accueil<\/button>/,'L389 : bouton « ? Revoir l accueil » supprimé du pied de page');
+absent(/foot-accueil/,'L389 : boutons « ? Accueil » supprimés des tiroirs OUTILS');
+has(/✓ APPLIQUER LES CHANGEMENTS/,'L389 : le chip dit APPLIQUER (recalcul auto, ✂ redevient jaune)');
+has(/l exception badge-rouge retirée/,'L389 : plus de bouton ♻ écarts sur la carte en cours (bannière + APPLIQUER seuls)');
+has(/#sendPlanBtn\{font-size:16px!important;min-height:46px\}/,'L389 : COMMENCER À COUPER réduit ×2');
+has(/idx0 = fiches SANS n°/,'L389 : hygiène auto étendue aux plans sans n° (décision Esteban)');
+has(/hygiène auto après l'envoi/,'L389 : hygiène déclenchée après chaque envoi');
+absent(/id="hygieneBtn"/,'L389 : bouton « 🧹 Nettoyer les plans déjà coupés » supprimé (devenu inutile)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L389 présents dans index.html + sw.js');
 process.exit(fail?1:0);
