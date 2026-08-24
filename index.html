@@ -3092,7 +3092,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.22-L393';
+const APP_VERSION='2026.08.22-L394';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9512,6 +9512,16 @@ function renderSaves(){
   // TOUT d'un coup — lent sur tablette dès que l'historique grossit.
   const totalSaves=saves.length;
   saves=saves.slice(0,savesRenderLimit);
+  // [L394 · demande Esteban 22/08] tri par LIVRAISON : la commande à couper en premier TOUT EN HAUT
+  // (date de livraison la plus proche — multi-clients : la plus proche des deux), puis chronologique ;
+  // sans date de livraison → en bas, plus récemment préparées d'abord.
+  try{ saves.sort(function(a,b){
+    const da=(typeof _plnDateLivMin==='function')?_plnDateLivMin(a):'', db2=(typeof _plnDateLivMin==='function')?_plnDateLivMin(b):'';
+    if(da&&db2&&da!==db2) return da<db2?-1:1;
+    if(da&&!db2) return -1;
+    if(!da&&db2) return 1;
+    return String(a.date||'')>String(b.date||'')?-1:1;
+  }); }catch(e){}
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});

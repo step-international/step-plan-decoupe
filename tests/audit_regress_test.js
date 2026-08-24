@@ -1213,5 +1213,8 @@ has(/_l393AutoApply/,'L393 : mère/bords/lame modifiés = application AUTO en so
 has(/la commande CORRIGÉE devient la référence des compteurs/,'L393 : CUMUL x\/y re-basé après tout recalcul (audit modif-commande n°1/2)');
 has(/le ✎ CORRIGER de l'en-tête \(fClient\) pilote aussi les chips du cumul/,'L393 : chips mandrin/cerclé suivent le client corrigé (audit n°4)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L393 présents dans index.html + sw.js');
+console.log('── L394 : plans triés par livraison ──');
+has(/tri par LIVRAISON : la commande à couper en premier TOUT EN HAUT/,'L394 : Données › Plans triés par date de livraison (urgent en haut, sans date en bas)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L394 présents dans index.html + sw.js');
 process.exit(fail?1:0);
