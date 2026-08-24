@@ -1258,5 +1258,12 @@ has(/saisie structurée \(qty\+laize\) prioritaire/,'L400 : ncLoss utilise la sa
 has(/le libellé disparaît en paysage \(place au plan\)/,'L400 : titre Plan de découpe retiré en paysage');
 has(/case inutile \(la réf est déjà dans le plan\)/,'L400 : modale sauvegarder sans champ référence');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L400 présents dans index.html + sw.js');
+console.log('── L401 : action auto réversible + défaut compact + multi-clients ──');
+has(/on note que c'est NOUS qui l'avons posé/,'L401 : le déchet AUTO se retire quand angle/casse sont décochés (bug Esteban) — le choix manuel est préservé');
+has(/DÉFAUT en petit — la place au ✂/,'L401 : bouton DÉFAUT compact en paysage');
+has(/m² de matière NC par mois/,'L401 : graphique mensuel déchets vs chutes au registre');
+has(/résolution tolérante : « AGOFORM ALLEMAGNE » matche/,'L401 : packaging multi-client trouvé même avec suffixe');
+has(/function _l402CliRecaps/,'L401 : « Sa commande » (bobineaux × laizes) sous chaque client');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L401 présents dans index.html + sw.js');
 process.exit(fail?1:0);

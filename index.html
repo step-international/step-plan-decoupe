@@ -372,6 +372,11 @@ body.atelier .fp-num{font-size:28px}
 .fl-more-body>.field:nth-of-type(2){border-top:1px dashed var(--border2);padding-top:10px;border-left:4px solid #b05553;padding-left:10px;border-radius:2px}/* [L399 · audit défaut] famille DÉFAUTS = rouge, séparée du contrôle */
 .fl-more-body>.field:nth-of-type(3){border-left:4px solid #b05553;padding-left:10px;border-radius:2px}
 label.nc-check.ras,label[id^="nc_qty_"]{display:none!important}/* [L400 · demande Esteban] R.A.S. inutile (défaut implicite) et « Qté » n'existe pas en réel — logique interne conservée */
+@media(min-width:1100px){
+.fiche-line.fl-current .fl-more:not([open])>summary{font-size:14px;min-height:56px;padding:8px 10px}/* [L401 · demande Esteban] DÉFAUT en petit — la place au ✂ */
+body.apprenti .fl-current .fl-more:not([open])>summary::after{font-size:11px}
+#ficheLines textarea[id^="nc_detail_"]{font-size:12.5px;min-height:34px}/* [L401] commentaire facultatif discret */
+}
 .test2-main{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .test2-main input[type=checkbox]{width:16px;height:16px;flex-shrink:0;accent-color:var(--green)}
 .test2-subs{display:flex;gap:6px}/* [L288 · T1] gap 8→6px */
@@ -3107,7 +3112,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L400';
+const APP_VERSION='2026.08.24-L401';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6629,7 +6634,10 @@ function cliEdit(id,field,value){
   c[field]=value;
   if(field==='nom'){
     // Pré-remplir le packaging du client depuis les règles connues (comme le client A).
-    try{ const p=(typeof PKG_CLIENTS!=='undefined'&&PKG_CLIENTS[value])||null;
+    try{ const p=(function(){ if(typeof PKG_CLIENTS==='undefined') return null; if(PKG_CLIENTS[value]) return PKG_CLIENTS[value];
+        const n=nrm(value||''); if(!n) return null; let best=null,bl=0;   /* [L401 · demande Esteban] résolution tolérante : « AGOFORM ALLEMAGNE » matche la règle « AGOFORM » */
+        Object.keys(PKG_CLIENTS).forEach(function(k){ const kn=nrm(k); if(kn&&kn.length>2&&(n.indexOf(kn)>=0||kn.indexOf(n)>=0)&&kn.length>bl){ best=PKG_CLIENTS[k]; bl=kn.length; } });
+        return best; })();
       if(p){ c.palette=p.palette||c.palette; c.typeCond=p.type||c.typeCond; c.etiquetage=p.etiquetage||c.etiquetage; c.cerclage=p.cerclage||c.cerclage; if(p.notes)c.notes=p.notes; renderCliPanel(); } }catch(e){}
     cliRefreshRows(); recalcPlan();
   }
@@ -17214,6 +17222,20 @@ function renderNc(){
       <div style="font-size:22px;font-weight:800;color:var(--red)">${String(Math.round(rows.reduce((a,r)=>a+((r.action==='Déchet')?(r.perteM2||0):0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² en DÉCHET (perdus)</div></div>
     <div class="u-tile">
       <div style="font-size:22px;font-weight:800;color:var(--orange)">${String(Math.round(rows.reduce((a,r)=>a+((r.action==='Chutes')?(r.perteM2||0):0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² en chutes (réutilisables)</div></div><!-- [L397→L400 · demande Esteban] déchet ≠ chute : le déchet est de la matière JETÉE -->
+    ${(function(){ try{
+      const now=new Date(); const buckets=[];
+      for(let k=5;k>=0;k--){ const d0=new Date(now.getFullYear(),now.getMonth()-k,1); buckets.push({key:d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0'),lbl:d0.toLocaleDateString('fr-FR',{month:'short'}),d:0,c:0}); }
+      rows.forEach(r=>{ const dt=new Date(r.date); if(isNaN(dt)) return; const key=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'); const b=buckets.find(x=>x.key===key); if(!b) return; if(r.action==='Déchet') b.d+=(r.perteM2||0); else if(r.action==='Chutes') b.c+=(r.perteM2||0); });
+      if(!buckets.some(b=>b.d>0||b.c>0)) return '';
+      const mx=Math.max(1,...buckets.map(b=>Math.max(b.d,b.c)));
+      let sv='';
+      buckets.forEach((b,i)=>{ const x=20+i*92; const hd=Math.round(b.d/mx*68), hc=Math.round(b.c/mx*68);
+        sv+='<rect x="'+x+'" y="'+(80-hd)+'" width="28" height="'+(hd||1)+'" rx="3" fill="#c0504d"/><rect x="'+(x+34)+'" y="'+(80-hc)+'" width="28" height="'+(hc||1)+'" rx="3" fill="#e8a33d"/>';
+        sv+='<text x="'+(x+31)+'" y="97" text-anchor="middle" font-size="11" fill="#8b8f94">'+b.lbl+'</text>';
+        if(b.d>0) sv+='<text x="'+(x+14)+'" y="'+(76-hd)+'" text-anchor="middle" font-size="10" fill="#e8908d">'+(Math.round(b.d*10)/10)+'</text>';
+        if(b.c>0) sv+='<text x="'+(x+48)+'" y="'+(76-hc)+'" text-anchor="middle" font-size="10" fill="#f0c27d">'+(Math.round(b.c*10)/10)+'</text>'; });
+      return '<div class="u-tile" style="flex:1 1 100%;min-width:280px"><div class="u-meta" style="margin-bottom:6px">m² de matière NC par mois — <span style="color:#e8908d">■ DÉCHET (perdu)</span> · <span style="color:#f0c27d">■ chutes (réutilisables)</span></div><svg viewBox="0 0 580 104" style="width:100%;max-width:640px;height:auto" role="img" aria-label="m² déchets et chutes par mois">'+sv+'</svg></div>';
+    }catch(e){ return ''; } })()}
   </div>`;
 
   list.innerHTML=rows.map(r=>{
@@ -20057,17 +20079,20 @@ function _ncActionCue(id){
   // largeur seule → choix ✂ Chutes / 🗑 Déchet ; aucune NC → zone Action masquée.
   const fieldEl=lbl.parentElement;
   const g=k=>{ const el=document.getElementById('nc_'+k+'_'+id); return !!(el&&el.querySelector('input')&&el.querySelector('input').checked); };
+  const c=document.getElementById('act_chutes_'+id), d=document.getElementById('act_dechet_'+id);
   const ang=g('ang'), casse=g('casse'), larg=g('larg'), qty=g('qty');
   const hasNC=ang||casse||larg||qty;
-  const c=document.getElementById('act_chutes_'+id), d=document.getElementById('act_dechet_'+id);
   if(fieldEl) fieldEl.style.display=hasNC?'':'none';
-  if(!hasNC) return;
+  if(!hasNC){ if(d&&d.dataset.l401auto==='1'&&d.classList.contains('btn-red')){ try{ toggleAction(id,'dechet'); }catch(e){} delete d.dataset.l401auto; } return; }
   if(ang||casse){
-    if(d&&!d.classList.contains('btn-red')){ try{ toggleAction(id,'dechet'); }catch(e){} }
+    if(d&&!d.classList.contains('btn-red')){ try{ toggleAction(id,'dechet'); }catch(e){} if(d) d.dataset.l401auto='1'; }   /* [L401] on note que c'est NOUS qui l'avons posé */
     if(c) c.style.display='none'; if(d) d.style.display='';
     lbl.style.color=''; lbl.textContent='Action : 🗑 Déchet (automatique — angle / casse)';
     return;
   }
+  // [L401 · bug Esteban] angle/casse décochés : le déchet posé AUTOMATIQUEMENT se retire — l'opérateur
+  // choisit lui-même (largeur) ou la bobine redevient normale (plus rien de coché → cumuls de retour).
+  if(d&&d.dataset.l401auto==='1'&&d.classList.contains('btn-red')){ try{ toggleAction(id,'dechet'); }catch(e){} delete d.dataset.l401auto; }
   if(c) c.style.display=''; if(d) d.style.display='';
   const hasAct=(c&&c.classList.contains('btn-orange'))||(d&&d.classList.contains('btn-red'))||(document.getElementById('act_accept_'+id)?.classList.contains('btn-green'));
   const need=!hasAct;
@@ -20713,6 +20738,28 @@ function _l340SyncOrderStates(){ try{
 //  · 📦 emballage replié en carte-résumé (« EMBALLAGE EPCO — AUTO ✓ · palette · type · … »), tap = détail ;
 //  · multi-clients replié (⚙ OUTILS → 👥 le déplie), visible dès qu'un 2e client existe.
 // ============================================================
+// [L401 · demande Esteban] sous chaque client du multi-clients : SA commande (bobineaux × laizes attribués)
+function _l402CliRecaps(){ try{
+  if(typeof cliMulti!=='function'||!cliMulti()) return;
+  const agg={};
+  document.querySelectorAll('.order-row').forEach(function(r){
+    const q=parseNum(r.querySelector('[data-type=qty]')?.value)||0;
+    const w=parseNum(r.querySelector('[data-type=width]')?.value)||0;
+    const cid=(r.querySelector('[data-type=cli]')?.value)||'A';
+    if(q>0&&w>0){ (agg[cid]=agg[cid]||{}); agg[cid][w]=(agg[cid][w]||0)+q; }
+  });
+  const mk=function(cid){ const m2=agg[cid]; if(!m2) return '<span style="color:var(--muted)">aucune laize attribuée (colonne « client » des lignes)</span>';
+    const parts=Object.keys(m2).sort(function(a,b){ return b-a; }).map(function(w){ return m2[w]+'×'+fmt(Number(w)); });
+    const tot=Object.keys(m2).reduce(function(a,w){ return a+m2[w]; },0);
+    return '<b>'+tot+' bobineau'+(tot>1?'x':'')+'</b> · '+parts.join(' + '); };
+  document.querySelectorAll('#cliPanel select[aria-label^="Client "]').forEach(function(sel){
+    const cid=(sel.getAttribute('aria-label')||'').replace('Client ','').trim(); if(!cid) return;
+    const blk=sel.closest('div[style*="border:1.5px"]'); if(!blk) return;
+    let rc=blk.querySelector('.cli-recap');
+    if(!rc){ rc=document.createElement('div'); rc.className='cli-recap'; rc.style.cssText='margin-top:6px;font-size:13px;color:var(--text2)'; blk.appendChild(rc); }
+    rc.innerHTML='📦 Sa commande : '+mk(cid);
+  });
+}catch(e){} }
 function _l341PlanPolish(){ try{
   const land=_isLandscapeFiche();
   // [L382 · demande Esteban 21/08] gagner de la place : les chips « n références » / « n clients » remontent
@@ -20747,6 +20794,7 @@ function _l341PlanPolish(){ try{
   }
   // 3) résumé emballage
   _l341RenderCondSummary();
+  try{ _l402CliRecaps(); }catch(e){}   /* [L401] récap par client */
   // 4) [L345 · demande Esteban] code couleur machine sur la carte MACHINE du plan (FEBA bleu · MAVEG vert · CEVENINI violet)
   try{ document.querySelectorAll('#planLeft [data-rb="machine"]').forEach(function(sel){ const f=sel.closest('.field'); if(f) f.dataset.mach=sel.value||''; }); }catch(e){}
 }catch(e){} }
