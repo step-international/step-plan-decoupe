@@ -1281,5 +1281,10 @@ console.log('── L405 : pré-vol sans pop-up ──');
 has(/le confirm natif « BOBINEAUX ou CHUTES \? » disparaît/,'L405 : pop-up natif du démarrage retiré (le bandeau pré-vol porte le rappel)');
 has(/pré-vol court et impactant/,'L405 : bandeau raccourci');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L405 présents dans index.html + sw.js');
+console.log('── L407 : multi-clients v2 — étape a (saisie par bloc) ──');
+has(/MULTI-CLIENTS V2 étape a/,'L407 : chaque bloc client porte SES LAIZES éditables (source de vérité = order-rows, moteur intact)');
+has(/la colonne client des lignes est pilotée par les BLOCS/,'L407 : colonne client cachée');
+has(/function _l407Add/,'L407 : ajouter/modifier/supprimer une laize depuis le bloc');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

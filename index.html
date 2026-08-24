@@ -954,6 +954,7 @@ body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
 #page1.active{display:flex;flex-direction:column}
 #ficheRail,#ficheMain{display:contents}
 #welcomeHelpBtn{display:none!important}   /* [L386 · demande Esteban 21/08] « ? Revoir l'accueil » retiré (accueil + apprenti + entraînement jugés inutiles) */
+.order-row [data-type="cli"]{display:none!important}/* [L407 · multi-clients v2 · étape a] la colonne client des lignes est pilotée par les BLOCS clients — plus de saisie directe */
 #chutesRappelBanner{order:1}#ficheChronoSec{order:2}#fMachineMono{order:3}#fMachineMulti{order:4}
 #ficheHeadSec{order:5}#shareBlock{order:6}#ficheChgSec{order:7}#ficheRight{order:8}
 #etiquetteSoldeFiche{order:9}#cliRecapFiche{order:10}#actionBar{order:12}
@@ -3123,7 +3124,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L406';
+const APP_VERSION='2026.08.24-L407';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -20750,26 +20751,48 @@ function _l340SyncOrderStates(){ try{
 //  · 📦 emballage replié en carte-résumé (« EMBALLAGE EPCO — AUTO ✓ · palette · type · … »), tap = détail ;
 //  · multi-clients replié (⚙ OUTILS → 👥 le déplie), visible dès qu'un 2e client existe.
 // ============================================================
-// [L401 · demande Esteban] sous chaque client du multi-clients : SA commande (bobineaux × laizes attribués)
+// [L401 → L407 · MULTI-CLIENTS V2 étape a] chaque bloc client porte SES LAIZES, ÉDITABLES (qty × laize,
+// comme le plan). Source de vérité = les order-rows (colonne cli cachée) → le MOTEUR et toute la chaîne
+// (recalc, attribution FIFO, fiches, impression) sont inchangés.
+function _l407Rows(cid){ const out=[]; document.querySelectorAll('.order-row').forEach(function(r){ const c=(r.querySelector('[data-type="cli"]')?.value)||'A'; if(c===cid) out.push(r); }); return out; }
+function _l407Add(cid){ try{
+  const cont=document.querySelector('.ref-block .rb-rows'); if(!cont) return;
+  const r=makeOrderRow('','','',false,'',cid); cont.appendChild(r);
+  try{ if(typeof cliRefreshRows==='function') cliRefreshRows(); }catch(e){}
+  const inp=r.querySelector('[data-type="cli"]'); if(inp) inp.value=cid;
+  _l402CliRecaps(); try{ debouncedRecalcPlan(); }catch(e){}
+}catch(e){} }
+function _l407Edit(cid,k,field,value){ try{
+  const r=_l407Rows(cid)[k]; if(!r) return;
+  const inp=r.querySelector('[data-type="'+field+'"]'); if(!inp) return;
+  inp.value=value; try{ debouncedRecalcPlan(); }catch(e){}
+}catch(e){} }
+function _l407Del(cid,k){ try{
+  const r=_l407Rows(cid)[k]; if(!r) return; r.remove();
+  _l402CliRecaps(); try{ debouncedRecalcPlan(); }catch(e){}
+}catch(e){} }
 function _l402CliRecaps(){ try{
   if(typeof cliMulti!=='function'||!cliMulti()) return;
-  const agg={};
-  document.querySelectorAll('.order-row').forEach(function(r){
-    const q=parseNum(r.querySelector('[data-type=qty]')?.value)||0;
-    const w=parseNum(r.querySelector('[data-type=width]')?.value)||0;
-    const cid=(r.querySelector('[data-type=cli]')?.value)||'A';
-    if(q>0&&w>0){ (agg[cid]=agg[cid]||{}); agg[cid][w]=(agg[cid][w]||0)+q; }
-  });
-  const mk=function(cid){ const m2=agg[cid]; if(!m2) return '<span style="color:var(--muted)">aucune laize attribuée (colonne « client » des lignes)</span>';
-    const parts=Object.keys(m2).sort(function(a,b){ return b-a; }).map(function(w){ return m2[w]+'×'+fmt(Number(w)); });
-    const tot=Object.keys(m2).reduce(function(a,w){ return a+m2[w]; },0);
-    return '<b>'+tot+' bobineau'+(tot>1?'x':'')+'</b> · '+parts.join(' + '); };
   document.querySelectorAll('#cliPanel select[aria-label^="Client "]').forEach(function(sel){
     const cid=(sel.getAttribute('aria-label')||'').replace('Client ','').trim(); if(!cid) return;
     const blk=sel.closest('div[style*="border:1.5px"]'); if(!blk) return;
     let rc=blk.querySelector('.cli-recap');
-    if(!rc){ rc=document.createElement('div'); rc.className='cli-recap'; rc.style.cssText='margin-top:6px;font-size:13px;color:var(--text2)'; blk.appendChild(rc); }
-    rc.innerHTML='📦 Sa commande : '+mk(cid);
+    if(!rc){ rc=document.createElement('div'); rc.className='cli-recap'; rc.style.cssText='margin-top:8px'; blk.appendChild(rc); }
+    if(rc.contains(document.activeElement)) return;   // saisie en cours : ne pas re-rendre sous le doigt
+    const rows=_l407Rows(cid);
+    let h='<div style="font-size:13px;font-weight:800;letter-spacing:.04em;color:var(--text3);margin-bottom:4px">📦 SES LAIZES</div>';
+    rows.forEach(function(r,k){
+      const q=(r.querySelector('[data-type="qty"]')?.value)||'', w=(r.querySelector('[data-type="width"]')?.value)||'';
+      h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:5px">'
+        +'<input type="text" inputmode="numeric" placeholder="Qté" value="'+esc(q)+'" oninput="_l407Edit(\''+cid+'\','+k+',\'qty\',this.value)" style="width:80px;min-height:44px;font-size:16px;text-align:center">'
+        +'<span style="font-weight:800;color:var(--muted)">×</span>'
+        +'<input type="text" inputmode="decimal" placeholder="Laize mm" value="'+esc(w)+'" oninput="_l407Edit(\''+cid+'\','+k+',\'width\',this.value)" style="flex:1;max-width:150px;min-height:44px;font-size:16px;text-align:center">'
+        +'<button class="btn btn-red btn-sm" style="min-height:40px" onclick="_l407Del(\''+cid+'\','+k+')" aria-label="Retirer cette laize">✕</button></div>';
+    });
+    const tot=rows.reduce(function(a,r){ return a+(parseNum(r.querySelector('[data-type="qty"]')?.value)||0); },0);
+    h+='<div style="display:flex;align-items:center;gap:10px"><button class="btn btn-ghost btn-sm" style="min-height:42px" onclick="_l407Add(\''+cid+'\')">＋ Ajouter une laize</button>'
+      +(tot>0?'<span style="font-size:13px;color:var(--text2)"><b>'+tot+'</b> bobineau'+(tot>1?'x':'')+'</span>':'')+'</div>';
+    rc.innerHTML=h;
   });
 }catch(e){} }
 function _l341PlanPolish(){ try{
