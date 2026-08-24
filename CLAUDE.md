@@ -27,6 +27,18 @@
 7. **Vérifier la prod** : `curl -s "https://step-international.github.io/step-plan-decoupe/?nc=$RANDOM" | grep -o "APP_VERSION='[^']*'"` doit montrer la nouvelle version (parfois 1-2 min).
 
 ## Où sont les choses
+
+### ⚠ Publication GitHub Pages = LISTE BLANCHE (depuis le 24/08/2026)
+Le site public ne contient QUE ce que le workflow `.github/workflows/static.yml` copie dans `_site`
+(étape « Assembler le site public », ligne `cp index.html manifest.json sw.js _site/`). Tout le reste
+du dépôt répond **404 en production, sans message d'erreur**. Si tu ajoutes un fichier dont l'application
+a besoin au runtime (icône, police, asset), tu DOIS l'ajouter à cette ligne `cp`, sinon il ne sera
+jamais servi. (Note : `icon-192.png` est référencé par index.html mais absent du dépôt — 404 connu.)
+
+### Deux machines poussent sur `main`
+Un clone Windows existe (`K:\STEP INTERNATIONAL\ESTEBAN Alternance 2025 2026\claude\claude index\`).
+Si un push est rejeté (« fetch first » / non fast-forward) : `git pull --rebase` puis re-pousser —
+les fichiers des deux machines ne se recouvrent pas.
 - **Catalogue clients** : `CLIENT_DATA` dans `index.html`. **Règles d'emballage par client** : `PKG_CLIENTS`. Pour ajouter un client/une référence : copier la structure d'une entrée existante similaire.
 - **Assistant IA de la bulle 💬** : `functions/index.js` (Cloud Function `assistReply`). **Règles Firestore** : `firestore.rules` (publication en console = Esteban uniquement).
 - **Tests et outils** : dossier `tests/` (batterie, simulateur `sim200.mjs`, captures `shot.mjs` — serveur local `python3 -m http.server 8000` requis pour shot).
