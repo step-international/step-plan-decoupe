@@ -1048,7 +1048,7 @@ has(/return \[\.\.\.cumEl\.children\]\.map\(function\(n\)\{ return n\.classList\
 has(/line\.classList\.toggle\('t2-todo',\(!!_t2nc\|\|ncMode\)&&!test2Resolved\(id\)\);/,'L376 A4 : indice test 2ᵉ aussi sur bobine NC');
 has(/tape le bouton ROUGE de la bannière en haut/,'L376 A5 : garde ✂ sous plan-drift pointe le gros bouton');
 has(/#page0 \.btn\.plan-outils-top/,'L376 2.3 : lanceur OUTILS réellement teinté (spécificité)');
-has(/pré-vol court et impactant/,'L376 2.10 (retiré L405) : plus de question bloquante à reposer');
+has(/Bobineaux \/ chutes en stock \?\?/,'L376 2.10 (retiré L405, pop L408) : le rappel stock existe sans confirm natif bloquant');
 has(/if\(first\) document\.body\.classList\.add\('show-ref-bands'\);/,'L376 2.11 : recorriger sans réf validée = no-op propre');
 has(/function _l376PostMachineSwap\(withFiche\)/,'L376 1.4/1.5/2.1 : swap machine du poste unifié (bords/lame personnalisés conservés)');
 has(/signatures autosave posées sur l'état FINAL chargé \(swap compris\)/,'L376 1.4 : signatures autosave APRÈS le swap (protection L291 rétablie)');
@@ -1272,19 +1272,27 @@ has(/panneau NC COMPACT : on voit encore l'écran derrière/,'L402 : panneau NC 
 has(/\(perdus\)<\/div><\/div>/,'L402 : tuiles déchet/chutes avec pourcentage');
 
 console.log('── L403 : pré-vol chrono, série retirée, recharger direct ──');
-has(/✂ Stock d'abord/,'L403-L405 : bandeau pré-vol court (stock + mère) avant le 1er lancement');
+has(/le pré-vol est devenu un POP au tap ▶/,'L403→L408 : le rappel pré-vol existe toujours (devenu pop au tap du chrono, décision Esteban L408)');
 has(/gamification retirée de l'écran/,'L403 : badge SÉRIE retiré');
 has(/Départ affûtage/,'L403 : libellé « Départ affûtage »');
 has(/Recharger s'applique DIRECT/,'L403 : mise à jour sans confirm');
 
 console.log('── L405 : pré-vol sans pop-up ──');
 has(/le confirm natif « BOBINEAUX ou CHUTES \? » disparaît/,'L405 : pop-up natif du démarrage retiré (le bandeau pré-vol porte le rappel)');
-has(/pré-vol court et impactant/,'L405 : bandeau raccourci');
+has(/Bobine mère validée \?\?/,'L405→L408 : rappel court et impactant (2 questions, gros texte)');
 
 console.log('── L407 : multi-clients v2 — étape a (saisie par bloc) ──');
 has(/MULTI-CLIENTS V2 étape a/,'L407 : chaque bloc client porte SES LAIZES éditables (source de vérité = order-rows, moteur intact)');
 has(/la colonne client des lignes est pilotée par les BLOCS/,'L407 : colonne client cachée');
 has(/function _l407Add/,'L407 : ajouter/modifier/supprimer une laize depuis le bloc');
+
+console.log('── L408 : panneau DEFAUT harmonise + multi-lots NC + pre-vol en pop ──');
+has(/UNE seule famille visuelle : mêmes hauteurs partout/,'L408 : cases Dévidage/Droit/Test NC plus disproportionnées (46-54px comme les puces NC)');
+has(/function _l408AddNcLot/,'L408 : bouton ＋ = plusieurs lots Qté×Laize NC dans une même bobine');
+has(/ncLots:\(typeof _l408NcLots/,'L408 : lots NC sérialisés avec la fiche');
+has(/multi-lots prioritaire/,'L408 : ncLoss additionne tous les lots (mm + m²)');
+has(/function _l408PrevolPop/,'L408 : pop pré-vol GROS texte au tap ▶ (Bobineaux/chutes en stock ?? · Bobine mère validée ??), 1×/commande');
+has(/onclick="_l408PrevolPop\(\)">▶ Démarrer/,'L408 : le bouton ▶ passe par le pop (le démarrage auto au 1er ✂ reste direct)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

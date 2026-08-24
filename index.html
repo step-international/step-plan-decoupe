@@ -377,7 +377,9 @@ label.nc-check.ras,label[id^="nc_qty_"]{display:none!important}/* [L400 · deman
 body.apprenti .fl-current .fl-more:not([open])>summary::after{font-size:11px}
 #ficheLines textarea[id^="nc_detail_"]{font-size:13px;min-height:30px;height:32px}/* [L401→L406] commentaire = une ligne (agrandissable au doigt) */
 .fl-more[open] .fl-more-body>.field{margin-bottom:6px}/* [L402 · demande Esteban] panneau NC COMPACT : on voit encore l'écran derrière */
-.fl-more-body .nc-checks .nc-check,.fl-more-body .test2-subs .test2-sub,.fl-more-body .test2-nc{min-height:40px;font-size:15.5px;font-weight:700;padding:4px 12px}/* [L406] cases plus petites, TEXTES plus gros */
+.fl-more-body .nc-checks .nc-check,.fl-more-body .test2-subs .test2-sub,.fl-more-body .test2-nc{flex:0 1 auto!important;min-height:46px;max-height:54px;font-size:15.5px;font-weight:700;padding:6px 18px;display:inline-flex;align-items:center}/* [L406→L408] UNE seule famille visuelle : mêmes hauteurs partout, plus d'étirement monstrueux de Dévidage/Droit */
+.fl-more-body .test2-subs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fl-more-body .test2-block{padding:6px 8px}
 #ficheLines input[id^="nc_qty_val_"],#ficheLines input[id^="nc_w_val_"]{min-height:40px;font-size:15px;padding:5px 10px}
 .fl-more-body .field label{font-size:13px;margin-bottom:3px}
 .nc-quick .nc-q{font-size:12px;min-height:34px;padding:4px 8px}
@@ -2369,14 +2371,11 @@ html.theme-light .fp-num small{color:#8a8a84}
     <div class="chrono-block">
       <div class="chrono-display" id="chronoDisplay">00:00:00</div>
       <div class="chrono-btns">
-        <button class="btn btn-green" id="chronoStartBtn" onclick="chronoStart()">▶ Démarrer</button><!-- [L301 · audit boutons] btn-sm retiré : ▶ est le verrou qui débloque toute la découpe (le ✂ est refusé chrono arrêté) → cible gant pleine (62px atelier) -->
+        <button class="btn btn-green" id="chronoStartBtn" onclick="_l408PrevolPop()">▶ Démarrer</button><!-- [L408] pop pré-vol au tap (1×/commande) puis chronoStart --><!-- [L301 · audit boutons] btn-sm retiré : ▶ est le verrou qui débloque toute la découpe (le ✂ est refusé chrono arrêté) → cible gant pleine (62px atelier) -->
         <button class="btn btn-orange hidden" id="chronoPauseBtn" onclick="chronoPause()">⏸ Pause</button>
         <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="chronoReset()">↺ Reset</button>
       </div>
-      <div id="chronoPrevol" style="display:none;margin-top:8px;padding:9px 12px;border:1px solid #b8860b;border-left:4px solid #b8860b;border-radius:10px;background:linear-gradient(#2a2105,#241d05);font-size:13.5px;line-height:1.6"><!-- [L403→L405 · demande Esteban] pré-vol court et impactant -->
-        <div style="font-weight:800;color:#ffd45e">✂ Stock d'abord <span style="font-weight:600;color:var(--text2)">— bobineaux &amp; chutes (Plan)</span></div>
-        <div style="font-weight:800;color:#ffd45e">🔄 Mère validée <span style="font-weight:600;color:var(--text2)">— vérifie la taille</span></div>
-      </div>
+      <!-- [L403 → L408] le pré-vol est devenu un POP au tap ▶ (_l408PrevolPop) -->
       <div class="chrono-status" id="chronoStatus"></div><!-- [L188] prompt « Prêt — appuie sur Démarrer… » retiré (demande Esteban : texte inutile) -->
     </div>
   </div>
@@ -3124,7 +3123,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L407';
+const APP_VERSION='2026.08.24-L408';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9940,6 +9939,26 @@ function maybeShowChutesRappel(){
   }catch(e){ return true; }
 }
 function dismissChutesRappel(){ try{ const b=document.getElementById('chutesRappelBanner'); if(b) b.style.display='none'; }catch(e){} }
+// [L408 · demande Esteban] le pré-vol POP au tap ▶ : GROS texte, 1×/commande (même mémoire que l'ancien
+// rappel), « Voir le plan » ouvre le plan sans lancer ; le démarrage AUTO par le 1er ✂ n'est pas bloqué.
+function _l408PrevolPop(){ try{
+  if(chronoRunning){ chronoStart(); return; }
+  try{ const k=_chutesRappelKey(); const seen=JSON.parse(localStorage.getItem('step_chutes_rappel_v2')||'[]'); if(Array.isArray(seen)&&seen.includes(k)){ chronoStart(); return; } }catch(e){}
+  let ov=document.getElementById('prevolPop');
+  if(ov){ ov.classList.add('open'); return; }
+  ov=document.createElement('div'); ov.id='prevolPop'; ov.className='modal-overlay open';
+  ov.innerHTML='<div class="modal" role="dialog" aria-modal="true" style="max-width:440px;text-align:center">'
+    +'<div style="font-size:22px;font-weight:800;line-height:1.6;margin:8px 0 16px">✂ Bobineaux / chutes en stock ??<br>🔄 Bobine mère validée ??</div>'
+    +'<div class="modal-btns" style="justify-content:center;gap:10px">'
+    +'<button class="btn btn-ghost" style="min-height:54px" onclick="document.getElementById(\'prevolPop\').remove();showPage(0)">✂ Voir le plan</button>'
+    +'<button class="btn btn-green" style="min-height:54px;font-weight:800" onclick="_l408PrevolGo()">✓ C\'est bon — je lance</button></div></div>';
+  document.body.appendChild(ov);
+}catch(e){ try{ chronoStart(); }catch(_){} } }
+function _l408PrevolGo(){ try{
+  const ov=document.getElementById('prevolPop'); if(ov) ov.remove();
+  try{ const k=_chutesRappelKey(); const seen=JSON.parse(localStorage.getItem('step_chutes_rappel_v2')||'[]'); const a=Array.isArray(seen)?seen:[]; a.push(k); localStorage.setItem('step_chutes_rappel_v2',JSON.stringify(a.slice(-8))); }catch(e){}
+  chronoStart();
+}catch(e){} }
 function chronoStart(){
   if(chronoRunning) return;
   const miss=ficheParamMissing();
@@ -11814,6 +11833,7 @@ function getFicheLinesData(){
       ncRas:ncInput('ras'),ncLarg:ncInput('larg'),ncQty:ncInput('qty'),ncCasse:ncInput('casse'),ncAng:ncInput('ang'),
       ncDetail:get('nc_detail')?.value||'',
       ncQtyVal:parseNum(get('nc_qty_val')?.value)||0,ncWidthVal:parseNum(get('nc_w_val')?.value)||0,   /* [L400] NC chiffrée */
+      ncLots:(typeof _l408NcLots==='function')?_l408NcLots(id):[],   /* [L408] tous les lots (1re ligne comprise) */
       photo:ficholinePhotos[id]||'',
       actDechet:document.getElementById('act_dechet_'+id)?.classList.contains('btn-red')||false,
       actChutes:document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')||false,
@@ -17026,6 +17046,12 @@ const NC_LABELS={larg:'Largeur',qty:'Quantité',casse:'Casse',ang:'Angle'};
 function ncLoss(f,fd){ try{
   if(!fd||fd.actAccept) return {mm:0,m2:0};
   const det=String(fd.ncDetail||'');
+  if(Array.isArray(fd.ncLots)&&fd.ncLots.length){   /* [L408] multi-lots prioritaire */
+    let lg8=0; try{ if(Array.isArray(f.refGroups)&&f.refGroups.length){ const g8=f.refGroups.find(x=>(x.ref||'')===(fd.ref||''))||f.refGroups[0]; lg8=parseNum(g8&&g8.longueur)||0; } }catch(e){}
+    if(!(lg8>0)) lg8=parseNum(f&&f.longueur)||0;
+    let mm8=0,m28=0; fd.ncLots.forEach(function(L8){ const q=parseNum(L8.q)||0,w2=parseNum(L8.w)||0; if(q>0&&w2>0){ mm8+=q*w2; m28+=q*(w2/1000)*lg8; } });
+    if(mm8>0) return {mm:Math.round(mm8),m2:Math.round(m28*10)/10};
+  }
   const _q0=parseNum(fd.ncQtyVal)||0, _w0=parseNum(fd.ncWidthVal)||0;   /* [L400] saisie structurée (qty+laize) prioritaire */
   let mm=0,m2=0,m=null;
   const re=/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)/g;
@@ -19333,7 +19359,9 @@ function addFicheLine(data){
           <span style="font-weight:800;color:var(--muted);font-size:16px">×</span>
           <input type="text" id="nc_w_val_${id}" inputmode="decimal" placeholder="Laize mm" oninput="updateNC('${id}')" style="flex:1;max-width:170px;min-height:44px;font-size:17px;text-align:center">
           <span style="font-size:13px;color:var(--muted)">bobineaux NC</span>
+          <button type="button" class="btn btn-ghost btn-sm" style="min-height:44px;min-width:48px;font-size:18px;font-weight:800" onclick="_l408AddNcLot('${id}')" aria-label="Ajouter une autre quantité × laize">＋</button><!-- [L408 · demande Esteban] plusieurs lots NC par bobine -->
         </div>
+        <div id="nc_lots_${id}"></div>
         <textarea id="nc_detail_${id}" placeholder="Commentaire (facultatif)…" oninput="this.style.borderColor=(this.value.trim()||document.getElementById('nc_ras_${id}')?.querySelector('input')?.checked)?'':'var(--orange)'" style="margin-top:8px;min-height:36px" rows="2"></textarea>
         <div class="nc-quick" aria-label="Détails rapides"><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Bord / angle non droit</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Casse / déchirure</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Défaut film (bulle, rayure)</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Cerclage</button></div><!-- [L400 · demande Esteban] --><!-- [L370 · B14 · §2.22] puces « détail » pré-rédigées : remplissent le texte, ne COCHENT rien (ISO : le motif reste un choix explicite) --><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise · [L132 · revue] rétablie si on revide le champ alors qu'une NC reste cochée -->
       </div>
@@ -19887,7 +19915,6 @@ function gotoNextCut(){
 }
 function updateNextAction(){
   try{
-    try{ const pv=document.getElementById('chronoPrevol'); if(pv){ const show=!chronoRunning&&(!chronoSec||chronoSec===0)&&Array.isArray(ficheLines)&&ficheLines.length>0&&countCoupees()===0; pv.style.display=show?'':'none'; } }catch(e){}   // [L403] pré-vol visible seulement avant la toute 1re coupe
     document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
     document.querySelectorAll('.fl-current').forEach(c=>c.classList.remove('fl-current'));   // [L308 · LOT 14] une seule carte « en cours » à la fois
     // [L105 · Phase 1 · E, révisé L306] la classe .chrono-off reste posée : elle pilote les indicateurs
@@ -20754,6 +20781,23 @@ function _l340SyncOrderStates(){ try{
 // [L401 → L407 · MULTI-CLIENTS V2 étape a] chaque bloc client porte SES LAIZES, ÉDITABLES (qty × laize,
 // comme le plan). Source de vérité = les order-rows (colonne cli cachée) → le MOTEUR et toute la chaîne
 // (recalc, attribution FIFO, fiches, impression) sont inchangés.
+// [L408 · demande Esteban] lots NC supplémentaires (plusieurs quantités × laizes sur la même bobine)
+function _l408AddNcLot(id,q,w2){ try{
+  const box=document.getElementById('nc_lots_'+id); if(!box) return;
+  const d=document.createElement('div'); d.className='nc-lot'; d.style.cssText='display:flex;gap:8px;align-items:center;margin:6px 0';
+  d.innerHTML='<input type="text" data-ncq inputmode="numeric" placeholder="Qté" value="'+esc(q!=null?String(q):'')+'" oninput="updateNC(\''+id+'\')" style="width:86px;min-height:44px;font-size:17px;text-align:center">'
+    +'<span style="font-weight:800;color:var(--muted);font-size:16px">×</span>'
+    +'<input type="text" data-ncw inputmode="decimal" placeholder="Laize mm" value="'+esc(w2!=null?String(w2):'')+'" oninput="updateNC(\''+id+'\')" style="flex:1;max-width:170px;min-height:44px;font-size:17px;text-align:center">'
+    +'<button type="button" class="btn btn-red btn-sm" style="min-height:40px" onclick="this.parentElement.remove();updateNC(\''+id+'\')" aria-label="Retirer ce lot">✕</button>';
+  box.appendChild(d);
+}catch(e){} }
+function _l408NcLots(id){ try{
+  const out=[];
+  const q0=parseNum(document.getElementById('nc_qty_val_'+id)?.value)||0, w0=parseNum(document.getElementById('nc_w_val_'+id)?.value)||0;
+  if(q0>0&&w0>0) out.push({q:q0,w:w0});
+  document.querySelectorAll('#nc_lots_'+id+' .nc-lot').forEach(function(d){ const q=parseNum(d.querySelector('[data-ncq]')?.value)||0, w2=parseNum(d.querySelector('[data-ncw]')?.value)||0; if(q>0&&w2>0) out.push({q:q,w:w2}); });
+  return out;
+}catch(e){ return []; } }
 function _l407Rows(cid){ const out=[]; document.querySelectorAll('.order-row').forEach(function(r){ const c=(r.querySelector('[data-type="cli"]')?.value)||'A'; if(c===cid) out.push(r); }); return out; }
 function _l407Add(cid){ try{
   const cont=document.querySelector('.ref-block .rb-rows'); if(!cont) return;
@@ -22618,6 +22662,7 @@ function restoreFicheLineFromData(ld){
   const det=document.getElementById('nc_detail_'+id);if(det)det.value=ld.ncDetail||'';
   const _q4=document.getElementById('nc_qty_val_'+id);if(_q4)_q4.value=(ld.ncQtyVal>0)?ld.ncQtyVal:'';
   const _w4=document.getElementById('nc_w_val_'+id);if(_w4)_w4.value=(ld.ncWidthVal>0)?ld.ncWidthVal:'';   /* [L400] */
+  try{ if(Array.isArray(ld.ncLots)&&ld.ncLots.length>1&&typeof _l408AddNcLot==='function'){ ld.ncLots.slice(1).forEach(function(L8){ _l408AddNcLot(id,L8.q,L8.w); }); } }catch(e){}   /* [L408] lots supplémentaires */
   const eDe=document.getElementById('flDevi_'+id);if(eDe)eDe.checked=!!ld.devi;
   const eDr=document.getElementById('flDroit_'+id);if(eDr)eDr.checked=!!ld.droit;
   const eNc=document.getElementById('flTest2nc_'+id);if(eNc)eNc.checked=!!ld.test2nc;
