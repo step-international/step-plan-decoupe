@@ -863,7 +863,7 @@ has(/<span class="foc-cfg"> · ➜ '\+esc\(_cfg\)\+'<\/span>/,'L353 n°10 : ordr
 has(/const cf=row\.querySelector\('\.foc-cfg'\); if\(cf\)\{/,'L353 fix audit : config de la ligne 3 rafraîchie à chaque coche (_l340SyncOrderStates)');
 has(/^\.foc-cfg\{display:none\}$/m,'L353 n°10 : config de la ligne 3 masquée en portrait (identique)');
 has(/document\.body\.classList\.toggle\('apprenti',!!apprenti\)/,'L353 n°12 : body.apprenti posé par hintCoupeeApply (mode apprenti visible)');
-has(/body\.apprenti \.fl-current \.fl-more:not\(\[open\]\)>summary::after\{content:"bobine non conforme \? → ici"/,'L353 n°12 : sous-indice apprenti sous ⚠ DÉFAUT (paysage) — la chip 🎓 APPRENTI du HUD a été RETIRÉE en L357 (décision Esteban 19/08)');
+has(/sous-texte retiré — juste DÉFAUT/,'L353 n°12 (retiré L402 — décision Esteban) : plus de sous-indice sous DÉFAUT');
 
 console.log('── L354 : backlog n°16 · 17 · 19 (19/08) ──');
 has(/id="saveFilterToday" aria-pressed="false" onclick="toggleSaveFilterToday\(\)"/,'L354 n°16 : filtre 📅 Aujourd hui (n) dans Données › Plans (source _plnSpanIsos, lecture seule)');
