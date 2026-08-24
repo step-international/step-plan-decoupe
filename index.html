@@ -2961,7 +2961,7 @@ html.theme-light .fp-num small{color:#8a8a84}
       <button type="button" class="btn rep-choice" data-k="idee" style="min-height:58px;justify-content:flex-start;border:1px solid #2d5a9e;color:var(--blue);background:#16283d" onclick="_repPick('idee')">💡 J'ai une idée</button>
       <button type="button" class="btn rep-choice" data-k="question" style="min-height:58px;justify-content:flex-start" onclick="_repPick('question')">❓ Je ne comprends pas</button>
     </div>
-    <textarea id="reportText" rows="2" placeholder="Un mot de plus si tu veux… (facultatif)" style="width:100%;min-height:48px;margin:4px 0"></textarea>
+    <textarea id="reportText" rows="2" placeholder="Explique en quelques mots ce qui se passe (quelle bobine, quel écran…) — ça aide à comprendre la situation." style="width:100%;min-height:48px;margin:4px 0"></textarea>
     <div id="reportCtx" style="font-size:11px;color:var(--muted);line-height:1.5;border-top:1px solid var(--border);padding-top:6px;margin-top:2px"></div>
     <div id="reportAiNote" style="display:none;font-size:12px;color:#7dbcff;margin-top:4px">🤖 L'assistant IA va analyser ta page et essayer de t'aider tout de suite.</div><!-- [L380] affiché seulement si l'assistant est actif (doc de config) -->
     <div class="modal-btns" style="margin-top:10px"><button class="btn btn-ghost" onclick="closeReport()">Annuler</button>
@@ -3103,7 +3103,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.22-L396';
+const APP_VERSION='2026.08.24-L397';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16987,7 +16987,8 @@ function buildNcRows(){
           ficheId:f._id,bobIdx:i,date:f.date,client:f.client||'—',ref:(fd.ref||f.ref||'—'),numCmd:f.numCmd||'',   // [L83 · Audit #17] multi-réf : la réf RÉELLE de la bobine (fd.ref) prime sur l'en-tête de fiche
           bobine:i+1,label:fd.label||'',types,detail:fd.ncDetail||'',ini:f.ini||'',
           action:fd.actDechet?'Déchet':fd.actChutes?'Chutes':fd.actAccept?'+ Acceptable':'',
-          statut:fd.ncStatut||'ouvert',actionCorr:fd.ncActionCorr||'',resp:fd.ncResp||'',dateTraite:fd.ncDateTraite||''
+          statut:fd.ncStatut||'ouvert',actionCorr:fd.ncActionCorr||'',resp:fd.ncResp||'',dateTraite:fd.ncDateTraite||'',
+          perteMm:ncLoss(f,fd).mm,perteM2:ncLoss(f,fd).m2   /* [L397] matière NC */
         });
       }
     });
@@ -16996,6 +16997,21 @@ function buildNcRows(){
   return rows;
 }
 const NC_LABELS={larg:'Largeur',qty:'Quantité',casse:'Casse',ang:'Angle'};
+// [L397 · demande Esteban 24/08] PERTE MATIÈRE d'une NC : les « q×w » du détail (écrits par les puces défaut)
+// × le métrage (ml) de la réf → laize NC (mm) et MATIÈRE NC (m²). Base des futurs calculs de valeur (€/m²).
+// « + Acceptable » = part avec la commande → 0. Détail sans dimension chiffrée → 0 (pas de fausse donnée).
+function ncLoss(f,fd){ try{
+  if(!fd||fd.actAccept) return {mm:0,m2:0};
+  const det=String(fd.ncDetail||'');
+  let mm=0,m2=0,m=null;
+  const re=/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)/g;
+  let lg=0;
+  try{ if(Array.isArray(f.refGroups)&&f.refGroups.length){ const g=f.refGroups.find(x=>(x.ref||'')===(fd.ref||''))||f.refGroups[0]; lg=parseNum(g&&g.longueur)||0; } }catch(e){}
+  if(!(lg>0)) lg=parseNum(f&&f.longueur)||0;
+  while((m=re.exec(det))){ const q=parseInt(m[1],10)||0; const w=parseNum(m[2])||0; if(q>0&&w>0&&w<3000){ mm+=q*w; m2+=q*(w/1000)*lg; } }
+  return {mm:Math.round(mm),m2:Math.round(m2*10)/10};
+}catch(e){ return {mm:0,m2:0}; } }
+function ncM2Txt(m2){ return m2>0?('≈ '+String(m2).replace('.',',')+' m²'):''; }
 // ============================================================
 // PISTE D'AUDIT — vue lecture seule (admin) sur la collection 'audit'
 // ============================================================
@@ -17187,6 +17203,8 @@ function renderNc(){
       <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.casse}</div><div class="u-meta">Casse</div></div>
     <div class="u-tile">
       <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.ang}</div><div class="u-meta">Angle</div></div>
+    <div class="u-tile">
+      <div style="font-size:22px;font-weight:800;color:var(--orange)">${String(Math.round(rows.reduce((a,r)=>a+(r.perteM2||0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² de matière NC</div></div><!-- [L397 · demande Esteban] base valeur marchande -->
   </div>`;
 
   list.innerHTML=rows.map(r=>{
@@ -17206,7 +17224,7 @@ function renderNc(){
           <div class="save-title">${esc(r.client)} — ${esc(r.ref)}${r.numCmd&&r.numCmd!=='—'?` · Cmd ${esc(r.numCmd)}`:''}</div>
           <div style="margin:4px 0">${statutBadge}${typeBadges}</div>
           <div class="save-meta">Bobine ${r.bobine}${r.label?` (${esc(r.label)})`:''} · Opérateur ${esc(r.ini)} · ${ds}</div>
-          ${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${esc(r.detail)}</div>`:'<div class="save-meta" style="color:var(--red)">⚠ Aucun détail renseigné</div>'}
+          ${r.perteM2>0?`<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:800;background:#3a2a0e;color:var(--orange);margin-right:4px">${ncM2Txt(r.perteM2)}</span>`:''}${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${esc(r.detail)}</div>`:'<div class="save-meta" style="color:var(--red)">⚠ Aucun détail renseigné</div>'}
           ${r.action?`<div class="save-meta">Action : ${r.action}</div>`:''}
           ${traiteInfo}
         </div>
@@ -17322,10 +17340,10 @@ async function exportNc(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
   const rows=buildNcRows();
   if(!rows.length){showToast('Aucune non-conformité à exporter.','err');return;}
-  const head=['Date','Client','Référence','N° Commande','Bobine','Étiquette','Opérateur','Types NC','Détail','Action','Statut','Action corrective','Responsable','Date traitement'];
+  const head=['Date','Client','Référence','N° Commande','Bobine','Étiquette','Opérateur','Types NC','Détail','Laize NC (mm)','Matière NC (m²)','Action','Statut','Action corrective','Responsable','Date traitement'];   /* [L397 · demande Esteban] 2 colonnes après Détail — le reste du fichier Excel inchangé */
   const lines=rows.map(r=>[
     new Date(r.date).toLocaleString('fr-FR'),r.client,r.ref,r.numCmd,'B'+r.bobine,r.label,r.ini,
-    r.types.map(t=>NC_LABELS[t]).join(' / '),r.detail.replace(/[\n;]/g,' '),r.action,
+    r.types.map(t=>NC_LABELS[t]).join(' / '),r.detail.replace(/[\n;]/g,' '),(r.perteMm||0),String(r.perteM2||0).replace('.',','),r.action,
     r.statut==='cloture'?'Clôturé':'Ouvert',(r.actionCorr||'').replace(/[\n;]/g,' '),r.resp||'',
     r.dateTraite?new Date(r.dateTraite).toLocaleDateString('fr-FR'):''
   ].map(csvCell).join(';'));
@@ -17609,7 +17627,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
       const coupeeTag=fd&&fd.coupee?'<span style="color:#4ade80;font-weight:700">✓ Coupée</span>':'<span style="color:#888">— À couper</span>';
       const actionTag=fd?(fd.actDechet?'<span style="color:var(--red)">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':fd.actAccept?'<span style="color:#4ade80">✔ + Acceptable</span>':''):'';
       const test2=fd?(fd.test2nc?('<span style="color:var(--red);font-weight:700">⚠ Non conforme</span>'+((fd.devi||fd.droit)?' <span style="color:#f59e0b;font-size:12px">('+[fd.devi?'Dévidage':'',fd.droit?'Droit':''].filter(Boolean).join(', ')+')</span>':'')):((fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit))?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>')):'';
-      const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
+      const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}${(function(){ try{ const L=ncLoss(f,fd); return L.m2>0?' · <b>'+ncM2Txt(L.m2)+'</b>':''; }catch(e){ return ''; } })()}</div>`:'';   /* [L397] matière NC sur le PDF */
       const photoCell=fd&&fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
       rows.push(machBand+lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
@@ -17644,7 +17662,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
     const coupeeTag=fd.coupee?'<span style="color:#4ade80;font-weight:700">✓ Coupée</span>':'<span style="color:#888">— À couper</span>';
     const actionTag=fd.actDechet?'<span style="color:var(--red)">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':fd.actAccept?'<span style="color:#4ade80">✔ + Acceptable</span>':'';
     const test2=fd.test2nc?('<span style="color:var(--red);font-weight:700">⚠ Non conforme</span>'+((fd.devi||fd.droit)?' <span style="color:#f59e0b;font-size:12px">('+[fd.devi?'Dévidage':'',fd.droit?'Droit':''].filter(Boolean).join(', ')+')</span>':'')):((fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit))?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>');
-    const ncDetail=fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}</div>`:'';
+    const ncDetail=fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}${(function(){ try{ const L=ncLoss(f,fd); return L.m2>0?' · <b>'+ncM2Txt(L.m2)+'</b>':''; }catch(e){ return ''; } })()}</div>`:'';   /* [L397] */
     const photoCell=fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
     const etiq=fd.label?`<span style="color:#f59e0b">${esc(fd.label)}</span>`:'';
     const lameBand=(lameChgAt&&bn===lameChgAt)?lameBandHtml():'';

@@ -1225,5 +1225,12 @@ has(/✓ Validation fiches découpe<\/button>/,'L396 : onglet renommé « Valida
 has(/les plus ANCIENNES envoyées tout en haut/,'L396 : file de validation chronologique (anciennes en premier, archive inversée)');
 has(/carte ALLÉGÉE \(« trop de données, trop de boutons »\)/,'L396 : carte fiche allégée — détail au tap');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L396 présents dans index.html + sw.js');
+console.log('── L397 : matière NC en m² + bulle plus claire ──');
+has(/function ncLoss\(f,fd\)/,'L397 : perte NC calculée (q×w du détail × métrage) — 0 si acceptable/sans dimension');
+has(/'Laize NC \(mm\)','Matière NC \(m²\)'/,'L397 : export CSV — 2 colonnes après Détail (fichier Excel Esteban)');
+has(/m² de matière NC/,'L397 : tuile totale m² dans la synthèse du registre');
+has(/matière NC sur le PDF/,'L397 : perte m² sur le PDF de la fiche');
+has(/Explique en quelques mots ce qui se passe/,'L397 : bulle — texte d invitation clair');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L397 présents dans index.html + sw.js');
 process.exit(fail?1:0);
