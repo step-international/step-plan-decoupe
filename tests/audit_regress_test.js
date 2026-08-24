@@ -717,7 +717,7 @@ has(/collection\('mail'\)\.add/,'L332 : écrit dans la collection « mail » (ex
 has(/function reportAuto/,'L332 : erreurs JS remontées auto (regroupement 1\/h\/signature, silence sur refus métier)');
 has(/reportAuto\(\(e\.error&&e\.error\.message\)/,'L332 : greffé sur window.error SANS changer son comportement (console+toast conservés)');
 has(/if\(typeof trainingGuard==='function' && trainingGuard\(\)\) return Promise\.resolve\(false\)/,'L332 : aucun signalement en entraînement');
-(function(){ try{ const r=require('fs').readFileSync(__dirname+'/../firestore.rules','utf8'); const ok=/to\.hasOnly\(\['esterozier42480@gmail\.com','sales@step-international\.com'\]\)/.test(r); console.log((ok?'✅ ':'❌ ')+'L332 : firestore.rules fige les destinataires (anti-relais spam, fix audit)'); if(!ok)fail++; }catch(e){ console.log('⚠ firestore.rules non lu'); } })();
+(function(){ try{ const r=require('fs').readFileSync(__dirname+'/../firestore.rules','utf8'); const ok=/to\.hasOnly\(\['esterozier42480@gmail\.com','sales@step-international\.com','celine\.rozier\.chabert@gmail\.com'\]\)/.test(r)&&/to\.size\(\) <= 3/.test(r); console.log((ok?'✅ ':'❌ ')+'L332 : firestore.rules fige les destinataires (anti-relais spam, fix audit)'); if(!ok)fail++; }catch(e){ console.log('⚠ firestore.rules non lu'); } })();
 
 console.log('── L340 : fidélité maquette 17 — fiche paysage « premier écran = HUD + bobine en cours » ──');
 has(/#ficheHeadSec:not\(\.reveal\),#ficheChgSec:not\(\.reveal\)\{display:none\}/,'L340 : en-tête fiche + 🔧 changements REPLIÉS par défaut en paysage (≥1100px seulement)');
