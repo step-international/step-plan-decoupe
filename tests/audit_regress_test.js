@@ -712,7 +712,7 @@ has(/setTimeout\(promptOperatorTakeover,400\)/,'L331 : branché sur ▶ Reprendr
 
 console.log('── L332 : LOTS 26/27 — bulle de signalement + mail auto (§2.23) ──');
 has(/id="reportBubble"/,'L332 : bulle permanente bas-droite (grise, jamais ambre)');
-has(/REPORT_RECIPIENTS=\['esterozier42480@gmail\.com','sales@step-international\.com'\]/,'L332 : mail auto aux 2 adresses Esteban');
+has(/REPORT_RECIPIENTS=\['esterozier42480@gmail\.com','sales@step-international\.com','celine\.rozier\.chabert@gmail\.com'\]/,'L332 (élargi L392) : mail auto aux 3 adresses (Esteban ×2 + Céline)');
 has(/collection\('mail'\)\.add/,'L332 : écrit dans la collection « mail » (extension Trigger Email) via boundedWrite (file hors-ligne)');
 has(/function reportAuto/,'L332 : erreurs JS remontées auto (regroupement 1\/h\/signature, silence sur refus métier)');
 has(/reportAuto\(\(e\.error&&e\.error\.message\)/,'L332 : greffé sur window.error SANS changer son comportement (console+toast conservés)');
@@ -1202,5 +1202,8 @@ has(/alerte volume UNIQUEMENT à partir de 60 bobines mères/,'L391 : bannière 
 absent(/Commande volumineuse \(nombreuses laizes distinctes/,'L391 : bannière « commande volumineuse » retirée');
 has(/petit, à droite des onglets — plus de bande dédiée/,'L391 : 📥 Historique complet discret dans la rangée d onglets');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L391 présents dans index.html + sw.js');
+console.log('── L392 : destinataires signalements ──');
+has(/celine\.rozier\.chabert@gmail\.com/,'L392 : Céline reçoit les signalements de la bulle 💬');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L392 présents dans index.html + sw.js');
 process.exit(fail?1:0);
