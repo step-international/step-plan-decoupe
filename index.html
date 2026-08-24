@@ -3092,7 +3092,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.22-L394';
+const APP_VERSION='2026.08.22-L395';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -15228,9 +15228,12 @@ function dujSamples(){
     const nb=Number(t.nbBobines)||0, sec=Number(t.duree)||0;
     if(longueur<=0||nb<=0||sec<=0) return;
     const metres=longueur*nb;
+    // [L395 · demande Esteban 22/08] débit SURFACE : laize mère du relevé (multi-réf « 2100 / 1255 » → moyenne)
+    const _mo=String(t.mother||'').split('/').map(x=>parseFloat(String(x).replace(',','.'))).filter(x=>x>0);
+    const _moM=_mo.length?(_mo.reduce((a,b)=>a+b,0)/_mo.length)/1000:0;
     tempsShareParts(t).forEach(g=>{
       if(g.f<=0) return;
-      out.push({ machine:dujMachKey(g.mach), op:g.op||'', metres:metres*g.f, sec:sec*g.f, debit:metres*3600/sec });
+      out.push({ machine:dujMachKey(g.mach), op:g.op||'', metres:metres*g.f, sec:sec*g.f, debit:metres*3600/sec, debitM2:_moM>0?metres*_moM*3600/sec:null });
     });
   });
   _dujSamplesMemo=out; _dujSamplesKey=_k; return out;
@@ -15245,7 +15248,8 @@ function dujDebit(machineKey,op){
 function dujStatsByMachine(){
   const s=dujSamples(); const out={};
   DUJ_MACHINES.forEach(k=>{ const a=s.filter(x=>x.machine===k).map(x=>x.debit);
-    out[k]={n:a.length,med:dujMedian(a),p25:dujPctile(a,.25),p75:dujPctile(a,.75)}; });
+    const a2=s.filter(x=>x.machine===k&&x.debitM2>0).map(x=>x.debitM2);   // [L395] débit surface (relevés avec laize mère)
+    out[k]={n:a.length,med:dujMedian(a),p25:dujPctile(a,.25),p75:dujPctile(a,.75),n2:a2.length,med2:a2.length?dujMedian(a2):null}; });
   return {byMachine:out,total:s.length};
 }
 function buildDebitToolbox(){
@@ -15255,8 +15259,8 @@ function buildDebitToolbox(){
     const m=st.byMachine[k];
     return `<div style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border2);border-radius:10px;border-top:3px solid var(--${k});padding:12px;text-align:center">
       <div style="font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em">${getMachineLabel(k)}</div>
-      <div style="font-size:24px;font-weight:800;margin-top:4px">${m.n?Math.round(m.med).toLocaleString('fr-FR'):'—'}</div>
-      <div style="font-size:12px;color:var(--muted)">m/h médian${m.n?` · ${m.n} cmd`:' · pas de donnée'}</div>
+      <div style="font-size:24px;font-weight:800;margin-top:4px">${m.n2?Math.round(m.med2).toLocaleString('fr-FR'):(m.n?Math.round(m.med).toLocaleString('fr-FR'):'—')}</div>
+      <div style="font-size:12px;color:var(--muted)">${m.n2?'m²/h médian':'m/h médian'}${(m.n2||m.n)?` · ${m.n2||m.n} cmd`:' · pas de donnée'}</div><!-- [L395 · demande Esteban] SURFACE coupée (métrage × laize mère) : comparable d'une commande à l'autre, contrairement au mètre linéaire -->
     </div>`;
   }).join('');
   // [L125 · T5] Synthèse du modèle CORRIGÉ-LAIZE (calibré sur l'historique, aussi utilisé estimateur + planning)
