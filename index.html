@@ -447,7 +447,7 @@ body.training #actionBar{bottom:calc(64px + env(safe-area-inset-bottom,0px)) !im
 .fp-streak.s25{border-color:var(--action);color:#ffd45e;background:#241d05;box-shadow:0 0 8px rgba(245,179,1,.35)}
 .hint-cut{position:relative}
 .hint-cut::after{content:"👆 1 tap = coupée + test OK";position:absolute;right:10px;top:-13px;background:#fff;color:#141310;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.4);pointer-events:none}
-#nowBar{order:1;display:flex;align-items:center;gap:10px;border:2px solid var(--action);border-radius:10px;background:var(--card);padding:10px 12px;margin:0 0 10px}
+#nowBar{display:none!important}   /* [L303-era → retiré L393 · demande Esteban 22/08 (photo)] bandeau « MAINTENANT — coupe la bobine… Y ALLER » supprimé : la carte ambre EST déjà le guide, le bandeau doublonnait et prenait la place */
 #nowBar .btn{border-color:#b8860b;color:var(--action)}
 .victory-big{font-size:44px;font-weight:800;font-family:var(--f-head);font-variant-numeric:tabular-nums;display:inline-block;animation:victoryPop .5s ease-out}
 @keyframes victoryPop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
@@ -3092,7 +3092,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.21-L392';
+const APP_VERSION='2026.08.22-L393';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11039,6 +11039,21 @@ function recalcEcartsFromFiche(opts){
     if(_orphelines.length) recap.push('⚠ '+_orphelines.length+' bobine(s) coupée(s) ne correspondent à AUCUNE réf du plan (réf renommée ?) — leur production n\'est PAS déduite du reste : vérifie avant de couper, sinon la commande sera reproduite en double.');   // [L92 · Audit #7]
 
     recalcPlan();
+    // [L393 · audit modif-commande n°1/2] la commande CORRIGÉE devient la référence des compteurs : sans ce
+    // rebuild, le CUMUL x/y gardait l'ancienne cible (« 12/10 ✓ » après un 10→12 ; cible fantôme après un 61→63).
+    try{
+      commandTotals={}; cartonByWidth={}; cmdMetaByRef={};
+      computed.forEach(c=>{
+        const rk=_cliQKey(_refIdKey(c),c.machine);
+        const meta=cmdMetaByRef[rk]||(cmdMetaByRef[rk]={totals:{},carton:{},mandrin:{}});
+        c.rows.forEach(r=>{
+          commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;
+          meta.totals[r.width]=(meta.totals[r.width]||0)+r.qty;
+          if(r.carton>0){ cartonByWidth[r.width]=r.carton; meta.carton[r.width]=r.carton; }
+          if(r.mandrin) meta.mandrin[r.width]=r.mandrin;
+        });
+      });
+    }catch(e){}
     updateAllCumuls();
     updateCoupeeStatus();
     refreshOp2BobineList();
@@ -18536,6 +18551,9 @@ function applyFicheRefPlanChange(idx){
   if(blade===''){ showToast('⚠ Renseigne la perte lame de cette référence.','err'); gv('blade')?.focus(); return; }
   // Écrit dans le bloc plan correspondant (position = index).
   const planBlock=document.querySelectorAll('.ref-block')[idx];
+  // [L393 · demande Esteban 22/08] comparer AVANT d'écrire : si rien n'a changé, VALIDER = simple coche
+  const _l393pv=k=>{ const e2=planBlock&&planBlock.querySelector('[data-rb="'+k+'"]'); return e2?String(e2.value||'').trim():null; };
+  const _l393Same=!!planBlock&&String(_l393pv('machine')||'').toLowerCase()===machine.toLowerCase()&&parseNum(_l393pv('mother'))===parseNum(mother)&&parseNum(_l393pv('edge'))===parseNum(edge)&&parseNum(_l393pv('blade'))===parseNum(blade);
   if(planBlock){
     const set=(s,v)=>{const e=planBlock.querySelector('[data-rb="'+s+'"]'); if(e) e.value=v;};
     set('machine',machine); set('mother',mother); set('edge',edge); set('blade',blade);
@@ -18550,6 +18568,17 @@ function applyFicheRefPlanChange(idx){
   // toggleRefValid (bande verte), supprimée en L217/L224 → la vérification n'était PLUS tracée du tout. Le nouveau
   // chemin de validation (ce bouton) écrit désormais la preuve d'audit aux DEUX branches de succès.
   const _logRefCheck=()=>{ try{ logAudit('edit','fiches','ref-check','Bobine mère & pertes bords vérifiées — '+rlbl+' (mère '+mother+' mm / bords '+edge+' mm / lame '+blade+' mm / '+getMachineLabel(machine)+')').catch(function(){}); }catch(_){} };
+  if(_l393Same){
+    // [L393 · demande Esteban 22/08] valeurs IDENTIQUES au plan : un tap = validé, AUCUN « changement »
+    // (plus de régénération ni de recalcul quand on garde ce qui est déjà pré-enregistré).
+    ficheRefValidated.add(idx);
+    fichePlanValidated=true;
+    renderFicheMachineBlocks();
+    _logRefCheck();
+    try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){}
+    showToast('✓ Bobine mère validée — '+rlbl,'ok');
+    return;
+  }
   if(isFicheUntouched()){
     // Rien de coupé : régénération complète (chaque bloc plan a sa propre mère).
     ficheRefValidated.add(idx);
@@ -18584,6 +18613,14 @@ function applyFichePlanChange(){
     document.getElementById(miss.id)?.focus();
     return;
   }
+  // [L393 · demande Esteban 22/08] valeurs identiques au plan → valider SANS recalcul
+  try{ const _pbk=document.querySelector('.ref-block');
+    if(_pbk){ const _pv=k=>{ const e2=_pbk.querySelector('[data-rb="'+k+'"]'); return e2?String(e2.value||'').trim():null; };
+      if(parseNum(document.getElementById('fMother')?.value)===parseNum(_pv('mother'))&&parseNum(document.getElementById('fEdge')?.value)===parseNum(_pv('edge'))&&parseNum(document.getElementById('fBlade')?.value)===parseNum(_pv('blade'))){
+        fichePlanValidated=true; updateFPlanHint();
+        try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){}
+        showToast('✓ Bobine mère validée','ok'); return;
+      } } }catch(e){}
   // Propage mère/bords/lame vers le plan + recalcule (syncFicheParams remet le flag à false)
   syncFicheParams('mother'); syncFicheParams('edge'); syncFicheParams('blade');
   if(isFicheUntouched()){
@@ -19708,6 +19745,7 @@ function renderFlow(){
 }
 function renderNowBar(){
   try{
+    return;   // [L393 · demande Esteban] bandeau retiré — la carte ambre guide seule
     const bar=document.getElementById('nowBar'); if(!bar) return;
     const b=document.querySelector('.next-action[id^="coupeeBtn_"]');
     if(!b){ bar.style.display='none'; return; }
@@ -20027,7 +20065,7 @@ function updateAllCumuls(){
     const cumEl=document.getElementById('flCumul_'+l.id);
     if(!cumEl) return;
     if(!pieces.length){cumEl.innerHTML='<span style="color:var(--muted);font-size:13px">—</span>';return;}
-    const isLegrandFr=isLegrandFrName(document.getElementById('planClient')?.value); // [L73 · Lot 5 · B60]
+    const isLegrandFr=isLegrandFrName(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value); // [L73 · Lot 5 · B60] · [L393 · audit n°4] le ✎ CORRIGER de l'en-tête (fClient) pilote aussi les chips du cumul
     const meta=cmdMetaByRef[rk]||null;
     cumEl.innerHTML=(_dechet?'<div style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:3px">🗑 Bobine au rebut — laizes non comptées (le reliquat les re-produit)</div>':'')+pieces.map(p=>{
       const total=meta?(meta.totals[p.width]||0):(commandTotals[p.width]||0);
@@ -20488,6 +20526,33 @@ function _l345EditChip(id){ try{
     if(typeof _l345ConfDirty==='function'&&_l345ConfDirty(id)) setTimeout(function(){ try{ _l345EditChip(id); }catch(e){} },80);   // [L386 · demande Esteban] blur = APPLIQUER : la config modifiée lance ELLE-MÊME le recalcul des écarts (plus de 2e tap ♻ RECALCULER)
   }catch(e){} }); }   // [L363 · B11] éditable jusqu'au blur
 }catch(e){} }
+// [L393 · demande Esteban 22/08] changer la bobine mère/bords/lame s'applique TOUT SEUL en sortant des
+// champs (focusout hors du bloc) — plus besoin de descendre chercher le bouton. Le bouton reste en secours.
+(function _l393AutoApply(){ try{
+  document.addEventListener('focusout',function(e){ try{
+    const t=e.target; if(!t||!t.matches) return;
+    if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()) return;
+    if(t.matches('.fmm-block [data-fmm="mother"],.fmm-block [data-fmm="edge"],.fmm-block [data-fmm="blade"]')){
+      const blk=t.closest('.fmm-block'); if(!blk) return;
+      if(e.relatedTarget&&blk.contains(e.relatedTarget)) return;
+      const idx=parseInt(blk.dataset.refIdx,10); if(isNaN(idx)) return;
+      const pbk=document.querySelectorAll('.ref-block')[idx]; if(!pbk) return;
+      const pv=k=>{ const el=pbk.querySelector('[data-rb="'+k+'"]'); return el?String(el.value||'').trim():''; };
+      const gv=k=>{ const el=blk.querySelector('[data-fmm="'+k+'"]'); return el?String(el.value||'').trim():''; };
+      const chg=['mother','edge','blade'].some(k=>gv(k)!==''&&parseNum(gv(k))!==parseNum(pv(k)));
+      if(chg) setTimeout(function(){ try{ applyFicheRefPlanChange(idx); }catch(_){} },120);
+      return;
+    }
+    if(t.id==='fMother'||t.id==='fEdge'||t.id==='fBlade'){
+      const zone=t.closest('#ficheHeadSec,#fMachineMono')||t.parentElement;
+      if(e.relatedTarget&&zone&&zone.contains(e.relatedTarget)) return;
+      const pbk=document.querySelector('.ref-block'); if(!pbk) return;
+      const pv=k=>{ const el=pbk.querySelector('[data-rb="'+k+'"]'); return el?String(el.value||'').trim():''; };
+      const chg=parseNum(document.getElementById('fMother')?.value)!==parseNum(pv('mother'))||parseNum(document.getElementById('fEdge')?.value)!==parseNum(pv('edge'))||parseNum(document.getElementById('fBlade')?.value)!==parseNum(pv('blade'));
+      if(chg) setTimeout(function(){ try{ applyFichePlanChange(); }catch(_){} },120);
+    }
+  }catch(_){} });
+}catch(e){} })();
 (function _l386ConfTap(){ try{ document.addEventListener('click',function(e){ try{
   const t=e.target; if(!t||!t.id||t.id.indexOf('flConf_')!==0||!t.readOnly) return;   // [L386 · demande Esteban] tap sur la barre de config = ✎ MODIFIER (en plus du bouton)
   if(typeof _isLandscapeFiche==='function'&&!_isLandscapeFiche()) return;

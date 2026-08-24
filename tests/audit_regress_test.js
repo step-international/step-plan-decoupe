@@ -640,7 +640,7 @@ has(/id="flow" role="list"/,'L320 : fil 1·COMMANDE / 2·JE COUPE n\/T / 3·J EN
 has(/function renderFlow/,'L320 : renderFlow = affichage pur (page active + progression existante, zéro logique métier)');
 has(/id="nowBar"/,'L320 : bannière MAINTENANT en tête de fiche (bord ambre, PAS d aplat — déviation maquette assumée)');
 has(/function gotoNextCut/,'L320 : Y ALLER → défile + surligne la carte .next-action (fl-spot)');
-has(/#nowBar\{order:1;/,'L320 : order flex EXPLICITE (leçon des audits : jamais d enfant sans order)');
+has(/#chutesRappelBanner\{order:1\}/,'L320 (recalibré L393 — #nowBar retiré) : order flex explicite sur les enfants restants');
 
 console.log('── L321 : REDESIGN LOT 19 — zéro tap mort soldé (§2.19-3) ──');
 absent(/cursor:not-allowed/,'L321 : plus AUCUN cursor:not-allowed dans l app');
@@ -1205,5 +1205,13 @@ has(/petit, à droite des onglets — plus de bande dédiée/,'L391 : 📥 Histo
 console.log('── L392 : destinataires signalements ──');
 has(/celine\.rozier\.chabert@gmail\.com/,'L392 : Céline reçoit les signalements de la bulle 💬');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L392 présents dans index.html + sw.js');
+console.log('── L393 : bobine mère fluide + compteurs synchronisés (22/08) ──');
+has(/#nowBar\{display:none!important\}/,'L393 : bandeau « MAINTENANT / Y ALLER » supprimé (photo Esteban)');
+has(/un tap = validé, AUCUN « changement »/,'L393 : VALIDER avec valeurs inchangées = simple coche (multi)');
+has(/valeurs identiques au plan → valider SANS recalcul/,'L393 : idem en mono (Changement plan)');
+has(/_l393AutoApply/,'L393 : mère/bords/lame modifiés = application AUTO en sortant des champs');
+has(/la commande CORRIGÉE devient la référence des compteurs/,'L393 : CUMUL x\/y re-basé après tout recalcul (audit modif-commande n°1/2)');
+has(/le ✎ CORRIGER de l'en-tête \(fClient\) pilote aussi les chips du cumul/,'L393 : chips mandrin/cerclé suivent le client corrigé (audit n°4)');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L393 présents dans index.html + sw.js');
 process.exit(fail?1:0);
