@@ -786,7 +786,7 @@ console.log('── L345 : retours Esteban n°2 (17/08 soir) ──');
 has(/button\[onclick\^="bumpDateLiv"\]\{display:none!important\}/,'L345 : raccourcis +7 J / +14 J retirés (calendrier natif suffit)');
 has(/if\(f\) f\.dataset\.mach=sel\.value\|\|'';/,'L345 : code couleur MACHINE sur la carte du plan (FEBA bleu · MAVEG vert · CEVENINI violet)');
 has(/#planResultSec>#planCards\{flex:1 1 auto;min-height:0;overflow-y:auto/,'L345 : colonne droite du plan = hauteur écran, seules les lignes défilent (emballage + COMMENCER toujours visibles)');
-has(/const ok=confirm\('Des BOBINEAUX ou CHUTES en stock à ajouter au plan \?/,'L345 : question stock AVANT le chrono (confirm natif synchrone, 1×/commande, Annuler = ouvrir le plan)');
+has(/le confirm natif « BOBINEAUX ou CHUTES \\? » disparaît/,'L345 (retiré L405 — décision Esteban) : rappel stock porté par le bandeau pré-vol, sans pop-up');
 has(/if\(_premierDepart\)\{ let _go=true; try\{ _go=\(maybeShowChutesRappel\(\)!==false\); \}catch\(e\)\{\} if\(!_go\) return; \}/,'L345 : chrono NON lancé si l opérateur choisit d ouvrir le plan');
 has(/function _l345ConfDirty/,'L345 : MODIFIER et ÉCARTS = un bouton ; config modifiée → « ♻ RECALCULER »');
 has(/if\(!line\.classList\.contains\('coupee'\)&&typeof _l345ConfDirty==='function'&&_l345ConfDirty\(id\)\)\{/,'L345 : garde ✂ — pas de coupe tant que les écarts ne sont pas recalculés après modification (toast + halo) — L351 : jamais sur le dé-marquage');
@@ -1048,7 +1048,7 @@ has(/return \[\.\.\.cumEl\.children\]\.map\(function\(n\)\{ return n\.classList\
 has(/line\.classList\.toggle\('t2-todo',\(!!_t2nc\|\|ncMode\)&&!test2Resolved\(id\)\);/,'L376 A4 : indice test 2ᵉ aussi sur bobine NC');
 has(/tape le bouton ROUGE de la bannière en haut/,'L376 A5 : garde ✂ sous plan-drift pointe le gros bouton');
 has(/#page0 \.btn\.plan-outils-top/,'L376 2.3 : lanceur OUTILS réellement teinté (spécificité)');
-has(/\[L376 · A2\.10\] Annuler ne consomme PAS la question/,'L376 2.10 : question chutes reposée si Annuler');
+has(/pré-vol court et impactant/,'L376 2.10 (retiré L405) : plus de question bloquante à reposer');
 has(/if\(first\) document\.body\.classList\.add\('show-ref-bands'\);/,'L376 2.11 : recorriger sans réf validée = no-op propre');
 has(/function _l376PostMachineSwap\(withFiche\)/,'L376 1.4/1.5/2.1 : swap machine du poste unifié (bords/lame personnalisés conservés)');
 has(/signatures autosave posées sur l'état FINAL chargé \(swap compris\)/,'L376 1.4 : signatures autosave APRÈS le swap (protection L291 rétablie)');
@@ -1272,10 +1272,14 @@ has(/panneau NC COMPACT : on voit encore l'écran derrière/,'L402 : panneau NC 
 has(/\(perdus\)<\/div><\/div>/,'L402 : tuiles déchet/chutes avec pourcentage');
 
 console.log('── L403 : pré-vol chrono, série retirée, recharger direct ──');
-has(/rappel pré-vol joli avant le 1er ▶/,'L403 : bandeau pré-vol (stock + bobine mère) avant le 1er lancement');
+has(/✂ Stock d'abord/,'L403-L405 : bandeau pré-vol court (stock + mère) avant le 1er lancement');
 has(/gamification retirée de l'écran/,'L403 : badge SÉRIE retiré');
 has(/Départ affûtage/,'L403 : libellé « Départ affûtage »');
 has(/Recharger s'applique DIRECT/,'L403 : mise à jour sans confirm');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L403 présents dans index.html + sw.js');
+console.log('── L405 : pré-vol sans pop-up ──');
+has(/le confirm natif « BOBINEAUX ou CHUTES \? » disparaît/,'L405 : pop-up natif du démarrage retiré (le bandeau pré-vol porte le rappel)');
+has(/pré-vol court et impactant/,'L405 : bandeau raccourci');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L405 présents dans index.html + sw.js');
 process.exit(fail?1:0);
