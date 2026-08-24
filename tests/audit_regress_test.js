@@ -1271,5 +1271,11 @@ has(/sous-texte retiré — juste DÉFAUT/,'L402 : « bobine non conforme ? → 
 has(/panneau NC COMPACT : on voit encore l'écran derrière/,'L402 : panneau NC compact');
 has(/\(perdus\)<\/div><\/div>/,'L402 : tuiles déchet/chutes avec pourcentage');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L402 présents dans index.html + sw.js');
+console.log('── L403 : pré-vol chrono, série retirée, recharger direct ──');
+has(/rappel pré-vol joli avant le 1er ▶/,'L403 : bandeau pré-vol (stock + bobine mère) avant le 1er lancement');
+has(/gamification retirée de l'écran/,'L403 : badge SÉRIE retiré');
+has(/Départ affûtage/,'L403 : libellé « Départ affûtage »');
+has(/Recharger s'applique DIRECT/,'L403 : mise à jour sans confirm');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L403 présents dans index.html + sw.js');
 process.exit(fail?1:0);

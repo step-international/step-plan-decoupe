@@ -455,6 +455,7 @@ body.training .modal-overlay{z-index:8100}/* [L330 · fix grosse audit] volet vi
 #trainingBanner button{min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid var(--blue);background:#1e3a5f;color:#dbeafe;font-weight:800;cursor:pointer}
 body.training #actionBar{bottom:calc(64px + env(safe-area-inset-bottom,0px)) !important}/* [L327 · fix audit LOT 25] la barre d'action du pouce remonte AU-DESSUS du bandeau (sinon recouverte, geste inatteignable sur iPad) */
 @media(min-width:1100px){body.training #sendPlanWrap{bottom:64px}}
+.fp-streak{display:none!important}/* [L403 · demande Esteban] gamification retirée de l'écran (compteurs internes conservés) */
 .fp-streak{flex:none;font-size:11px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:99px;border:1px solid var(--border2);color:var(--muted);font-family:var(--f-head)}
 .fp-streak.s5{border-color:#7a5f10;color:#ffd45e}
 .fp-streak.s10{border-color:#b8860b;color:#ffd45e;background:#241d05}
@@ -2371,6 +2372,11 @@ html.theme-light .fp-num small{color:#8a8a84}
         <button class="btn btn-orange hidden" id="chronoPauseBtn" onclick="chronoPause()">⏸ Pause</button>
         <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="chronoReset()">↺ Reset</button>
       </div>
+      <div id="chronoPrevol" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid #7a5f10;border-radius:10px;background:#241d05;font-size:13.5px;line-height:1.55"><!-- [L403 · demande Esteban] rappel pré-vol joli avant le 1er ▶ -->
+        <b style="color:#ffd45e">Avant de lancer :</b><br>
+        ✂ <b>Bobineaux / chutes en stock ?</b> On les utilise d'abord (bouton ✂ du Plan).<br>
+        🔄 <b>Bobine mère validée ?</b> Vérifie la taille avant la 1<sup>re</sup> coupe.
+      </div>
       <div class="chrono-status" id="chronoStatus"></div><!-- [L188] prompt « Prêt — appuie sur Démarrer… » retiré (demande Esteban : texte inutile) -->
     </div>
   </div>
@@ -3118,7 +3124,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L402';
+const APP_VERSION='2026.08.24-L403';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3142,7 +3148,7 @@ function _updBanner(newVer){
 function updDismiss(){ _updDismissedUntil=Date.now()+45*60*1000; const b=document.getElementById('updBanner'); if(b) b.remove(); }   // [L199 · audit #11] snooze 45 min (checkAppUpdate tourne toutes les 30 min + au retour d'onglet → re-proposée)
 function updReload(){
   if(_updReloading) return;
-  if(typeof chronoRunning!=='undefined'&&chronoRunning&&!confirm('Le chronomètre tourne — recharge plutôt à la fin de la commande.\n\nRecharger quand même maintenant ?')) return;   // [L97 · relecture #3]
+  // [L403 · demande Esteban] confirm retiré : Recharger s'applique DIRECT (l'autosave 15 s + la restauration au boot couvrent le rechargement, chrono compris)
   _updReloading=true;
   setTimeout(function(){ if(_updReloading){ _updReloading=false; const b=document.querySelector('#updBanner .btn-blue'); if(b){ b.disabled=false; b.textContent='Recharger'; } } },30000);   // [L97 · relecture #3] réarmement si la page est toujours vivante (reload annulé)
   const btn=document.querySelector('#updBanner .btn-blue'); if(btn){btn.disabled=true;btn.textContent='⏳…';}
@@ -10525,7 +10531,7 @@ function _openVictory(p){
       +row('Temps', t?t:'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?null:'var(--red)')
       +row('Non-conformités', p.nc?(p.nc+' NC déclarée(s)'):'0 NC ✓', p.nc?'var(--red)':'var(--green)')
       +((typeof window._lastPertePct==='number'&&!(typeof planManual!=='undefined'&&planManual))?row('Perte matière', window._lastPertePct.toFixed(1).replace('.',',')+' %', window._lastPertePct>((typeof PERTE_SEUIL_ORANGE==='number')?PERTE_SEUIL_ORANGE:2.5)?'#ffb968':'var(--green)'):'')   /* [L344 · §2.5] perte % du plan */
-      +((typeof _gamifOff==='function'&&!_gamifOff()&&typeof streakGet==='function'&&streakGet()>=2)?row('Série sans NC', '×'+streakGet()+(streakGet()>=25?' ⭐':streakGet()>=10?' 🔥':''),'#ffd45e'):'')   /* [L344 · §2.5] série (localStorage, jamais en base) */
+      +((false)?row('Série sans NC', '×'+streakGet()+(streakGet()>=25?' ⭐':streakGet()>=10?' 🔥':''),'#ffd45e'):'')   /* [L344 · §2.5] série (localStorage, jamais en base) */
       +row('Machine(s)', esc(p.machStr))
       +row('Lame · Opérateur', esc(lame||'—')+' · '+esc(op||'—'))
       +(p.etiq?row('Photos étiquettes', p.etiq+' jointe(s) ✓','var(--green)'):'')
@@ -14546,7 +14552,7 @@ async function bkRunImport(btn){
 // Lecture/écriture ouvertes à tous les connectés ; delete réservé.
 // ============================================================
 var maintenanceCache=[]; var maintLoaded=false;
-const MAINT_CAT_LABEL={installation:'Installation', affutage:'Envoi à l\'affûtage', stock:'Retour en stock', demonte:'Démontée — à affûter'};   // [L237 · revue] demonte = état « à affûter » EXPLICITE (le seed n'antidate plus d'installations — CRITIQUE #1 : une machine sans pose active « montait » la lame par erreur)   // [L232 · refonte Lames A1] 'affutage' = ENVOI chez l'affûteur (état « en cours ») ; 'stock' = entrée/retour en réserve (lame disponible)
+const MAINT_CAT_LABEL={installation:'Installation', affutage:'Envoi à l\'affûtage', stock:'Retour en stock', demonte:'Démontée — départ affûtage'};   // [L237 · revue] demonte = état « à affûter » EXPLICITE (le seed n'antidate plus d'installations — CRITIQUE #1 : une machine sans pose active « montait » la lame par erreur)   // [L232 · refonte Lames A1] 'affutage' = ENVOI chez l'affûteur (état « en cours ») ; 'stock' = entrée/retour en réserve (lame disponible)
 function maintCatLabel(type,cat){ return MAINT_CAT_LABEL[cat]||cat||''; }
 // ============================================================
 // SUIVI DES LAMES (catégorie 'installation' dans la collection maintenance)
@@ -15099,9 +15105,9 @@ function renderAffutageList(){
     </div>`;
   };
   el.innerHTML=
-    sec('🟠','Lames à affûter','Démontées de leur machine, en attente de départ chez l\'affûteur.','aAffuter',
+    sec('🟠','Départ affûtage','Démontées de leur machine, en attente de départ chez l\'affûteur.','aAffuter',
       (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`:'',
-      'démontée le','aucune lame à affûter 👍')
+      'démontée le','aucune lame en départ affûtage 👍')
     +sec('📦','Lames stockées','Affûtées, disponibles — prêtes à être montées.','stockees',
       (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameMonterDepuisStock(this.dataset.mch,this.dataset.num)">⬆ Monter</button>`:'',
       'en stock depuis le','aucune lame en stock')
@@ -19881,6 +19887,7 @@ function gotoNextCut(){
 }
 function updateNextAction(){
   try{
+    try{ const pv=document.getElementById('chronoPrevol'); if(pv){ const show=!chronoRunning&&(!chronoSec||chronoSec===0)&&Array.isArray(ficheLines)&&ficheLines.length>0&&countCoupees()===0; pv.style.display=show?'':'none'; } }catch(e){}   // [L403] pré-vol visible seulement avant la toute 1re coupe
     document.querySelectorAll('.next-action').forEach(b=>b.classList.remove('next-action'));
     document.querySelectorAll('.fl-current').forEach(c=>c.classList.remove('fl-current'));   // [L308 · LOT 14] une seule carte « en cours » à la fois
     // [L105 · Phase 1 · E, révisé L306] la classe .chrono-off reste posée : elle pilote les indicateurs
