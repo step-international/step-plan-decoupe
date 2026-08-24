@@ -1641,6 +1641,17 @@ body.atelier .stat-tile b{font-size:36px}
   #fichesList .fc-btn{min-height:44px;font-size:13px;padding:10px 8px}
   body.atelier #fichesList .fc-btn{min-height:46px}
   /* [L342 → retiré L386 · demande Esteban 21/08] cartes compactes une-rangée SUPPRIMÉES (« on comprend rien ») : les fiches reprennent leur format COMPLET historique */
+  /* [L396 · demande Esteban 22/08] carte ALLÉGÉE (« trop de données, trop de boutons ») : l'essentiel seul —
+     client · état · n° · réf · bobines · perte · date+temps · ✓ VALIDER · 📄 PDF · 📎 BL. TAP sur la carte =
+     tout le détail (opérateur, machine, film/ml, BL détaillés, ✏ Modifier, 🗑 Archiver). */
+  #fichesList .fiche-card:not(.fc-open) .fc-film,
+  #fichesList .fiche-card:not(.fc-open) .fc-bl,
+  #fichesList .fiche-card:not(.fc-open) .fc-grid .fc-cell:nth-child(2),
+  #fichesList .fiche-card:not(.fc-open) .fc-grid .fc-cell:nth-child(3),
+  #fichesList .fiche-card:not(.fc-open) .fc-actions .fc-btn-edit,
+  #fichesList .fiche-card:not(.fc-open) .fc-actions .fc-btn-red-ghost{display:none}
+  #fichesList .fiche-card:not(.fc-open)::after{content:"▾ toucher la carte pour le détail (opérateur · machine · modifier · archiver)";display:block;font-size:11.5px;color:var(--muted);margin-top:6px}
+  #fichesList .fiche-card.fc-open::after{content:"▴ replier";display:block;font-size:11.5px;color:var(--muted);margin-top:6px}
   #tabContentSaves>.flex-wrap:not(:has(#btnLoadFull)):not(:has(#backupBtnZone:not([style*="none"]))){margin-bottom:0}   /* [fix audit] rangée vidée : plus de marge fantôme */
 }
 /* ============================================================
@@ -2685,7 +2696,7 @@ html.theme-light .fp-num small{color:#8a8a84}
   <div class="tab-bar">
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
     <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] maquette admin/pilotage (applyRole) — ouverture à tous en ÉTAPE 2 -->
-    <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">📋 Fiches découpe</button>
+    <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">✓ Validation fiches découpe</button><!-- [L396 · demande Esteban 22/08] -->
     <!-- [L223 · ergo #13] onglet « ⚠ Registre NC » fusionné dans 📈 Analyse (bloc repliable ncBox) -->
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
     <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
@@ -3092,7 +3103,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.22-L395';
+const APP_VERSION='2026.08.22-L396';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16076,6 +16087,9 @@ function renderFiches(){
     else _fCur.push(f);                                            // valide===false → "en cours" uniquement
   }
   let fiches=showValidatedFiches?_fVal:(fichesPendingOnly?_fPend:_fCur);
+  // [L396 · demande Esteban 22/08] file de VALIDATION chronologique : les plus ANCIENNES envoyées tout en haut
+  // (celles qui attendent depuis longtemps) ; l'archive des validées reste des plus récentes aux plus anciennes.
+  fiches=fiches.slice().sort(function(a,b){ const da=String(a.date||''), db2=String(b.date||''); if(da===db2) return 0; return showValidatedFiches?(da>db2?-1:1):(da<db2?-1:1); });
   // Recherche texte (client, n° commande, nom de fiche, réf).
   // [L113 · audit #21] insensible aux ACCENTS des deux côtés : taper « ech » trouve « ÉCHANTILLON ».
   const _noAcc=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
@@ -16149,7 +16163,7 @@ function renderFiches(){
     const cliBadge=isMultiCli?`<div style="margin:6px 0;padding:6px 10px;border-radius:8px;background:rgba(163,230,53,0.08);border:1px solid #4d7c0f;color:#a3e635;font-size:12px;font-weight:700">👥 Multi-clients — ${f.clients.map(c=>esc(c.id+(c.nom?' · '+c.nom:''))).join('  ·  ')}</div>`:'';
     const cliPdfBtns=isMultiCli?f.clients.map(c=>`<button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',true,'${esc(c.id)}')" title="PDF extrait — ne montre que les bobines de ${esc(c.nom||('client '+c.id))}">📄 ${esc(c.id)}${c.nom?' '+esc(String(c.nom).slice(0,12)):''}</button>`).join(''):'';
     // Modifier : opérateurs tant que non validée ; pilotage/admin aussi sur fiche validée (ajout photos, etc.).
-    const editBtn=(f.valide!==true||canManageData())?`<button class="fc-btn fc-btn-blue" onclick="editFicheConfigs('${f._id}')" title="${f.valide===true?'Modifier (fiche validée — photos, etc.)':'Modifier'}">✏ Modifier</button>`:'';
+    const editBtn=(f.valide!==true||canManageData())?`<button class="fc-btn fc-btn-blue fc-btn-edit" onclick="editFicheConfigs('${f._id}')" title="${f.valide===true?'Modifier (fiche validée — photos, etc.)':'Modifier'}">✏ Modifier</button>`:'';
     // Valider / Refuser : réservés au pilotage/admin.
     const blOk=ficheBLComplete(f);
     // [L129 · audit #16] « ✓ Valider » (et le badge BL de validation) UNIQUEMENT sur une fiche EN ATTENTE
@@ -16178,7 +16192,7 @@ function renderFiches(){
           (Array.isArray(f.refGroups)&&f.refGroups.length>1)
             ? `<div class="fc-refblock">${f.refGroups.map(g=>`<div class="fc-refrow"><span class="fc-refdot">▸</span><span class="fc-refname">${esc(g.ref||'?')}${g.longueur?` · ${esc(String(g.longueur))} ml`:''}</span></div>`).join('')}</div>`
             : `<span class="fc-val-wrap">${esc(f.ref||'—')}</span>`
-        }${filmSpec?`<span style="display:block;font-size:12px;color:var(--muted);margin-top:3px">🎞 ${filmSpec}</span>`:''}</div>
+        }${filmSpec?`<span class="fc-film" style="display:block;font-size:12px;color:var(--muted);margin-top:3px">🎞 ${filmSpec}</span>`:''}</div>
         <div class="fc-cell"><span class="fc-lbl">Opérateur</span><span class="fc-val">${esc(f.ini)}${op2}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Machine</span><span class="fc-val">${esc(f.machine)}</span></div>
         <div class="fc-cell"><span class="fc-lbl">Bobines</span><span class="fc-val">${f.totalBobines}</span></div>

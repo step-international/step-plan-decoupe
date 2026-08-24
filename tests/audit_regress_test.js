@@ -1220,5 +1220,10 @@ console.log('── L395 : débit en m²/h ──');
 has(/debitM2:_moM>0\?metres\*_moM\*3600\/sec:null/,'L395 : débit surface par relevé (métrage × laize mère du relevé)');
 has(/SURFACE coupée \(métrage × laize mère\) : comparable/,'L395 : carte Analyse en m²/h médian (repli m/h sans laize)');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L395 présents dans index.html + sw.js');
+console.log('── L396 : validation fiches découpe ──');
+has(/✓ Validation fiches découpe<\/button>/,'L396 : onglet renommé « Validation fiches découpe »');
+has(/les plus ANCIENNES envoyées tout en haut/,'L396 : file de validation chronologique (anciennes en premier, archive inversée)');
+has(/carte ALLÉGÉE \(« trop de données, trop de boutons »\)/,'L396 : carte fiche allégée — détail au tap');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L396 présents dans index.html + sw.js');
 process.exit(fail?1:0);
