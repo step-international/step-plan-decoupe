@@ -157,7 +157,7 @@ has(/liste limitée à \$\{CAP\}/,'R4b : cap de liste ANNONCÉ (jamais de tronca
 has(/function _openNcRegistre\(/,'R4b : carte NC → Registre NC (ncBox)');
 
 console.log('── L250 chantier ANALYSE — lot R5 ──');
-has(/'JF':'#a3e635','MT':'#f59e0b','DC':'#e879f9','ER':'#f87171','CH':'#10b981'/,'R5 : palette opérateurs — JF/CH séparés (lime vs émeraude), plus AUCUNE identité avec les couleurs machine');
+has(/OP_COLORS=\{'TB':'#22d3ee','JF':'#a3e635','MR':'#f59e0b','MT':'#f59e0b'/,'R5 (recalibré L404) : palette opérateurs — MR ajouté, MT conservé pour l archive');
 has(/body\.atelier #tabContentAnalyse\{zoom:1\.18\}/,'R5 : mode atelier AGIT sur Analyse (zoom conteneur — lisible à 60 cm)');
 has(/min-width:560px;display:block/,'R5 : graphes non-rétrécissants (défilement au lieu de labels 5 px sur téléphone)');
 has(/function _anaFold\(/,'R5 : blocs repliables avec état retenu (localStorage step_ana_fold)');
