@@ -1260,7 +1260,7 @@ has(/case inutile \(la réf est déjà dans le plan\)/,'L400 : modale sauvegarde
 
 console.log('── L401 : action auto réversible + défaut compact + multi-clients ──');
 has(/on note que c'est NOUS qui l'avons posé/,'L401 : le déchet AUTO se retire quand angle/casse sont décochés (bug Esteban) — le choix manuel est préservé');
-has(/DÉFAUT en petit — la place au ✂/,'L401 : bouton DÉFAUT compact en paysage');
+has(/DÉFAUT compact mais TEXTE gros et net/,'L401-L406 : DÉFAUT compact, texte gros');
 has(/m² de matière NC par mois/,'L401 : graphique mensuel déchets vs chutes au registre');
 has(/résolution tolérante : « AGOFORM ALLEMAGNE » matche/,'L401 : packaging multi-client trouvé même avec suffixe');
 has(/function _l402CliRecaps/,'L401 : « Sa commande » (bobineaux × laizes) sous chaque client');
