@@ -28,6 +28,7 @@ Il est utilisé **tous les jours en atelier**, sur 3 tablettes iPad, devant les 
 | **02 — Guide du logiciel** | Céline | À lire en premier, une fois, tranquillement |
 | **03 — Comptes et sécurité** | Céline | Quand il faut ajouter ou retirer quelqu'un |
 | **04 — Modifier et mettre en ligne** | Céline | **À chaque fois** qu'une modification est demandée |
+| **05 — Sauvegarde des données** | Esteban ou Christian | Une seule fois, pour activer les sauvegardes Firestore |
 
 ---
 

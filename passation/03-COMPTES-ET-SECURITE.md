@@ -71,10 +71,11 @@ l'usage. Si ce compte est fermé, arrive à court de crédit, ou si la clé est
 révoquée, **seule la partie discussion s'arrête**. Les mails de signalement,
 eux, continuent de partir normalement. Ce n'est donc jamais bloquant pour l'atelier.
 
-À noter avant le départ d'Esteban :
-- [ ] Sur quel compte Anthropic la clé est-elle rattachée, et qui le paie ?
-- [ ] Un interrupteur existe pour désactiver l'IA sans toucher au code
-      (document `config/assistant`) : qui sait s'en servir ?
+✅ **Vérifié en août 2026 : la clé est rattachée au compte Anthropic de
+l'entreprise.** Rien à transférer, rien à surveiller côté propriété.
+
+- [ ] Seul point restant : un interrupteur permet de désactiver l'IA sans toucher
+      au code (document `config/assistant` dans Firestore). Qui sait s'en servir ?
 
 ---
 
@@ -147,13 +148,8 @@ auditeur qualité demande à voir.
 
 ### Ce qu'il y a à faire
 
-Firebase propose des **exports planifiés** de Firestore. La formule payante étant
-déjà en place, c'est disponible immédiatement. On l'active une fois, et ça tourne seul.
+👉 **La marche à suivre complète est dans le document 05 —
+`05-SAUVEGARDE-DES-DONNEES.md`.** Environ 20 minutes, une seule fois,
+et il faut un accès à la console Firebase (Esteban ou Christian).
 
-- [ ] Activer un export automatique de Firestore (quotidien ou hebdomadaire)
-- [ ] Vérifier une fois, quelques jours après, que l'export est bien produit
-- [ ] Noter où il atterrit et combien de temps on le conserve
-- [ ] Vérifier qui reçoit les alertes de dépassement de budget
-
-> C'est, à mon avis, le point le plus important à traiter après la passation.
-> Une demi-heure à mettre en place, et le risque disparaît.
+> C'est le point le plus important à traiter après la passation.
