@@ -1236,7 +1236,7 @@ console.log('── L398 : lame qui suit, bouton mono qui dit vrai, singulier �
 has(/la LAME d'en-tête suit la machine de la réf validée/,'L398 : fNumLame rempli aussi au chemin MULTI (validation de réf)');
 has(/function _l398SyncPlanBtn/,'L398 : bouton mono dynamique ✓ Valider ↔ 🔄 Changement plan');
 has(/le useful GRAVÉ dans les lignes à la génération/,'L398 : critère fiable (la saisie fiche propage au plan en continu — comparer fiche\/plan était toujours vrai)');
-has(/Contrôle 2ᵉ bobineau <span/,'L398-L399 : singulier « 2ᵉ bobineau » (label devenu Contrôle)');
+has(/Contrôle 2ᵉ bobineau<\/label>/,'L398-L399→L409 : singulier « 2ᵉ bobineau », sous-texte pedagogique retire (demande Esteban)');
 absent(/2ème bobineaux|2ᵉ bobineaux/,'L398 : plus aucun pluriel « bobineaux » sur le test 2ᵉ');
 
 console.log('── L399 : le panneau DÉFAUT sépare contrôle et défauts (audit) ──');
@@ -1293,6 +1293,16 @@ has(/ncLots:\(typeof _l408NcLots/,'L408 : lots NC sérialisés avec la fiche');
 has(/multi-lots prioritaire/,'L408 : ncLoss additionne tous les lots (mm + m²)');
 has(/function _l408PrevolPop/,'L408 : pop pré-vol GROS texte au tap ▶ (Bobineaux/chutes en stock ?? · Bobine mère validée ??), 1×/commande');
 has(/onclick="_l408PrevolPop\(\)">▶ Démarrer/,'L408 : le bouton ▶ passe par le pop (le démarrage auto au 1er ✂ reste direct)');
+
+console.log('── L409 : pop fiable + emballage a onglets + ligne clients lisible + cumul compact ──');
+has(/meme lecon que confirmDlg L79/,'L409 : pop pre-vol z-index 100000 (il passait DERRIERE les overlays en prod)');
+has(/_abMode==='start'\)\{ _l408PrevolPop\(\)/,'L409 : la barre d action passe AUSSI par le pop (elle court-circuitait chronoStart)');
+has(/CHAQUE demarrage a zero/,'L409 : le pop sort a chaque demarrage a zero (la memoire 1x/commande le masquait)');
+has(/voir carte EMBALLAGE \(onglets\)/,'L409 : palette/type/etiquetage/cerclage retires des blocs clients B/C/D (redondants)');
+has(/function _l409PkgTabs/,'L409 : carte EMBALLAGE — onglets par client (A/B/...) avec selects relies a cliEdit');
+has(/function _l409CliGroups/,'L409 : ligne clients groupee — badge unique en tete par client (mono = 1 badge)');
+has(/pastilles client DANS la carte/,'L409 : tuiles CUMUL cote a cote (le div frere cassait la grille)');
+has(/volets des bobines coupees aussi : tuiles cote a cote/,'L409 : paysage — cumul en rangee dans les volets ouverts');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

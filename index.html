@@ -1619,6 +1619,7 @@ body.atelier .stat-tile b{font-size:36px}
   #planCondSec{padding:0;overflow:hidden;border:2px solid #2a5c2a;background:#0f1a12}
   #planCondSec>.section-title{display:none}
   #planCondSec:not(.reveal)>*:not(#condSummary){display:none}
+#planCondSec:not(.reveal)>#cliPkgTabs{display:flex}   /* [L409] les onglets clients restent visibles carte repliee */
   #planCondSec.reveal>*:not(#condSummary):not(.section-title){margin-left:14px;margin-right:14px}
   #planCondSec.reveal{padding-bottom:12px}
   #planCondSec.cond-has-alert{border-color:#59584f;background:#1a1a18}   /* [fix audit design · §2.17-B] pas de 3e orange sur l'écran Plan : la carte reste NEUTRE, l'alerte est dite en texte */
@@ -1954,7 +1955,8 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
    à la taille des autres gestes, résumé emballage sur 3 lignes. Tout ≥1100px — portrait inchangé.
    ============================================================ */
 @media(min-width:1100px){
-  .fl-current .cumul-box{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}                       /* n°3 : cumul secondaire sur une rangée */
+  .fl-current .cumul-box{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .cumul-box{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}   /* [L409] volets des bobines coupees aussi : tuiles cote a cote */                       /* n°3 : cumul secondaire sur une rangée */
   .fiche-line.fl-current .fiche-grid>.field:has([id^="flConf_"]){padding-left:130px;padding-right:145px} /* n°4 : textarea 313→388px (pastille 117 + CHUTE 79 + ✕ 48 mesurés) */
   #ficheRight>.fmm-inline-block.active .fmm-hint,#ficheLines .fmm-inline-block.active .fmm-hint{display:none}   /* n°5 : 0 phrase explicative (le bouton le dit) */
   .fmm-inline-block .fmm-btn-ref{display:none}                                                             /* n°5 : la réf est déjà dans la bande */
@@ -3123,7 +3125,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L408';
+const APP_VERSION='2026.08.24-L409';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6472,9 +6474,12 @@ function cliPrintChip(id){
 }
 // Allocation d'une bobine pour l'impression : pièces COLORÉES par client (aperçu écran) + pastille N&B (papier).
 function cliAllocPrintHtml(list){
-  return (list||[]).map(x=>x.c!=='+'
-    ?`<span style="white-space:nowrap;color:${cliColor(x.c)}"><b>${x.q}×${fmt(x.w)}</b> ${cliPrintChip(x.c)}</span>`
-    :`<span style="white-space:nowrap;color:#888">${x.q}×${fmt(x.w)} [hors cmd]</span>`).join(' + ');
+  return _l409CliGroups(list).map(g=>{
+    const segs=g.segs.map(x=>`<b>${x.q}×${fmt(x.w)}</b>`).join(' + ');
+    return g.c!=='+'
+      ?`<span style="white-space:nowrap;color:${cliColor(g.c)}">${cliPrintChip(g.c)} ${segs}</span>`
+      :`<span style="white-space:nowrap;color:#888">${segs} [hors cmd]</span>`;
+  }).join(' · ');
 }
 
 // ── ATTRIBUTION FIFO (fonctions PURES, testées hors-ligne) ──────────────────
@@ -6515,13 +6520,28 @@ function cliOfAlloc(list){
   (list||[]).forEach(p=>{ if(p.c!=='+')s.add(p.c); });
   return Array.from(s);
 }
-// Libellé HTML coloré d'une attribution de bobine : « 6×100 Ⓐ + 4×120 Ⓑ ».
-function cliAllocHtml(list){
-  return (list||[]).map(x=>`<span style="color:${cliColor(x.c)};font-weight:800;white-space:nowrap">${x.q}×${fmt(x.w)}${x.c!=='+'?' '+cliDotHtml(x.c,true):' <span style="color:#888">(hors cmd)</span>'}</span>`).join(' + ');
+// [L409 · demande Esteban] groupe par client : badge UNIQUE en tete par client (mono = 1 seul badge),
+// segments du meme client rassembles — l'operateur lit « Ⓐ 1×70 + 24×60 » au lieu d'un badge par segment.
+function _l409CliGroups(list){
+  const order=[],m=new Map();
+  (list||[]).forEach(x=>{ const k=x.c; if(!m.has(k)){ m.set(k,[]); order.push(k); } m.get(k).push(x); });
+  return order.map(c=>({c:c,segs:m.get(c)}));
 }
-// Libellé TEXTE (impressions N&B) : « 6×100 [A] + 4×120 [B] ».
+// Libellé HTML coloré d'une attribution de bobine : « Ⓐ 6×100 + 4×120 · Ⓑ 2×50 ».
+function cliAllocHtml(list){
+  return _l409CliGroups(list).map(g=>{
+    const segs=g.segs.map(x=>`${x.q}×${fmt(x.w)}`).join(' + ');
+    return g.c!=='+'
+      ?`<span style="color:${cliColor(g.c)};font-weight:800;white-space:nowrap">${cliDotHtml(g.c,true)} ${segs}</span>`
+      :`<span style="color:#888;font-weight:800;white-space:nowrap">${segs} (hors cmd)</span>`;
+  }).join(' <span style="color:#888">·</span> ');
+}
+// Libellé TEXTE (impressions N&B) : « [A] 6×100 + 4×120 · [B] 2×50 ».
 function cliAllocText(list){
-  return (list||[]).map(x=>`${x.q}×${fmt(x.w)}${x.c!=='+'?' ['+x.c+']':' [hors cmd]'}`).join(' + ');
+  return _l409CliGroups(list).map(g=>{
+    const segs=g.segs.map(x=>`${x.q}×${fmt(x.w)}`).join(' + ');
+    return (g.c!=='+'?'['+g.c+'] ':'[hors cmd] ')+segs;
+  }).join(' · ');
 }
 // Stock de chutes par réf normalisée {rk:{width:qty}} — même règle que le cumul.
 function cliStockByRef(){
@@ -6681,14 +6701,7 @@ function renderCliPanel(){
         <div class="field"><label>N° de commande</label><input type="text" value="${esc(c.numCmd)}" oninput="cliEdit('${c.id}','numCmd',this.value)"></div>
         <div class="field"><label>Date de livraison</label><input type="date" value="${esc(c.dateLiv)}" onchange="cliEdit('${c.id}','dateLiv',this.value)"></div>
       </div>
-      <div class="row2">
-        <div class="field"><label>Palette</label><select onchange="cliEdit('${c.id}','palette',this.value)">${selOpts(['','80×120','100×120','1/2 palette'],c.palette)}</select></div>
-        <div class="field"><label>Type conditionnement</label><select onchange="cliEdit('${c.id}','typeCond',this.value)">${selOpts(['','Caisse','Pyramide','Carton','Palette nue + réhausses','Vrac'],c.typeCond)}</select></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Étiquetage</label><select onchange="cliEdit('${c.id}','etiquetage',this.value)">${selOpts(['','Standard','Spécifique','Standard bobines + spécifique carton','Standard + étiquette mandrin'],c.etiquetage)}</select></div>
-        <div class="field"><label>Cerclage</label><select onchange="cliEdit('${c.id}','cerclage',this.value)">${selOpts(['','Standard (≤39mm + tous KX)','Aucun','Élargi (≤40mm)','Par piles cerclées (ratio fourni)'],c.cerclage)}</select></div>
-      </div>
+      <!-- [L409 · demande Esteban] palette/type/etiquetage/cerclage retires du bloc client : voir carte EMBALLAGE (onglets) — le modele reste rempli auto par PKG_CLIENTS via cliEdit('nom') -->
     </div>`;
   });
   box.innerHTML=html;
@@ -9942,11 +9955,14 @@ function dismissChutesRappel(){ try{ const b=document.getElementById('chutesRapp
 // [L408 · demande Esteban] le pré-vol POP au tap ▶ : GROS texte, 1×/commande (même mémoire que l'ancien
 // rappel), « Voir le plan » ouvre le plan sans lancer ; le démarrage AUTO par le 1er ✂ n'est pas bloqué.
 function _l408PrevolPop(){ try{
-  if(chronoRunning){ chronoStart(); return; }
-  try{ const k=_chutesRappelKey(); const seen=JSON.parse(localStorage.getItem('step_chutes_rappel_v2')||'[]'); if(Array.isArray(seen)&&seen.includes(k)){ chronoStart(); return; } }catch(e){}
+  /* [L409 · retour Esteban « il n'y a pas de pop »] la memoire 1x/commande (posee par l'ancien confirm
+     d'avant L405) MASQUAIT le pop sur les commandes deja demarrees. Nouveau critere : le pop sort a
+     CHAQUE demarrage a zero (chrono vierge), jamais sur une reprise apres pause. */
+  if(chronoRunning||((typeof chronoSec==='number')&&chronoSec>0)){ chronoStart(); return; }
   let ov=document.getElementById('prevolPop');
   if(ov){ ov.classList.add('open'); return; }
   ov=document.createElement('div'); ov.id='prevolPop'; ov.className='modal-overlay open';
+  ov.style.zIndex='100000';   /* [L409 · meme lecon que confirmDlg L79] .modal-overlay=200 hors entrainement : le pop passait DERRIERE les overlays 9999 -> invisible en prod */
   ov.innerHTML='<div class="modal" role="dialog" aria-modal="true" style="max-width:440px;text-align:center">'
     +'<div style="font-size:22px;font-weight:800;line-height:1.6;margin:8px 0 16px">✂ Bobineaux / chutes en stock ??<br>🔄 Bobine mère validée ??</div>'
     +'<div class="modal-btns" style="justify-content:center;gap:10px">'
@@ -9956,7 +9972,6 @@ function _l408PrevolPop(){ try{
 }catch(e){ try{ chronoStart(); }catch(_){} } }
 function _l408PrevolGo(){ try{
   const ov=document.getElementById('prevolPop'); if(ov) ov.remove();
-  try{ const k=_chutesRappelKey(); const seen=JSON.parse(localStorage.getItem('step_chutes_rappel_v2')||'[]'); const a=Array.isArray(seen)?seen:[]; a.push(k); localStorage.setItem('step_chutes_rappel_v2',JSON.stringify(a.slice(-8))); }catch(e){}
   chronoStart();
 }catch(e){} }
 function chronoStart(){
@@ -17639,7 +17654,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
   const cliCellPdf=fd=>{
     if(!fd||!Array.isArray(fd.cliParts)||!fd.cliParts.length) return '<span style="color:#555">—</span>';
     const ids=[...new Set(fd.cliParts.filter(p=>p.c!=='+').map(p=>p.c))];
-    const parts=fd.cliParts.map(p=>`<span style="color:${p.c==='+'?'#888':_cliCol(p.c)};font-weight:700;white-space:nowrap">${p.q}×${fmt(p.w)}&nbsp;[${p.c==='+'?'hors cmd':esc(p.c)}]</span>`).join(' + ');
+    const parts=_l409CliGroups(fd.cliParts).map(g=>`<span style="color:${g.c==='+'?'#888':_cliCol(g.c)};font-weight:700;white-space:nowrap">[${g.c==='+'?'hors cmd':esc(g.c)}]&nbsp;${g.segs.map(p=>p.q+'×'+fmt(p.w)).join(' + ')}</span>`).join(' · ');   /* [L409] groupe par client */
     return parts+(ids.length>1?' <span style="display:inline-block;background:#3d2a00;color:#f59e0b;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;margin-left:4px">MIXTE</span>':'');
   };
   const cliHasPart=(fd,cid)=>!!(fd&&Array.isArray(fd.cliParts)&&fd.cliParts.some(p=>p.c===cid));
@@ -19326,7 +19341,7 @@ function addFicheLine(data){
         <summary>⚠ Défaut <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary><!-- [L334 · §2.20 + maquette 17] suffixe « — NC · chutes/déchet » retiré (le volet ouvert détaille) -->
         <div class="fl-more-body">
       <div class="field" style="grid-column:1/-1"><!-- [L307 · LOT 2 · §2.2 + décision Esteban 03/08 §6.1] les puces test 2ᵉ SORTENT de la carte (le tap unique « ✂ Coupée — Test OK » les coche) et vivent ICI, dans ⚠ Défaut : inputs INCHANGÉS (ids, sérialisation, PDF, partage, gardes), focusables au clavier une fois le volet ouvert. Le R.A.S. auto-vert (L177) et le fléchage L302 continuent d'opérer dans ce volet. -->
-        <label style="color:#7fb0dc">✔ Contrôle 2ᵉ bobineau <span style="font-weight:400;color:var(--muted)">— arrêt machine · test · on continue</span></label><!-- [L399 · audit défaut] le contrôle obligatoire n'est plus étiqueté comme un problème -->
+        <label style="color:#7fb0dc">✔ Contrôle 2ᵉ bobineau</label><!-- [L409 · demande Esteban] sous-texte « arrêt machine · test · on continue » retiré --><!-- [L399 · audit défaut] le contrôle obligatoire n'est plus étiqueté comme un problème -->
         <div class="test2-block">
           <div class="test2-subs">
             <label class="test2-sub" id="sub_devi_${id}">
@@ -19964,7 +19979,7 @@ function _syncActionBar(mode,done,total){
 // sur la carte, avec ses gardes test 2ᵉ / NC — sécurité inchangée).
 function actionBarTap(){
   if(document.querySelector('.modal-overlay.open')) return;   // [L113 · audit U2/U16] filet JS si :has() indisponible (vieux iOS) : jamais d'action barre pendant une modale
-  if(_abMode==='start'){ chronoStart(); }
+  if(_abMode==='start'){ _l408PrevolPop(); }   /* [L409] la barre d'action appelait chronoStart() direct : le pop pre-vol ne sortait JAMAIS par le bouton reellement tape en atelier */
   else if(_abMode==='confirm'){ confirmCommandeRecap(); }
   else if(_abMode==='cut'){
     const l=_nextUncutLine(); if(!l) return;
@@ -20257,7 +20272,7 @@ function updateAllCumuls(){
         const tw=(cliT[rk]&&cliT[rk][p.width])||{};
         const rw=(cliR[rk]&&cliR[rk][p.width])||{};
         const ids=[...new Set([...Object.keys(tw),...Object.keys(rw)])].sort();
-        if(ids.length) cliSeg='<div style="margin:2px 0 6px 14px;display:flex;gap:12px;flex-wrap:wrap;font-size:13px">'+ids.map(cid=>{
+        if(ids.length) cliSeg='<div class="cumul-cli" style="margin:6px 0 0;display:flex;gap:10px;flex-wrap:wrap;font-size:13px">'+ids.map(cid=>{
           const cu=(rw[cid]||0), ta=(tw[cid]||0);
           const over=cu>ta;
           const ok=ta>0&&cu===ta;
@@ -20266,7 +20281,7 @@ function updateAllCumuls(){
         }).join('')+'</div>';
       }
       const _xtra=`${stockTag}${carton>0?' · '+carton+'/carton':''}${mandrin?' · mandrin '+esc(mandrin):''}${cercl}`.replace(/^\s*·\s*/,'');   /* [L334, fix L337 · audit] compléments → sous-ligne de la carte, sans « · » orphelin en tête */
-      return `<div class="cumul-card ${done?'done':'run'}"><div class="cc-t">LAIZE ${p.width} mm</div><div class="cc-v">${cur}${target>0?' <small>/ '+target+'</small>':''}${done?' <span class="cc-ok">✓</span>':''}</div>${_xtra?`<div class="cc-x">${_xtra}</div>`:''}</div>${cliSeg}`;   /* [L334 · maquette 17 · §2.13-C] cumul en CARTES par laize : titre 22px + valeur 30px */
+      return `<div class="cumul-card ${done?'done':'run'}"><div class="cc-t">LAIZE ${p.width} mm</div><div class="cc-v">${cur}${target>0?' <small>/ '+target+'</small>':''}${done?' <span class="cc-ok">✓</span>':''}</div>${_xtra?`<div class="cc-x">${_xtra}</div>`:''}${cliSeg}</div>`;   /* [L409] cumul : pastilles client DANS la carte — le div frere cassait la grille (1 tuile par ligne, retour Esteban « moche, trop de place ») */   /* [L334 · maquette 17 · §2.13-C] cumul en CARTES par laize : titre 22px + valeur 30px */
     }).join('');
   });
   try{ renderCliRecapFiche(); }catch(e){}   // [L64 · Lot 6] récap emballage par client (bas de fiche)
@@ -20877,6 +20892,53 @@ function _l341PlanPolish(){ try{
   // 4) [L345 · demande Esteban] code couleur machine sur la carte MACHINE du plan (FEBA bleu · MAVEG vert · CEVENINI violet)
   try{ document.querySelectorAll('#planLeft [data-rb="machine"]').forEach(function(sel){ const f=sel.closest('.field'); if(f) f.dataset.mach=sel.value||''; }); }catch(e){}
 }catch(e){} }
+// [L409 · demande Esteban] carte EMBALLAGE multi-clients : onglets Ⓐ/Ⓑ pour voir et regler l'emballage de CHAQUE client
+let _l409PkgTab='A';
+function _l409PkgTabs(){ try{
+  const sec=document.getElementById('planCondSec'); if(!sec) return;
+  const multi=(typeof cliMulti==='function')&&cliMulti();
+  let bar=document.getElementById('cliPkgTabs');
+  if(!multi){ if(bar) bar.remove(); const pn=document.getElementById('cliPkgPanel'); if(pn) pn.remove(); if(_l409PkgTab!=='A'){ _l409PkgTab='A'; _l409PkgShowA(true); } return; }
+  const ids=cliIds();
+  if(_l409PkgTab!=='A'&&ids.indexOf(_l409PkgTab)<0) _l409PkgTab='A';
+  if(!bar){ bar=document.createElement('div'); bar.id='cliPkgTabs'; bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px';
+    const sum=document.getElementById('condSummary'); if(sum) sum.insertAdjacentElement('afterend',bar); else sec.prepend(bar); }
+  const nomOf=function(id){ try{ return (typeof cliNom==='function'?cliNom(id):'')||''; }catch(e){ return ''; } };
+  bar.innerHTML=ids.map(function(id){
+    const on=id===_l409PkgTab;
+    return '<button type="button" class="btn btn-sm '+(on?'btn-green':'btn-ghost')+'" style="min-height:44px;font-weight:800" onclick="_l409PkgSel(\''+id+'\')">'
+      +(typeof cliDotHtml==='function'?cliDotHtml(id,true):esc(id))+' '+esc((nomOf(id)||('Client '+id)).slice(0,18))+'</button>';
+  }).join('');
+  _l409PkgApply();
+}catch(e){} }
+function _l409PkgSel(id){ try{ _l409PkgTab=id; const sec=document.getElementById('planCondSec'); if(sec&&!sec.classList.contains('reveal')) sec.classList.add('reveal'); _l409PkgTabs(); }catch(e){} }
+function _l409PkgShowA(show){ try{
+  const sec=document.getElementById('planCondSec'); if(!sec) return;
+  Array.from(sec.children).forEach(function(ch){
+    if(ch.classList&&ch.classList.contains('section-title')) return;
+    if(ch.id==='condSummary'||ch.id==='cliPkgTabs'||ch.id==='cliPkgPanel') return;
+    ch.style.display=show?'':'none';
+  });
+}catch(e){} }
+function _l409PkgApply(){ try{
+  const sec=document.getElementById('planCondSec'); if(!sec) return;
+  let pn=document.getElementById('cliPkgPanel');
+  if(_l409PkgTab==='A'){ if(pn) pn.remove(); _l409PkgShowA(true); return; }
+  _l409PkgShowA(false);
+  const c=(cmdClients||[]).find(function(x){ return x&&x.id===_l409PkgTab; }); if(!c) return;
+  if(pn&&pn.contains(document.activeElement)) return;   /* anti perte de focus (meme garde que _l402CliRecaps) */
+  if(!pn){ pn=document.createElement('div'); pn.id='cliPkgPanel'; sec.appendChild(pn); }
+  const so=function(opts,val){ return opts.map(function(o){ return '<option value="'+esc(o)+'"'+(o===val?' selected':'')+'>'+(o||'—')+'</option>'; }).join(''); };
+  pn.innerHTML=
+    '<div class="row2">'
+    +'<div class="field"><label>Palette</label><select onchange="cliEdit(\''+c.id+'\',\'palette\',this.value)">'+so(['','80×120','100×120','1/2 palette'],c.palette)+'</select></div>'
+    +'<div class="field"><label>Type conditionnement</label><select onchange="cliEdit(\''+c.id+'\',\'typeCond\',this.value)">'+so(['','Caisse','Pyramide','Carton','Palette nue + réhausses','Vrac'],c.typeCond)+'</select></div>'
+    +'</div><div class="row2">'
+    +'<div class="field"><label>Étiquetage</label><select onchange="cliEdit(\''+c.id+'\',\'etiquetage\',this.value)">'+so(['','Standard','Spécifique','Standard bobines + spécifique carton','Standard + étiquette mandrin'],c.etiquetage)+'</select></div>'
+    +'<div class="field"><label>Cerclage</label><select onchange="cliEdit(\''+c.id+'\',\'cerclage\',this.value)">'+so(['','Standard (≤39mm + tous KX)','Aucun','Élargi (≤40mm)','Par piles cerclées (ratio fourni)'],c.cerclage)+'</select></div>'
+    +'</div>'
+    +(c.notes?'<div style="margin-top:6px;font-size:13px;color:var(--muted)">⚡ '+esc(c.notes)+'</div>':'');
+}catch(e){} }
 function _l341RenderCondSummary(){ try{
   const sec=document.getElementById('planCondSec'); if(!sec) return;
   let sum=document.getElementById('condSummary');
@@ -20897,6 +20959,7 @@ function _l341RenderCondSummary(){ try{
   sum.innerHTML=h;
   sum.setAttribute('aria-expanded',open?'true':'false');
   sec.classList.toggle('cond-has-alert',alertOn);
+  try{ _l409PkgTabs(); }catch(e){}   /* [L409] onglets par client */
 }catch(e){} }
 function _l341SetupPlan(){ try{
   if(document.body.dataset.l341Plan) return; document.body.dataset.l341Plan='1';
@@ -22993,7 +23056,7 @@ function printFiche(){
     const conf2=(_flMachineOf(l.id)==='feba')?devi:(devi&&droit);   // [L65] machine de la ligne
     const test2=conf2?'✓':((devi?'Dév.':'')+(droit?'Droit':''))||'';
     const cumEl=document.getElementById('flCumul_'+l.id);
-    const cumText=(function(){ if(!cumEl) return '—'; try{ const cards=[...cumEl.querySelectorAll('.cumul-card')]; if(cards.length){ const fmtCard=function(c){ const t=(c.querySelector('.cc-t')||{}).textContent||''; const v=(c.querySelector('.cc-v')||{}).textContent||''; const x=(c.querySelector('.cc-x')||{}).textContent||''; return t.replace(/^\s*LAIZE\s+/i,'').trim()+' : '+v.replace(/\s+/g,' ').trim()+(x.trim()?', '+x.replace(/\s+/g,' ').trim():''); }; return [...cumEl.children].map(function(n){ return n.classList.contains('cumul-card')?fmtCard(n):n.innerText.replace(/\s+/g,' ').trim(); }).filter(Boolean).join(', '); } }catch(e){} return cumEl.innerText.trim().replace(/\n+/g,', '); })();   // [L351 · audit régression] les cartes L334 collaient le texte (« LAIZE 502 mm5 / 9 ») : format papier L303 restauré (« 502 mm : 5 / 9 »)
+    const cumText=(function(){ if(!cumEl) return '—'; try{ const cards=[...cumEl.querySelectorAll('.cumul-card')]; if(cards.length){ const fmtCard=function(c){ const t=(c.querySelector('.cc-t')||{}).textContent||''; const v=(c.querySelector('.cc-v')||{}).textContent||''; const x=(c.querySelector('.cc-x')||{}).textContent||''; const s9=(c.querySelector('.cumul-cli')||{}).textContent||''; return t.replace(/^\s*LAIZE\s+/i,'').trim()+' : '+v.replace(/\s+/g,' ').trim()+(x.trim()?', '+x.replace(/\s+/g,' ').trim():'')+(s9.trim()?', '+s9.replace(/\s+/g,' ').trim():''); }; return [...cumEl.children].map(function(n){ return n.classList.contains('cumul-card')?fmtCard(n):n.innerText.replace(/\s+/g,' ').trim(); }).filter(Boolean).join(', '); } }catch(e){} return cumEl.innerText.trim().replace(/\n+/g,', '); })();   // [L351 · audit régression] les cartes L334 collaient le texte (« LAIZE 502 mm5 / 9 ») : format papier L303 restauré (« 502 mm : 5 / 9 »)
     const nc=['larg','qty','casse','ang'].filter(k=>document.getElementById('nc_'+k+'_'+l.id)?.querySelector('input')?.checked);
     const ncText=nc.length?nc.join(', '):'RAS';
     const ncDetail=document.getElementById('nc_detail_'+l.id)?.value||'';
