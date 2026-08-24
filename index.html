@@ -371,6 +371,7 @@ body.atelier .fp-num{font-size:28px}
 .test2-block{background:#1a1a18;border:1px solid var(--border2);border-left:4px solid #4a7dbb;border-radius:8px;padding:3px 8px}/* [L399 · audit défaut] famille CONTRÔLE = bleu *//* [L288 · T1] compacté (7px 10px → 3px 8px, vaut aussi tablette) */
 .fl-more-body>.field:nth-of-type(2){border-top:1px dashed var(--border2);padding-top:10px;border-left:4px solid #b05553;padding-left:10px;border-radius:2px}/* [L399 · audit défaut] famille DÉFAUTS = rouge, séparée du contrôle */
 .fl-more-body>.field:nth-of-type(3){border-left:4px solid #b05553;padding-left:10px;border-radius:2px}
+label.nc-check.ras,label[id^="nc_qty_"]{display:none!important}/* [L400 · demande Esteban] R.A.S. inutile (défaut implicite) et « Qté » n'existe pas en réel — logique interne conservée */
 .test2-main{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .test2-main input[type=checkbox]{width:16px;height:16px;flex-shrink:0;accent-color:var(--green)}
 .test2-subs{display:flex;gap:6px}/* [L288 · T1] gap 8→6px */
@@ -2020,7 +2021,8 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
 /* [L363 · analyse parcours — logique validée : B3 machine du poste · B4 réf unique · B5 emballage main gagne · B11 config lecture seule · B15 3 lignes/600 ms · A16 · A17 · A20] */
 @media(min-width:1100px){
   #planSaveBtn{display:inline-flex;min-height:52px;width:auto;justify-content:center;align-items:center;font-size:15px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;padding:8px 16px;margin:0}   /* [L382 → L385 · demande Esteban 21/08] 💾 en GRAND, dans #statsBar à côté de la tuile perte (déplacé par _l341PlanPolish) */
-  #planResultSec>.section-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;font-size:14px;color:var(--text3);margin-bottom:4px}   /* [L386 · demande Esteban] titre discret à droite — toute la place au plan */
+  #planResultSec>.section-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;font-size:14px;color:var(--text3);margin-bottom:4px}
+  #planResultSec>.section-title .prs-lbl{display:none}   /* [L400] */   /* [L386 · demande Esteban] titre discret à droite — toute la place au plan */
   #planResultSec .title-chip{font-size:13px;padding:5px 10px;text-transform:none;letter-spacing:0}
   #planResultSec .action-bar{margin:2px 0 6px}
   #statsBar .stat-tile{padding:6px 10px}
@@ -2328,7 +2330,7 @@ html.theme-light .fp-num small{color:#8a8a84}
     <div class="text-muted" style="font-size:12px;margin-top:6px">Modifiable manuellement. Sauvegardé avec le plan.</div>
   </div>
 <div class="section" id="planResultSec">
-    <div class="section-title">Plan de découpe</div>
+    <div class="section-title"><span class="prs-lbl">Plan de découpe</span></div><!-- [L400 · demande Esteban] le libellé disparaît en paysage (place au plan) ; le conteneur reste : il porte les chips « n références » -->
     <div id="statsBar" class="stats-bar"></div>
     <div class="action-bar">
       <button type="button" class="btn" id="outilsPlanBtn" onclick="openOutilsDlg('outilsPlanDlg')" style="display:none;min-height:56px;justify-content:space-between;flex:1">⚙ Outils <span class="outils-badge">4</span></button><!-- [L338 · §2.14 maquette 18] tiroir OUTILS du Plan (≥1100px) -->
@@ -2852,7 +2854,7 @@ html.theme-light .fp-num small{color:#8a8a84}
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saveModalTitle">
     <h3 id="saveModalTitle">💾 Sauvegarder le plan</h3><button class="modal-x" aria-label="Fermer" onclick="closeSaveModal()">✕</button>
     <div class="field"><label>Client</label><input type="text" id="saveClient" inputmode="text"></div>
-    <div class="field"><label>Référence produit</label><input type="text" id="saveRef" inputmode="text"></div>
+    <div class="field" style="display:none"><label>Référence produit</label><input type="text" id="saveRef" inputmode="text"></div><!-- [L400 · demande Esteban] case inutile (la réf est déjà dans le plan) — champ conservé masqué (doSave le lit) -->
     <div class="modal-btns">
       <button class="btn btn-ghost btn-sm" onclick="closeSaveModal()">Annuler</button>
       <button class="btn btn-blue btn-sm" id="saveModalBtn" onclick="doSave()">Sauvegarder</button>
@@ -3105,7 +3107,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L399';
+const APP_VERSION='2026.08.24-L400';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10275,7 +10277,7 @@ async function stopManqueMatiere(){
       st.lines=(st.lines||[]).filter(l=>!l.coupee).map(l=>Object.assign({},l,{
         coupee:false, devi:false, droit:false, conforme:false, test2nc:false,
         ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false,
-        ncDetail:'', photo:'', actDechet:false, actChutes:false, actAccept:false
+        ncDetail:'', ncQtyVal:0, ncWidthVal:0, photo:'', actDechet:false, actChutes:false, actAccept:false
       }));
       st.chrono={sec:0, startTs:null, wasRunning:false, runStart:null};
       // [L103 · audit-max] les bascules « dès la bobine N » (lame / machine / op.2) sont des
@@ -10614,8 +10616,8 @@ async function confirmCommande(){
   for(let i=0;i<ficheCheck.length;i++){
     const fd=ficheCheck[i];
     const hasNC=fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng;
-    if(hasNC && !fd.ncDetail.trim()){
-      showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité cochée sans explication.\n\nRenseigne le détail avant de confirmer.`,'err');
+    if(hasNC && !((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0) && !fd.ncDetail.trim()){
+      showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité cochée sans QUANTITÉ ni LAIZE.\n\nRenseigne les deux cases (elles chiffrent la matière NC en m²) avant de confirmer.`,'err');
       return;
     }
     if(hasNC && !(fd.actDechet||fd.actChutes||fd.actAccept)){
@@ -11793,6 +11795,7 @@ function getFicheLinesData(){
       test2nc:get('flTest2nc')?.checked||false,
       ncRas:ncInput('ras'),ncLarg:ncInput('larg'),ncQty:ncInput('qty'),ncCasse:ncInput('casse'),ncAng:ncInput('ang'),
       ncDetail:get('nc_detail')?.value||'',
+      ncQtyVal:parseNum(get('nc_qty_val')?.value)||0,ncWidthVal:parseNum(get('nc_w_val')?.value)||0,   /* [L400] NC chiffrée */
       photo:ficholinePhotos[id]||'',
       actDechet:document.getElementById('act_dechet_'+id)?.classList.contains('btn-red')||false,
       actChutes:document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')||false,
@@ -17005,11 +17008,13 @@ const NC_LABELS={larg:'Largeur',qty:'Quantité',casse:'Casse',ang:'Angle'};
 function ncLoss(f,fd){ try{
   if(!fd||fd.actAccept) return {mm:0,m2:0};
   const det=String(fd.ncDetail||'');
+  const _q0=parseNum(fd.ncQtyVal)||0, _w0=parseNum(fd.ncWidthVal)||0;   /* [L400] saisie structurée (qty+laize) prioritaire */
   let mm=0,m2=0,m=null;
   const re=/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)/g;
   let lg=0;
   try{ if(Array.isArray(f.refGroups)&&f.refGroups.length){ const g=f.refGroups.find(x=>(x.ref||'')===(fd.ref||''))||f.refGroups[0]; lg=parseNum(g&&g.longueur)||0; } }catch(e){}
   if(!(lg>0)) lg=parseNum(f&&f.longueur)||0;
+  if(_q0>0&&_w0>0) return {mm:Math.round(_q0*_w0),m2:Math.round(_q0*(_w0/1000)*lg*10)/10};
   while((m=re.exec(det))){ const q=parseInt(m[1],10)||0; const w=parseNum(m[2])||0; if(q>0&&w>0&&w<3000){ mm+=q*w; m2+=q*(w/1000)*lg; } }
   return {mm:Math.round(mm),m2:Math.round(m2*10)/10};
 }catch(e){ return {mm:0,m2:0}; } }
@@ -17206,7 +17211,9 @@ function renderNc(){
     <div class="u-tile">
       <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.ang}</div><div class="u-meta">Angle</div></div>
     <div class="u-tile">
-      <div style="font-size:22px;font-weight:800;color:var(--orange)">${String(Math.round(rows.reduce((a,r)=>a+(r.perteM2||0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² de matière NC</div></div><!-- [L397 · demande Esteban] base valeur marchande -->
+      <div style="font-size:22px;font-weight:800;color:var(--red)">${String(Math.round(rows.reduce((a,r)=>a+((r.action==='Déchet')?(r.perteM2||0):0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² en DÉCHET (perdus)</div></div>
+    <div class="u-tile">
+      <div style="font-size:22px;font-weight:800;color:var(--orange)">${String(Math.round(rows.reduce((a,r)=>a+((r.action==='Chutes')?(r.perteM2||0):0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² en chutes (réutilisables)</div></div><!-- [L397→L400 · demande Esteban] déchet ≠ chute : le déchet est de la matière JETÉE -->
   </div>`;
 
   list.innerHTML=rows.map(r=>{
@@ -19282,15 +19289,19 @@ function addFicheLine(data){
         </div>
       </div>
       <div class="field">
-        <label style="color:#e08a88">⚠ Problèmes constatés sur la bobine <span style="font-weight:400;color:var(--muted)">— plusieurs possibles</span></label><!-- [L399 · audit défaut] -->
+        <label style="color:#e08a88">⚠ Saisie des non-conformités</label><!-- [L399→L400 · demande Esteban] -->
         <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts, ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
           <label class="nc-check bad" id="nc_ang_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Angle</label>
           <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
           <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Larg.</label>
           <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Qté</label>
         </div>
-        <textarea id="nc_detail_${id}" placeholder="Détail (facultatif)…" oninput="this.style.borderColor=(this.value.trim()||document.getElementById('nc_ras_${id}')?.querySelector('input')?.checked)?'':'var(--orange)'" style="margin-top:8px;min-height:36px" rows="2"></textarea>
-        <div class="nc-quick" aria-label="Détails rapides"><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Largeur hors tolérance</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Bord / angle non droit</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Casse / déchirure</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Quantité manquante</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Défaut film (bulle, rayure)</button></div><!-- [L370 · B14 · §2.22] puces « détail » pré-rédigées : remplissent le texte, ne COCHENT rien (ISO : le motif reste un choix explicite) --><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise · [L132 · revue] rétablie si on revide le champ alors qu'une NC reste cochée -->
+        <div style="display:flex;gap:8px;margin:6px 0"><!-- [L400 · demande Esteban] la NC se CHIFFRE : quantité + laize obligatoires (→ m² exacts au registre) -->
+          <div class="field" style="flex:1;margin:0"><label>Quantité NC</label><input type="text" id="nc_qty_val_${id}" inputmode="numeric" placeholder="ex. 3" oninput="updateNC('${id}')"></div>
+          <div class="field" style="flex:1;margin:0"><label>Laize du bobineau (mm)</label><input type="text" id="nc_w_val_${id}" inputmode="decimal" placeholder="ex. 65" oninput="updateNC('${id}')"></div>
+        </div>
+        <textarea id="nc_detail_${id}" placeholder="Commentaire (facultatif)…" oninput="this.style.borderColor=(this.value.trim()||document.getElementById('nc_ras_${id}')?.querySelector('input')?.checked)?'':'var(--orange)'" style="margin-top:8px;min-height:36px" rows="2"></textarea>
+        <div class="nc-quick" aria-label="Détails rapides"><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Bord / angle non droit</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Casse / déchirure</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Défaut film (bulle, rayure)</button><button type="button" class="nc-q" onclick="_l370NcQuick('${id}',this)">Cerclage</button></div><!-- [L400 · demande Esteban] --><!-- [L370 · B14 · §2.22] puces « détail » pré-rédigées : remplissent le texte, ne COCHENT rien (ISO : le motif reste un choix explicite) --><!-- [L105 · Phase 1 · H] textarea rétréci · [L130 · A1] surbrillance requise · [L132 · revue] rétablie si on revide le champ alors qu'une NC reste cochée -->
       </div>
       <div class="field" style="margin-bottom:0"><!-- [L107 · Phase 1 · G] Chutes / Déchet EN DESSOUS des problèmes · [L110] la photo est remontée dans l'en-tête de carte -->
         <label id="ncActLbl_${id}">Action</label><!-- [L132 · revue] libellé qui passe « ⚠ requise » quand une NC est cochée sans destination -->
@@ -20030,7 +20041,11 @@ function updateNC(id){
   // [L130 · audit A1] le détail est OBLIGATOIRE dès qu'une NC est cochée (bloque l'envoi) : on aligne le
   // libellé sur la règle (fini le « facultatif » trompeur) et on met le champ en évidence tant qu'il est vide.
   const det=document.getElementById('nc_detail_'+id);
-  if(det){ det.placeholder=hasNC?'⚠ Détail OBLIGATOIRE — motif de la non-conformité…':'Détail (facultatif)…'; det.style.borderColor=(hasNC&&!det.value.trim())?'var(--orange)':''; }
+  if(det){ det.placeholder='Commentaire (facultatif)…'; det.style.borderColor=''; }
+  // [L400 · demande Esteban] quantité + laize OBLIGATOIRES dès qu'une NC est cochée (elles chiffrent les m²)
+  const _qv=document.getElementById('nc_qty_val_'+id), _wv=document.getElementById('nc_w_val_'+id);
+  if(_qv) _qv.style.borderColor=(hasNC&&!(parseNum(_qv.value)>0))?'var(--orange)':'';
+  if(_wv) _wv.style.borderColor=(hasNC&&!(parseNum(_wv.value)>0))?'var(--orange)':'';
   _ncActionCue(id);   // [L132 · revue] rappeler que Chutes/Déchet est requis dès qu'une NC est cochée
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] NC cochée → le volet s'ouvre + statut ⚠
 }
@@ -20038,10 +20053,25 @@ function updateNC(id){
 // mais rien ne le signalait à la saisie. On passe le libellé « Action » en « ⚠ requise » tant que c'est le cas.
 function _ncActionCue(id){
   const lbl=document.getElementById('ncActLbl_'+id); if(!lbl) return;
-  const ras=document.getElementById('nc_ras_'+id)?.querySelector('input')?.checked;
-  const hasAct=document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')||document.getElementById('act_dechet_'+id)?.classList.contains('btn-red')||document.getElementById('act_accept_'+id)?.classList.contains('btn-green');
-  const need=!ras&&!hasAct;   // NC cochée (RAS décoché) sans action choisie
-  lbl.style.color=need?'var(--orange)':''; lbl.textContent=need?'Action ⚠ requise':'Action';
+  // [L400 · demande Esteban 24/08] angle/casse → DÉCHET automatique (physiquement irrécupérable) ;
+  // largeur seule → choix ✂ Chutes / 🗑 Déchet ; aucune NC → zone Action masquée.
+  const fieldEl=lbl.parentElement;
+  const g=k=>{ const el=document.getElementById('nc_'+k+'_'+id); return !!(el&&el.querySelector('input')&&el.querySelector('input').checked); };
+  const ang=g('ang'), casse=g('casse'), larg=g('larg'), qty=g('qty');
+  const hasNC=ang||casse||larg||qty;
+  const c=document.getElementById('act_chutes_'+id), d=document.getElementById('act_dechet_'+id);
+  if(fieldEl) fieldEl.style.display=hasNC?'':'none';
+  if(!hasNC) return;
+  if(ang||casse){
+    if(d&&!d.classList.contains('btn-red')){ try{ toggleAction(id,'dechet'); }catch(e){} }
+    if(c) c.style.display='none'; if(d) d.style.display='';
+    lbl.style.color=''; lbl.textContent='Action : 🗑 Déchet (automatique — angle / casse)';
+    return;
+  }
+  if(c) c.style.display=''; if(d) d.style.display='';
+  const hasAct=(c&&c.classList.contains('btn-orange'))||(d&&d.classList.contains('btn-red'))||(document.getElementById('act_accept_'+id)?.classList.contains('btn-green'));
+  const need=!hasAct;
+  lbl.style.color=need?'var(--orange)':''; lbl.textContent=need?'Action ⚠ requise — ✂ Chutes ou 🗑 Déchet ?':'Action';
 }
 function toggleAction(id,which){
   const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
@@ -22503,6 +22533,8 @@ function restoreFicheLineFromData(ld){
   setCk('larg',ld.ncLarg);setCk('qty',ld.ncQty);setCk('casse',ld.ncCasse);setCk('ang',ld.ncAng);
   updateNC(id);
   const det=document.getElementById('nc_detail_'+id);if(det)det.value=ld.ncDetail||'';
+  const _q4=document.getElementById('nc_qty_val_'+id);if(_q4)_q4.value=(ld.ncQtyVal>0)?ld.ncQtyVal:'';
+  const _w4=document.getElementById('nc_w_val_'+id);if(_w4)_w4.value=(ld.ncWidthVal>0)?ld.ncWidthVal:'';   /* [L400] */
   const eDe=document.getElementById('flDevi_'+id);if(eDe)eDe.checked=!!ld.devi;
   const eDr=document.getElementById('flDroit_'+id);if(eDr)eDr.checked=!!ld.droit;
   const eNc=document.getElementById('flTest2nc_'+id);if(eNc)eNc.checked=!!ld.test2nc;

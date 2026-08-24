@@ -1228,7 +1228,7 @@ has(/carte ALLÉGÉE \(« trop de données, trop de boutons »\)/,'L396 : carte 
 console.log('── L397 : matière NC en m² + bulle plus claire ──');
 has(/function ncLoss\(f,fd\)/,'L397 : perte NC calculée (q×w du détail × métrage) — 0 si acceptable/sans dimension');
 has(/'Laize NC \(mm\)','Matière NC \(m²\)'/,'L397 : export CSV — 2 colonnes après Détail (fichier Excel Esteban)');
-has(/m² de matière NC/,'L397 : tuile totale m² dans la synthèse du registre');
+has(/m² en DÉCHET \(perdus\)/,'L397 (scindé L400) : m² au registre — déchet et chutes séparés');
 has(/matière NC sur le PDF/,'L397 : perte m² sur le PDF de la fiche');
 has(/Explique en quelques mots ce qui se passe/,'L397 : bulle — texte d invitation clair');
 
@@ -1241,10 +1241,22 @@ absent(/2ème bobineaux|2ᵉ bobineaux/,'L398 : plus aucun pluriel « bobineaux 
 
 console.log('── L399 : le panneau DÉFAUT sépare contrôle et défauts (audit) ──');
 has(/✔ Contrôle 2ᵉ bobineau/,'L399 : le contrôle obligatoire n est plus étiqueté « défaut »');
-has(/⚠ Problèmes constatés sur la bobine/,'L399 : famille défauts nommée (pluriel, sur la bobine)');
+has(/⚠ Saisie des non-conformités/,'L399 (renommé L400) : famille défauts nommée');
 has(/⚠ Test NC/,'L399 : la puce du test se distingue des NC réelles');
 has(/famille CONTRÔLE = bleu/,'L399 : code couleur bleu contrôle / rouge défauts');
 has(/badge distinct : défaut réel vs test non conforme/,'L399 : badge du volet différencié');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L399 présents dans index.html + sw.js');
+console.log('── L400 : règles NC Esteban (24/08) ──');
+has(/⚠ Saisie des non-conformités/,'L400 : titre « Saisie des non-conformités »');
+has(/la NC se CHIFFRE : quantité \+ laize obligatoires/,'L400 : 2 cases obligatoires (→ m² exacts)');
+has(/DÉCHET automatique \(physiquement irrécupérable\)/,'L400 : angle/casse = déchet auto, largeur = choix, sans NC = zone masquée');
+has(/label\.nc-check\.ras,label\[id\^="nc_qty_"\]\{display:none!important\}/,'L400 : puces R.A.S. et Qté retirées de la saisie');
+has(/>Cerclage<\/button>/,'L400 : puce rapide Cerclage');
+absent(/Largeur hors tolérance|Quantité manquante/,'L400 : puces rapides obsolètes retirées');
+has(/m² en DÉCHET \(perdus\)/,'L400 : registre — déchet (perdu) ≠ chutes (réutilisables), chacun en m²');
+has(/saisie structurée \(qty\+laize\) prioritaire/,'L400 : ncLoss utilise la saisie chiffrée d abord');
+has(/le libellé disparaît en paysage \(place au plan\)/,'L400 : titre Plan de découpe retiré en paysage');
+has(/case inutile \(la réf est déjà dans le plan\)/,'L400 : modale sauvegarder sans champ référence');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L400 présents dans index.html + sw.js');
 process.exit(fail?1:0);
