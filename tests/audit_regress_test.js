@@ -1262,7 +1262,7 @@ console.log('── L401 : action auto réversible + défaut compact + multi-cli
 has(/on note que c'est NOUS qui l'avons posé/,'L401 : le déchet AUTO se retire quand angle/casse sont décochés (bug Esteban) — le choix manuel est préservé');
 has(/DÉFAUT compact mais TEXTE gros et net/,'L401-L406 : DÉFAUT compact, texte gros');
 has(/m² de matière NC par mois/,'L401 : graphique mensuel déchets vs chutes au registre');
-has(/résolution tolérante : « AGOFORM ALLEMAGNE » matche/,'L401 : packaging multi-client trouvé même avec suffixe');
+has(/resolution tolerante extraite en helper partage/,'L401→L410 : packaging multi-client trouve meme avec suffixe (helper _l410PkgResolve)');
 has(/function _l402CliRecaps/,'L401 : « Sa commande » (bobineaux × laizes) sous chaque client');
 
 console.log('── L402 : NC compact + % + pédagogies retirées ──');
@@ -1303,6 +1303,18 @@ has(/function _l409PkgTabs/,'L409 : carte EMBALLAGE — onglets par client (A/B/
 has(/function _l409CliGroups/,'L409 : ligne clients groupee — badge unique en tete par client (mono = 1 badge)');
 has(/pastilles client DANS la carte/,'L409 : tuiles CUMUL cote a cote (le div frere cassait la grille)');
 has(/volets des bobines coupees aussi : tuiles cote a cote/,'L409 : paysage — cumul en rangee dans les volets ouverts');
+
+console.log('── L410 : multi-clients fiabilise (analyse 4 sondes) ──');
+has(/function _l410PkgResolve/,'L410 : resolution packaging PARTAGEE (exacte -> tolerante) pour A ET B/C/D');
+has(/regles PAR DEFAUT au lieu de champs VIDES/,'L410 : client inconnu (AFEXTRUSION...) -> PKG_DEFAUT au lieu de vide');
+has(/remplissage paresseux : l'onglet B n'arrive plus VIDE/,'L410 : onglet emballage B pre-rempli a l affichage');
+has(/le client A profite AUSSI de la resolution tolerante/,'L410 : badge CLIENT pour « PRIMA pour le 25 06 26 » (regle PRIMA)');
+has(/seuls les INPUTS en saisie bloquent le re-rendu/,'L410 : le bouton ＋\/✕ ne bloque plus son propre re-rendu (laize invisible)');
+has(/identite STABLE : l'indice k visait la mauvaise laize/,'L410 : laizes clients identifiees par uid, plus d indice positionnel');
+has(/la laize rejoint le bloc ref ou le client a DEJA ses lignes/,'L410 : ajout dans le BON bloc reference (multi-ref)');
+has(/detruisait les recaps « SES LAIZES » sans les reconstruire/,'L410 : renderCliPanel reconstruit les recaps');
+has(/le recap clients n'etait plus JAMAIS rafraichi/,'L410 : plan manuel — recap rafraichi aussi');
+has(/le bandeau ⏳ DETRUISAIT le bouton 💾/,'L410 : bandeau commande volumineuse ne detruit plus le bouton Sauvegarder');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

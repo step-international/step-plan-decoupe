@@ -3125,7 +3125,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L409';
+const APP_VERSION='2026.08.24-L410';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4658,8 +4658,18 @@ var PKG_CLIENTS={
   'CARRETIER ROBIN':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',notes:'Règles par défaut.'}
 };
 
+// [L410 · demande Esteban] LA resolution packaging, partagee A/B/C/D : cle exacte, sinon
+// inclusion bidirectionnelle normalisee (« PRIMA pour le 25 06 26 » -> regle PRIMA), sinon null.
+function _l410PkgResolve(nom){ try{
+  if(typeof PKG_CLIENTS==='undefined') return null;
+  if(PKG_CLIENTS[nom]) return PKG_CLIENTS[nom];
+  const n=nrm(nom||''); if(!n) return null; let best=null,bl=0;
+  Object.keys(PKG_CLIENTS).forEach(function(k){ const kn=nrm(k); if(kn&&kn.length>2&&(n.indexOf(kn)>=0||kn.indexOf(n)>=0)&&kn.length>bl){ best=PKG_CLIENTS[k]; bl=kn.length; } });
+  return best;
+}catch(e){ return null; } }
 function applyPackagingRules(clientName){
-  var rules=PKG_CLIENTS[clientName]||PKG_DEFAULT;
+  var _r10=(typeof _l410PkgResolve==='function')?_l410PkgResolve(clientName):null;   /* [L410] le client A profite AUSSI de la resolution tolerante */
+  var rules=_r10||PKG_DEFAULT;
   // [L363 · analyse parcours B5] après une saisie MANUELLE dans l'emballage (même commande, même client), la règle ne REMPLIT que les vides
   if(window._l363PkgClient!==clientName) window._l363PkgTouched=false;   // [L364 · fix audit] la saisie manuelle vaut pour CE client seulement
   var _keep=!!(window._l363PkgTouched&&window._l363PkgClient===clientName);
@@ -4682,7 +4692,7 @@ function applyPackagingRules(clientName){
     _nEl.value=_v+(cerclageNote&&_v.indexOf('Film KX détecté')<0?cerclageNote:'');
   } else _setIf('planNotesEmballage',(rules.notes||'')+cerclageNote);
   var alertEl=document.getElementById('packagingAlert');
-  if(PKG_CLIENTS[clientName]){
+  if(_r10){
     alertEl.classList.remove('hidden');
     var warn=_keep?('⚡ Règles <strong>'+clientName+'</strong> — ta saisie emballage est conservée (vides complétés).'):('⚡ Règles spécifiques <strong>'+clientName+'</strong> appliquées. Vérifie et adapte si besoin.');   // [L364 · fix audit] ne pas dire « appliquées » quand rien n'a été réécrit
     alertEl.innerHTML=warn;
@@ -6665,11 +6675,9 @@ function cliEdit(id,field,value){
   c[field]=value;
   if(field==='nom'){
     // Pré-remplir le packaging du client depuis les règles connues (comme le client A).
-    try{ const p=(function(){ if(typeof PKG_CLIENTS==='undefined') return null; if(PKG_CLIENTS[value]) return PKG_CLIENTS[value];
-        const n=nrm(value||''); if(!n) return null; let best=null,bl=0;   /* [L401 · demande Esteban] résolution tolérante : « AGOFORM ALLEMAGNE » matche la règle « AGOFORM » */
-        Object.keys(PKG_CLIENTS).forEach(function(k){ const kn=nrm(k); if(kn&&kn.length>2&&(n.indexOf(kn)>=0||kn.indexOf(n)>=0)&&kn.length>bl){ best=PKG_CLIENTS[k]; bl=kn.length; } });
-        return best; })();
-      if(p){ c.palette=p.palette||c.palette; c.typeCond=p.type||c.typeCond; c.etiquetage=p.etiquetage||c.etiquetage; c.cerclage=p.cerclage||c.cerclage; if(p.notes)c.notes=p.notes; renderCliPanel(); } }catch(e){}
+    try{ const p=(typeof _l410PkgResolve==='function')?_l410PkgResolve(value):null;   /* [L401→L410] resolution tolerante extraite en helper partage */
+      if(p){ c.palette=p.palette||c.palette; c.typeCond=p.type||c.typeCond; c.etiquetage=p.etiquetage||c.etiquetage; c.cerclage=p.cerclage||c.cerclage; if(p.notes)c.notes=p.notes; renderCliPanel(); }
+      else if(!c.palette&&!c.typeCond&&!c.etiquetage&&!c.cerclage){ const d10=PKG_DEFAULT; c.palette=d10.palette||''; c.typeCond=d10.type||''; c.etiquetage=d10.etiquetage||''; c.cerclage=d10.cerclage||''; if(!c.notes&&d10.notes)c.notes=d10.notes; renderCliPanel(); } }catch(e){}   /* [L410] client inconnu (AFEXTRUSION...) : regles PAR DEFAUT au lieu de champs VIDES */
     cliRefreshRows(); recalcPlan();
   }
 }
@@ -6706,6 +6714,7 @@ function renderCliPanel(){
   });
   box.innerHTML=html;
   if(btn){ const free=cliFreeSlot(); btn.style.display=free?'':'none'; if(free) btn.textContent='＋ Ajouter le client '+free; }
+  try{ if(typeof _l402CliRecaps==='function') _l402CliRecaps(); }catch(e){}   /* [L410] le re-rendu du panel detruisait les recaps « SES LAIZES » sans les reconstruire */
 }
 // Pastille d'une ligne de commande : tap → client suivant parmi les clients définis.
 function cliCycleRow(btn){
@@ -6715,6 +6724,7 @@ function cliCycleRow(btn){
   const cur=ids.indexOf(inp.value||'A');
   inp.value=ids[(cur+1)%ids.length]||'A';
   cliPaintRow(row);
+  try{ if(typeof _l402CliRecaps==='function') _l402CliRecaps(); }catch(e){}   /* [L410] la ligne change de client : les recaps suivent tout de suite (indices perimes sinon) */
   debouncedRecalcPlan();
 }
 // Peint la pastille d'une ligne selon son client.
@@ -7880,6 +7890,7 @@ function debouncedRecalcPlan(){
     // sur un vieux PC ressemblerait sinon à un blocage. Remplacé dès que recalcPlan tourne.
     if(d.heavy){
       const statsEl=document.getElementById('statsBar');
+      try{ const _psb=document.getElementById('planSaveBtn'); if(_psb&&statsEl&&statsEl.contains(_psb)){ const _tl=document.querySelector('#planResultSec>.section-title'); if(_tl) _tl.appendChild(_psb); } }catch(_){}   /* [L410] meme sauvetage L385 que les 2 autres reecritures : le bandeau ⏳ DETRUISAIT le bouton 💾 en paysage */
       if(statsEl) statsEl.innerHTML='<div style="flex-basis:100%;width:100%;background:#3a2e14;border:2px solid var(--orange);color:#fcd34d;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700">⏳ Calcul du plan en cours… (commande volumineuse — patiente quelques secondes)</div>';
     }
   }catch(e){}
@@ -8160,6 +8171,7 @@ function recalcPlan(){
       document.getElementById('usefulDisplay').innerHTML='<i class="ud-l">Largeur utile</i><b class="ud-v">'+fmt(getUseful())+' <small>mm</small></b>';   /* [L336 · maquette 18 · §2.17-B] tuile bleue : label au-dessus, valeur 32px */
     try{ _updateRowShares(0); }catch(_){}   /* [L339 · audit] plan manuel : les % de part se vident (sinon valeurs périmées) */
     try{ if(typeof _l341RenderCondSummary==='function') _l341RenderCondSummary(); }catch(_){}   /* [L341 · fix audit] résumé emballage à jour même hors du chemin principal */
+    try{ if(typeof _l402CliRecaps==='function') _l402CliRecaps(); }catch(_){}   /* [L410] plan manuel : le recap clients n'etait plus JAMAIS rafraichi */
     renderPlanManual();
     return;
   }
@@ -8248,6 +8260,7 @@ function recalcPlan(){
     try{ const _psb=document.getElementById('planSaveBtn'); if(_psb&&statsEl&&statsEl.contains(_psb)){ const _tl=document.querySelector('#planResultSec>.section-title'); if(_tl) _tl.appendChild(_psb); } }catch(_){}   /* [L385] 💾 vit dans #statsBar (paysage) : le sortir avant de réécrire innerHTML sinon il serait détruit */
     if(statsEl) statsEl.innerHTML='';
     if(cardsEl) cardsEl.innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
+    try{ if(typeof _l402CliRecaps==='function') _l402CliRecaps(); }catch(e){}   /* [L410] recap clients vivant meme plan vide (laize fraiche encore incomplete) */
     try{ _updateRowShares(0); }catch(_){}   /* [L339 · audit] plan vidé : % de part vidés aussi */
     try{ if(typeof _l341RenderCondSummary==='function') _l341RenderCondSummary(); }catch(_){}   /* [L341 · fix audit] résumé emballage vidé aussi (resetAll passait par ici) */
     try{ document.querySelectorAll('#planResultSec>.section-title .title-chip').forEach(function(o){ o.remove(); }); }catch(_){}   /* [L383 · audit fusion] plan vidé (✓ envoi / ↺ réinitialiser) : les chips « n références / n clients » du titre partent aussi — elles affichaient la commande PRÉCÉDENTE */
@@ -20814,20 +20827,27 @@ function _l408NcLots(id){ try{
   return out;
 }catch(e){ return []; } }
 function _l407Rows(cid){ const out=[]; document.querySelectorAll('.order-row').forEach(function(r){ const c=(r.querySelector('[data-type="cli"]')?.value)||'A'; if(c===cid) out.push(r); }); return out; }
+let _l407Seq=0;   /* [L410] generateur d'identifiants stables des laizes clients */
 function _l407Add(cid){ try{
-  const cont=document.querySelector('.ref-block .rb-rows'); if(!cont) return;
+  let cont=null;
+  const prev=_l407Rows(cid);
+  if(prev.length){ const last=prev[prev.length-1]; cont=last.closest('.rb-rows'); }   /* [L410] la laize rejoint le bloc ref ou le client a DEJA ses lignes (avant : toujours le 1er bloc -> mauvaise mere -> laize oversize exclue du plan) */
+  if(!cont) cont=document.querySelector('.ref-block .rb-rows'); if(!cont) return;
   const r=makeOrderRow('','','',false,'',cid); cont.appendChild(r);
   try{ if(typeof cliRefreshRows==='function') cliRefreshRows(); }catch(e){}
   const inp=r.querySelector('[data-type="cli"]'); if(inp) inp.value=cid;
+  try{ updateCartonVisibility(); }catch(e){}   /* [L410] meme appel que addOrderRow : cellules carton/mandrin de la nouvelle ligne */
+  try{ if(document.activeElement&&document.activeElement.blur) document.activeElement.blur(); }catch(e){}
   _l402CliRecaps(); try{ debouncedRecalcPlan(); }catch(e){}
 }catch(e){} }
-function _l407Edit(cid,k,field,value){ try{
-  const r=_l407Rows(cid)[k]; if(!r) return;
+function _l407Edit(cid,uid,field,value){ try{
+  const r=document.querySelector('.order-row[data-l407uid="'+uid+'"]'); if(!r) return;   /* [L410] identite directe, plus d'indice positionnel */
   const inp=r.querySelector('[data-type="'+field+'"]'); if(!inp) return;
   inp.value=value; try{ debouncedRecalcPlan(); }catch(e){}
 }catch(e){} }
-function _l407Del(cid,k){ try{
-  const r=_l407Rows(cid)[k]; if(!r) return; r.remove();
+function _l407Del(cid,uid){ try{
+  const r=document.querySelector('.order-row[data-l407uid="'+uid+'"]'); if(!r) return; r.remove();
+  try{ if(document.activeElement&&document.activeElement.blur) document.activeElement.blur(); }catch(e){}
   _l402CliRecaps(); try{ debouncedRecalcPlan(); }catch(e){}
 }catch(e){} }
 function _l402CliRecaps(){ try{
@@ -20837,16 +20857,18 @@ function _l402CliRecaps(){ try{
     const blk=sel.closest('div[style*="border:1.5px"]'); if(!blk) return;
     let rc=blk.querySelector('.cli-recap');
     if(!rc){ rc=document.createElement('div'); rc.className='cli-recap'; rc.style.cssText='margin-top:8px'; blk.appendChild(rc); }
-    if(rc.contains(document.activeElement)) return;   // saisie en cours : ne pas re-rendre sous le doigt
+    const _ae10=document.activeElement; if(_ae10&&rc.contains(_ae10)&&_ae10.tagName==='INPUT') return;   // [L410] seuls les INPUTS en saisie bloquent le re-rendu — le bouton ＋/✕ focalise bloquait SON PROPRE re-rendu : la laize ajoutee n'apparaissait jamais
     const rows=_l407Rows(cid);
     let h='<div style="font-size:13px;font-weight:800;letter-spacing:.04em;color:var(--text3);margin-bottom:4px">📦 SES LAIZES</div>';
     rows.forEach(function(r,k){
+      if(!r.dataset.l407uid) r.dataset.l407uid='u'+(++_l407Seq);   /* [L410] identite STABLE : l'indice k visait la mauvaise laize des que la liste bougeait (ligne auto, ✕, pastille) */
+      const uid=r.dataset.l407uid;
       const q=(r.querySelector('[data-type="qty"]')?.value)||'', w=(r.querySelector('[data-type="width"]')?.value)||'';
       h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:5px">'
-        +'<input type="text" inputmode="numeric" placeholder="Qté" value="'+esc(q)+'" oninput="_l407Edit(\''+cid+'\','+k+',\'qty\',this.value)" style="width:80px;min-height:44px;font-size:16px;text-align:center">'
+        +'<input type="text" inputmode="numeric" placeholder="Qté" value="'+esc(q)+'" oninput="_l407Edit(\''+cid+'\',\''+uid+'\',\'qty\',this.value)" style="width:80px;min-height:44px;font-size:16px;text-align:center">'
         +'<span style="font-weight:800;color:var(--muted)">×</span>'
-        +'<input type="text" inputmode="decimal" placeholder="Laize mm" value="'+esc(w)+'" oninput="_l407Edit(\''+cid+'\','+k+',\'width\',this.value)" style="flex:1;max-width:150px;min-height:44px;font-size:16px;text-align:center">'
-        +'<button class="btn btn-red btn-sm" style="min-height:40px" onclick="_l407Del(\''+cid+'\','+k+')" aria-label="Retirer cette laize">✕</button></div>';
+        +'<input type="text" inputmode="decimal" placeholder="Laize mm" value="'+esc(w)+'" oninput="_l407Edit(\''+cid+'\',\''+uid+'\',\'width\',this.value)" style="flex:1;max-width:150px;min-height:44px;font-size:16px;text-align:center">'
+        +'<button class="btn btn-red btn-sm" style="min-height:40px" onclick="_l407Del(\''+cid+'\',\''+uid+'\')" aria-label="Retirer cette laize">✕</button></div>';
     });
     const tot=rows.reduce(function(a,r){ return a+(parseNum(r.querySelector('[data-type="qty"]')?.value)||0); },0);
     h+='<div style="display:flex;align-items:center;gap:10px"><button class="btn btn-ghost btn-sm" style="min-height:42px" onclick="_l407Add(\''+cid+'\')">＋ Ajouter une laize</button>'
@@ -20926,6 +20948,7 @@ function _l409PkgApply(){ try{
   if(_l409PkgTab==='A'){ if(pn) pn.remove(); _l409PkgShowA(true); return; }
   _l409PkgShowA(false);
   const c=(cmdClients||[]).find(function(x){ return x&&x.id===_l409PkgTab; }); if(!c) return;
+  try{ if(!c.palette&&!c.typeCond&&!c.etiquetage&&!c.cerclage){ const p10=(typeof _l410PkgResolve==='function')?(_l410PkgResolve(c.nom)||PKG_DEFAULT):null; if(p10){ c.palette=p10.palette||''; c.typeCond=p10.type||''; c.etiquetage=p10.etiquetage||''; c.cerclage=p10.cerclage||''; if(!c.notes&&p10.notes)c.notes=p10.notes; } } }catch(e){}   /* [L410] remplissage paresseux : l'onglet B n'arrive plus VIDE */
   if(pn&&pn.contains(document.activeElement)) return;   /* anti perte de focus (meme garde que _l402CliRecaps) */
   if(!pn){ pn=document.createElement('div'); pn.id='cliPkgPanel'; sec.appendChild(pn); }
   const so=function(opts,val){ return opts.map(function(o){ return '<option value="'+esc(o)+'"'+(o===val?' selected':'')+'>'+(o||'—')+'</option>'; }).join(''); };
@@ -20951,7 +20974,7 @@ function _l341RenderCondSummary(){ try{
   const notes=v('planNotesEmballage').split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean);
   const alertEl=document.getElementById('packagingAlert'); const alertOn=!!(alertEl&&!alertEl.classList.contains('hidden')&&alertEl.textContent.trim());
   const open=sec.classList.contains('reveal');
-  const _isCli=!!(cli&&typeof PKG_CLIENTS!=='undefined'&&PKG_CLIENTS[cli]);   // [L363 · A16] la spécificité se lit : règle CLIENT ou règle PAR DÉFAUT (le « ✓ » ne disait rien)
+  const _isCli=!!(cli&&typeof _l410PkgResolve==='function'&&_l410PkgResolve(cli));   // [L363 · A16 → L410] badge CLIENT meme avec suffixe (« PRIMA pour le 25 06 26 » -> regle PRIMA)
   let h='<span class="cs-l1"><b>📦 EMBALLAGE</b>'   /* [L386 · demande Esteban] sans le client : il prenait 3 lignes */
     +(parts.length?'<span class="cs-auto">'+(_isCli?'CLIENT':'DÉFAUT')+'</span>':'<span class="cs-auto cs-none">À RENSEIGNER</span>')+'<span class="cs-arrow">'+(open?'▴ REPLIER':'▾ DÉTAIL')+'</span></span>';
   h+='<span class="cs-l2">'+(notes.length?esc(notes[0])+(notes.length>1?' (+'+(notes.length-1)+')':'')+' — ':'')+(parts.length?esc(parts.join(' · ')):'palette · type · étiquetage · cerclage')+'</span>';   // [L363 · A16] la note client (la vraie spécificité) AVANT les champs standards
