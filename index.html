@@ -368,7 +368,9 @@ body.atelier .fp-num{font-size:28px}
 .nc-check.ras.sel.t2ok{background:#14371f;border-color:var(--green);color:var(--green)}
 .nc-check.bad.sel{background:#3d1414;border-color:var(--red);color:var(--red)}
 .nc-check:not(.sel){color:var(--muted)}
-.test2-block{background:#1a1a18;border:1px solid var(--border2);border-radius:8px;padding:3px 8px}/* [L288 · T1] compacté (7px 10px → 3px 8px, vaut aussi tablette) */
+.test2-block{background:#1a1a18;border:1px solid var(--border2);border-left:4px solid #4a7dbb;border-radius:8px;padding:3px 8px}/* [L399 · audit défaut] famille CONTRÔLE = bleu *//* [L288 · T1] compacté (7px 10px → 3px 8px, vaut aussi tablette) */
+.fl-more-body>.field:nth-of-type(2){border-top:1px dashed var(--border2);padding-top:10px;border-left:4px solid #b05553;padding-left:10px;border-radius:2px}/* [L399 · audit défaut] famille DÉFAUTS = rouge, séparée du contrôle */
+.fl-more-body>.field:nth-of-type(3){border-left:4px solid #b05553;padding-left:10px;border-radius:2px}
 .test2-main{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .test2-main input[type=checkbox]{width:16px;height:16px;flex-shrink:0;accent-color:var(--green)}
 .test2-subs{display:flex;gap:6px}/* [L288 · T1] gap 8→6px */
@@ -3103,7 +3105,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L398';
+const APP_VERSION='2026.08.24-L399';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -19259,7 +19261,7 @@ function addFicheLine(data){
         <summary>⚠ Défaut <span class="fl-more-stat" id="flMoreStat_${id}"></span></summary><!-- [L334 · §2.20 + maquette 17] suffixe « — NC · chutes/déchet » retiré (le volet ouvert détaille) -->
         <div class="fl-more-body">
       <div class="field" style="grid-column:1/-1"><!-- [L307 · LOT 2 · §2.2 + décision Esteban 03/08 §6.1] les puces test 2ᵉ SORTENT de la carte (le tap unique « ✂ Coupée — Test OK » les coche) et vivent ICI, dans ⚠ Défaut : inputs INCHANGÉS (ids, sérialisation, PDF, partage, gardes), focusables au clavier une fois le volet ouvert. Le R.A.S. auto-vert (L177) et le fléchage L302 continuent d'opérer dans ce volet. -->
-        <label>Test 2ème bobineau</label>
+        <label style="color:#7fb0dc">✔ Contrôle 2ᵉ bobineau <span style="font-weight:400;color:var(--muted)">— arrêt machine · test · on continue</span></label><!-- [L399 · audit défaut] le contrôle obligatoire n'est plus étiqueté comme un problème -->
         <div class="test2-block">
           <div class="test2-subs">
             <label class="test2-sub" id="sub_devi_${id}">
@@ -19269,7 +19271,7 @@ function addFicheLine(data){
               <input type="checkbox" id="flDroit_${id}" aria-label="Test 2ᵉ bobineau — bord droit conforme" onchange="updateTest2Subs('${id}')"> ➡ Droit
             </label>
             <label class="test2-nc" id="test2nc_${id}" style="margin-bottom:0;flex:1">
-              <input type="checkbox" id="flTest2nc_${id}" aria-label="Test 2ᵉ bobineau — non conforme" onchange="updateTest2Subs('${id}')"> ⚠ NC
+              <input type="checkbox" id="flTest2nc_${id}" aria-label="Test 2ᵉ bobineau — non conforme" onchange="updateTest2Subs('${id}')"> ⚠ Test NC
             </label>
             <label class="nc-check ras sel" id="nc_ras_${id}" style="flex:1;justify-content:center;margin:0"><input type="checkbox" checked onchange="updateNC('${id}')"> ✓ R.A.S.</label>
           </div>
@@ -19280,7 +19282,7 @@ function addFicheLine(data){
         </div>
       </div>
       <div class="field">
-        <label>Problème constaté</label>
+        <label style="color:#e08a88">⚠ Problèmes constatés sur la bobine <span style="font-weight:400;color:var(--muted)">— plusieurs possibles</span></label><!-- [L399 · audit défaut] -->
         <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts, ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
           <label class="nc-check bad" id="nc_ang_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Angle</label>
           <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
@@ -19968,7 +19970,7 @@ function syncFlMore(id){
   const nc=['larg','qty','casse','ang'].some(k=>{const el=document.getElementById('nc_'+k+'_'+id);return el&&el.querySelector('input').checked;});
   const t2nc=!!(document.getElementById('flTest2nc_'+id)?.checked);
   const stat=document.getElementById('flMoreStat_'+id);
-  if(stat) stat.innerHTML=(nc||t2nc)?'<span class="st-nc">⚠ NC</span>':'';
+  if(stat) stat.innerHTML=nc?'<span class="st-nc">⚠ NC</span>':(t2nc?'<span class="st-nc">⚠ Test NC</span>':'');   /* [L399 · audit défaut] badge distinct : défaut réel vs test non conforme */
   // [L113 · audit #4/U21] n'ouvrir QUE sur transition faux→vrai d'une NC RÉELLE (larg/qty/casse/ang, qui
   // vivent DANS le volet). PAS sur t2nc (test 2ᵉ = sur la carte depuis L107, seulement le badge) ni à
   // chaque interaction — sinon l'opérateur ne peut jamais garder le volet replié.

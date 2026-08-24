@@ -1208,7 +1208,7 @@ has(/celine\.rozier\.chabert@gmail\.com/,'L392 : Céline reçoit les signalement
 console.log('── L393 : bobine mère fluide + compteurs synchronisés (22/08) ──');
 has(/#nowBar\{display:none!important\}/,'L393 : bandeau « MAINTENANT / Y ALLER » supprimé (photo Esteban)');
 has(/un tap = validé, AUCUN « changement »/,'L393 : VALIDER avec valeurs inchangées = simple coche (multi)');
-has(/valeurs identiques au plan → valider SANS recalcul/,'L393 : idem en mono (Changement plan)');
+has(/\[L393 → corrigé L398\] valider SANS recalcul UNIQUEMENT/,'L393 (corrigé L398) : coche mono sans recalcul SEULEMENT si la fiche est déjà calée');
 has(/_l393AutoApply/,'L393 : mère/bords/lame modifiés = application AUTO en sortant des champs');
 has(/la commande CORRIGÉE devient la référence des compteurs/,'L393 : CUMUL x\/y re-basé après tout recalcul (audit modif-commande n°1/2)');
 has(/le ✎ CORRIGER de l'en-tête \(fClient\) pilote aussi les chips du cumul/,'L393 : chips mandrin/cerclé suivent le client corrigé (audit n°4)');
@@ -1236,8 +1236,15 @@ console.log('── L398 : lame qui suit, bouton mono qui dit vrai, singulier �
 has(/la LAME d'en-tête suit la machine de la réf validée/,'L398 : fNumLame rempli aussi au chemin MULTI (validation de réf)');
 has(/function _l398SyncPlanBtn/,'L398 : bouton mono dynamique ✓ Valider ↔ 🔄 Changement plan');
 has(/le useful GRAVÉ dans les lignes à la génération/,'L398 : critère fiable (la saisie fiche propage au plan en continu — comparer fiche\/plan était toujours vrai)');
-has(/Test 2ème bobineau</,'L398 : singulier « 2ᵉ bobineau »');
+has(/Contrôle 2ᵉ bobineau <span/,'L398-L399 : singulier « 2ᵉ bobineau » (label devenu Contrôle)');
 absent(/2ème bobineaux|2ᵉ bobineaux/,'L398 : plus aucun pluriel « bobineaux » sur le test 2ᵉ');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L398 présents dans index.html + sw.js');
+console.log('── L399 : le panneau DÉFAUT sépare contrôle et défauts (audit) ──');
+has(/✔ Contrôle 2ᵉ bobineau/,'L399 : le contrôle obligatoire n est plus étiqueté « défaut »');
+has(/⚠ Problèmes constatés sur la bobine/,'L399 : famille défauts nommée (pluriel, sur la bobine)');
+has(/⚠ Test NC/,'L399 : la puce du test se distingue des NC réelles');
+has(/famille CONTRÔLE = bleu/,'L399 : code couleur bleu contrôle / rouge défauts');
+has(/badge distinct : défaut réel vs test non conforme/,'L399 : badge du volet différencié');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L399 présents dans index.html + sw.js');
 process.exit(fail?1:0);
