@@ -786,7 +786,7 @@ console.log('── L345 : retours Esteban n°2 (17/08 soir) ──');
 has(/button\[onclick\^="bumpDateLiv"\]\{display:none!important\}/,'L345 : raccourcis +7 J / +14 J retirés (calendrier natif suffit)');
 has(/if\(f\) f\.dataset\.mach=sel\.value\|\|'';/,'L345 : code couleur MACHINE sur la carte du plan (FEBA bleu · MAVEG vert · CEVENINI violet)');
 has(/#planResultSec>#planCards\{flex:1 1 auto;min-height:0;overflow-y:auto/,'L345 : colonne droite du plan = hauteur écran, seules les lignes défilent (emballage + COMMENCER toujours visibles)');
-has(/le confirm natif « BOBINEAUX ou CHUTES \\? » disparaît/,'L345 (retiré L405 — décision Esteban) : rappel stock porté par le bandeau pré-vol, sans pop-up');
+has(/le confirm natif « BOBINEAUX ou CHUTES \? » disparaît/,'L345 (retiré L405 — décision Esteban) : rappel stock porté par le bandeau pré-vol, sans pop-up');
 has(/if\(_premierDepart\)\{ let _go=true; try\{ _go=\(maybeShowChutesRappel\(\)!==false\); \}catch\(e\)\{\} if\(!_go\) return; \}/,'L345 : chrono NON lancé si l opérateur choisit d ouvrir le plan');
 has(/function _l345ConfDirty/,'L345 : MODIFIER et ÉCARTS = un bouton ; config modifiée → « ♻ RECALCULER »');
 has(/if\(!line\.classList\.contains\('coupee'\)&&typeof _l345ConfDirty==='function'&&_l345ConfDirty\(id\)\)\{/,'L345 : garde ✂ — pas de coupe tant que les écarts ne sont pas recalculés après modification (toast + halo) — L351 : jamais sur le dé-marquage');
