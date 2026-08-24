@@ -376,6 +376,12 @@ label.nc-check.ras,label[id^="nc_qty_"]{display:none!important}/* [L400 · deman
 .fiche-line.fl-current .fl-more:not([open])>summary{font-size:14px;min-height:56px;padding:8px 10px}/* [L401 · demande Esteban] DÉFAUT en petit — la place au ✂ */
 body.apprenti .fl-current .fl-more:not([open])>summary::after{font-size:11px}
 #ficheLines textarea[id^="nc_detail_"]{font-size:12.5px;min-height:34px}/* [L401] commentaire facultatif discret */
+.fl-more[open] .fl-more-body>.field{margin-bottom:6px}/* [L402 · demande Esteban] panneau NC COMPACT : on voit encore l'écran derrière */
+.fl-more-body .nc-checks .nc-check,.fl-more-body .test2-subs .test2-sub,.fl-more-body .test2-nc{min-height:44px;font-size:14px;padding:6px 10px}
+#ficheLines input[id^="nc_qty_val_"],#ficheLines input[id^="nc_w_val_"]{min-height:40px;font-size:15px;padding:5px 10px}
+.fl-more-body .field label{font-size:13px;margin-bottom:3px}
+.nc-quick .nc-q{font-size:12px;min-height:34px;padding:4px 8px}
+.fl-more-body>.field:nth-of-type(2){padding-top:6px}
 }
 .test2-main{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .test2-main input[type=checkbox]{width:16px;height:16px;flex-shrink:0;accent-color:var(--green)}
@@ -1890,7 +1896,7 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
   .foc-cfg{display:inline;color:var(--text2)}
   /* [L357 · demande Esteban] chip « 🎓 APPRENTI » du HUD RETIRÉ (« le mot apprenti inutile ») — body.apprenti reste pour le sous-indice ⚠ DÉFAUT */
   body.apprenti .fl-current .fl-more:not([open])>summary{flex-direction:column;gap:2px}
-  body.apprenti .fl-current .fl-more:not([open])>summary::after{content:"bobine non conforme ? → ici";font:600 13px/1.2 var(--f-body,inherit);letter-spacing:0;text-transform:none;color:var(--text3)}
+  body.apprenti .fl-current .fl-more:not([open])>summary::after{content:none}/* [L402 · demande Esteban] sous-texte retiré — juste DÉFAUT */
 }
 /* ============================================================
    [L354 · BACKLOG n°16 · 17 · 19 (19/08)] (16) Données › Plans : filtre « 📅 Aujourd'hui (n) » + « 📂 Charger ce plan » depuis une carte
@@ -2018,7 +2024,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   /* B8 — ⚠ DÉFAUT : cadre neutre, glyphe/texte rouge ; le rouge plein revient quand la bobine est réellement NC */
   .fl-current .fl-more{background:#1f1f1d;border-color:var(--border2)}
   .fiche-line.fl-current:has(.fl-badge.badge-red) .fl-more{background:#241010;border-color:#8a2b2f}
-  body.apprenti .fl-current .fl-more:not([open])>summary::after{color:var(--text2)}
+  
   /* B9 — changement de machine = avertissement (orange vif), le rouge reste à la non-conformité */
   .fiche-ref-sep.change{border-color:var(--warn);border-left-color:var(--warn);background:linear-gradient(#3d2a00,var(--section))}
   .frs-change{color:var(--warn)}
@@ -3112,7 +3118,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L401';
+const APP_VERSION='2026.08.24-L402';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -17218,10 +17224,10 @@ function renderNc(){
       <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.casse}</div><div class="u-meta">Casse</div></div>
     <div class="u-tile">
       <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.ang}</div><div class="u-meta">Angle</div></div>
-    <div class="u-tile">
-      <div style="font-size:22px;font-weight:800;color:var(--red)">${String(Math.round(rows.reduce((a,r)=>a+((r.action==='Déchet')?(r.perteM2||0):0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² en DÉCHET (perdus)</div></div>
-    <div class="u-tile">
-      <div style="font-size:22px;font-weight:800;color:var(--orange)">${String(Math.round(rows.reduce((a,r)=>a+((r.action==='Chutes')?(r.perteM2||0):0),0)*10)/10).replace('.',',')}</div><div class="u-meta">m² en chutes (réutilisables)</div></div><!-- [L397→L400 · demande Esteban] déchet ≠ chute : le déchet est de la matière JETÉE -->
+    ${(function(){ const sD=rows.reduce((a,r)=>a+((r.action==='Déchet')?(r.perteM2||0):0),0), sC=rows.reduce((a,r)=>a+((r.action==='Chutes')?(r.perteM2||0):0),0), tot=sD+sC;
+      const f=v=>String(Math.round(v*10)/10).replace('.',','); const pc=v=>tot>0?' <span style="font-size:13px;color:var(--muted)">('+Math.round(v/tot*100)+' %)</span>':'';
+      return `<div class="u-tile"><div style="font-size:22px;font-weight:800;color:var(--red)">${f(sD)}${pc(sD)}</div><div class="u-meta">m² en DÉCHET (perdus)</div></div>
+    <div class="u-tile"><div style="font-size:22px;font-weight:800;color:var(--orange)">${f(sC)}${pc(sC)}</div><div class="u-meta">m² en chutes (réutilisables)</div></div>`; })()}<!-- [L397→L400 · demande Esteban] déchet ≠ chute : le déchet est de la matière JETÉE -->
     ${(function(){ try{
       const now=new Date(); const buckets=[];
       for(let k=5;k>=0;k--){ const d0=new Date(now.getFullYear(),now.getMonth()-k,1); buckets.push({key:d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0'),lbl:d0.toLocaleDateString('fr-FR',{month:'short'}),d:0,c:0}); }
@@ -19834,7 +19840,7 @@ function hintCoupeeApply(){
     if(!b) return;
     let n=0; try{ n=parseInt(localStorage.getItem(_hintCutKey())||'0',10)||0; }catch(e){}
     const _t2=b.closest('.fiche-line')?.classList.contains('t2-todo');   // [L322 · fix audit] chemin NC : le ::after « test 2ᵉ à cocher » (signal ISO) garde la main — et « 1 tap » serait un mauvais conseil ici
-    b.classList.toggle('hint-cut', (n<3||apprenti)&&!_t2);
+    b.classList.toggle('hint-cut', false);   // [L402 · demande Esteban 24/08] bulle « 1 TAP = COUPÉE + TEST OK » retirée (« inutile ») — mécanique conservée
   }catch(e){}
 }
 function hintCoupeeCount(){ if(trainingGuard()) return; try{ const k=_hintCutKey(); const n=(parseInt(localStorage.getItem(k)||'0',10)||0)+1; localStorage.setItem(k,String(n)); }catch(e){} }

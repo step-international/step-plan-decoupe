@@ -1265,5 +1265,11 @@ has(/m² de matière NC par mois/,'L401 : graphique mensuel déchets vs chutes a
 has(/résolution tolérante : « AGOFORM ALLEMAGNE » matche/,'L401 : packaging multi-client trouvé même avec suffixe');
 has(/function _l402CliRecaps/,'L401 : « Sa commande » (bobineaux × laizes) sous chaque client');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L401 présents dans index.html + sw.js');
+console.log('── L402 : NC compact + % + pédagogies retirées ──');
+has(/bulle « 1 TAP = COUPÉE \+ TEST OK » retirée/,'L402 : bulle 1-TAP retirée');
+has(/sous-texte retiré — juste DÉFAUT/,'L402 : « bobine non conforme ? → ici » retiré');
+has(/panneau NC COMPACT : on voit encore l'écran derrière/,'L402 : panneau NC compact');
+has(/\(perdus\)<\/div><\/div>/,'L402 : tuiles déchet/chutes avec pourcentage');
+
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L402 présents dans index.html + sw.js');
 process.exit(fail?1:0);
