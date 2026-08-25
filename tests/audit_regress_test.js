@@ -1358,5 +1358,14 @@ has(/segments contigus par client, COLORES/,'L415 : ecran plan — conf coloree 
 has(/fusion par laize \(UNE carte cumul, papier inchange\)/,'L415 : cumuls — une carte par laize meme conf scindee');
 has(/pastilles couleur par client sous la config de la bobine/,'L415 : fiche machine — pastilles sous la config');
 
+console.log('── L416 : rebut CHIFFRE — seuls les bobineaux NC sortent des cumuls (bug photo MAVEG 21/63) ──');
+has(/function _l416NcByWidth/,'L416 : helpers rebut chiffre (DOM + donnees)');
+has(/seuls les bobineaux NC sortent du cumul/,'L416 : cumul ecran — deduction par laize au lieu de l exclusion totale');
+has(/déduits du cumul \(le reste de la bobine est livré\)/,'L416 : banniere adaptee au rebut partiel');
+has(/la bobine livre \(conf − NC par laize\), attribution FIFO sur le reste/,'L416 : attribution clients — rebut partiel livre');
+has(/rebut chiffre : la part livree COMPTE \(sinon sur-production\)/,'L416 : production engagee du recalcul corrigee');
+has(/seules les pieces NC comptent a l'ecart/,'L416 : ecart archivage — N pieces NC, plus toute la bobine');
+has(/le chiffrage NC modifie la deduction du cumul/,'L416 : la saisie qty×laize rafraichit le cumul');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
