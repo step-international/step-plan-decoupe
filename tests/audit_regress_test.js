@@ -1450,5 +1450,10 @@ has(/la reprise a 600 ms COURAIT contre le 1er/,'L428 : reprise APRES l arrivee 
 has(/un plan CHARGE arrive NON valide/,'L428 : charger un plan = preparation a re-valider par l operateur');
 has(/plus de grille qui ecrasait/,'L428 : boutons de la carte lisibles (fini le « ... »)');
 
+console.log('── L429 : bouton ⋯, BL unique, ordre des onglets ──');
+has(/fc-more-btn/,'L429 : ⋯ deplie Modifier / Archiver / PDF client');
+has(/le GROS bouton du bandeau \(fc-bl-add\) est le seul/,'L429 : un seul « Ajouter un BL » (le petit du bloc BL retire)');
+has(/ORDRE : Plans · Validation · Lame · Brouillons · Analyse · Planning · Corbeille/,'L429 : ordre des onglets Donnees (demande Esteban)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

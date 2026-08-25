@@ -767,7 +767,10 @@ body.has-topbanner #nav{top:48px}
 #fichesList .fc-stat i{display:block;font-style:normal;font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-top:5px}
 #fichesList .fc-actions{margin-top:12px;gap:8px}
 #fichesList .fc-btn-green{flex:1;min-height:48px;font-size:17px;font-weight:800;justify-content:center;letter-spacing:.05em;text-transform:uppercase}
-#fichesList .fc-actions{display:flex;flex-wrap:wrap}/* [L428] plus de grille qui ecrasait ✏ Modifier / 🗑 Archiver en « ... » */
+#fichesList .fc-actions{display:flex;flex-wrap:wrap}/* [L428] plus de grille qui ecrasait les boutons */
+#fichesList .fc-more-btn{flex:none;min-width:52px;justify-content:center;font-size:19px;letter-spacing:.1em}
+#fichesList .fc-more-row{display:none;gap:8px;flex-wrap:wrap;margin-top:8px}
+#fichesList .fiche-card.fc-more-open .fc-more-row{display:flex}/* [L429] ⋯ deplie Modifier / Archiver / PDF client */
 #fichesList .fc-actions .fc-btn{white-space:nowrap;min-height:46px}
 .fc-actions .fc-btn{width:100%}
 .fc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 12px;border-radius:9px;min-height:44px;font-size:14px;font-weight:700;border:1px solid transparent;cursor:pointer;font-family:inherit;min-height:42px;transition:all .15s;text-align:center}
@@ -2752,18 +2755,17 @@ html.theme-light .fp-num small{color:#8a8a84}
 <div class="page" id="page2" role="tabpanel" aria-labelledby="tabBtn2">
   <div id="dataSummary"></div><!-- [L317 · LOT 16 · §2.16-B] rempli par renderDataSummary (données en mémoire uniquement) -->
   <div class="tab-bar">
+    <!-- [L429 · demande Esteban] ORDRE : Plans · Validation · Lame · Brouillons · Analyse · Planning · Corbeille (Stock ensuite) -->
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
-    <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] maquette admin/pilotage (applyRole) — ouverture à tous en ÉTAPE 2 -->
     <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">✓ Validation fiches découpe</button><!-- [L396 · demande Esteban 22/08] -->
+    <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Lame</button><!-- [L125] « Lame / Machine » → « Lame » -->
+    <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
     <!-- [L223 · ergo #13] onglet « ⚠ Registre NC » fusionné dans 📈 Analyse (bloc repliable ncBox) -->
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
-    <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
+    <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] admin/pilotage -->
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
     <button class="tab-btn" id="tabStock" onclick="switchTab('stock')" style="display:none">📦 Stock</button>
-    <!-- [L65] onglet « Piste d'audit » retiré de l'écran (demande atelier). Le journal
-         d'audit continue d'être ÉCRIT dans Firestore (logAudit — exigence ISO) : les
-         données restent consultables dans la console Firebase si besoin. -->
-    <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Lame</button><!-- [L125] « Lame / Machine » → « Lame » (ne traite que les lames) -->
+    <!-- [L65] « Piste d'audit » retiré de l'écran (journal toujours ÉCRIT dans Firestore — ISO). -->
   </div>
   <!-- [L222 · ergo #2] « 📥 Charger l'historique complet » déplacé dans la rangée d'actions de l'onglet Sauvegardes (ligne unique, zone moins dispersée — demande Esteban) -->
 
@@ -3163,7 +3165,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L428';
+const APP_VERSION='2026.08.25-L429';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5414,19 +5416,14 @@ function blCardBlock(f){
       }
     });
   }
-  let actions='';
-  if(manage){
-    actions=`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">`;
-    actions+=`<button onclick="triggerBLFiche('${fid}',null)" style="background:#14371f;border:1px solid #1e5c30;color:#4ade80;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;padding:3px 8px">📎 Ajouter un BL${multi?' (global)':''}</button>`;
-    actions+=`</div>`;
-  }
+  /* [L429 · demande Esteban] plus de PETIT « Ajouter un BL » ici : le GROS bouton du bandeau (fc-bl-add) est le seul — les boutons « joindre » PAR REF (multi) restent ci-dessus */
   // [L187] Plus de « case BL non joint » (demande Esteban) : aucun BL joint → pas de boîte d'alarme
   // rouge ; seul un bouton discret « Ajouter un BL » subsiste pour le pilotage. La boîte VERTE
   // « BL complet » reste. Multi-réf partiel : boîte NEUTRE (plus de rouge) avec le statut par réf.
   if(!bls.length && !complete){
-    return manage ? `<div class="fc-bl" style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap"><button onclick="triggerBLFiche('${fid}',null)" style="background:#1a1a18;border:1px solid var(--border2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;padding:3px 8px">📎 Ajouter un BL${multi?' (global)':''}</button></div>` : '';
+    return '';   /* [L429] aucun BL joint : rien a montrer (le bandeau porte deja le gros « Ajouter un BL ») */
   }
-  return `<div class="fc-bl" style="margin:6px 0;padding:8px 10px;border-radius:8px;background:${complete?'rgba(74,222,128,0.08)':'transparent'};border:1px solid ${complete?'#1e5c30':'var(--border2)'}">${head}${body}${actions}</div>`;   /* [L342] classe de présentation (compact paysage : l'état BL vit sur la pastille « BL joint », le bloc revient au tap) */
+  return `<div class="fc-bl" style="margin:6px 0;padding:8px 10px;border-radius:8px;background:${complete?'rgba(74,222,128,0.08)':'transparent'};border:1px solid ${complete?'#1e5c30':'var(--border2)'}">${head}${body}</div>`;   /* [L342] classe de présentation (compact paysage : l'état BL vit sur la pastille « BL joint », le bloc revient au tap) */
 }
 
 // Fichiers de la commande client (niveau plan) — multi-fichiers, tous types
@@ -16475,6 +16472,9 @@ function renderFiches(){
       <div class="fc-actions">
         ${validBtns}
         <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',true)">📄 PDF</button>
+        <button class="fc-btn fc-btn-ghost fc-more-btn" onclick="event.stopPropagation();this.closest('.fiche-card').classList.toggle('fc-more-open')" title="Plus d'actions">⋯</button><!-- [L429 · demande Esteban] Modifier / Archiver / PDF par client derriere ⋯ -->
+      </div>
+      <div class="fc-more-row">
         ${cliPdfBtns}
         ${editBtn}
         ${(f.valide!==true||canManageData())?`<button class="fc-btn fc-btn-red-ghost" onclick="deleteFiche('${f._id}')">🗑 Archiver</button>`:''}<!-- [L129 · audit #21] fiche VALIDÉE : archivage reserve au pilotage/admin -->
