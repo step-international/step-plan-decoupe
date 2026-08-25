@@ -3125,7 +3125,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L412';
+const APP_VERSION='2026.08.25-L413';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9981,14 +9981,15 @@ function _l408PrevolPop(){ try{
   ov.innerHTML='<div class="modal" role="dialog" aria-modal="true" style="max-width:440px;text-align:center">'
     +'<div style="font-size:22px;font-weight:800;line-height:1.6;margin:8px 0 16px">✂ Bobineaux / chutes en stock ??<br>🔄 Bobine mère validée ??</div>'
     +'<div class="modal-btns" style="justify-content:center;gap:10px">'
-    +'<button class="btn btn-ghost" style="min-height:54px" onclick="document.getElementById(\'prevolPop\').remove();showPage(0)">✂ Voir le plan</button>'
+    +'<button class="btn btn-ghost" style="min-height:54px" onclick="document.getElementById(\'prevolPop\').remove();window._l413PendingCut=null;showPage(0)">✂ Voir le plan</button>'
     +'<button class="btn btn-green" style="min-height:54px;font-weight:800" onclick="_l408PrevolGo()">✓ C\'est bon — je lance</button></div></div>';
-  ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });   /* [L412 audit] sortie neutre au tap sur le fond (tablette sans Echap) */
+  ov.addEventListener('click',function(e){ if(e.target===ov){ ov.remove(); window._l413PendingCut=null; } });   /* [L412 audit] sortie neutre au tap sur le fond (tablette sans Echap) — [L413] geste ✂ oublie */
   document.body.appendChild(ov);
 }catch(e){ try{ chronoStart(); }catch(_){} } }
 function _l408PrevolGo(){ try{
   const ov=document.getElementById('prevolPop'); if(ov) ov.remove();
   chronoStart();
+  try{ const pc=window._l413PendingCut; window._l413PendingCut=null; if(pc&&chronoRunning&&typeof coupeeTapOne==='function'){ coupeeTapOne(pc); } }catch(e){}   /* [L413] le ✂ qui a declenche le pop est REJOUE : l'operateur n'a pas a retaper */
 }catch(e){} }
 function chronoStart(){
   if(chronoRunning) return;
@@ -19606,8 +19607,8 @@ function toggleCoupee(id){
     // manquant, plan non re-validé, réf multi non validée, reprise après crash) : s'il refuse, il l'explique
     // lui-même (toast + surlignage + confirm de reprise) et on n'enregistre PAS la coupe. Le verrou « pas de
     // coupe sans chrono » est INTACT — seul le tap manuel sur ▶ Démarrer devient optionnel.
-    try{ chronoStart(); }catch(e){}
-    if(!chronoRunning) return;   // refus de chronoStart → coupe NON enregistrée (son toast/surlignage a déjà expliqué)
+    try{ window._l413PendingCut=id; _l408PrevolPop(); }catch(e){}   /* [L413 · decision Esteban 25/08 (a)] le 1er ✂ montre AUSSI le rappel pre-vol — le geste est memorise et rejoue apres « ✓ je lance » ; sur une reprise (chronoSec>0) _l408PrevolPop appelle chronoStart en synchrone et la coupe part comme avant */
+    if(!chronoRunning) return;   // pop affiche (ou refus de chronoStart) → coupe NON enregistrée a ce stade
   }
   const alreadyCoupee=line.classList.contains('coupee');
   if(alreadyCoupee){

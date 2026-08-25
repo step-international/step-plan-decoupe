@@ -1335,5 +1335,9 @@ has(/la garde ne vaut que pour LE MEME client/,'L412-16 : onglets emballage — 
 has(/les regles du nom precedent \(VEKA\.\.\.\) survivaient/,'L412-17 : renommage client hors catalogue = remise a plat DEFAUT');
 has(/il ne marque plus l'emballage de A/,'L412-18 : saisie B/C/D ne marque plus la saisie manuelle du client A');
 
+console.log('── L413 : rappel pre-vol au 1er ✂ (decision Esteban 25/08) ──');
+has(/le 1er ✂ montre AUSSI le rappel pre-vol/,'L413 : les 3 entrees de demarrage passent par le pop (▶, barre d action, 1er ✂)');
+has(/le ✂ qui a declenche le pop est REJOUE/,'L413 : le geste de coupe est rejoue apres « je lance » (pas de tap avale)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
