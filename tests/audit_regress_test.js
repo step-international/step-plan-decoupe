@@ -1391,7 +1391,7 @@ has(/TOUTE action retiree \(meme manuelle\)/,'L419 : plus d action invisible qua
 has(/SAUF si un Déchet est deja pose/,'L419 : le Dechet pose gagne sur Qte en trop');
 has(/un bouton eteint perd ses drapeaux AUTO/,'L419 : flags l401auto/l414auto jamais orphelins');
 has(/MEME garde que l'envoi \(le detail est facultatif depuis L400\)/,'L419 : arret manque-matiere aligne sur la garde d envoi');
-has(/ne rien ecraser/,'L419 : reprise auto re-verifie apres le await (saisie en cours protegee)');
+has(/photo AVANT l'attente reseau/,'L419→L430 : reprise auto — saisie apparue PENDANT l attente protegee (photo avant/apres)');
 has(/l'etat VISIBLE est l'etat PERSISTE/,'L419 : masquage des coupees restaure a l identique au rechargement');
 
 console.log('── L420 : PARTIE OPERATEUR dans le Plan (spec Esteban 4/4) ──');
@@ -1437,15 +1437,15 @@ has(/function _l427ShortTime/,'L427 : temps rond sous l operateur (7h23) au lieu
 has(/fc-ref2-name/,'L427 : reference sans label ni laize mere (n° + livraison seulement)');
 has(/fc-stat b\{display:block/,'L427 : 3 chiffres — bobines, perte, OPERATEUR en gros');
 absent(/toucher la carte pour le détail/,'L427 : ligne « toucher la carte » retiree');
-absent(/▶ Reprendre la commande<\/button>/,'L427 : bouton « Reprendre la commande » retire de la carte');
+has(/retire de la rangee visible mais CONSERVE ici/,'L427→L430 : « Reprendre la commande » hors rangee visible, conserve dans le ⋯ (chemin de secours ISO)');
 has(/GRIS aussi en paysage/,'L427 : « Confirmer la commande » gris tant qu il reste des bobines (paysage compris)');
 has(/compteur NC retire de l'onglet Analyse/,'L427 : badge « 9 » retire de l onglet Analyse');
-has(/function _l427PurgeDraftsOf/,'L427 : fiche validee = brouillon purge (solde epargne)');
+has(/ses brouillons RESIDUELS disparaissent de la liste/,'L427→L430 : fiche validee = brouillons residuels MASQUES (plus de suppression)');
 has(/la ref est validee DES le clic/,'L427 : validation Plan posee immediatement (fiche ne redemande plus)');
 
 console.log('── L428 : correctifs urgents terrain (2 bugs signales par Esteban) ──');
 has(/les 2 bobines gelees sont DEJA dans comW/,'L428 : plus de faux « plan a change » au 1er ✂ sur MAVEG (restW excluait pas le gel)');
-has(/planHasContent RETIRE : un residu de plan bloquait la reprise/,'L428 : la reprise apres rechargement restaure la FICHE (pas seulement le chrono)');
+has(/un residu present des le depart ne bloque plus la reprise/,'L428→L430 : la reprise restaure la FICHE meme avec un residu de plan');
 has(/la reprise a 600 ms COURAIT contre le 1er/,'L428 : reprise APRES l arrivee des brouillons (filet 4 s) — plus de chrono orphelin');
 has(/un plan CHARGE arrive NON valide/,'L428 : charger un plan = preparation a re-valider par l operateur');
 has(/plus de grille qui ecrasait/,'L428 : boutons de la carte lisibles (fini le « ... »)');
@@ -1454,6 +1454,17 @@ console.log('── L429 : bouton ⋯, BL unique, ordre des onglets ──');
 has(/fc-more-btn/,'L429 : ⋯ deplie Modifier / Archiver / PDF client');
 has(/le GROS bouton du bandeau \(fc-bl-add\) est le seul/,'L429 : un seul « Ajouter un BL » (le petit du bloc BL retire)');
 has(/ORDRE : Plans · Validation · Lame · Brouillons · Analyse · Planning · Corbeille/,'L429 : ordre des onglets Donnees (demande Esteban)');
+
+console.log('── L430 : AUDIT L427-L429 (24 signalements, 2 CRITIQUES) ──');
+absent(/_l427PurgeDraftsOf/,'L430 CRITIQUE : plus AUCUNE suppression de brouillon (partage/collegue/manuel/filet etaient supprimables)');
+has(/function _l430IsResidualDraft/,'L430 : masquage des brouillons RESIDUELS d une commande validee (auto + filet seulement)');
+has(/jamais un doc de partage/,'L430 : docs de partage jamais masques ni touches');
+has(/parkings MANUELS 💾 : jamais masques/,'L430 : brouillons manuels 💾 intacts');
+has(/on n'ecrase QUE si la saisie est apparue PENDANT l'attente/,'L430 : reprise au boot — saisie en cours protegee sans bloquer la reprise');
+has(/c'est le chemin de secours cite par l'alerte manque-matiere/,'L430 : « Reprendre la commande » conserve dans le menu ⋯');
+has(/les gelees MAVEG sont PRESERVEES par le recalcul/,'L430 : detecteur sur-coupe aligne sur le gel MAVEG');
+has(/sinon la ref restait VALIDEE cote fiche apres modification/,'L430 : de-valider au Plan retire la ref de la fiche (verrou ISO)');
+has(/empilait TOUT en colonne sous flex/,'L430 : rangee d actions sur UNE ligne (width:100% herite neutralise)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

@@ -768,7 +768,9 @@ body.has-topbanner #nav{top:48px}
 #fichesList .fc-actions{margin-top:12px;gap:8px}
 #fichesList .fc-btn-green{flex:1;min-height:48px;font-size:17px;font-weight:800;justify-content:center;letter-spacing:.05em;text-transform:uppercase}
 #fichesList .fc-actions{display:flex;flex-wrap:wrap}/* [L428] plus de grille qui ecrasait les boutons */
-#fichesList .fc-more-btn{flex:none;min-width:52px;justify-content:center;font-size:19px;letter-spacing:.1em}
+#fichesList .fc-actions .fc-btn{width:auto;flex:0 1 auto}/* [L430 audit] la regle historique .fc-actions .fc-btn{width:100%} empilait TOUT en colonne sous flex */
+#fichesList .fc-actions .fc-btn-green{flex:1 1 180px}
+#fichesList .fc-more-btn{flex:0 0 auto;min-width:52px;justify-content:center;font-size:19px;letter-spacing:.1em}
 #fichesList .fc-more-row{display:none;gap:8px;flex-wrap:wrap;margin-top:8px}
 #fichesList .fiche-card.fc-more-open .fc-more-row{display:flex}/* [L429] ⋯ deplie Modifier / Archiver / PDF client */
 #fichesList .fc-actions .fc-btn{white-space:nowrap;min-height:46px}
@@ -3165,7 +3167,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L429';
+const APP_VERSION='2026.08.25-L430';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5771,7 +5773,7 @@ function _fichePlanDriftCheck(opts){
         lines.forEach(d=>{ if(!_frozenLike(d)&&!(_mvIds19&&_mvIds19.has(d.id))) return; const _dl19=d.actDechet?_l419Delivered(d.conf,_l416NcByWidthFd(d),d.origConf||null):null; if(d.actDechet&&!_dl19) return; if(d.actDechet){ Object.keys(_dl19).forEach(w=>{ comW[w]=(comW[w]||0)+_dl19[w]; }); } else parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) comW[p.width]=(comW[p.width]||0)+p.qty; }); });   /* [L416→L419] rebut chiffre via helper unique */
         const overW=new Set(); Object.keys(comW).forEach(w=>{ if((comW[w]||0)>(cmdW[w]||0)) overW.add(Number(w)); });
         // « reste retirable » = bobines que le recalcul RÉGÉNÉRERAIT (donc non figées) reproduisant une largeur sur-coupée
-        if(overW.size && lines.some(d=>!_frozenLike(d) && parseConf(d.conf||'').some(p=>overW.has(Number(p.width))))){
+        if(overW.size && lines.some(d=>!_frozenLike(d) && !(_mvIds19&&_mvIds19.has(d.id)) && parseConf(d.conf||'').some(p=>overW.has(Number(p.width))))){   /* [L428→L430 audit] les gelees MAVEG sont PRESERVEES par le recalcul : elles ne sont pas du « reste retirable » (banniere incoercible sinon) */
           const _ov=[...overW].sort((a,b)=>a-b).map(w=>((comW[w]||0)-(cmdW[w]||0))+'×'+fmt(w)).join(', ');
           msgs.push(_ov+' coupé(s) en plus → recalculer pour l\'en retirer du reste');
           needClick=true;
@@ -6523,7 +6525,13 @@ function _l420SyncStart(){ try{
   blocks.forEach(function(b){ const bt=b.querySelector('.rb-op-validate'); if(bt){ const on=b.dataset.opValidated==='1'; bt.className='btn rb-op-validate '+(on?'btn-green':'val-todo'); bt.textContent=on?'✓ Préparation validée':'✓ VALIDER la préparation'; } });
   try{ _l421SyncUseful(); }catch(e){}
 }catch(e){} }
-function _l420Invalidate(blk){ try{ if(blk&&blk.dataset.opValidated==='1') delete blk.dataset.opValidated; _l420SyncStart(); }catch(e){} }
+function _l420Invalidate(blk){ try{
+  if(blk&&blk.dataset.opValidated==='1'){
+    delete blk.dataset.opValidated;
+    try{ const _i30=Array.from(document.querySelectorAll('#refBlocks .ref-block')).indexOf(blk); if(_i30>=0&&typeof ficheRefValidated!=='undefined') ficheRefValidated.delete(_i30); }catch(e){}   /* [L427→L430 audit] sinon la ref restait VALIDEE cote fiche apres modification de la mere : verrou ISO contourne */
+  }
+  _l420SyncStart();
+}catch(e){} }
 function _l420RefOk(){ try{
   if(typeof countCoupees==='function'&&countCoupees()>0) return true;   /* commande entamee = validee de facto (brouillons d'avant L420 inclus) */
   const blocks=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
@@ -16475,6 +16483,7 @@ function renderFiches(){
         <button class="fc-btn fc-btn-ghost fc-more-btn" onclick="event.stopPropagation();this.closest('.fiche-card').classList.toggle('fc-more-open')" title="Plus d'actions">⋯</button><!-- [L429 · demande Esteban] Modifier / Archiver / PDF par client derriere ⋯ -->
       </div>
       <div class="fc-more-row">
+        ${f.manqueMatiere?`<button class="fc-btn fc-btn-green" onclick="reprendreCommandeManque('${f._id}')" title="Reprendre le solde non coupé (matière revenue)">▶ Reprendre la commande</button>`:''}<!-- [L427→L430 audit] retire de la rangee visible mais CONSERVE ici : c'est le chemin de secours cite par l'alerte manque-matiere -->
         ${cliPdfBtns}
         ${editBtn}
         ${(f.valide!==true||canManageData())?`<button class="fc-btn fc-btn-red-ghost" onclick="deleteFiche('${f._id}')">🗑 Archiver</button>`:''}<!-- [L129 · audit #21] fiche VALIDÉE : archivage reserve au pilotage/admin -->
@@ -16891,24 +16900,31 @@ async function rehabFiche(id){
     try{ if(typeof renderFiches==='function') renderFiches(); if(typeof updateTabBadges==='function') updateTabBadges(); }catch(_){}
   }catch(e){ showToast('Erreur : '+(e&&e.message||e),'err'); }
 }
-/* [L427 · demande Esteban] une fiche VALIDEE ne doit plus trainer dans Brouillons : on purge le brouillon
-   lie (par ficheId quand l'envoi l'a marque consumed, sinon par n° de commande + client). Les brouillons de
-   SOLDE (arret manque matiere) sont EPARGNES : ils portent le reste a couper. */
-async function _l427PurgeDraftsOf(f){ try{
-  if(!f||typeof db==='undefined') return;
-  const num=nrm(f.numCmd||''), cli=nrm(f.client||'');
-  const cands=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(d){
-    if(!d||d.deleted) return false;
-    if(d.solde||d.isSolde||/solde/i.test(String(d.label||''))) return false;   /* le plan du reste doit survivre */
-    if(d.ficheId&&f._id&&d.ficheId===f._id) return true;
-    if(!num) return false;
-    const dn=nrm((d.state&&d.state.plan&&d.state.plan.numCmd)||(d.state&&d.state.fiche&&d.state.fiche.numCmd)||d.numCmd||'');
-    const dc=nrm((d.state&&d.state.plan&&d.state.plan.client)||(d.state&&d.state.fiche&&d.state.fiche.client)||d.client||'');
-    return dn&&dn===num&&(!cli||!dc||dc===cli);
+/* [L427 → L430 · AUDIT CRITIQUE] la purge SUPPRIMAIT des brouillons en base : elle pouvait effacer le doc
+   de PARTAGE d'un collegue (alerte bloquante en pleine coupe + verrous perdus = double decoupe), son brouillon
+   AUTO (autosave mort en silence, travail perdu au rechargement), un filet « envoi echoue » (fromSend) ou un
+   parking MANUEL 💾. Plus AUCUNE suppression : une fiche validee MASQUE simplement ses brouillons RESIDUELS
+   (auto / filet d'envoi) dans la liste — les manuels, les soldes et les partages restent intacts et visibles. */
+function _l430ValidatedCmdKeys(){ try{
+  const out=new Set();
+  (Array.isArray(fichesCache)?fichesCache:[]).forEach(function(f){
+    if(!f||f.deleted||f.valide!==true) return;
+    const n=nrm(f.numCmd||''); if(!n||n==='—') return;
+    out.add(n+'|'+nrm(f.client||''));
   });
-  for(const d of cands){ try{ await db.collection('brouillons').doc(d.id).delete(); }catch(e){} }
-  if(cands.length){ try{ if(typeof renderDrafts==='function') renderDrafts(); }catch(e){} }
-}catch(e){} }
+  return out;
+}catch(e){ return new Set(); } }
+function _l430IsResidualDraft(d){ try{
+  if(!d||d.solde||d.isSolde||/solde/i.test(String(d.label||''))) return false;   /* le plan du reste doit rester */
+  if(typeof _isSharedDoc==='function'&&_isSharedDoc(d)) return false;            /* jamais un doc de partage */
+  const isAuto=!!(d.auto||(typeof d.id==='string'&&d.id.indexOf('d_autosave')===0));
+  if(!isAuto&&!d.fromSend) return false;                                          /* parkings MANUELS 💾 : jamais masques */
+  const st=d.state||{}, f=st.fiche||{}, pl=st.plan||{};
+  const n=nrm(f.numCmd||pl.numCmd||d.numCmd||''); if(!n||n==='—') return false;
+  const c=nrm(f.client||pl.client||d.client||'');
+  const keys=_l430ValidatedCmdKeys();
+  return keys.has(n+'|'+c)||(!c&&Array.from(keys).some(function(k){ return k.indexOf(n+'|')===0; }));
+}catch(e){ return false; } }
 async function validateFiche(id){
   if(!canValidate()){showToast('Validation réservée au pilotage et aux admins.','err');return;}
   const f=fichesCache.find(x=>x._id===id);
@@ -16964,7 +16980,7 @@ async function validateFiche(id){
     f.valide=true;f.valideBy=by;f.valideAt=at;
     await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
     try{ proposeStockSortie(f); }catch(e){ console.warn('Sortie stock :',e); }   // [L98 · #9] proposition de sortie de stock (refusable d'un tap)
-    try{ await _l427PurgeDraftsOf(f); }catch(e){}   /* [L427 · demande Esteban] fiche validee = le brouillon de la commande disparait de Brouillons (les brouillons de SOLDE sont epargnes) */
+    try{ if(typeof renderDrafts==='function') renderDrafts(); }catch(e){}   /* [L430] fiche validee : ses brouillons RESIDUELS disparaissent de la liste (masquage, aucune suppression) */
   }catch(e){showToast('Erreur validation : '+e.message,'err');}
   // Fiche manque-matière validée : proposer de créer le PLAN DU RESTE (recalcul
   // ordonné − coupé) dans Données > Plans, et remplacer le brouillon du solde.
@@ -22692,6 +22708,7 @@ async function maybeResumeRunningChrono(){
   try{
     if(ficheLines&&ficheLines.length) return;           // une fiche est déjà à l'écran
     if(chronoRunning) return;
+    const _plan430=(typeof planHasContent==='function')?planHasContent():false;   /* [L430 audit] photo AVANT l'attente reseau : si l'operateur saisit PENDANT, on ne l'ecrase pas (et un simple residu ne bloque plus la reprise) */
     const live=readChronoLive();                         // sauvegarde instantanée (localStorage, hors-ligne)
     const aid=(typeof autosaveId==='function')?autosaveId():null;
     let d=null;
@@ -22747,7 +22764,7 @@ async function maybeResumeRunningChrono(){
       if(sameDay){
         // Commande du jour : reprise directe, chrono tel qu'il était (marche ou pause).
         if(live&&live.override) _chronoAutoStopOverride=live.override;
-        if(ficheLines.length||chronoRunning){ return; }   /* [L419→L428] ne rien ecraser si l'operateur a commence (fiche/chrono) — planHasContent RETIRE : un residu de plan bloquait la reprise complete (« chrono ok mais plan disparu ») */
+        if(ficheLines.length||chronoRunning||(!_plan430&&typeof planHasContent==='function'&&planHasContent())){ return; }   /* [L419→L430] on n'ecrase QUE si la saisie est apparue PENDANT l'attente (un residu present des le depart ne bloque plus la reprise) */
         restoreFicheState(d.state); _rearmResume(d.state); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono à '+fmtTimeFr(showSec),'ok'); }catch(e){}
         // [L294 · audit 30/07] ÉMETTEUR d'un partage reconstruit par la reprise AUTO : libérer le gel du push
@@ -22763,7 +22780,7 @@ async function maybeResumeRunningChrono(){
         // Jour précédent : reprise FIGÉE (jamais recalée sur l'horloge d'aujourd'hui).
         const stFrozen=Object.assign({},d.state);
         stFrozen.chrono=Object.assign({},cRef,{wasRunning:false,runStart:null,sec:showSec});
-        if(ficheLines.length||chronoRunning){ return; }   /* [L419→L428] idem cross-day */
+        if(ficheLines.length||chronoRunning||(!_plan430&&typeof planHasContent==='function'&&planHasContent())){ return; }   /* [L419→L430] idem cross-day */
         restoreFicheState(stFrozen); _rearmResume(stFrozen); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono figé à '+fmtTimeFr(showSec),'ok'); }catch(e){}
         // [L298 · audit v2] même libération du gel qu'en reprise même-jour (L294) : la reprise CROSS-DAY d'une
@@ -23327,7 +23344,7 @@ function restoreChrono(c){
 }
 function renderDrafts(){
   try{ renderSharedDraftsBlock(); }catch(e){}   // [Lot 3] section « Partagées avec moi » (indépendante des brouillons normaux)
-  let drafts=loadDrafts().filter(d=>!d.consumed);   // DRAFT-4 : masquer les brouillons de commandes déjà produites
+  let drafts=loadDrafts().filter(d=>!d.consumed).filter(d=>!(typeof _l430IsResidualDraft==='function'&&_l430IsResidualDraft(d)));   // DRAFT-4 : masquer les brouillons de commandes déjà produites — [L430] + ceux d'une commande DEJA VALIDEE (auto/filet uniquement, rien n'est supprime)
   // [L280 · demande Esteban] plus de DOUBLON : masquer le brouillon « saisie de plan en cours » (planDraft) quand
   // la MÊME commande (n°) existe déjà en FICHE (un brouillon non-planDraft avec des bobines) → le « ? » LIMA
   // disparaît dès que la fiche LIMA existe. On matche par n° de commande (unique).
