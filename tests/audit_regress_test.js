@@ -1350,5 +1350,13 @@ has(/reprise AUTOMATIQUEMENT \(chrono fige\)/,'L414 : plus de question au demarr
 has(/bouton « ▶ Reprendre ma derniere commande » retire/,'L414 : bouton Reprendre retire (reprise auto)');
 has(/function _l414BootOverlay/,'L414 : ecran de chargement au boot (2 signaux + filet 8 s)');
 
+console.log('── L415 : multi-clients etape b — coupes contigues par client + pastilles ──');
+has(/function _l415Conf/,'L415 : conf contigue par client (multiset verifie, repli ordre historique)');
+has(/function _l415ConfHtml/,'L415 : version ecran coloree (pastille en tete de groupe)');
+has(/allocation par bobine \(MEME sequence que l'ecran plan et le PDF\)/,'L415 : fiche — meme sequence d attribution que toutes les surfaces (regle L85)');
+has(/segments contigus par client, COLORES/,'L415 : ecran plan — conf coloree dans la carte');
+has(/fusion par laize \(UNE carte cumul, papier inchange\)/,'L415 : cumuls — une carte par laize meme conf scindee');
+has(/pastilles couleur par client sous la config de la bobine/,'L415 : fiche machine — pastilles sous la config');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
