@@ -44,6 +44,13 @@ les fichiers des deux machines ne se recouvrent pas.
 - **Tests et outils** : dossier `tests/` (batterie, simulateur `sim200.mjs`, captures `shot.mjs` — serveur local `python3 -m http.server 8000` requis pour shot).
 - **Journal du chantier** : messages de commit `git log --oneline` (marqueurs LNNN).
 
+## Leçons durement apprises (audit du 24/08 — à respecter pour chaque lot UI)
+1. **Visibilité ≠ présence DOM.** Tester un élément d'interface = vérifier `getBoundingClientRect()` + `getComputedStyle` (display, z-index), PAS seulement son existence. Et tester HORS mode entraînement : le harnais `shot.mjs` démarre en `body.training`, où certains z-index/règles CSS diffèrent de la prod (un pop peut être visible en test et invisible en prod).
+2. **Avant d'intercepter une fonction, recenser TOUS ses appelants** (`grep` exhaustif). Le pop pré-vol branché sur le bouton ▶ ne sortait jamais : le bouton réellement tapé en atelier était la barre d'action, qui appelait `chronoStart()` directement.
+3. **Simuler le VRAI geste.** Un test qui pose `el.value` sans dispatcher l'événement `input` ment : les oninput de propagation ne tournent pas et le test valide un chemin qui n'existe pas au clavier. Dispatcher les événements réels (input, focusout), et tester les clics AVEC le focus sur le bouton (une garde anti-focus peut bloquer son propre re-rendu).
+4. **Après tout retrait de bloc HTML, compter les balises.** Une découpe qui laisse un `</div>` orphelin ferme un conteneur parent trop tôt et décale toute la page — symptômes en cascade loin du site d'édition.
+5. **Après une grosse journée de lots, lancer un audit adversarial multi-agents** sur le diff cumulé (6 zones, mission « casser, pas défendre ») : le 24/08 il a trouvé 19 signalements dont 13 vrais bugs, tous corrigés en L412.
+
 ## En cas de doute
 - Un test échoue, un comportement surprend, une demande touche le moteur / le papier / Firebase → **NE POUSSE PAS**. Explique simplement le problème et propose d'appeler Esteban.
 - **Revenir en arrière** (urgence) : `git revert <commit fautif>` puis la checklist ci-dessus (jamais de `reset --hard` forcé sur le remote).
