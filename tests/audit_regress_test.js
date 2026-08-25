@@ -1250,7 +1250,7 @@ console.log('── L400 : règles NC Esteban (24/08) ──');
 has(/⚠ Saisie des non-conformités/,'L400 : titre « Saisie des non-conformités »');
 has(/la NC se CHIFFRE : quantité \+ laize obligatoires/,'L400 : 2 cases obligatoires (→ m² exacts)');
 has(/DÉCHET automatique \(physiquement irrécupérable\)/,'L400 : angle/casse = déchet auto, largeur = choix, sans NC = zone masquée');
-has(/label\.nc-check\.ras,label\[id\^="nc_qty_"\]\{display:none!important\}/,'L400 : puces R.A.S. et Qté retirées de la saisie');
+has(/la puce Qte REVIENT en « Qte en trop »/,'L400→L414 : R.A.S. reste masquee ; la puce Qte est REVENUE en « Qte en trop » (decision Esteban 25/08)');
 has(/>Cerclage<\/button>/,'L400 : puce rapide Cerclage');
 absent(/Largeur hors tolérance|Quantité manquante/,'L400 : puces rapides obsolètes retirées');
 has(/m² en DÉCHET \(perdus\)/,'L400 : registre — déchet (perdu) ≠ chutes (réutilisables), chacun en m²');
@@ -1338,6 +1338,17 @@ has(/il ne marque plus l'emballage de A/,'L412-18 : saisie B/C/D ne marque plus 
 console.log('── L413 : rappel pre-vol au 1er ✂ (decision Esteban 25/08) ──');
 has(/le 1er ✂ montre AUSSI le rappel pre-vol/,'L413 : les 3 entrees de demarrage passent par le pop (▶, barre d action, 1er ✂)');
 has(/le ✂ qui a declenche le pop est REJOUE/,'L413 : le geste de coupe est rejoue apres « je lance » (pas de tap avale)');
+
+console.log('── L414 : retouches Esteban 25/08 (6 demandes) ──');
+has(/bouton « \+ Ligne manuelle » retire/,'L414 : bouton ligne manuelle retire (barre + tiroir, addFicheLine conservee)');
+has(/Marouane → Mathieu \(uid, ini et historique INTACTS\)/,'L414 : Marouane renomme Mathieu (affichage seul)');
+has(/const _shareHiddenUids/,'L414 : Esteban et Christian retires de la liste de partage (comptes intacts)');
+has(/Qté en trop<\/label>/,'L414 : puce « Qte en trop » (bobineaux coupes en plus) de retour');
+has(/quantite EN TROP -> l'action ne peut etre que ✂ CHUTES/,'L414 : Qte en trop -> action CHUTES automatique et reversible');
+has(/le re-toggle l'ETEIGNAIT \(bug latent L401\)/,'L414 : restauration idempotente des actions (bug latent L401 repare)');
+has(/reprise AUTOMATIQUEMENT \(chrono fige\)/,'L414 : plus de question au demarrage — reprise auto de la commande non envoyee');
+has(/bouton « ▶ Reprendre ma derniere commande » retire/,'L414 : bouton Reprendre retire (reprise auto)');
+has(/function _l414BootOverlay/,'L414 : ecran de chargement au boot (2 signaux + filet 8 s)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
