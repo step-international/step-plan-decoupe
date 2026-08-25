@@ -2,7 +2,7 @@
 // _isQueuedWrite doit reconnaître : e.queued (boundedWrite) OU message '__TIMEOUT__' (raceTimeout inline).
 // Un vrai rejet (permission-denied) NE doit PAS être vu comme « en file » (sinon on garde un optimiste refusé).
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}
 let fail=0; const ok=(c,m)=>{console.log((c?'✅ ':'❌ ')+m);if(!c)fail++;};
 

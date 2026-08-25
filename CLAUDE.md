@@ -17,14 +17,35 @@
 
 ## Avant CHAQUE mise en ligne (obligatoire, dans l'ordre)
 1. **Syntaxe** des 3 scripts inline :
-   `python3 -c "import re,subprocess; s=open('index.html').read(); [print(i,subprocess.run(['node','--check',f'/tmp/sc{i}.js'],capture_output=True,text=True).stderr[:200]) for i,sc in enumerate(re.findall(r'<script>(.*?)</script>',s,re.S)) if open(f'/tmp/sc{i}.js','w').write(sc) or True]"`
+   `python3 -c "import re,subprocess,tempfile,os; s=open('index.html',encoding='utf-8').read(); t=tempfile.gettempdir(); [print(i,subprocess.run(['node','--check',os.path.join(t,f'sc{i}.js')],capture_output=True,text=True).stderr[:200]) for i,sc in enumerate(re.findall(r'<script>(.*?)</script>',s,re.S)) if open(os.path.join(t,f'sc{i}.js'),'w',encoding='utf-8').write(sc) or True]"`
+   (portable Mac + Windows : dossier temporaire du systeme au lieu de `/tmp`, encodage UTF-8 explicite.)
 2. **Batterie complète** (tout doit afficher 🏆) :
    `node tests/engine_identity.js` puis `node tests/X_test.js` pour X ∈ refs, pln, multiref, solde_phase, pm130, bk18, t5_estim, pmsort, offline, lames, kpi, analyse_fixes, draft_concordance, audit_regress, props.
 3. **Simulation** : `node tests/sim200.mjs --n 8 --seed 7 --multi 0.5` → « sans anomalie ». (Un échec isolé sous forte charge machine peut être transitoire : relancer une fois avant de conclure.)
 4. **Smoke headless** : `node tests/shot.mjs --scene plan --w 1180 --h 820 --nopng --json --js "(function(){return (window.__jsErrors||[]).length})()"` → 0, idem scènes `fiche-cut` et `donnees`, + un passage portrait `--w 820 --h 1180`. (Le harnais démarre en mode entraînement — appeler `stopTraining()` avant de tester l'entrée en entraînement.)
-5. **Miroir** : `cp index.html "/Users/EstebanR/Documents/step/code plan de découpe/index.html"`
+5. **Miroir** (Mac d'Esteban UNIQUEMENT — sauter ailleurs) : `cp index.html "/Users/EstebanR/Documents/step/code plan de découpe/index.html"`
 6. **Commit** : message SANS accents, préfixé `LNNN (AAAA.MM.JJ) - `, avec la ligne `Co-Authored-By: Claude <noreply@anthropic.com>`. Puis `git push origin main` et `git branch -f redesign main && git push origin redesign`.
 7. **Vérifier la prod** : `curl -s "https://step-international.github.io/step-plan-decoupe/?nc=$RANDOM" | grep -o "APP_VERSION='[^']*'"` doit montrer la nouvelle version (parfois 1-2 min).
+
+## Sur le PC Windows (poste de Céline)
+
+Le dépôt y est cloné dans `K:\STEP INTERNATIONAL\ESTEBAN Alternance 2025 2026\claude\claude index\`,
+sur le partage réseau `\192.168.0.250\commun\`. **La checklist ci-dessus s'applique intégralement**,
+avec ces différences :
+
+- **Étape 5 (miroir) : à sauter.** Le dossier `/Users/EstebanR/Documents/…` n'existe que sur le Mac.
+- **Étape 4 (smoke)** : le serveur local se lance avec `python3 -m http.server 8000` depuis la racine du
+  dépôt, comme sur Mac. `shot.mjs` choisit Chrome selon la plateforme (`CHROME_BIN` pour forcer un chemin).
+- Outils installés le 24/08/2026 : Node 24, Python 3.13 (la commande `python3` est un relais posé dans
+  `C:\Users\admin\bin` — le raccourci Microsoft Store la masquait), GitHub CLI, et `PYTHONUTF8=1`.
+- Réglages Git obligatoires, déjà en place : `core.autocrlf false` (sinon `index.html` est réécrit en CRLF
+  et `engine_identity` ne compare plus les mêmes octets), `core.protectNTFS false`, et un sparse-checkout
+  excluant `site internet ` — son nom a un espace final, chemin illégal sous Windows.
+- **Publication en liste blanche** : le workflow ne sert que `index.html`, `manifest.json` et `sw.js`.
+  Tout nouveau fichier utile à l'app doit être ajouté à la ligne `cp` de `.github/workflows/static.yml`,
+  sinon il répondra 404 en production.
+- **Dossier de passation** : `passation/PASSATION.md` — zone verte / zone rouge des modifications
+  autorisées. À lire avant toute demande venant d'un utilisateur non technique.
 
 ## Où sont les choses
 

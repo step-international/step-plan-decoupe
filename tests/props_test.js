@@ -4,7 +4,7 @@
 // À lancer JUSTE APRÈS tests/engine_identity.js. NB : « solde = dernière bobine » n'est exact qu'en blade=0
 // (audit P3 VIOLEE en blade>0, ~0,3%) ; conservation exigée SEULEMENT si !packTruncated.
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let s=(src.slice(i-6,i)==='async ')?i-6:i;let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(s,k+1);}
 global.PALETTES_MAX=4; global.MAX_USEFUL_MM=4000; global.MAX_BLADE_MM=50; global.packTruncated=false; global._laizeSortExcluded=()=>false;
 ['expandDemand','buildCounts','calcStats','makeLabel','bestPattern','pack','groupBobines','computeChutesUsed','reduceItemsByChutes',

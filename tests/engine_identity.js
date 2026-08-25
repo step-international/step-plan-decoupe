@@ -1,7 +1,7 @@
 // engine_identity.js — garde-fou : le MOTEUR de découpe doit rester BYTE-IDENTIQUE à git HEAD.
 const { execSync } = require('child_process');
 const fs = require('fs');
-const REPO = '/Users/EstebanR/step-plan-decoupe';
+const REPO = require('path').join(__dirname,'..');
 const FILE = REPO + '/index.html';
 const FROZEN = ['expandDemand','buildCounts','calcStats','makeLabel','bestPattern','pack',
   'packRecutRolls','packRefGroups','packRefGroupsPal','_seqMinPalettes','groupBobines'];

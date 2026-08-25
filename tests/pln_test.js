@@ -1,7 +1,7 @@
 // pln_test.js — L112 : 📅 Planning ÉTAPE 2 + garde RESTE (hygiène & planning).
 // Fonctions RÉELLES extraites de index.html (repo), moteur inclus pour l'estimation.
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let s=(src.slice(i-6,i)==='async ')?i-6:i;let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(s,k+1);}
 let fail=0;const ok=(c,m)=>{console.log((c?'✅ ':'❌ ')+m);if(!c)fail++;};
 

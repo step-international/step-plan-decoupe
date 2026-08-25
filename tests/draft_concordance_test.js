@@ -3,7 +3,7 @@
 // unifiée avec l'ENVOI, L245). Sinon une commande retapée par-dessus une reprise consommait en silence le
 // plan repris (brouillons « consumed » dans aucune corbeille → double découpe possible de l'autre commande).
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}
 global.nrm=s=>String(s||'').trim().toLowerCase();
 global._ini=()=>'ER';

@@ -2,7 +2,7 @@
 //  · collision avec un mouvement ANNULÉ (corrigePar) → id neuf _rN ; · doublon INTRA-import → ids distincts ;
 //  · id actif isolé → conservé (retry idempotent) ; · solde +Q préservé.
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 let fail=0; const ok=(c,m)=>{console.log((c?'✅ ':'❌ ')+m);if(!c)fail++;};
 const hm=src.match(/const _bkHash=(t=>\{[\s\S]*?return h\.toString\(36\)\+'_'\+\(t\.length%97\)\.toString\(36\);\s*\});/);
 ok(!!hm,'_bkHash localisé');

@@ -136,10 +136,12 @@ Plusieurs jours de travail — **à faire tranquillement, pas avant la passation
 - Réglages Git en place dans `claude index\` : `core.autocrlf false` (sinon `index.html` est
   corrompu), `core.protectNTFS false`, sparse-checkout excluant `site internet ` (espace final
   dans le nom = chemin illégal sous Windows).
-- **La batterie de tests ne s'exécute pas ici** : 17 fichiers de `tests/` contiennent le chemin
-  `/Users/EstebanR/…` en dur. Ne pas promettre une vérification impossible — utiliser le contrôle
-  de syntaxe Node (`vm.Script` sur les 3 scripts inline de `index.html`), testé et fonctionnel.
-- **Python n'est pas installé** : l'étape 1 de la checklist du `CLAUDE.md` du dépôt est à remplacer
-  par son équivalent Node.
+- **La batterie de tests fonctionne ici depuis le 24/08/2026** (16/16 vérifié), après avoir rendu
+  portables 16 fichiers de `tests/` et le chemin de Chrome de `shot.mjs` / `sim200.mjs`.
+  ⚠️ Mais elle est **lente** : ~25 min, contre quelques secondes sur le Mac — chaque test relit
+  2,2 Mo à travers le partage réseau. L'exiger avant chaque publication n'est pas réaliste au
+  quotidien : réserver la batterie complète aux modifications qui touchent autre chose qu'une liste.
+- **Python 3.13 est installé** : la checklist du dépôt s'applique telle quelle (l'étape 1 a été
+  rendue portable, l'étape 5 « miroir » est à sauter — elle ne concerne que le Mac).
 - **Publication en liste blanche** : seuls `index.html`, `manifest.json` et `sw.js` sont servis sur
   le web. Tout nouveau fichier utile à l'app doit être ajouté au `cp` de `.github/workflows/static.yml`.

@@ -13,7 +13,9 @@ const W = +(args.w || 1180), H = +(args.h || 820);
 const out = args.out || `shot-${scene}-${W}x${H}${args.full ? '-full' : ''}.png`;
 const URL_ = args.url || 'http://127.0.0.1:8000/';
 const PORT = 9333 + Math.floor(Math.random() * 500);
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = process.env.CHROME_BIN || (process.platform === 'win32'
+  ? 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+  : '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const udd = mkdtempSync(join(tmpdir(), 'stepshot-'));
 const chrome = spawn(CHROME, [`--headless=new`, `--remote-debugging-port=${PORT}`, `--user-data-dir=${udd}`, '--no-first-run', '--no-default-browser-check', '--disable-gpu', `--window-size=${W},${H}`, '--hide-scrollbars', '--force-device-scale-factor=1', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));

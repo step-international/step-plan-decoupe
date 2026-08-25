@@ -3,7 +3,7 @@
 // (2) CONSERVATION (aucune pièce perdue) ; (3) déterminisme ; (4) fuzz : DOMINANT n'aggrave JAMAIS ni la perte
 // ni le solde du milieu vs l'optimum de rendement d'origine, et correspond exactement à la référence DOMINANT.
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let s=(src.slice(i-6,i)==='async ')?i-6:i;let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(s,k+1);}
 global.PALETTES_MAX=4;
 ['expandDemand','buildCounts','calcStats','makeLabel','bestPattern','pack','groupBobines','_palSplitSolde','_palRepack'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });

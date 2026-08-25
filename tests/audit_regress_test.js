@@ -2,8 +2,8 @@
 // présents (marqueurs de code distinctifs). Cadence d'edits élevée + 16 tests perdus → filet contre un revert
 // silencieux. Ne teste pas la logique fine (couverte ailleurs) mais l'INTÉGRITÉ des correctifs livrés.
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
-const sw=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/sw.js','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
+const sw=fs.readFileSync(require('path').join(__dirname,'..','sw.js'),'utf8');
 let fail=0; const has=(re,m)=>{const ok=(re instanceof RegExp?re.test(src):src.includes(re));console.log((ok?'✅ ':'❌ ')+m);if(!ok)fail++;};
 const hasSw=(re,m)=>{const ok=(re instanceof RegExp?re.test(sw):sw.includes(re));console.log((ok?'✅ ':'❌ ')+m);if(!ok)fail++;};
 const absent=(re,m)=>{const ok=!(re instanceof RegExp?re.test(src):src.includes(re));console.log((ok?'✅ ':'❌ ')+m);if(!ok)fail++;};
@@ -1027,7 +1027,7 @@ has(/la PAUSE locale fait foi/,'L373 P4 : la reprise respecte la pause locale');
 has(/\[L373 · audit chrono P6\] un brouillon PARQUÉ n'est jamais « en marche »/,'L373 P6 : 💾 manuel = chrono figé (pas d interlude compté)');
 has(/\[L373 · audit chrono E5\] rejet DUR après le timeout/,'L373 E5 : rejet Firestore tardif signalé (plus d alert mensongère)');
 has(/\[L373 · audit chrono E6\] un listener mort gelait/,'L373 E6 : listener brouillons signalé + re-abonnement borné');
-{ const rules=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/firestore.rules','utf8'); const okR=/email\.lower\(\)\.matches/.test(rules); console.log((okR?'✅ ':'❌ ')+'L373 : firestore.rules du repo — compte machine insensible à la casse (à PUBLIER en console)'); if(!okR) fail++; }
+{ const rules=fs.readFileSync(require('path').join(__dirname,'..','firestore.rules'),'utf8'); const okR=/email\.lower\(\)\.matches/.test(rules); console.log((okR?'✅ ':'❌ ')+'L373 : firestore.rules du repo — compte machine insensible à la casse (à PUBLIER en console)'); if(!okR) fail++; }
 
 console.log('── L374 : retours recette Esteban (20/08 après-midi) ──');
 has(/body\.plan-drift \.fiche-line\.conf-dirty \.fl-edit-chip,body\.plan-drift #ficheLines button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:none!important\}/,'L374 : bannière « plan a changé » visible = le gros bouton est le SEUL chemin (♻ par carte masqués, paysage)');
@@ -1094,10 +1094,10 @@ has(/if\(typeof trainingGuard==='function'&&trainingGuard\(\)\) return;   \/\/ e
 has(/db\.collection\('config'\)\.doc\('assistant'\)/,'L380 : interrupteur config/assistant (enabled) — mail-seul tant que non déployé');
 has(/id="assistOverlay"/,'L380 : panneau de fil assistant');
 has(/#reportBubble\.assist-new::after/,'L380 : pastille « réponse reçue » sur la bulle');
-{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+{ const fx=fs.readFileSync(require('path').join(__dirname,'..','functions','index.js'),'utf8');
   const okF=/claude-opus-5/.test(fx)&&/stop_reason === "refusal"/.test(fx)&&/defineSecret\("ANTHROPIC_API_KEY"\)/.test(fx)&&/msgs\[msgs\.length - 1\]\.role !== "operator"/.test(fx);
   console.log((okF?'✅ ':'❌ ')+'L380 : Cloud Function assistReply (secret, anti-boucle, refus géré)'); if(!okF) fail++; }
-{ const rules=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/firestore.rules','utf8');
+{ const rules=fs.readFileSync(require('path').join(__dirname,'..','firestore.rules'),'utf8');
   const okR=/match \/assist\/\{id\}/.test(rules)&&/match \/config\/\{id\}/.test(rules);
   console.log((okR?'✅ ':'❌ ')+'L380 : règles assist + config (à publier en console)'); if(!okR) fail++; }
 
@@ -1106,7 +1106,7 @@ has(/messages:firebase\.firestore\.FieldValue\.arrayUnion\(\{role:'operator'/,'L
 has(/\[L381 · fix audit n°4\] l'interrupteur assistant se relit à CHAQUE auth/,'L381 n°4 : interrupteur relu à l authentification');
 has(/step_assist_doc/,'L381 n°12 : le fil survit à un reload (reprise ≤1 h)');
 has(/hors-ligne — la réponse arrivera au retour du réseau/,'L381 n°9 : attente honnête hors-ligne');
-{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+{ const fx=fs.readFileSync(require('path').join(__dirname,'..','functions','index.js'),'utf8');
   const okF=/data\.status !== "pending"/.test(fx)&&/cfg\.data\(\)\.enabled !== true\) return;/.test(fx)&&/CONTEXTE SCANNÉ/.test(fx)&&fx.indexOf('apiMessages = [')<fx.indexOf('msgs.forEach')&&/timeout: 90_000/.test(fx)&&/max_tokens: 3000/.test(fx);
   console.log((okF?'✅ ':'❌ ')+'L381 : fonction — interrupteur serveur, contexte en tour user de tête, timeout SDK, budget 3000'); if(!okF) fail++; }
 
@@ -1123,7 +1123,7 @@ has(/les bobines DÉJÀ COUPÉES restent attribuées à la machine qui les a phy
 has(/lanceurs orphelins \(bloc réf supprimé/,'L383 : lanceurs ⚙ OUTILS orphelins purgés (plus d empilement au fil de la journée)');
 has(/préservé autour du resetAll d'entrée\/sortie d'entraînement/,'L383 : temps miroir en attente préservé par l entraînement');
 has(/re-dérivé depuis\n          \/\/ loadedSaveId|_loadedSoldeDraftId \(RAM\) meurt au rechargement/,'L383 : solde ⛔ jumeau re-dérivé après rechargement (consommé à l envoi du reste)');
-{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+{ const fx=fs.readFileSync(require('path').join(__dirname,'..','functions','index.js'),'utf8');
   const okF=/maxRetries: 0/.test(fx);
   console.log((okF?'✅ ':'❌ ')+'L383 : fonction — maxRetries:0 (le repli d erreur s exécute toujours, plus de doc « pending » à vie)'); if(!okF) fail++; }
 
@@ -1170,7 +1170,7 @@ has(/html2canvas 1\.4\.1 EMBARQUÉ/,'L388 : html2canvas embarqué (hors-ligne, z
 has(/async function _l388CaptureShots/,'L388 : capture Plan + Fiche (JPEG, plafonnée, jamais bloquante)');
 has(/ecran-plan\.jpg/,'L388 : pièces jointes du mail (Trigger Email télécharge les URLs)');
 has(/Claude verra ce que voit l'opérateur/,'L388 : captures dans le doc assist');
-{ const fx=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/functions/index.js','utf8');
+{ const fx=fs.readFileSync(require('path').join(__dirname,'..','functions','index.js'),'utf8');
   const okF=/type: "image", source: \{ type: "url"/.test(fx)&&/appendTo/.test(fx);
   console.log((okF?'✅ ':'❌ ')+'L388 : fonction — images en vision + fusion des tours compatible tableau'); if(!okF) fail++; }
 

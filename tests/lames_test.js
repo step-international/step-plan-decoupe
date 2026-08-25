@@ -2,7 +2,7 @@
 // lameClasseurEtat) + intégrité de l'UI 3 sections (marqueurs). Clé machine|num : les n° de lame sont
 // PAR machine (le 20 cevenini ≠ un 20 ailleurs — demande Esteban).
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}
 global.nrm=s=>String(s||'').trim().toLowerCase();
 global.isoNow=()=>'2026-07-23T12:00:00.000Z';

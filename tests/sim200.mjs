@@ -15,7 +15,9 @@ const N = +(args.n || 200), SEED = +(args.seed || 42), URL_ = args.url || 'http:
 // [L356] --multi <p> proba d'une 2e référence (déf. .3) · --nc <p> proba d'une NC réelle motif+action (déf. .25) · --nomulti / --nonc pour couper
 const P_MULTI = args.nomulti ? 0 : +(args.multi || 0.3), P_NC = args.nonc ? 0 : +(args.nc || 0.25);
 const PORT = 9400 + Math.floor(Math.random() * 400);
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = process.env.CHROME_BIN || (process.platform === 'win32'
+  ? 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+  : '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const udd = mkdtempSync(join(tmpdir(), 'stepsim-'));
 const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${udd}`, '--no-first-run', '--disable-gpu', '--window-size=1180,820', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));

@@ -3,7 +3,7 @@
 // R3 qual (NC par type, ouvertes, délai fiche→clôture) · R3 liv (ponctualité, repli fr-FR, « — » exclu) ·
 // R3 ecartsN · rétro-compat (champs TOUJOURS présents dans un agrégat neuf).
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}
 global.MACHINE_LABELS=['FEBA','MAVEG','CEVENINI'];
 global.parseNum=v=>{const n=parseFloat(String(v==null?'':v).replace(',','.'));return isNaN(n)?0:n;};

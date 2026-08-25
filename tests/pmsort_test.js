@@ -2,7 +2,7 @@
 // Vérifie _pmSortBobinesOnce (tri par plus grande laize du motif, ordre stable pour égalités) + le câblage
 // dans renderPlanManual (tri à chaque rendu SAUF si un champ bobine a le focus).
 const fs=require('fs');
-const src=fs.readFileSync('/Users/EstebanR/step-plan-decoupe/index.html','utf8');
+const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}
 let fail=0; const ok=(c,m)=>{console.log((c?'✅ ':'❌ ')+m);if(!c)fail++;};
 global.parseConf=eval('('+fnOf('parseConf')+')');
