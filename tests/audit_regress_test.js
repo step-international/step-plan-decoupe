@@ -1316,5 +1316,9 @@ has(/detruisait les recaps « SES LAIZES » sans les reconstruire/,'L410 : rende
 has(/le recap clients n'etait plus JAMAIS rafraichi/,'L410 : plan manuel — recap rafraichi aussi');
 has(/le bandeau ⏳ DETRUISAIT le bouton 💾/,'L410 : bandeau commande volumineuse ne detruit plus le bouton Sauvegarder');
 
+console.log('── L411 : Reinitialiser visible et disponible commande en cours ──');
+has(/↺ Réinitialiser DE RETOUR en tête de page/,'L411 : le bouton rouge n est plus cache en paysage');
+has(/Le CHRONO EN COURS sera ARRÊTÉ et remis à zéro/,'L411 : reset possible chrono en cours — confirm renforce (jamais silencieux)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

@@ -1445,7 +1445,7 @@ body.atelier .stat-tile b{font-size:36px}
   #page1 .flex-wrap:has(#btnDraftManual){display:none}   /* ligne manuelle · brouillon → tiroir — [fix L339 · audit BLOQUANT] ancrage sur #btnDraftManual (stable) : #hideCoupeesBtn est DÉPLACÉ au boot dans #chgBtnRow par _l79SetupChangements → le :has() masquait la rangée 🔧 Changements (accès lame/machine/op.2 perdu !) */
   #hideCoupeesBtn{display:none}                          /* masquer les coupées → tiroir (le bouton vit dans #chgBtnRow, qu'on ne masque JAMAIS) */
   #planSaveBtn,#planEditBtn{display:none}                /* 💾 · ✏️ → tiroir */
-  #planResumeRow .btn-red{display:none}                  /* ↺ réinitialiser → tiroir (▶ Reprendre reste en tête) */
+  /* [L411 · demande Esteban] ↺ Réinitialiser DE RETOUR en tête de page (il était relégué au tiroir OUTILS : introuvable) */
 }
 /* ============================================================
    [L340 · FIDÉLITÉ MAQUETTE 17 · §2.6/§2.13-B/§2.13-D/§2.18] FICHE PAYSAGE — « premier écran = HUD +
@@ -3125,7 +3125,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L410';
+const APP_VERSION='2026.08.24-L411';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11684,10 +11684,12 @@ async function saveCommandeFiche(rows,useful,blade,opts){
 
 // L34 — Bouton "Nouveau plan" (Plan) : vide plan + fiche pour repartir de zéro.
 function resetSiteConfirm(){
-  if(chronoRunning){ showToast('⏱ Arrête d\'abord le chrono (commande en cours).','err'); return; }
+  /* [L411 · demande Esteban] le reset marche AUSSI commande/chrono en cours (avant : refus « arrête d'abord le
+     chrono »). Le confirm de sécurité RESTE et s'alourdit ; resetAll() appelle chronoReset(true) qui stoppe tout. */
+  const _msgChrono=chronoRunning?'\n\n⏱ Le CHRONO EN COURS sera ARRÊTÉ et remis à zéro (temps non enregistré).':'';
   // [L67 · Audit] partage actif : prévenir que le reset l'arrête (resetAll clôt le partage).
   const _msgShare=_shareActive?'\n\n⚠ Le PARTAGE en cours sera ARRÊTÉ (les collègues ne verront plus la commande).':'';
-  if(!confirm('↺ Réinitialiser : vider entièrement le plan et la fiche en cours pour repartir d\'un site vierge ?'+_msgShare+'\n\n(Les données déjà enregistrées — plans, fiches, brouillons manuels — ne sont pas touchées.)')) return;
+  if(!confirm('↺ Réinitialiser : vider entièrement le plan et la fiche en cours pour repartir d\'un site vierge ?'+_msgChrono+_msgShare+'\n\n(Les données déjà enregistrées — plans, fiches, brouillons manuels — ne sont pas touchées.)')) return;
   // [L294 · revue] capture AVANT resetAll : il annule _viewingSharedId/_localCopyFromShare et vide les champs
   // n° de commande → la garde de protection des brouillons auto (plus bas) serait toujours fausse (code mort).
   const _wasCopy=!!(_localCopyFromShare||_viewingSharedId);
