@@ -106,23 +106,26 @@ discussion d'aide** avec Claude (nécessite la clé). Si la clé tombe, seule la
 
 ---
 
+## Sauvegardes — en place depuis le 25/08/2026
+
+✅ **Fait, plus rien à faire.** Trois protections actives sur la base Firestore :
+
+| Protection | Portée |
+|---|---|
+| Récupération à un moment précis | les **7 derniers jours, à la minute près** |
+| Sauvegarde quotidienne | copie complète chaque jour, conservée **7 jours** |
+| Sauvegarde hebdomadaire | copie complète chaque **vendredi**, conservée **98 jours** (14 semaines) |
+
+Console Firebase → `plan-de-decoupe` → **Firestore** → onglet **Reprise après sinistre**.
+
+**En cas de perte de données :** ne rien réécrire — chaque écriture supplémentaire complique la
+restauration. Prévenir Esteban ou Christian, puis restaurer depuis cette page. Une restauration
+**remplace** l'état actuel : tout ce qui a été saisi depuis le point choisi est perdu. D'où la règle :
+plus on agit vite, moins on perd.
+
 ## À faire
 
-### 1. Activer les sauvegardes Firestore — 20 min, une seule fois
-
-Console Firebase → projet `plan-de-decoupe` → **Firestore Database** → onglet **Sauvegardes**.
-
-1. Activer **Récupération à un instant donné** (*Point-in-time recovery*) → 7 jours à la minute près.
-2. **Créer une planification** : tous les jours, conservation 7 jours.
-3. **Créer une 2ᵉ planification** : toutes les semaines, conservation 14 semaines.
-4. **Trois jours après**, revenir vérifier que des sauvegardes apparaissent dans la liste.
-
-**Pourquoi :** ça ne protège pas d'une panne Google, mais d'une suppression en masse, d'une
-publication de règles ratée, ou d'un lot qui écrit de travers. Les fiches de découpe sont des
-enregistrements qualité ISO 9001 — sans sauvegarde, une perte est définitive, y compris sur
-les mois écoulés.
-
-### 2. Un jour : sortir `CLIENT_DATA` du code
+### Un jour : sortir `CLIENT_DATA` du code
 
 Les 85 clients et les 19 règles d'emballage sont écrits **dans `index.html`**, pas dans la base.
 C'est pour ça qu'ajouter un client oblige à republier le logiciel entier. Les déplacer vers
