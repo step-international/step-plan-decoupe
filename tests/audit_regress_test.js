@@ -107,7 +107,7 @@ has(/const nm=nrm\(c\.ref\|\|''\);/,'MAJ-2 : drift check — repli par NOM quand
 has(/h3\.pp-ref\{color:#000!important/,'MAJ-3 : en-tête de réf NOIR sur papier (grayscale rendait les pastels illisibles)');
 has(/En mono-réf : petit chip discret|petit chip discret \(pas le gros bandeau\)/,'MAJ-4 : film visible en MONO-réf (chip discret — la carte compacte n\'existe qu\'en multi)');
 has(/onclick="openCommandeFileViewer\(\$\{i\}\)"/,'MIN-5 : vignettes étiquettes → openCommandeFileViewer (openCommandeFile n\'existait pas)');
-has(/#planDriftBanner\{margin-bottom:10px/,'MIN-6 : styles bannière dérive en CSS (l\'inline écrasait l\'override atelier)');
+has(/#planDriftBanner\{margin-bottom:8px/,'MIN-6→L417 : styles banniere derive en CSS (barre rouge compacte)');
 has(/let _cPos=-1;/,'MIN-7 : index couleur écran = réfs AVEC lignes (aligné PDF, bloc vide n\'décale plus)');
 
 console.log('── L243 audit propriétés + demandes Esteban ──');
@@ -310,7 +310,7 @@ has(/const _hasChute=Array\.from\(block\.querySelectorAll\('\.rb-chute-row,\.rb-
 
 console.log('── L273 : anti-doublon parcage (#6) + bouton plan rouge/vert (demandes Esteban) ──');
 has(/return _same\(_newPlan\) && \(_ficheEmpty \|\| _same\(_newFiche\)\);/,'L273 #6 (+ revue sceptique) : parcage 💾 ne consomme le brouillon repris que si concordance sur le PLAN ET la FICHE — ferme le trou « fiche périmée » (plus de perte silencieuse / double découpe)');
-has(/class="btn btn-red" id="planDriftApplyBtn"/,'L273 : bouton « Appliquer le changement de plan » en ROUGE tant que non appliqué');
+has(/class="btn btn-red btn-sm" id="planDriftApplyBtn"/,'L273→L417 : bouton « Appliquer les changements » ROUGE tant que non applique (compact)');
 has(/_b\.className='btn btn-green'; _b\.textContent='✓ Plan appliqué/,'L273 : bouton passe au VERT au clic (retour visuel « plan appliqué »)');
 
 console.log('── L274 : impression = fiche (bug Esteban « le papier doit correspondre à la fiche ») ──');
@@ -1366,6 +1366,15 @@ has(/la bobine livre \(conf − NC par laize\), attribution FIFO sur le reste/,'
 has(/rebut chiffre : la part livree COMPTE \(sinon sur-production\)/,'L416 : production engagee du recalcul corrigee');
 has(/seules les pieces NC comptent a l'ecart/,'L416 : ecart archivage — N pieces NC, plus toute la bobine');
 has(/le chiffrage NC modifie la deduction du cumul/,'L416 : la saisie qty×laize rafraichit le cumul');
+
+console.log('── L417 : pop conditionnel + bandeau sobre + MT affiche MR ──');
+has(/function _chronoBlocked/,'L417 : gardes de demarrage extraites (toast direct, pas de pop si refus)');
+has(/demarrage refuse -> toast explicatif direct, PAS de pop/,'L417 : decision Esteban (b) appliquee');
+has(/barre SOBRE : le detail passe en infobulle/,'L417 : bandeau plan-a-change compact (detail en title)');
+has(/Appliquer les changements<\/button>/,'L417 : libelle court du bouton drift');
+has(/function iniDisp/,'L417 : MT s affiche MR partout (archives intactes)');
+has(/une seule courbe\/serie/,'L417 : graphe productivite fusionne MT+MR');
+has(/filtrer MR couvre l'historique MT/,'L417 : les filtres MR couvrent les releves MT');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

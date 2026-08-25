@@ -633,8 +633,8 @@ body.atelier .ini-btn{font-size:18px;padding:14px 18px;min-width:64px}
 body.atelier [id^="coupeeBtn_"]{font-size:18px !important;padding:16px !important;min-height:60px !important}
 body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
-#planDriftBanner{margin-bottom:10px;padding:12px 14px;border-radius:10px;background:#3a2a10;border:1.5px solid var(--orange);color:var(--text);font-size:14px;font-weight:600}/* [L231 · audit MIN-6] styles en CSS (l'inline écrasait l'override atelier — même piège que L218 #4) */
-body.atelier #planDriftBanner{font-size:17px;padding:15px}/* [L221] lisible avec gants */
+#planDriftBanner{margin-bottom:8px;padding:6px 10px;border-radius:8px;background:#3d1414;border:1.5px solid #7a2222;color:var(--red);font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}/* [L417 · demande Esteban] barre rouge compacte *//* [L231 · audit MIN-6] styles en CSS (l'inline écrasait l'override atelier — même piège que L218 #4) */
+body.atelier #planDriftBanner{font-size:14px;padding:8px 12px}/* [L417] compact aussi en atelier *//* [L221] lisible avec gants */
 @media(max-width:1099px){ body.has-actionbar.ab-progress #coupeeBanner{display:none!important} }
 @media(max-width:1099px){ body.has-actionbar.ab-confirm #sendPlanBtn,body.has-actionbar.ab-confirm #sendPlanHint{display:none!important} }/* [L222 · ergo #15] « Confirmer la commande » n'apparaît qu'UNE fois : la barre d'action fixe porte le geste, le bouton pleine page (même libellé) est masqué *//* [L121·T4-A3] progression déjà portée par la barre d'action fixe en bas → pas de doublon · [L126·audit #23] seulement quand la barre porte la jauge · [L144] même point de rupture que la barre (≤1099px, iPad inclus) */
 /* [L142 · ergo #21] iOS zoome au focus de tout champ < 16px : sur TÉLÉPHONE on force 16px sur les contrôles de saisie (l'iPad ne zoome pas → inchangé ; desktop inchangé). Évite le pincer-dézoomer à chaque saisie (filtres, modales d'édition, notes). */
@@ -3082,7 +3082,9 @@ const COLD_ARCHIVE_KEY='step_cold_archive'; // archivage froid local avant purge
 // [L250 · R5] palette RÉVISÉE (rapport §e validé) : JF/CH étaient DEUX VERTS indiscernables (#4ade80 vs
 // #34d399) et TB/JF/DC portaient LES couleurs machine (FEBA/MAVEG/CEVENINI) → à 60 cm on confondait
 // « courbe d'un op » et « badge machine ». Teintes désormais toutes distinctes entre elles ET des machines.
-const OP_COLORS={'TB':'#22d3ee','JF':'#a3e635','MR':'#f59e0b','MT':'#f59e0b','DC':'#e879f9','ER':'#f87171','CH':'#10b981','?':'#9ca3af'};   // [L404] MR = nouvelle initiale de Marouane (MT conservé pour l'historique)
+const OP_COLORS={'TB':'#22d3ee','JF':'#a3e635','MR':'#f59e0b','MT':'#f59e0b','DC':'#e879f9','ER':'#f87171','CH':'#10b981','?':'#9ca3af'};   // [L404] MR = nouvelle initiale (MT conservé pour l'historique)
+// [L417 · demande Esteban 25/08] MT s'AFFICHE MR partout (graphes, filtres, analyses) — les archives restent MT.
+function iniDisp(v){ return v==='MT'?'MR':v; }
 // Palette couleur PAR RÉFÉRENCE (ordre de coupe) — distincte des couleurs machine, forte lisibilité
 // sur fond sombre. Sert à distinguer visuellement chaque réf dans l'ordre de coupe et les blocs machine.
 const REF_PALETTE=['#818cf8','#22d3ee','#f472b6','#2dd4bf','#94a3b8','#38bdf8','#e879f9','#facc15'];
@@ -3125,7 +3127,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L416';
+const APP_VERSION='2026.08.25-L417';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5788,10 +5790,11 @@ function _fichePlanDriftCheck(opts){
       _applyPlanDriftFix({silent:true});
       return;
     }
-    el.innerHTML='⚠ <b>Le plan a changé</b> mais la fiche ne le reflète pas encore :<br>'+drifts.join('<br>')
+    const _tt17=String(drifts.join(' · ')).replace(/<[^>]*>/g,'').replace(/"/g,'&quot;');   /* [L417 · demande Esteban] barre SOBRE : le detail passe en infobulle */
+    el.innerHTML='<span title="'+_tt17+'" style="flex:1;min-width:120px">⚠ Le plan a changé</span>'
       +(shared
-        ?'<div style="margin-top:6px">🔒 Commande PARTAGÉE : arrête le partage, puis clique « 🔄 Changement plan » pour répercuter (les bobines coupées seront conservées).</div>'
-        :'<div style="margin-top:8px"><button class="btn btn-red" id="planDriftApplyBtn" onclick="_applyPlanDriftFix()">🔄 Appliquer le changement de plan — les bobines coupées sont conservées</button></div>');
+        ?'<span style="font-weight:600">🔒 Partage en cours — arrête le partage puis « 🔄 Changement plan »</span>'
+        :'<button class="btn btn-red btn-sm" id="planDriftApplyBtn" onclick="_applyPlanDriftFix()" title="'+_tt17+'">🔄 Appliquer les changements</button>');
     try{ document.body.classList.add('plan-drift'); }catch(e){}   // [L374 · demande Esteban] bannière visible = UN SEUL chemin (le gros bouton) : les ♻ RECALCULER par carte sont masqués en paysage   // [L273 · demande Esteban] ROUGE tant que non appliqué → VERT au clic (voir _applyPlanDriftFix)
     el.style.display='';
   }catch(e){ hide(); }
@@ -10035,6 +10038,7 @@ function _l408PrevolPop(){ try{
      d'avant L405) MASQUAIT le pop sur les commandes deja demarrees. Nouveau critere : le pop sort a
      CHAQUE demarrage a zero (chrono vierge), jamais sur une reprise apres pause. */
   if(chronoRunning||((typeof chronoSec==='number')&&chronoSec>0)){ chronoStart(); return; }
+  try{ if(typeof _chronoBlocked==='function'&&_chronoBlocked()) return; }catch(e){}   /* [L417 · decision Esteban (b)] demarrage refuse -> toast explicatif direct, PAS de pop */
   let ov=document.getElementById('prevolPop');
   if(ov){ ov.classList.add('open'); return; }
   ov=document.createElement('div'); ov.id='prevolPop'; ov.className='modal-overlay open';
@@ -10052,8 +10056,11 @@ function _l408PrevolGo(){ try{
   chronoStart();
   try{ const pc=window._l413PendingCut; window._l413PendingCut=null; if(pc&&chronoRunning&&typeof coupeeTapOne==='function'){ coupeeTapOne(pc); } }catch(e){}   /* [L413] le ✂ qui a declenche le pop est REJOUE : l'operateur n'a pas a retaper */
 }catch(e){} }
-function chronoStart(){
-  if(chronoRunning) return;
+/* [L417 · decision Esteban (b)] gardes de demarrage EXTRAITES de chronoStart : refus explique (toast +
+   surlignage) = return true. Appelees AUSSI par _l408PrevolPop AVANT d'afficher le pop pre-vol : le refus
+   s'explique SANS pop (fini le « pop -> je lance -> toast contradictoire »). La branche reprise-apres-crash
+   MUTE fichePlanValidated sur OK -> idempotente si chronoStart re-verifie juste apres. */
+function _chronoBlocked(){
   const miss=ficheParamMissing();
   if(miss){
     // Surligner le champ manquant au lieu d'un alert bloquant.
@@ -10066,7 +10073,7 @@ function chronoStart(){
     if(el&&el.offsetParent===null){ const _blk=document.querySelector('.fmm-block.active')||document.querySelector('.fmm-inline-block.active'); if(_blk) el=_blk; }
     if(el){ try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){} try{el.focus({preventScroll:true});}catch(_){ try{el.focus();}catch(__){} } el.style.borderColor='var(--red)'; el.style.outline='2px solid var(--red)'; setTimeout(()=>{el.style.borderColor='';el.style.outline='';},2500); }   // [L152] outline en plus (les conteneurs sans bordure — ex. #initBtns · [L340] scroll AVANT focus (le champ peut être dans une section repliée : le focus sur un display:none était un no-op) — restaient invisibles) + défilement vers le champ
     showToast('⚠ Renseigne '+miss.label+' avant de démarrer.','err');
-    return;
+    return true;
   }
   // [L79] BLOQUER le démarrage si une DIMENSION (mère / bords) a été modifiée sans « 🔄 Changement
   // plan » (fichePlanValidated=false). Le changement de MACHINE, lui, ré-applique tout seul
@@ -10080,7 +10087,7 @@ function chronoStart(){
     if(countCoupees()>0){
       if(confirm('Reprise de commande : le plan n\'a pas été re-validé (rechargement ou modification).\n\nSi tu n\'as PAS changé la bobine mère / les bords, appuie sur OK pour REPRENDRE le chrono directement.\n\nOK = reprendre · Annuler = vérifier puis « 🔄 Changement plan »')){
         fichePlanValidated=true; updateFPlanHint();
-      } else return;
+      } else return true;
     } else if(typeof fmmIsMulti==='function'&&fmmIsMulti()){
       // [L288 · T5 · bug Esteban] MULTI-RÉF : l'ancien toast accusait à tort une « dimension modifiée » et
       // pointait « Changement plan » / #fPlanHint — tous INVISIBLES en multi (#fMachineMono caché). Le vrai
@@ -10090,17 +10097,22 @@ function chronoStart(){
       showToast('⚠ Valide d\'abord la bobine mère de la réf en cours'+(_rf&&_rf.ref?' — « '+refDispCtx(_rf.ref)+' »':'')+' : bouton « 🔄 Valider la bobine mère » (surligné).','err');   // [L352 · fix audit] le bloc peut vivre dans l\'en-tête dépliée : on ne dit plus « au-dessus de sa 1re bobine » (le scroll + le halo le montrent)
       const _blk=document.querySelector('.fmm-block.active')||document.querySelector('.fmm-inline-block.active');
       if(_blk){ try{_blk.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){} _blk.style.outline='3px solid var(--orange)'; setTimeout(function(){ _blk.style.outline=''; },2500); }
-      return;
+      return true;
     } else {
       showToast('⚠ Tu as modifié une dimension (mère / bords) — clique « 🔄 Changement plan » avant de démarrer le chrono.','err');
       const _h=document.getElementById('fPlanHint'); if(_h){ try{ if(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()) _l340RevealBox(document.getElementById('fMachineMono')); }catch(e){} try{ _h.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} _h.style.color='var(--red)'; setTimeout(function(){ if(typeof updateFPlanHint==='function') updateFPlanHint(); },3000); }   // [L340 · fix audit] en paysage le bouton « Changement plan » vit dans le bloc REPLIÉ → déplier + défiler (jamais pointer un élément caché)
-      return;
+      return true;
     }
   }
   // [L79] Rappel STOCK avant de démarrer : chutes / bobineaux déjà en stock à déduire de la commande.
   // [L143 · audit ergo #18 · choix Esteban] uniquement au 1er DÉPART de la commande (aucune bobine coupée ET
   // chrono jamais lancé) — plus à chaque reprise après pause (le plan est déjà lancé, on ne rajoute plus de
   // stock) : évite la confirmation-fatigue (« OK sans lire ») et redonne du poids au rappel du vrai démarrage.
+  return false;
+}
+function chronoStart(){
+  if(chronoRunning) return;
+  if(_chronoBlocked()) return;   /* [L417] gardes extraites (voir _chronoBlocked) */
   const _premierDepart=(countCoupees()===0)&&(typeof chronoSec!=='number'||chronoSec===0);
   if(_premierDepart){ let _go=true; try{ _go=(maybeShowChutesRappel()!==false); }catch(e){} if(!_go) return; }   // [L345 · demande Esteban] question stock AVANT le chrono (confirm natif) ; Annuler → plan, chrono non lancé — [L306]  avec le démarrage auto (un confirm surgissant au 1er ✂ aurait été bloquant en plein geste)
   chronoRunning=true;
@@ -12022,7 +12034,7 @@ function renderTemps(){
   if(selOp){
     const curOp=selOp.value;
     const fromProfiles=(typeof USER_PROFILES==='object'&&USER_PROFILES)?Object.values(USER_PROFILES).map(p=>p&&p.ini).filter(Boolean):[];
-    const fromTemps=allTemps.flatMap(t=>[t.operateur,t.operateur2]).filter(Boolean);
+    const fromTemps=allTemps.flatMap(t=>[t.operateur,t.operateur2]).filter(Boolean).map(o=>iniDisp(o));   /* [L417] plus de doublon MT/MR au select */
     const uniqOps=[...new Set([...fromProfiles,...fromTemps])].sort();
     selOp.innerHTML='<option value="">Tous découpeurs</option>'+uniqOps.map(o=>`<option value="${esc(o)}"${o===curOp?' selected':''}>${esc(o)}</option>`).join('');
   }
@@ -12033,7 +12045,7 @@ function renderTemps(){
   const temps=allTemps.filter(t=>
     (!fMachine||(t.machine||'').toUpperCase()===fMachine.toUpperCase()||(t.machine2||'').toUpperCase()===fMachine.toUpperCase())&&   // [L79·AN-2] machine2 (relais) incluse
     (!fClient||t.client===fClient)&&
-    (!fOp||t.operateur===fOp||t.operateur2===fOp)
+    (!fOp||iniDisp(t.operateur)===fOp||iniDisp(t.operateur2)===fOp)
   );
 
   if(!allTemps.length){list.innerHTML='';empty.classList.remove('hidden');summary.innerHTML='';return;}
@@ -13169,7 +13181,7 @@ function buildFicheAnalytics(){
       // ne comptent pas au dénominateur des taux NC (sinon op.1/machine paraissent meilleurs qu'ils ne sont).
       if(f.manqueMatiere && d && d.coupee!==true) return;
       const _rel=_hasRelay&&(di+1)>=_o2s;
-      const op=(_rel?(f.ini2||f.ini):f.ini)||'?';
+      const op=iniDisp((_rel?(f.ini2||f.ini):f.ini)||'?');   /* [L417] une seule barre par operateur */
       const m=(_rel?(f.machine2||f.machine):f.machine)||'?';
       // [L249 · R4a] filtre op/machine au niveau BOBINE : la part de l'op.2 d'un relais est isolable
       if(analyseFilter.op!=='ALL'&&String(op).trim()!==analyseFilter.op) return;
@@ -15959,7 +15971,7 @@ function resetAnalyseFilter(){ analyseFilter={mach:'ALL',op:'ALL',month:'ALL',cl
 function analyseFilterBar(allTemps){
   const MACHS=MACHINE_LABELS, C={FEBA:'#4f9df2',MAVEG:'#2fb85f',CEVENINI:'#9b7cf0'};
   const machs=MACHS.filter(m=>allTemps.some(t=>String(t.machine||'').toUpperCase()===m));
-  const ops=[...new Set(allTemps.map(t=>String(t.operateur||'').trim()).filter(Boolean))].sort();
+  const ops=[...new Set(allTemps.map(t=>iniDisp(String(t.operateur||'').trim())).filter(Boolean))].sort();   /* [L417] une seule pastille MR */
   // [L254 · revue ×2] mois en LOCAL (le filtrage utilise _ymLoc/_ymL local) — sinon un relevé de nuit du
   // 1er, rangé sous le mois UTC précédent, devient infiltrable. + on inclut les mois des FICHES (le filtre
   // agit aussi sur les blocs NC) : un mois qui n'a que des fiches était absent de la liste.
@@ -16013,7 +16025,7 @@ function renderAnalyse(partial){
   const _ymLoc=ds=>{ const d=new Date(ds); return isNaN(d)?String(ds||'').slice(0,7):d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
   const fTemps=allTemps.filter(t=>{
     const _ms=[String(t.machine||'').toUpperCase(),String(t.machine2||'').toUpperCase()].filter(Boolean);
-    const _os=[String(t.operateur||'').trim(),String(t.operateur2||'').trim()].filter(Boolean);
+    const _os=[iniDisp(String(t.operateur||'').trim()),iniDisp(String(t.operateur2||'').trim())].filter(Boolean);   /* [L417] filtrer MR couvre l'historique MT */
     return (analyseFilter.mach==='ALL'||_ms.indexOf(analyseFilter.mach)>=0) &&
            (analyseFilter.op==='ALL'||_os.indexOf(analyseFilter.op)>=0) &&
            (analyseFilter.month==='ALL'||_ymLoc(t.date)===analyseFilter.month) &&
@@ -16067,7 +16079,7 @@ function _anaChartsHTML(valid,_filtered){
   }
   // [L141 · audit #13] ventiler le relais op.2 via tempsShareParts (comme buildMonthlyKpi/renderTemps) : sinon
   // op.1 était crédité de TOUTE la productivité et op.2 (JF) n'apparaissait JAMAIS — l'écran contredisait le KPI figé.
-  const _opsOf=t=>{ const o=[...new Set(tempsShareParts(t).map(g=>g.op).filter(Boolean))]; return o.length?o:[t.operateur||'?']; };
+  const _opsOf=t=>{ const o=[...new Set(tempsShareParts(t).map(g=>iniDisp(g.op)).filter(Boolean))]; return o.length?o:[iniDisp(t.operateur)||'?']; };   /* [L417] MT->MR : une seule courbe/serie */
   const weekOpMap={};
   valid.forEach(t=>{
     const secL=t.duree/t.totalLaizes;
