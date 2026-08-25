@@ -3125,7 +3125,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.24-L411';
+const APP_VERSION='2026.08.24-L412';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6485,10 +6485,10 @@ function cliPrintChip(id){
 // Allocation d'une bobine pour l'impression : pièces COLORÉES par client (aperçu écran) + pastille N&B (papier).
 function cliAllocPrintHtml(list){
   return _l409CliGroups(list).map(g=>{
-    const segs=g.segs.map(x=>`<b>${x.q}×${fmt(x.w)}</b>`).join(' + ');
+    const segs=g.segs.map(x=>`<b style="white-space:nowrap">${x.q}×${fmt(x.w)}</b>`).join(' + ');
     return g.c!=='+'
-      ?`<span style="white-space:nowrap;color:${cliColor(g.c)}">${cliPrintChip(g.c)} ${segs}</span>`
-      :`<span style="white-space:nowrap;color:#888">${segs} [hors cmd]</span>`;
+      ?`<span style="color:${cliColor(g.c)}">${cliPrintChip(g.c)} ${segs}</span>`
+      :`<span style="color:#888">${segs} [hors cmd]</span>`;
   }).join(' · ');
 }
 
@@ -6677,7 +6677,7 @@ function cliEdit(id,field,value){
     // Pré-remplir le packaging du client depuis les règles connues (comme le client A).
     try{ const p=(typeof _l410PkgResolve==='function')?_l410PkgResolve(value):null;   /* [L401→L410] resolution tolerante extraite en helper partage */
       if(p){ c.palette=p.palette||c.palette; c.typeCond=p.type||c.typeCond; c.etiquetage=p.etiquetage||c.etiquetage; c.cerclage=p.cerclage||c.cerclage; if(p.notes)c.notes=p.notes; renderCliPanel(); }
-      else if(!c.palette&&!c.typeCond&&!c.etiquetage&&!c.cerclage){ const d10=PKG_DEFAULT; c.palette=d10.palette||''; c.typeCond=d10.type||''; c.etiquetage=d10.etiquetage||''; c.cerclage=d10.cerclage||''; if(!c.notes&&d10.notes)c.notes=d10.notes; renderCliPanel(); } }catch(e){}   /* [L410] client inconnu (AFEXTRUSION...) : regles PAR DEFAUT au lieu de champs VIDES */
+      else { const d10=PKG_DEFAULT; c.palette=d10.palette||''; c.typeCond=d10.type||''; c.etiquetage=d10.etiquetage||''; c.cerclage=d10.cerclage||''; c.notes=d10.notes||''; renderCliPanel(); } }catch(e){}   /* [L410→L412 audit] client inconnu : remise a plat DEFAUT TOUJOURS — les regles du nom precedent (VEKA...) survivaient au changement */
     cliRefreshRows(); recalcPlan();
   }
 }
@@ -9571,7 +9571,8 @@ function renderSaves(){
   // [L106 · Phase 2 · W] pagination (même pattern que Fiches/Temps) : renderSaves rendait
   // TOUT d'un coup — lent sur tablette dès que l'historique grossit.
   const totalSaves=saves.length;
-  saves=saves.slice(0,savesRenderLimit);
+  // [L394 → L412 audit] tri par LIVRAISON AVANT la pagination : un plan urgent prepare il y a 3 semaines
+  // n'entrait pas dans la page des 50 dernieres preparations (trier PUIS decouper, cf. renderFiches L396).
   // [L394 · demande Esteban 22/08] tri par LIVRAISON : la commande à couper en premier TOUT EN HAUT
   // (date de livraison la plus proche — multi-clients : la plus proche des deux), puis chronologique ;
   // sans date de livraison → en bas, plus récemment préparées d'abord.
@@ -9582,6 +9583,7 @@ function renderSaves(){
     if(!da&&db2) return 1;
     return String(a.date||'')>String(b.date||'')?-1:1;
   }); }catch(e){}
+  saves=saves.slice(0,savesRenderLimit);   /* [L412 audit] pagination APRES le tri */
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
@@ -9981,6 +9983,7 @@ function _l408PrevolPop(){ try{
     +'<div class="modal-btns" style="justify-content:center;gap:10px">'
     +'<button class="btn btn-ghost" style="min-height:54px" onclick="document.getElementById(\'prevolPop\').remove();showPage(0)">✂ Voir le plan</button>'
     +'<button class="btn btn-green" style="min-height:54px;font-weight:800" onclick="_l408PrevolGo()">✓ C\'est bon — je lance</button></div></div>';
+  ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });   /* [L412 audit] sortie neutre au tap sur le fond (tablette sans Echap) */
   document.body.appendChild(ov);
 }catch(e){ try{ chronoStart(); }catch(_){} } }
 function _l408PrevolGo(){ try{
@@ -10342,7 +10345,7 @@ async function stopManqueMatiere(){
       st.lines=(st.lines||[]).filter(l=>!l.coupee).map(l=>Object.assign({},l,{
         coupee:false, devi:false, droit:false, conforme:false, test2nc:false,
         ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false,
-        ncDetail:'', ncQtyVal:0, ncWidthVal:0, photo:'', actDechet:false, actChutes:false, actAccept:false
+        ncDetail:'', ncQtyVal:0, ncWidthVal:0, ncLots:[], photo:'', actDechet:false, actChutes:false, actAccept:false   /* [L412 audit] lots L408 remis a zero aussi (lot fantome au solde sinon) */
       }));
       st.chrono={sec:0, startTs:null, wasRunning:false, runStart:null};
       // [L103 · audit-max] les bascules « dès la bobine N » (lame / machine / op.2) sont des
@@ -10681,7 +10684,7 @@ async function confirmCommande(){
   for(let i=0;i<ficheCheck.length;i++){
     const fd=ficheCheck[i];
     const hasNC=fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng;
-    if(hasNC && !((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0) && !fd.ncDetail.trim()){
+    if(hasNC && !((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0) && !(Array.isArray(fd.ncLots)&&fd.ncLots.length) && !fd.ncDetail.trim()){   /* [L412 audit] les lots saisis au bouton ＋ comptent (l'envoi etait refuse a tort) */
       showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité cochée sans QUANTITÉ ni LAIZE.\n\nRenseigne les deux cases (elles chiffrent la matière NC en m²) avant de confirmer.`,'err');
       return;
     }
@@ -17321,7 +17324,7 @@ function renderNc(){
           <div class="save-title">${esc(r.client)} — ${esc(r.ref)}${r.numCmd&&r.numCmd!=='—'?` · Cmd ${esc(r.numCmd)}`:''}</div>
           <div style="margin:4px 0">${statutBadge}${typeBadges}</div>
           <div class="save-meta">Bobine ${r.bobine}${r.label?` (${esc(r.label)})`:''} · Opérateur ${esc(r.ini)} · ${ds}</div>
-          ${r.perteM2>0?`<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:800;background:#3a2a0e;color:var(--orange);margin-right:4px">${ncM2Txt(r.perteM2)}</span>`:''}${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${esc(r.detail)}</div>`:'<div class="save-meta" style="color:var(--red)">⚠ Aucun détail renseigné</div>'}
+          ${r.perteM2>0?`<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:800;background:#3a2a0e;color:var(--orange);margin-right:4px">${ncM2Txt(r.perteM2)}</span>`:''}${r.detail?`<div class="save-meta" style="color:var(--orange);font-style:italic">📝 ${esc(r.detail)}</div>`:(r.perteM2>0?'':'<div class="save-meta" style="color:var(--red)">⚠ Aucun détail renseigné</div>')}
           ${r.action?`<div class="save-meta">Action : ${r.action}</div>`:''}
           ${traiteInfo}
         </div>
@@ -17669,7 +17672,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
   const cliCellPdf=fd=>{
     if(!fd||!Array.isArray(fd.cliParts)||!fd.cliParts.length) return '<span style="color:#555">—</span>';
     const ids=[...new Set(fd.cliParts.filter(p=>p.c!=='+').map(p=>p.c))];
-    const parts=_l409CliGroups(fd.cliParts).map(g=>`<span style="color:${g.c==='+'?'#888':_cliCol(g.c)};font-weight:700;white-space:nowrap">[${g.c==='+'?'hors cmd':esc(g.c)}]&nbsp;${g.segs.map(p=>p.q+'×'+fmt(p.w)).join(' + ')}</span>`).join(' · ');   /* [L409] groupe par client */
+    const parts=_l409CliGroups(fd.cliParts).map(g=>`<span style="color:${g.c==='+'?'#888':_cliCol(g.c)};font-weight:700">[${g.c==='+'?'hors cmd':esc(g.c)}]&nbsp;${g.segs.map(p=>`<span style="white-space:nowrap">${p.q}×${fmt(p.w)}</span>`).join(' + ')}</span>`).join(' · ');   /* [L409→L412 audit] nowrap PAR SEGMENT (le groupe insecable elargissait le tableau A4) */
     return parts+(ids.length>1?' <span style="display:inline-block;background:#3d2a00;color:#f59e0b;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;margin-left:4px">MIXTE</span>':'');
   };
   const cliHasPart=(fd,cid)=>!!(fd&&Array.isArray(fd.cliParts)&&fd.cliParts.some(p=>p.c===cid));
@@ -17724,7 +17727,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
       const coupeeTag=fd&&fd.coupee?'<span style="color:#4ade80;font-weight:700">✓ Coupée</span>':'<span style="color:#888">— À couper</span>';
       const actionTag=fd?(fd.actDechet?'<span style="color:var(--red)">🗑 Déchet</span>':fd.actChutes?'<span style="color:#f59e0b">✂ Chutes</span>':fd.actAccept?'<span style="color:#4ade80">✔ + Acceptable</span>':''):'';
       const test2=fd?(fd.test2nc?('<span style="color:var(--red);font-weight:700">⚠ Non conforme</span>'+((fd.devi||fd.droit)?' <span style="color:#f59e0b;font-size:12px">('+[fd.devi?'Dévidage':'',fd.droit?'Droit':''].filter(Boolean).join(', ')+')</span>':'')):((fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit))?'<span style="color:#4ade80">✓ Conforme</span>':'<span style="color:#888">— Non testé</span>')):'';
-      const ncDetail=fd&&fd.ncDetail?`<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${esc(fd.ncDetail)}${(function(){ try{ const L=ncLoss(f,fd); return L.m2>0?' · <b>'+ncM2Txt(L.m2)+'</b>':''; }catch(e){ return ''; } })()}</div>`:'';   /* [L397] matière NC sur le PDF */
+      const ncDetail=(function(){ try{ const L=ncLoss(f,fd); const _hasD=!!(fd&&fd.ncDetail); if(!_hasD&&!(L&&L.m2>0)) return ''; return `<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${_hasD?esc(fd.ncDetail):'NC chiffrée'}${(L&&L.m2>0)?' · <b>'+ncM2Txt(L.m2)+'</b>':''}</div>`; }catch(e){ return ''; } })();   /* [L397→L412 audit] la perte m² s'imprimait SEULEMENT avec un commentaire — devenu facultatif L400 */
       const photoCell=fd&&fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
       rows.push(machBand+lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
@@ -18764,8 +18767,8 @@ function _l398SyncPlanBtn(){ try{
   const b=document.getElementById('fPlanChangeBtn'); if(!b) return;
   const _uPlan=Math.max(0,parseNum(document.getElementById('fMother')?.value)-parseNum(document.getElementById('fEdge')?.value));
   const _bPlan=parseNum(document.getElementById('fBlade')?.value);
-  const _l0=(Array.isArray(ficheLines)&&ficheLines.length)?ficheLines[0]:null;
-  const same=!!(_l0&&_l0.useful>0&&Math.abs(_l0.useful-_uPlan)<0.5&&(_l0.blade==null||Math.abs((_l0.blade||0)-_bPlan)<0.01));
+  const _l0=(Array.isArray(ficheLines)&&ficheLines.length)?(ficheLines.find(function(d){ return !d.recut; })||ficheLines[0]):null;   /* [L412 audit] jamais un rouleau ♻ comme temoin (useful=rollW) */
+  const same=!!(_l0&&_l0.useful>0&&Math.abs(_l0.useful-_uPlan)<0.01&&(_l0.blade==null||Math.abs((_l0.blade||0)-_bPlan)<0.01));
   b.textContent=same?'✓ Valider la bobine mère':'🔄 Changement plan';
   b.classList.toggle('btn-green',same); b.classList.toggle('btn-blue',!same);
 }catch(e){} }
@@ -18783,8 +18786,8 @@ function applyFichePlanChange(){
   try{
     const _uPlan=Math.max(0,parseNum(document.getElementById('fMother')?.value)-parseNum(document.getElementById('fEdge')?.value));
     const _bPlan=parseNum(document.getElementById('fBlade')?.value);
-    const _l0=(Array.isArray(ficheLines)&&ficheLines.length)?ficheLines[0]:null;
-    const _uOk=_l0&&_l0.useful>0&&Math.abs(_l0.useful-_uPlan)<0.5;
+    const _l0=(Array.isArray(ficheLines)&&ficheLines.length)?(ficheLines.find(function(d){ return !d.recut; })||ficheLines[0]):null;   /* [L412 audit] jamais un rouleau ♻ comme temoin (useful=rollW) */
+    const _uOk=_l0&&_l0.useful>0&&Math.abs(_l0.useful-_uPlan)<0.01;
     const _bOk=!_l0||_l0.blade==null||Math.abs((_l0.blade||0)-_bPlan)<0.01;
     if(_uOk&&_bOk){
       fichePlanValidated=true; updateFPlanHint();
@@ -20746,9 +20749,12 @@ function _l345EditChip(id){ try{
     if(t.id==='fMother'||t.id==='fEdge'||t.id==='fBlade'){
       const zone=t.closest('#ficheHeadSec,#fMachineMono')||t.parentElement;
       if(e.relatedTarget&&zone&&zone.contains(e.relatedTarget)) return;
-      const pbk=document.querySelector('.ref-block'); if(!pbk) return;
-      const pv=k=>{ const el=pbk.querySelector('[data-rb="'+k+'"]'); return el?String(el.value||'').trim():''; };
-      const chg=parseNum(document.getElementById('fMother')?.value)!==parseNum(pv('mother'))||parseNum(document.getElementById('fEdge')?.value)!==parseNum(pv('edge'))||parseNum(document.getElementById('fBlade')?.value)!==parseNum(pv('blade'));
+      /* [L412 audit] l'oninput des champs mono PROPAGE deja fiche->plan : comparer fiche/plan etait TOUJOURS
+         faux -> l'auto-apply mono ne tournait jamais. Critere fiable = useful/lame GRAVES dans les lignes (L398). */
+      const _uP12=Math.max(0,parseNum(document.getElementById('fMother')?.value)-parseNum(document.getElementById('fEdge')?.value));
+      const _ln12=(Array.isArray(ficheLines)&&ficheLines.length)?(ficheLines.find(function(d){ return !d.recut; })||ficheLines[0]):null;
+      const _bl12=parseNum(document.getElementById('fBlade')?.value)||0;
+      const chg=!!(_ln12&&_ln12.useful>0&&_uP12>0&&Math.abs(_ln12.useful-_uP12)>=0.01)||!!(_ln12&&_bl12>0&&_ln12.blade>0&&Math.abs(_ln12.blade-_bl12)>=0.01);
       if(chg) setTimeout(function(){ try{ applyFichePlanChange(); }catch(_){} },120);
     }
   }catch(_){} });
@@ -20951,8 +20957,9 @@ function _l409PkgApply(){ try{
   _l409PkgShowA(false);
   const c=(cmdClients||[]).find(function(x){ return x&&x.id===_l409PkgTab; }); if(!c) return;
   try{ if(!c.palette&&!c.typeCond&&!c.etiquetage&&!c.cerclage){ const p10=(typeof _l410PkgResolve==='function')?(_l410PkgResolve(c.nom)||PKG_DEFAULT):null; if(p10){ c.palette=p10.palette||''; c.typeCond=p10.type||''; c.etiquetage=p10.etiquetage||''; c.cerclage=p10.cerclage||''; if(!c.notes&&p10.notes)c.notes=p10.notes; } } }catch(e){}   /* [L410] remplissage paresseux : l'onglet B n'arrive plus VIDE */
-  if(pn&&pn.contains(document.activeElement)) return;   /* anti perte de focus (meme garde que _l402CliRecaps) */
+  if(pn&&pn.dataset.cli===_l409PkgTab&&pn.contains(document.activeElement)) return;   /* [L410→L412 audit] la garde ne vaut que pour LE MEME client — sinon les selects de B restaient affiches sous l'onglet C (saisie dans le mauvais client) */
   if(!pn){ pn=document.createElement('div'); pn.id='cliPkgPanel'; sec.appendChild(pn); }
+  pn.dataset.cli=_l409PkgTab;
   const so=function(opts,val){ return opts.map(function(o){ return '<option value="'+esc(o)+'"'+(o===val?' selected':'')+'>'+(o||'—')+'</option>'; }).join(''); };
   pn.innerHTML=
     '<div class="row2">'
@@ -20979,7 +20986,7 @@ function _l341RenderCondSummary(){ try{
   const _isCli=!!(cli&&typeof _l410PkgResolve==='function'&&_l410PkgResolve(cli));   // [L363 · A16 → L410] badge CLIENT meme avec suffixe (« PRIMA pour le 25 06 26 » -> regle PRIMA)
   let h='<span class="cs-l1"><b>📦 EMBALLAGE</b>'   /* [L386 · demande Esteban] sans le client : il prenait 3 lignes */
     +(parts.length?'<span class="cs-auto">'+(_isCli?'CLIENT':'DÉFAUT')+'</span>':'<span class="cs-auto cs-none">À RENSEIGNER</span>')+'<span class="cs-arrow">'+(open?'▴ REPLIER':'▾ DÉTAIL')+'</span></span>';
-  h+='<span class="cs-l2">'+(notes.length?esc(notes[0])+(notes.length>1?' (+'+(notes.length-1)+')':'')+' — ':'')+(parts.length?esc(parts.join(' · ')):'palette · type · étiquetage · cerclage')+'</span>';   // [L363 · A16] la note client (la vraie spécificité) AVANT les champs standards
+  h+='<span class="cs-l2">'+((typeof cliMulti==='function'&&cliMulti()&&typeof cliDotHtml==='function')?cliDotHtml('A',true)+' ':'')+(notes.length?esc(notes[0])+(notes.length>1?' (+'+(notes.length-1)+')':'')+' — ':'')+(parts.length?esc(parts.join(' · ')):'palette · type · étiquetage · cerclage')+'</span>';   /* [L412 audit] badge Ⓐ : le resume decrit le client A (leve l'ambiguite avec l'onglet B actif) */   // [L363 · A16] la note client (la vraie spécificité) AVANT les champs standards
   if(alertOn) h+='<span class="cs-alert">⚡ '+esc(alertEl.textContent.trim().replace(/^⚡\s*/,'').slice(0,140))+'</span>';   /* [fix audit] le texte de l'alerte commence déjà par ⚡ */
   sum.innerHTML=h;
   sum.setAttribute('aria-expanded',open?'true':'false');
@@ -22750,7 +22757,7 @@ function restoreFicheLineFromData(ld){
   const det=document.getElementById('nc_detail_'+id);if(det)det.value=ld.ncDetail||'';
   const _q4=document.getElementById('nc_qty_val_'+id);if(_q4)_q4.value=(ld.ncQtyVal>0)?ld.ncQtyVal:'';
   const _w4=document.getElementById('nc_w_val_'+id);if(_w4)_w4.value=(ld.ncWidthVal>0)?ld.ncWidthVal:'';   /* [L400] */
-  try{ if(Array.isArray(ld.ncLots)&&ld.ncLots.length>1&&typeof _l408AddNcLot==='function'){ ld.ncLots.slice(1).forEach(function(L8){ _l408AddNcLot(id,L8.q,L8.w); }); } }catch(e){}   /* [L408] lots supplémentaires */
+  try{ if(Array.isArray(ld.ncLots)&&typeof _l408AddNcLot==='function'){ const _sk=(ld.ncQtyVal>0&&ld.ncWidthVal>0)?1:0; ld.ncLots.slice(_sk).forEach(function(L8){ _l408AddNcLot(id,L8.q,L8.w); }); } }catch(e){}   /* [L408→L412 audit] la slice(1) supposait ncLots[0]=1re ligne : FAUX si la 1re ligne etait vide (1er lot perdu a la restauration) */
   const eDe=document.getElementById('flDevi_'+id);if(eDe)eDe.checked=!!ld.devi;
   const eDr=document.getElementById('flDroit_'+id);if(eDr)eDr.checked=!!ld.droit;
   const eNc=document.getElementById('flTest2nc_'+id);if(eNc)eNc.checked=!!ld.test2nc;
@@ -23081,7 +23088,7 @@ function printFiche(){
     const conf2=(_flMachineOf(l.id)==='feba')?devi:(devi&&droit);   // [L65] machine de la ligne
     const test2=conf2?'✓':((devi?'Dév.':'')+(droit?'Droit':''))||'';
     const cumEl=document.getElementById('flCumul_'+l.id);
-    const cumText=(function(){ if(!cumEl) return '—'; try{ const cards=[...cumEl.querySelectorAll('.cumul-card')]; if(cards.length){ const fmtCard=function(c){ const t=(c.querySelector('.cc-t')||{}).textContent||''; const v=(c.querySelector('.cc-v')||{}).textContent||''; const x=(c.querySelector('.cc-x')||{}).textContent||''; const s9=(c.querySelector('.cumul-cli')||{}).textContent||''; return t.replace(/^\s*LAIZE\s+/i,'').trim()+' : '+v.replace(/\s+/g,' ').trim()+(x.trim()?', '+x.replace(/\s+/g,' ').trim():'')+(s9.trim()?', '+s9.replace(/\s+/g,' ').trim():''); }; return [...cumEl.children].map(function(n){ return n.classList.contains('cumul-card')?fmtCard(n):n.innerText.replace(/\s+/g,' ').trim(); }).filter(Boolean).join(', '); } }catch(e){} return cumEl.innerText.trim().replace(/\n+/g,', '); })();   // [L351 · audit régression] les cartes L334 collaient le texte (« LAIZE 502 mm5 / 9 ») : format papier L303 restauré (« 502 mm : 5 / 9 »)
+    const cumText=(function(){ if(!cumEl) return '—'; try{ const cards=[...cumEl.querySelectorAll('.cumul-card')]; if(cards.length){ const fmtCard=function(c){ const t=(c.querySelector('.cc-t')||{}).textContent||''; const v=(c.querySelector('.cc-v')||{}).textContent||''; const x=(c.querySelector('.cc-x')||{}).textContent||''; const s9=(function(){ const el=c.querySelector('.cumul-cli'); if(!el) return ''; return Array.from(el.children).map(function(x){ return (x.textContent||'').replace(/\s+/g,' ').trim(); }).filter(Boolean).join(' · '); })();   /* [L412 audit] textContent collait les clients (« 5/9B 3/4 ») */ return t.replace(/^\s*LAIZE\s+/i,'').trim()+' : '+v.replace(/\s+/g,' ').trim()+(x.trim()?', '+x.replace(/\s+/g,' ').trim():'')+(s9.trim()?', '+s9.replace(/\s+/g,' ').trim():''); }; return [...cumEl.children].map(function(n){ return n.classList.contains('cumul-card')?fmtCard(n):n.innerText.replace(/\s+/g,' ').trim(); }).filter(Boolean).join(', '); } }catch(e){} return cumEl.innerText.trim().replace(/\n+/g,', '); })();   // [L351 · audit régression] les cartes L334 collaient le texte (« LAIZE 502 mm5 / 9 ») : format papier L303 restauré (« 502 mm : 5 / 9 »)
     const nc=['larg','qty','casse','ang'].filter(k=>document.getElementById('nc_'+k+'_'+l.id)?.querySelector('input')?.checked);
     const ncText=nc.length?nc.join(', '):'RAS';
     const ncDetail=document.getElementById('nc_detail_'+l.id)?.value||'';
@@ -23160,7 +23167,7 @@ function toggleChangements(){
   try{ setTimeout(_l380CheckEnabled,2500); }catch(e){}   // [L380] l'assistant est-il déployé ? (doc config/assistant)
   try{ const _ad=JSON.parse(sessionStorage.getItem('step_assist_doc')||'null'); if(_ad&&_ad.id&&(Date.now()-_ad.at)<3600000){ _assistDocId=_ad.id; setTimeout(function(){ _assistListen(_ad.id); },3000); } }catch(e){}   // [L381 · n°12] reprise du fil après reload
   try{ _l340SetupFichePills(); }catch(e){}   // [L340 · maquette 17] pastilles d'en-tête + carte solde repliable (paysage) — APRÈS _l79SetupChangements (nœuds déplacés au boot)
-  try{ const _pc=document.getElementById('planCondSec'); if(_pc){ ['input','change'].forEach(function(ev){ _pc.addEventListener(ev,function(e){ try{ if(e.isTrusted) window._l363PkgTouched=true; }catch(_){} }); }); } }catch(e){}   // [L363 · B5] saisie manuelle (événement utilisateur) → la règle ne réécrit plus les champs remplis
+  try{ const _pc=document.getElementById('planCondSec'); if(_pc){ ['input','change'].forEach(function(ev){ _pc.addEventListener(ev,function(e){ try{ if(e.isTrusted&&!(e.target&&e.target.closest&&e.target.closest('#cliPkgPanel'))) window._l363PkgTouched=true; }catch(_){} });   /* [L412 audit] le panneau B/C/D vit DANS #planCondSec : il ne marque plus l'emballage de A */ }); } }catch(e){}   // [L363 · B5] saisie manuelle (événement utilisateur) → la règle ne réécrit plus les champs remplis
   try{ _l341SetupPlan(); }catch(e){}   // [L341 · maquette 18] plan paysage : tuile utile, OUTILS en bas de colonne, résumé emballage
   try{ _l342SetupDonnees(); }catch(e){}   // [L342 · maquette 19] données paysage : historique dans le bandeau, cartes de fiche en une rangée
   // loadFirestoreData() est appelé après authentification dans onAuthStateChanged

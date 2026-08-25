@@ -1229,7 +1229,7 @@ console.log('── L397 : matière NC en m² + bulle plus claire ──');
 has(/function ncLoss\(f,fd\)/,'L397 : perte NC calculée (q×w du détail × métrage) — 0 si acceptable/sans dimension');
 has(/'Laize NC \(mm\)','Matière NC \(m²\)'/,'L397 : export CSV — 2 colonnes après Détail (fichier Excel Esteban)');
 has(/m² en DÉCHET \(perdus\)/,'L397 (scindé L400) : m² au registre — déchet et chutes séparés');
-has(/matière NC sur le PDF/,'L397 : perte m² sur le PDF de la fiche');
+has(/la perte m² s'imprimait SEULEMENT avec un commentaire/,'L397→L412 : perte m² sur le PDF de la fiche (aussi sans commentaire)');
 has(/Explique en quelques mots ce qui se passe/,'L397 : bulle — texte d invitation clair');
 
 console.log('── L398 : lame qui suit, bouton mono qui dit vrai, singulier ──');
@@ -1306,7 +1306,7 @@ has(/volets des bobines coupees aussi : tuiles cote a cote/,'L409 : paysage — 
 
 console.log('── L410 : multi-clients fiabilise (analyse 4 sondes) ──');
 has(/function _l410PkgResolve/,'L410 : resolution packaging PARTAGEE (exacte -> tolerante) pour A ET B/C/D');
-has(/regles PAR DEFAUT au lieu de champs VIDES/,'L410 : client inconnu (AFEXTRUSION...) -> PKG_DEFAUT au lieu de vide');
+has(/remise a plat DEFAUT TOUJOURS/,'L410→L412 : client inconnu -> PKG_DEFAUT (et les regles de l ancien nom ne survivent pas)');
 has(/remplissage paresseux : l'onglet B n'arrive plus VIDE/,'L410 : onglet emballage B pre-rempli a l affichage');
 has(/le client A profite AUSSI de la resolution tolerante/,'L410 : badge CLIENT pour « PRIMA pour le 25 06 26 » (regle PRIMA)');
 has(/seuls les INPUTS en saisie bloquent le re-rendu/,'L410 : le bouton ＋\/✕ ne bloque plus son propre re-rendu (laize invisible)');
@@ -1319,6 +1319,21 @@ has(/le bandeau ⏳ DETRUISAIT le bouton 💾/,'L410 : bandeau commande volumine
 console.log('── L411 : Reinitialiser visible et disponible commande en cours ──');
 has(/↺ Réinitialiser DE RETOUR en tête de page/,'L411 : le bouton rouge n est plus cache en paysage');
 has(/Le CHRONO EN COURS sera ARRÊTÉ et remis à zéro/,'L411 : reset possible chrono en cours — confirm renforce (jamais silencieux)');
+
+console.log('── L412 : 13 correctifs de l audit adversarial du 24/08 (6 chasseurs) ──');
+has(/la slice\(1\) supposait ncLots\[0\]=1re ligne/,'L412-1 : restauration — 1er lot NC plus perdu quand la 1re ligne est vide');
+has(/devenu facultatif L400/,'L412-2 : PDF fiche — la perte m² s imprime aussi sans commentaire');
+has(/lot fantome au solde sinon/,'L412-3 : arret manque matiere — les lots NC sont remis a zero');
+has(/l'envoi etait refuse a tort/,'L412-4 : garde d envoi — les lots ＋ comptent');
+has(/textContent collait les clients/,'L412-9 : papier fiche — pastilles clients du cumul separees par ·');
+has(/nowrap PAR SEGMENT/,'L412-10 : PDF — groupes clients cesurables (tableau A4 preserve)');
+has(/pagination APRES le tri/,'L412-11 : Donnees>Plans — le plan urgent ne manque plus a la premiere page');
+has(/l'auto-apply mono ne tournait jamais/,'L412-12 : auto-apply mono focusout REPARE (critere useful grave)');
+has(/jamais un rouleau ♻ comme temoin/,'L412-14 : fast-path/bouton — temoin non-recut');
+has(/Math\.abs\(_l0\.useful-_uPlan\)<0\.01/,'L412-13 : seuil 0.01 (0.4mm de bords ne passait plus le re-empaquetage)');
+has(/la garde ne vaut que pour LE MEME client/,'L412-16 : onglets emballage — plus de selects B affiches sous l onglet C');
+has(/les regles du nom precedent \(VEKA\.\.\.\) survivaient/,'L412-17 : renommage client hors catalogue = remise a plat DEFAUT');
+has(/il ne marque plus l'emballage de A/,'L412-18 : saisie B/C/D ne marque plus la saisie manuelle du client A');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
