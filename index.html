@@ -3138,7 +3138,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L425';
+const APP_VERSION='2026.08.25-L426';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6453,8 +6453,10 @@ function _localDay(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getM
    restauration, vieux plans mere 2100/bords 10 -> case 2090), jamais sous le doigt (garde focus). */
 function _l421UsefulInput(inp){ try{
   const blk=inp.closest('.ref-block'); if(!blk) return;
+  const v26=String(inp.value||'').trim();
+  if(!v26){ return; }   /* [L426 audit] case VIDEE en cours de frappe : on garde la derniere largeur connue — sinon mere='' -> laize utile 0 -> « Aucune donnée à optimiser » et TOUTES les laizes deviennent oversize */
   const mo=blk.querySelector('[data-rb="mother"]'), ed=blk.querySelector('[data-rb="edge"]');
-  if(mo) mo.value=String(inp.value||'').trim();
+  if(mo) mo.value=v26;
   if(ed) ed.value='0';
   _l420Invalidate(blk);
   if(blk.querySelector('#motherWidth')) onParamChange(); else debouncedRecalcPlan();
@@ -7081,6 +7083,7 @@ function addRefBlock(){
       <button type="button" class="btn rb-op-validate val-todo" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
     </div>`;
   document.getElementById('refBlocks').appendChild(block);
+  try{ if(typeof _l421SyncUseful==='function') _l421SyncUseful(); }catch(e){}   /* [L426 audit] la case laize utilisable arrive REMPLIE (avant : vide -> l'operateur croyait devoir saisir) */
   // La machine reste à choisir (choix obligatoire). Les défauts perte bords/lame
   // seront appliqués par onRefMachineChange au moment du choix de la machine.
   const mEl=block.querySelector('[data-rb="machine"]'); if(mEl) mEl.value='';
@@ -8445,6 +8448,7 @@ function recalcPlan(){
   // affichage pur, mono-réf seulement (en multi chaque bloc a son utile propre → pas de % plutôt qu'un % faux).
   try{ _updateRowShares(multi?0:(((computed.find(c=>(c.rows||[]).length)||computed[0]||{}).useful)||0)); }catch(_){}
   try{ if(typeof _l341PlanPolish==='function') _l341PlanPolish(); }catch(_){}   // [L341 · maquette 18] tuile utile · OUTILS en bas de colonne · résumé emballage (paysage, affichage pur)
+  try{ if(typeof _l421SyncUseful==='function') _l421SyncUseful(); }catch(_){}   /* [L426] la case suit mere−bords (machine choisie, restauration, derive appliquee) */
 
   // Rendu des cartes, réf par réf, avec bande de changement entre réfs.
   let html='';
@@ -11008,11 +11012,12 @@ function recalcEcartsFromFiche(opts){
       // était mensonger et le client partait livré incomplet.
       const _d16=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
       const _cf19=document.getElementById('flConf_'+l.id)?.value||'';
-      const _dl19=_d16?_l419Delivered(_cf19,_l416NcByWidth(l.id),l.origConf||null):null;
-      if(_d16&&!_dl19) return;   /* [B54] rebut total : re-produit — [L419→L425] la part LIVREE compte (fusion+projection+plafond manuel) */
+      const _c19=document.getElementById('act_chutes_'+l.id)?.classList.contains('btn-orange');
+      const _dl19=_l419Delivered(_cf19,_l426NcOut(_d16,_c19,_l416NcByWidth(l.id)),l.origConf||null);
+      if(_d16&&!_dl19) return;   /* [B54] rebut total : re-produit — [L419→L426] la part LIVREE compte (Dechet OU Chutes chiffres) */
       const k=lineKey(l);
       const m=committedByRef[k]||(committedByRef[k]={});
-      if(_d16){ Object.keys(_dl19).forEach(w=>{m[w]=(m[w]||0)+_dl19[w];}); }
+      if(_dl19){ Object.keys(_dl19).forEach(w=>{m[w]=(m[w]||0)+_dl19[w];}); }
       else parseConf(_cf19).forEach(p=>{if(p.qty>0)m[p.width]=(m[p.width]||0)+p.qty;});
     });
     // [L87] GARDE SAISIE MANUELLE : l'opérateur corrige souvent la config À LA MAIN
@@ -12004,6 +12009,7 @@ function getFicheLinesData(){
     const get=s=>document.getElementById(s+'_'+id);
     const ncInput=k=>get('nc_'+k)?.querySelector('input')?.checked||false;
     return {
+      id:id,   /* [L426 audit] expose l'id : le detecteur d'equilibre testait d.id (inexistant) -> gel MAVEG ignore */
       label:get('flLabel')?.value||'',
       conf:get('flConf')?.value||'',
       ref:L.ref||'', refIdKey:L.refIdKey||null, refIdx:(typeof L.refIdx==='number'?L.refIdx:undefined), useful:L.useful||0, blade:L.blade||0, machine:L.machine||'',   // [L379 · fix audit n°2] index de groupe : identité fiable du verrou B3 (les noms homonymes mentent)
@@ -16504,11 +16510,11 @@ function _resteGroupsFromFiche(f){
   const cutByRef={};            // {nrmRef:{width:qty}}
   det.forEach(fd=>{
     if(!fd||fd.coupee!==true) return;
-    const _dl19=(fd.actDechet===true)?_l419Delivered(fd.conf,_l416NcByWidthFd(fd),fd.origConf||null):null;
-    if(fd.actDechet===true&&!_dl19) return;   // [L100 B54] rebut total : re-produit — [L419→L425] plafond manuel
+    const _dl19=_l419Delivered(fd.conf,_l426NcOut(fd.actDechet===true,fd.actChutes===true,_l416NcByWidthFd(fd)),fd.origConf||null);
+    if(fd.actDechet===true&&!_dl19) return;   // [L100 B54] rebut total : re-produit — [L419→L426] Dechet OU Chutes chiffres
     const rk=nrm(fd.ref);
     const m=cutByRef[rk]||(cutByRef[rk]={});
-    if(fd.actDechet===true){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
+    if(_dl19){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
     else parseConf(fd.conf||'').forEach(p=>{ if(p.qty>0) m[p.width]=(m[p.width]||0)+p.qty; });
   });
   // Coupé toutes réfs confondues (repli mono-réf : lignes parfois sans ref).
@@ -16547,11 +16553,11 @@ function _resteGroupsFromFiche(f){
     const cutByKey={};
     det.forEach(fd=>{
       if(!fd||fd.coupee!==true) return;
-      const _dl19=(fd.actDechet===true)?_l419Delivered(fd.conf,_l416NcByWidthFd(fd),fd.origConf||null):null;
-      if(fd.actDechet===true&&!_dl19) return;   // memes exclusions (L100 #2) — [L419→L425] plafond manuel
+      const _dl19=_l419Delivered(fd.conf,_l426NcOut(fd.actDechet===true,fd.actChutes===true,_l416NcByWidthFd(fd)),fd.origConf||null);
+      if(fd.actDechet===true&&!_dl19) return;   // memes exclusions (L100 #2) — [L419→L426] Dechet OU Chutes
       const rk=_resolveKey(fd);
       const m=cutByKey[rk]||(cutByKey[rk]={});
-      if(fd.actDechet===true){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
+      if(_dl19){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
       else parseConf(fd.conf||'').forEach(p=>{ if(p.qty>0) m[p.width]=(m[p.width]||0)+p.qty; });
     });
     base=f.refGroups.map((g,i)=>({
@@ -18994,10 +19000,11 @@ function _fichePrintSurplus(){
       if(typeof isLineFrozen==='function' && !isLineFrozen(l.id)) return;                       // seulement les bobines réellement figées (coupées / engagées)
       const _d16=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
       const _cf19=document.getElementById('flConf_'+l.id)?.value||'';
-      const _dl19=_d16?_l419Delivered(_cf19,_l416NcByWidth(l.id),l.origConf||null):null;
-      if(_d16&&!_dl19) return;    // rebut TOTAL : pas de production livree — [L419→L425] plafond manuel appli
+      const _c19=document.getElementById('act_chutes_'+l.id)?.classList.contains('btn-orange');
+      const _dl19=_l419Delivered(_cf19,_l426NcOut(_d16,_c19,_l416NcByWidth(l.id)),l.origConf||null);
+      if(_d16&&!_dl19) return;    // rebut TOTAL : pas de production livree — [L419→L426] Dechet OU Chutes chiffres
       const nm=nrm(l.ref||''); if(_disp[nm]===undefined)_disp[nm]=(l.ref||''); const m=com[nm]||(com[nm]={});
-      if(_d16){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
+      if(_dl19){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
       else parseConf(_cf19).forEach(p=>{ if(p.width>0&&p.qty>0) m[p.width]=(m[p.width]||0)+p.qty; });
     });
     Object.keys(com).forEach(nm=>{
@@ -20321,6 +20328,7 @@ function updateNC(id){
   if(_wv) _wv.style.borderColor=(hasNC&&!(parseNum(_wv.value)>0))?'var(--orange)':'';
   _ncActionCue(id);   // [L132 · revue] rappeler que Chutes/Déchet est requis dès qu'une NC est cochée
   try{ if(typeof _bulkRestore==='undefined'||!_bulkRestore) updateAllCumuls(); }catch(e){}   /* [L416] le chiffrage NC modifie la deduction du cumul */
+  try{ if(typeof _l426ShareRepub==='function') _l426ShareRepub(id); }catch(e){}   /* [L426 audit] NC declaree APRES le ✂ : elle remonte a l'emetteur (avant : q fige au tap, bobine archivee CONFORME) */
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] NC cochée → le volet s'ouvre + statut ⚠
 }
 // [L132 · revue] Une NC sans destination (Chutes/Déchet) bloque l'arrêt et l'envoi (comme le détail, cf. A1),
@@ -20369,7 +20377,7 @@ function toggleAction(id,which){
   // [L103 · audit-max] 🗑 Déchet / ✂ Chutes changent les cumuls par laize (exclusion déchet B54) :
   // sans recompute, le cumul affichait « X/X ✓ couvert » avec une bobine au rebut — l'écart
   // n'apparaissait qu'au prochain ✂ ou recalcul. (_bulkRestore : recomptes faits par l'appelant.)
-  if(!_bulkRestore){ try{ updateAllCumuls(); updateCoupeeStatus(); }catch(e){} }
+  if(!_bulkRestore){ try{ updateAllCumuls(); updateCoupeeStatus(); }catch(e){} try{ if(typeof _l426ShareRepub==='function') _l426ShareRepub(id); }catch(e){} }   /* [L426] l'action (Dechet/Chutes) remonte aussi a l'emetteur */
   _ncActionCue(id);   // [L132 · revue] l'indice « Action ⚠ requise » disparaît dès qu'une destination est choisie
 }
 function parseConf(val){
@@ -20454,8 +20462,9 @@ function updateAllCumuls(){
     // [L70 · Audit B54] bobine 🗑 Déchet : laizes NON comptées dans le cumul (pas livrées) —
     // le reliquat les re-produit ; le compteur ne doit plus afficher « couvert » à tort.
     const _dechet=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
-    const _dl16=_dechet?_l419Delivered(confEl.value,_l416NcByWidth(l.id),l.origConf||null):null;   /* [L416→L425] rebut chiffre, plafonne par le retrait manuel de la conf */
-    if(!_dechet) pieces.forEach(p=>{run[p.width]=(run[p.width]||0)+p.qty;});
+    const _chutes26=document.getElementById('act_chutes_'+l.id)?.classList.contains('btn-orange');
+    const _dl16=_l419Delivered(confEl.value,_l426NcOut(_dechet,_chutes26,_l416NcByWidth(l.id)),l.origConf||null);   /* [L416→L426] rebut chiffre (Dechet OU Chutes), plafonne par le retrait manuel */
+    if(!_dechet&&!_dl16) pieces.forEach(p=>{run[p.width]=(run[p.width]||0)+p.qty;});
     else if(_dl16) Object.keys(_dl16).forEach(w=>{run[w]=(run[w]||0)+_dl16[w];});
     if(cliP){
       const rr=cliR[rk]||(cliR[rk]={});
@@ -20466,7 +20475,7 @@ function updateAllCumuls(){
     if(!pieces.length){cumEl.innerHTML='<span style="color:var(--muted);font-size:13px">—</span>';return;}
     const isLegrandFr=isLegrandFrName(document.getElementById('fClient')?.value||document.getElementById('planClient')?.value); // [L73 · Lot 5 · B60] · [L393 · audit n°4] le ✎ CORRIGER de l'en-tête (fClient) pilote aussi les chips du cumul
     const meta=cmdMetaByRef[rk]||null;
-    cumEl.innerHTML=(_dechet?('<div style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:3px">'+(_dl16?('🗑 '+_l408NcLots(l.id).map(function(x){return x.q+'×'+x.w;}).join(' + ')+' au rebut — déduits du cumul (le reste de la bobine est livré)'):'🗑 Bobine au rebut — laizes non comptées (le reliquat les re-produit)')+'</div>'):'')+pieces.map(p=>{
+    cumEl.innerHTML=((_dechet||(_chutes26&&_dl16))?('<div style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:3px">'+(_dl16?((_dechet?'🗑 ':'✂ ')+_l408NcLots(l.id).map(function(x){return x.q+'×'+x.w;}).join(' + ')+(_dechet?' au rebut':' aux chutes')+' — déduits du cumul (le reste de la bobine est livré)'):'🗑 Bobine au rebut — laizes non comptées (le reliquat les re-produit)')+'</div>'):'')+pieces.map(p=>{
       const total=meta?(meta.totals[p.width]||0):(commandTotals[p.width]||0);
       // Cible À COUPER = commande - bobineaux déjà en stock. Le compteur atteint
       // ainsi X/X ✓ (« tout coupé ») et « +N en stock » explique la couverture.
@@ -21038,14 +21047,20 @@ function _l419Delivered(confStr,ncMap,origStr){ try{
   parseConf(confStr||'').forEach(function(pp){ const w=Number(pp.width)||0,q=Number(pp.qty)||0; if(w<=0||q<=0) return; if(!m.has(w)){ m.set(w,0); order.push(w); } m.set(w,m.get(w)+q); });
   if(!order.length) return null;
   const rest={}; Object.keys(ncMap).forEach(function(k){ rest[Number(k)]=(rest[Number(k)]||0)+(Number(ncMap[k])||0); });
-  /* [L425 · bug Esteban (13 au lieu de 14)] l'operateur a DEJA retire le bobineau detruit de la conf (15->14)
-     ET chiffre la NC : le retrait manuel couvre d'abord le rebut — deduction PLAFONNEE par la difference
-     origConf − conf (sinon double comptage -> cumul faux ET reliquat regenere des bobines fantomes). */
+  /* [L425 → L426 · audit doubles comptages] l'operateur a DEJA retire les bobineaux detruits de la conf
+     (15->14) ET chiffre la NC : le retrait manuel couvre D'ABORD le rebut. Plafond en NOMBRE DE PIECES
+     (pas par laize) : la laize NC saisie est souvent la laize MESUREE (61 pour une conf 65) — un plafond
+     par laize ne matchait pas et le bobineau etait deduit DEUX fois. */
   if(origStr){ try{
+    let removedTot=0;
     const om=new Map(); parseConf(origStr).forEach(function(pp){ const w=Number(pp.width)||0,q=Number(pp.qty)||0; if(w>0&&q>0) om.set(w,(om.get(w)||0)+q); });
-    om.forEach(function(q,w){ const removed=Math.max(0,q-(m.get(w)||0)); if(removed>0&&rest[w]>0){ rest[w]=Math.max(0,rest[w]-removed); } });
-    let totRest=0; Object.keys(rest).forEach(function(k){ totRest+=rest[k]; });
-    if(totRest<=0){ const full={}; order.forEach(function(w){ if(m.get(w)>0) full[w]=m.get(w); }); return full; }   /* NC entierement couverte par le retrait manuel : TOUTE la conf actuelle est livree */
+    om.forEach(function(q,w){ removedTot+=Math.max(0,q-(m.get(w)||0)); });
+    if(removedTot>0){
+      const ws=Object.keys(rest);
+      for(let i=0;i<ws.length&&removedTot>0;i++){ const w=ws[i]; const take=Math.min(rest[w],removedTot); if(take>0){ rest[w]-=take; removedTot-=take; } }
+      let totRest=0; ws.forEach(function(k){ totRest+=rest[k]; });
+      if(totRest<=0){ const full={}; order.forEach(function(w){ if(m.get(w)>0) full[w]=m.get(w); }); return full; }   /* NC entierement couverte par le retrait manuel : TOUTE la conf actuelle est livree */
+    }
   }catch(e){} }
   let any=false;
   order.forEach(function(w){ const r=Math.min(rest[w]||0,m.get(w)); if(r>0){ m.set(w,m.get(w)-r); rest[w]-=r; any=true; } });
@@ -21055,6 +21070,10 @@ function _l419Delivered(confStr,ncMap,origStr){ try{
   const out={}; order.forEach(function(w){ if(m.get(w)>0) out[w]=m.get(w); });
   return out;
 }catch(e){ return null; } }
+/* [L426 · audit doubles comptages] ✂ CHUTES = bobineau NON livre (il part au bac chutes), exactement comme
+   🗑 Dechet : quand la NC est CHIFFREE, la deduction s'applique aux DEUX destinations. Sans chiffrage, seul
+   le Dechet exclut la bobine entiere (B54) — Chutes garde son comportement historique (rien de deduit). */
+function _l426NcOut(dechet,chutes,ncMap){ return (dechet||chutes)&&ncMap?ncMap:null; }
 function _l416NcByWidthFd(fd){ try{ const lots=(fd&&Array.isArray(fd.ncLots))?fd.ncLots:[]; if(!lots.length) return null; const m={}; lots.forEach(function(x){ m[x.w]=(m[x.w]||0)+x.q; }); return m; }catch(e){ return null; } }
 function _l408NcLots(id){ try{
   const out=[];
@@ -21888,7 +21907,8 @@ function _shareQualityRead(id){
   const act=(()=>{const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
     if(d&&d.classList.contains('btn-red'))return'dechet'; if(c&&c.classList.contains('btn-orange'))return'chutes'; if(a&&a.classList.contains('btn-green'))return'accept'; return'';})();
   const det=document.getElementById('nc_detail_'+id);
-  return {larg:ck('larg'),qty:ck('qty'),casse:ck('casse'),ang:ck('ang'),det:(det?det.value||'':''),devi:cb2('flDevi'),droit:cb2('flDroit'),t2nc:cb2('flTest2nc'),act:act};
+  return {larg:ck('larg'),qty:ck('qty'),casse:ck('casse'),ang:ck('ang'),det:(det?det.value||'':''),devi:cb2('flDevi'),droit:cb2('flDroit'),t2nc:cb2('flTest2nc'),act:act,
+    lots:(typeof _l408NcLots==='function')?_l408NcLots(id):[]};   /* [L426 · audit doubles comptages] le CHIFFRAGE de la NC voyage : sans lui l'emetteur comptait la bobine ENTIERE au rebut (15/30 au lieu de 29/30) */
 }
 // Application IDEMPOTENTE côté émetteur (la bobine est coupee-other, verrouillée → aucun conflit avec sa saisie).
 function _shareQualityApply(id,q){
@@ -21907,7 +21927,31 @@ function _shareQualityApply(id,q){
     if(q.act){ try{ toggleAction(id,q.act); }catch(e){} }
     else if(cur){ try{ toggleAction(id,cur); }catch(e){} }   // [L170 · revue #8] action RETIRÉE par le collègue → la retirer aussi (bascule off), sinon elle restait figée
   }
+  /* [L426] rejouer le CHIFFRAGE du collegue (1re ligne + lots ＋) : sinon la deduction chiffree ne peut pas
+     s'appliquer chez l'emetteur — c'est LUI qui envoie la fiche (m², rebut, reliquat tous faux sinon). */
+  try{
+    const lots=Array.isArray(q.lots)?q.lots:[];
+    const _q1=document.getElementById('nc_qty_val_'+id), _w1=document.getElementById('nc_w_val_'+id), box=document.getElementById('nc_lots_'+id);
+    const cur1=(typeof _l408NcLots==='function')?_l408NcLots(id):[];
+    if(JSON.stringify(cur1)!==JSON.stringify(lots)){
+      if(box) box.innerHTML='';
+      if(_q1) _q1.value=lots.length?String(lots[0].q):'';
+      if(_w1) _w1.value=lots.length?String(lots[0].w):'';
+      lots.slice(1).forEach(function(L){ try{ _l408AddNcLot(id,L.q,L.w); }catch(e){} });
+      dirty=true;
+    }
+  }catch(e){}
+  if(dirty){ try{ updateAllCumuls(); }catch(e){} }
 }
+/* [L426 · audit doubles comptages] republie la QUALITE d'une bobine deja coupee quand la NC/l'action/le
+   chiffrage changent APRES le ✂ (geste normal : on coupe, puis on controle). Debounce 400 ms. */
+let _l426RepubT=null;
+function _l426ShareRepub(id){ try{
+  if(typeof _shareCurrentDocId!=='function'||!_shareCurrentDocId()) return;
+  const el=document.getElementById(id); if(!el||!el.classList.contains('coupee')) return;
+  clearTimeout(_l426RepubT);
+  _l426RepubT=setTimeout(function(){ try{ const idx=_shareLineIndex(id); if(idx>=0) shareCutWrite(idx,true,id); }catch(e){} },400);
+}catch(e){} }
 function shareCutWrite(idx,coupee,lineId){
   if(trainingGuard()) return;   // [L327 · fix contre-revue LOT 25] BACKSTOP : jamais d'écriture cuts.<idx> sur le brouillon d'un collègue en entraînement (miroir RÉCEPTEUR)
   const docId=_shareCurrentDocId();

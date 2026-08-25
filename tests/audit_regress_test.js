@@ -1360,10 +1360,10 @@ has(/pastilles couleur par client sous la config de la bobine/,'L415 : fiche mac
 
 console.log('── L416 : rebut CHIFFRE — seuls les bobineaux NC sortent des cumuls (bug photo MAVEG 21/63) ──');
 has(/function _l416NcByWidth/,'L416 : helpers rebut chiffre (DOM + donnees)');
-has(/rebut chiffre, plafonne par le retrait manuel de la conf/,'L419→L425 : cumul ecran via helper, plafond manuel');
+has(/rebut chiffre \(Dechet OU Chutes\), plafonne par le retrait manuel/,'L419→L426 : cumul ecran via helper (Dechet ou Chutes), plafond global');
 has(/déduits du cumul \(le reste de la bobine est livré\)/,'L416 : banniere adaptee au rebut partiel');
 has(/map projetee \(laize mesuree -> laize de conf\)/,'L416→L419 : attribution clients — rebut partiel projete puis epuise');
-has(/la part LIVREE compte \(fusion\+projection\+plafond manuel\)/,'L419→L425 : production engagee via helper, plafond manuel');
+has(/la part LIVREE compte \(Dechet OU Chutes chiffres\)/,'L419→L426 : production engagee via helper (Dechet ou Chutes)');
 has(/rebut reel = conf − part livree/,'L416→L419 : ecart archivage = conf − part livree');
 has(/le chiffrage NC modifie la deduction du cumul/,'L416 : la saisie qty×laize rafraichit le cumul');
 
@@ -1381,8 +1381,8 @@ has(/MAVEG coupe DEUX lignes a la fois : helper partage/,'L418→L419 : regle MA
 
 console.log('── L419 : 15 correctifs de l audit regles (28 signalements, 6 chasseurs) ──');
 has(/function _l419Delivered/,'L419 : deduction UNIQUE du rebut chiffre (fusion par laize + projection laize mesuree)');
-has(/plafonne par le retrait manuel de la conf/,'L419→L425 : cumul ecran via helper, plafond manuel');
-has(/\(fusion\+projection\+plafond manuel\)/,'L419→L425 : production engagee via helper, plafond manuel');
+
+has(/la part LIVREE compte \(Dechet OU Chutes chiffres\)/,'L419→L426 : production engagee via helper (Dechet ou Chutes)');
 has(/le papier ne sur-declare plus le rebut chiffre/,'L419 : trace papier rebut deduite');
 has(/function _l418Frozen2Ids/,'L419 : gel MAVEG partage avec le detecteur d equilibre (banniere incoercible)');
 has(/en PRE-verification \(pop\) : ni confirm ni mutation/,'L419 : le pop ne leve plus le verrou ISO en pre-check');
@@ -1418,8 +1418,17 @@ has(/GRIS tant qu'il reste des bobines, JAUNE \(prochaine action\) quand tout es
 has(/une NC REELLE declaree \(Angle\/Casse\/Largeur\/Qte en trop\) SUFFIT/,'L424 : une NC declaree ne force plus « Test NC » (le test 2e peut etre bon, la casse plus loin)');
 
 console.log('── L425 : deduction NC plafonnee par le retrait manuel de la conf ──');
-has(/deduction PLAFONNEE par la difference/,'L425 : conf editee 15->14 + NC 1x65 ne deduit plus DEUX fois (cumul 14, pas 13)');
+has(/le retrait manuel couvre D'ABORD le rebut/,'L425→L426 : conf editee 15->14 + NC 1x65 ne deduit plus DEUX fois (cumul 14)');
 has(/NC entierement couverte par le retrait manuel : TOUTE la conf actuelle est livree/,'L425 : retrait manuel complet = conf actuelle livree entiere');
+
+console.log('── L426 : famille des doubles comptages (audit 26 findings, 5 critiques) ──');
+has(/Plafond en NOMBRE DE PIECES/,'L426 : plafond GLOBAL — le 13-au-lieu-de-14 revenait des que la laize NC mesuree differait de la conf');
+has(/function _l426NcOut/,'L426 : ✂ Chutes deduit comme 🗑 Dechet quand la NC est chiffree (bobineau NON livre)');
+has(/expose l'id : le detecteur d'equilibre testait d\.id/,'L426 : gel MAVEG enfin vu par le detecteur d equilibre');
+has(/le CHIFFRAGE de la NC voyage/,'L426 : partage — les quantites NC transmises (emetteur comptait la bobine entiere au rebut)');
+has(/function _l426ShareRepub/,'L426 : partage — une NC declaree APRES le ✂ remonte a l emetteur');
+has(/case VIDEE en cours de frappe/,'L426 : effacer la laize utilisable ne casse plus le plan');
+has(/la case laize utilisable arrive REMPLIE/,'L426 : nouveau bloc reference — case pre-remplie');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
