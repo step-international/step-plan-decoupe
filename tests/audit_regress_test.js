@@ -523,7 +523,7 @@ has(/id="sendPlanHint"><\/div>/,'L305 : le nœud sendPlanHint RESTE (le JS le pi
 
 console.log('── L306 : REDESIGN LOT 3 — chrono auto + bandeau chutes (§2.3, accord Q1) ──');
 has(/DÉMARRAGE AUTO : le 1er ✂ lance le chrono/,'L306 : le ✂ appelle chronoStart() au lieu de refuser (gardes intactes)');
-has(/refus de chronoStart → coupe NON enregistrée/,'L306 : refus de chronoStart → la coupe N EST PAS enregistrée (ancre EXACTE du return, plus de branche morte)');
+has(/coupe NON enregistrée a ce stade/,'L306→L413 : pop ou refus de chronoStart → la coupe N EST PAS enregistrée (ancre du return)');
 has(/step_chutes_rappel_v2/,'L306 : mémoire du rappel chutes = liste bornée + clé datée sans n° (fix audit)');
 has(/le bandeau chutes d'une VIEILLE commande ne survit pas au reset/,'L306 : resetAll masque le bandeau chutes (fix audit : bandeau fantôme inter-commandes)');
 has(/arrêt automatique est suspendu pour aujourd/,'L306 : heures supp rendues VISIBLES (toast) — le cas devenait silencieux avec l auto-start');
