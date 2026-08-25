@@ -727,7 +727,7 @@ has(/function toggleFicheHead/,'L340 : dépliage/repli des 3 sections en un gest
 has(/Element\.prototype\.scrollIntoView=wrapped/,'L340 : filet « jamais pointer un élément caché » — toute garde qui défile vers une section repliée la déplie (paysage seulement)');
 has(/function renderSoldeSummary/,'L340 : carte 🏷️ ÉTIQUETTE SOLDE repliée avec résumé « n mm conservés » (formulaire au tap)');
 has(/sendBtn\.dataset\.reste=String\(Math\.max\(0,total-done\)\)/,'L340 : RESTE n porté en data-attribut (pastille CSS ::after, §2.13-D)');
-has(/#sendPlanBtn\.not-ready\{background:#14371f!important;border:1px solid #2a5c2a!important;color:#8fe0ab!important/,'L340 : CONFIRMER en VERT jamais grisé en paysage (§2.13-D / maquette 17)');
+has(/GRIS aussi en paysage/,'L340→L427 : CONFIRMER gris tant qu il reste des bobines, jaune quand tout est coupe (decision Esteban 25/08)');
 has(/<div class="cc-t">LAIZE \$\{p\.width\} mm<\/div>/,'L340 : « LAIZE n mm » — capitales dans la chaîne, plus d uppercase CSS (mm restait MM)');
 absent(/\.cc-t\{[^}]*text-transform:uppercase/,'L340 : aucun uppercase CSS sur le titre de laize (unité)');
 has(/\.fh-pills,#soldeSummary,\.fl-chute\{display:none\}/,'L340 : portrait STRICTEMENT inchangé (pastilles + résumé solde + chip CHUTE inexistants <1100px)');
@@ -800,7 +800,7 @@ has(/if\(f\.valide===false\|\|f\.manqueMatiere\) return;   \/\* \[L346/,'L346 : 
 has(/todays\.length\)\{ let done=0;/,'L346 : planning du jour f/T calculé depuis la source du Planning (aucune requête)');
 has(/  try\{ renderDataSummary\(\); \}catch\(e\)\{\}   \/\/ \[L346/,'L346 : bandeau rafraîchi à chaque entrée dans Données');
 has(/\[f\.client,f\.numCmd,f\.name,refs,f\.ini,f\.ini2\]/,'L346 : recherche des fiches aussi par initiales');
-has(/class="fc-btn fc-btn-ghost fc-btn-bl"/,'L346 : joindre le BL en 1 tap depuis la rangée compacte (pilotage)');
+has(/class="fc-bl-add"/,'L346→L427 : joindre le BL en 1 tap (bouton remonte en tete de carte, plus gros)');
 
 console.log('── L347 : simulation 200 commandes (tests/sim200.mjs) — correctif verrou RECALCULER ──');
 has(/t\.dataset\.conf0=String\(t\.value\|\|''\)\.trim\(\); \} _l345SyncEditChips\(\);/,'L347 : après le tap ♻ RECALCULER la config saisie devient la référence → plus jamais de ✂ verrouillé sans issue (trouvé par la sim : 61/200 commandes bloquées)');
@@ -1429,6 +1429,19 @@ has(/le CHIFFRAGE de la NC voyage/,'L426 : partage — les quantites NC transmis
 has(/function _l426ShareRepub/,'L426 : partage — une NC declaree APRES le ✂ remonte a l emetteur');
 has(/case VIDEE en cours de frappe/,'L426 : effacer la laize utilisable ne casse plus le plan');
 has(/la case laize utilisable arrive REMPLIE/,'L426 : nouveau bloc reference — case pre-remplie');
+
+console.log('── L427 : carte de validation refondue (maquette validee Esteban) ──');
+has(/les bandeaux pleine largeur deviennent des PUCES courtes/,'L427 : alertes en puces sur UNE ligne');
+has(/fc-bl-add/,'L427 : « Ajouter un BL » plus gros, a droite des alertes (et plus en bas)');
+has(/function _l427ShortTime/,'L427 : temps rond sous l operateur (7h23) au lieu de la date longue');
+has(/fc-ref2-name/,'L427 : reference sans label ni laize mere (n° + livraison seulement)');
+has(/fc-stat b\{display:block/,'L427 : 3 chiffres — bobines, perte, OPERATEUR en gros');
+absent(/toucher la carte pour le détail/,'L427 : ligne « toucher la carte » retiree');
+absent(/▶ Reprendre la commande<\/button>/,'L427 : bouton « Reprendre la commande » retire de la carte');
+has(/GRIS aussi en paysage/,'L427 : « Confirmer la commande » gris tant qu il reste des bobines (paysage compris)');
+has(/compteur NC retire de l'onglet Analyse/,'L427 : badge « 9 » retire de l onglet Analyse');
+has(/function _l427PurgeDraftsOf/,'L427 : fiche validee = brouillon purge (solde epargne)');
+has(/la ref est validee DES le clic/,'L427 : validation Plan posee immediatement (fiche ne redemande plus)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
