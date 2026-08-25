@@ -1336,7 +1336,7 @@ has(/les regles du nom precedent \(VEKA\.\.\.\) survivaient/,'L412-17 : renommag
 has(/il ne marque plus l'emballage de A/,'L412-18 : saisie B/C/D ne marque plus la saisie manuelle du client A');
 
 console.log('── L413 : rappel pre-vol au 1er ✂ (decision Esteban 25/08) ──');
-has(/le 1er ✂ montre AUSSI le rappel pre-vol/,'L413 : les 3 entrees de demarrage passent par le pop (▶, barre d action, 1er ✂)');
+has(/le geste est porte par l'APPEL/,'L413→L419 : les 3 entrees passent par le pop, geste porte par l appel');
 has(/le ✂ qui a declenche le pop est REJOUE/,'L413 : le geste de coupe est rejoue apres « je lance » (pas de tap avale)');
 
 console.log('── L414 : retouches Esteban 25/08 (6 demandes) ──');
@@ -1344,7 +1344,7 @@ has(/bouton « \+ Ligne manuelle » retire/,'L414 : bouton ligne manuelle retire
 has(/Marouane → Mathieu \(uid, ini et historique INTACTS\)/,'L414 : Marouane renomme Mathieu (affichage seul)');
 has(/const _shareHiddenUids/,'L414 : Esteban et Christian retires de la liste de partage (comptes intacts)');
 has(/Qté en trop<\/label>/,'L414 : puce « Qte en trop » (bobineaux coupes en plus) de retour');
-has(/quantite EN TROP -> l'action ne peut etre que ✂ CHUTES/,'L414 : Qte en trop -> action CHUTES automatique et reversible');
+has(/quantite EN TROP -> ✂ CHUTES auto, SAUF si un Déchet/,'L414→L419 : Qte en trop -> CHUTES auto (le Dechet pose gagne)');
 has(/le re-toggle l'ETEIGNAIT \(bug latent L401\)/,'L414 : restauration idempotente des actions (bug latent L401 repare)');
 has(/reprise AUTOMATIQUEMENT \(chrono fige\)/,'L414 : plus de question au demarrage — reprise auto de la commande non envoyee');
 has(/bouton « ▶ Reprendre ma derniere commande » retire/,'L414 : bouton Reprendre retire (reprise auto)');
@@ -1360,16 +1360,16 @@ has(/pastilles couleur par client sous la config de la bobine/,'L415 : fiche mac
 
 console.log('── L416 : rebut CHIFFRE — seuls les bobineaux NC sortent des cumuls (bug photo MAVEG 21/63) ──');
 has(/function _l416NcByWidth/,'L416 : helpers rebut chiffre (DOM + donnees)');
-has(/seuls les bobineaux NC sortent du cumul/,'L416 : cumul ecran — deduction par laize au lieu de l exclusion totale');
+has(/_dl16=_dechet\?_l419Delivered/,'L416→L419 : cumul ecran — credit de la part livree via le helper unique');
 has(/déduits du cumul \(le reste de la bobine est livré\)/,'L416 : banniere adaptee au rebut partiel');
-has(/la bobine livre \(conf − NC par laize\), attribution FIFO sur le reste/,'L416 : attribution clients — rebut partiel livre');
-has(/rebut chiffre : la part livree COMPTE \(sinon sur-production\)/,'L416 : production engagee du recalcul corrigee');
-has(/seules les pieces NC comptent a l'ecart/,'L416 : ecart archivage — N pieces NC, plus toute la bobine');
+has(/map projetee \(laize mesuree -> laize de conf\)/,'L416→L419 : attribution clients — rebut partiel projete puis epuise');
+has(/la part LIVREE compte \(fusion\+projection\)/,'L416→L419 : production engagee via helper');
+has(/rebut reel = conf − part livree/,'L416→L419 : ecart archivage = conf − part livree');
 has(/le chiffrage NC modifie la deduction du cumul/,'L416 : la saisie qty×laize rafraichit le cumul');
 
 console.log('── L417 : pop conditionnel + bandeau sobre + MT affiche MR ──');
 has(/function _chronoBlocked/,'L417 : gardes de demarrage extraites (toast direct, pas de pop si refus)');
-has(/demarrage refuse -> toast explicatif direct, PAS de pop/,'L417 : decision Esteban (b) appliquee');
+has(/pre-check SANS le confirm de reprise/,'L417→L419 : (b) pre-check sans pop ni mutation, pending nettoye');
 has(/barre SOBRE : le detail passe en infobulle/,'L417 : bandeau plan-a-change compact (detail en title)');
 has(/Appliquer les changements<\/button>/,'L417 : libelle court du bouton drift');
 has(/function iniDisp/,'L417 : MT s affiche MR partout (archives intactes)');
@@ -1377,7 +1377,22 @@ has(/une seule courbe\/serie/,'L417 : graphe productivite fusionne MT+MR');
 has(/filtrer MR couvre l'historique MT/,'L417 : les filtres MR couvrent les releves MT');
 
 console.log('── L418 : MAVEG — le changement de plan s applique a partir de la 3e bobine ──');
-has(/MAVEG coupe DEUX bobines a la fois/,'L418 : bobine en cours + suivante conservees sur MAVEG (machine double)');
+has(/MAVEG coupe DEUX lignes a la fois : helper partage/,'L418→L419 : regle MAVEG via helper partage (machine verifiee sur CHAQUE ligne, rouleaux inclus)');
+
+console.log('── L419 : 15 correctifs de l audit regles (28 signalements, 6 chasseurs) ──');
+has(/function _l419Delivered/,'L419 : deduction UNIQUE du rebut chiffre (fusion par laize + projection laize mesuree)');
+has(/credit de la part LIVREE \(fusion \+ projection laize\)/,'L419 : cumul ecran via helper');
+has(/rebut chiffre : la part LIVREE compte \(fusion\+projection\)/,'L419 : production engagee via helper (sur/sous-production corrigee)');
+has(/le papier ne sur-declare plus le rebut chiffre/,'L419 : trace papier rebut deduite');
+has(/function _l418Frozen2Ids/,'L419 : gel MAVEG partage avec le detecteur d equilibre (banniere incoercible)');
+has(/en PRE-verification \(pop\) : ni confirm ni mutation/,'L419 : le pop ne leve plus le verrou ISO en pre-check');
+has(/pending = le geste de CET appel, jamais un reliquat/,'L419 : plus de rejeu fantome du ✂ memorise');
+has(/TOUTE action retiree \(meme manuelle\)/,'L419 : plus d action invisible quand aucune NC cochee');
+has(/SAUF si un Déchet est deja pose/,'L419 : le Dechet pose gagne sur Qte en trop');
+has(/un bouton eteint perd ses drapeaux AUTO/,'L419 : flags l401auto/l414auto jamais orphelins');
+has(/MEME garde que l'envoi \(le detail est facultatif depuis L400\)/,'L419 : arret manque-matiere aligne sur la garde d envoi');
+has(/ne rien ecraser/,'L419 : reprise auto re-verifie apres le await (saisie en cours protegee)');
+has(/l'etat VISIBLE est l'etat PERSISTE/,'L419 : masquage des coupees restaure a l identique au rechargement');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
