@@ -1360,10 +1360,10 @@ has(/pastilles couleur par client sous la config de la bobine/,'L415 : fiche mac
 
 console.log('── L416 : rebut CHIFFRE — seuls les bobineaux NC sortent des cumuls (bug photo MAVEG 21/63) ──');
 has(/function _l416NcByWidth/,'L416 : helpers rebut chiffre (DOM + donnees)');
-has(/_dl16=_dechet\?_l419Delivered/,'L416→L419 : cumul ecran — credit de la part livree via le helper unique');
+has(/rebut chiffre, plafonne par le retrait manuel de la conf/,'L419→L425 : cumul ecran via helper, plafond manuel');
 has(/déduits du cumul \(le reste de la bobine est livré\)/,'L416 : banniere adaptee au rebut partiel');
 has(/map projetee \(laize mesuree -> laize de conf\)/,'L416→L419 : attribution clients — rebut partiel projete puis epuise');
-has(/la part LIVREE compte \(fusion\+projection\)/,'L416→L419 : production engagee via helper');
+has(/la part LIVREE compte \(fusion\+projection\+plafond manuel\)/,'L419→L425 : production engagee via helper, plafond manuel');
 has(/rebut reel = conf − part livree/,'L416→L419 : ecart archivage = conf − part livree');
 has(/le chiffrage NC modifie la deduction du cumul/,'L416 : la saisie qty×laize rafraichit le cumul');
 
@@ -1381,8 +1381,8 @@ has(/MAVEG coupe DEUX lignes a la fois : helper partage/,'L418→L419 : regle MA
 
 console.log('── L419 : 15 correctifs de l audit regles (28 signalements, 6 chasseurs) ──');
 has(/function _l419Delivered/,'L419 : deduction UNIQUE du rebut chiffre (fusion par laize + projection laize mesuree)');
-has(/credit de la part LIVREE \(fusion \+ projection laize\)/,'L419 : cumul ecran via helper');
-has(/rebut chiffre : la part LIVREE compte \(fusion\+projection\)/,'L419 : production engagee via helper (sur/sous-production corrigee)');
+has(/plafonne par le retrait manuel de la conf/,'L419→L425 : cumul ecran via helper, plafond manuel');
+has(/\(fusion\+projection\+plafond manuel\)/,'L419→L425 : production engagee via helper, plafond manuel');
 has(/le papier ne sur-declare plus le rebut chiffre/,'L419 : trace papier rebut deduite');
 has(/function _l418Frozen2Ids/,'L419 : gel MAVEG partage avec le detecteur d equilibre (banniere incoercible)');
 has(/en PRE-verification \(pop\) : ni confirm ni mutation/,'L419 : le pop ne leve plus le verrou ISO en pre-check');
@@ -1411,6 +1411,15 @@ has(/le chrono se lance a l'arrivee en fiche/,'L421 : chrono instantane apres CO
 has(/aucun appelant UI restant/,'L421→L422 : pop retire du flux entier');
 has(/une ref deja VALIDEE au Plan \(Partie operateur\) arrive VALIDEE en fiche/,'L422 : plus de double validation (la ref 2 non validee garde son bouton fiche)');
 has(/le seed « validee au Plan » vit dans renderFicheMachineBlocks/,'L422 : seed place APRES les clear du rendu (sinon efface)');
+
+console.log('── L423 : fiche allegee + Confirmer gris/jaune ──');
+has(/ne reaffiche plus mere\/bords\/laize ni « ✓ VÉRIFIÉES »/,'L423 : bloc compact validee retire de la fiche (doublon du Plan)');
+has(/GRIS tant qu'il reste des bobines, JAUNE \(prochaine action\) quand tout est coupé/,'L423 : Confirmer la commande gris puis jaune');
+has(/une NC REELLE declaree \(Angle\/Casse\/Largeur\/Qte en trop\) SUFFIT/,'L424 : une NC declaree ne force plus « Test NC » (le test 2e peut etre bon, la casse plus loin)');
+
+console.log('── L425 : deduction NC plafonnee par le retrait manuel de la conf ──');
+has(/deduction PLAFONNEE par la difference/,'L425 : conf editee 15->14 + NC 1x65 ne deduit plus DEUX fois (cumul 14, pas 13)');
+has(/NC entierement couverte par le retrait manuel : TOUTE la conf actuelle est livree/,'L425 : retrait manuel complet = conf actuelle livree entiere');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

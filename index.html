@@ -1195,7 +1195,8 @@ body.atelier .next-action[id^="coupeeBtn_"]{font-size:30px!important;min-height:
 /* — CONFIRMER LA COMMANDE : vert #8fe0ab/#2a5c2a (§2.13-D), 22px, JAMAIS estompé —
    l'état « pas encore prêt » = pointillé (classe .not-ready posée par le JS), plus d'opacité */
 #sendPlanBtn{font-size:22px!important;min-height:62px;opacity:1!important;text-transform:uppercase}
-#sendPlanBtn:not(.not-ready){color:#8fe0ab!important;border-color:#2a5c2a!important}
+/* [L423 · demande Esteban] GRIS tant qu'il reste des bobines, JAUNE (prochaine action) quand tout est coupé */
+#sendPlanBtn:not(.not-ready){background:linear-gradient(#ffc21a,#f5b301)!important;border:1px solid #b8860b!important;color:#141310!important;font-weight:800}
 #sendPlanBtn.not-ready{background:#1a1a18!important;border:1px dashed #6d6b62!important;color:#bcbcb5!important;
   box-shadow:0 4px 0 #0c0c0b,inset 0 1px 0 rgba(255,255,255,.04)}
 #sendPlanHint{font-size:13px!important}
@@ -3137,7 +3138,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L422';
+const APP_VERSION='2026.08.25-L425';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5731,7 +5732,7 @@ function _fichePlanDriftCheck(opts){
         const cmdW=_eqAgg[key]||{};
         const comW={};
         const _mvIds19=(typeof _l418Frozen2Ids==='function')?_l418Frozen2Ids():null;   /* [L419 audit] le gel MAVEG compte comme production engagee — sinon banniere « en TROP » incoercible */
-        lines.forEach(d=>{ if(!_frozenLike(d)&&!(_mvIds19&&_mvIds19.has(d.id))) return; const _dl19=d.actDechet?_l419Delivered(d.conf,_l416NcByWidthFd(d)):null; if(d.actDechet&&!_dl19) return; if(d.actDechet){ Object.keys(_dl19).forEach(w=>{ comW[w]=(comW[w]||0)+_dl19[w]; }); } else parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) comW[p.width]=(comW[p.width]||0)+p.qty; }); });   /* [L416→L419] rebut chiffre via helper unique */
+        lines.forEach(d=>{ if(!_frozenLike(d)&&!(_mvIds19&&_mvIds19.has(d.id))) return; const _dl19=d.actDechet?_l419Delivered(d.conf,_l416NcByWidthFd(d),d.origConf||null):null; if(d.actDechet&&!_dl19) return; if(d.actDechet){ Object.keys(_dl19).forEach(w=>{ comW[w]=(comW[w]||0)+_dl19[w]; }); } else parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) comW[p.width]=(comW[p.width]||0)+p.qty; }); });   /* [L416→L419] rebut chiffre via helper unique */
         const overW=new Set(); Object.keys(comW).forEach(w=>{ if((comW[w]||0)>(cmdW[w]||0)) overW.add(Number(w)); });
         // « reste retirable » = bobines que le recalcul RÉGÉNÉRERAIT (donc non figées) reproduisant une largeur sur-coupée
         if(overW.size && lines.some(d=>!_frozenLike(d) && parseConf(d.conf||'').some(p=>overW.has(Number(p.width))))){
@@ -6740,7 +6741,7 @@ function cliPartsFromGroups(lines,groups,stockByRef){
   };
   return (lines||[]).map(l=>{
     if(l&&l.dechet){
-      const _dl19=_l419Delivered(l.conf,l.ncByWidth||null);
+      const _dl19=_l419Delivered(l.conf,l.ncByWidth||null,l.origConf||null);
       if(!_dl19) return [];   // [B54] rebut TOTAL (aucun chiffrage imputable) : pas livree — files intactes
       /* [L419] map projetee (laize mesuree -> laize de conf), puis epuisement segment par segment */
       const _tot={}; parseConf(l.conf||'').forEach(p=>{ _tot[p.width]=(_tot[p.width]||0)+p.qty; });
@@ -6766,6 +6767,7 @@ function _cliLineEntries(){
     ref:l.ref||'', refIdKey:l.refIdKey||null, machine:l.machine||'',   // [L83 · Audit #1]
     dechet:!!(document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red')),
     ncByWidth:(typeof _l416NcByWidth==='function')?_l416NcByWidth(l.id):null,   /* [L416] rebut chiffre */
+    origConf:l.origConf||null,   /* [L425] plafond du retrait manuel */
     frozen:(Array.isArray(l.cliParts)&&l.cliParts.length)?l.cliParts:null,
     conf:(document.getElementById('flConf_'+l.id)?.value||'')
   }));
@@ -11006,8 +11008,8 @@ function recalcEcartsFromFiche(opts){
       // était mensonger et le client partait livré incomplet.
       const _d16=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
       const _cf19=document.getElementById('flConf_'+l.id)?.value||'';
-      const _dl19=_d16?_l419Delivered(_cf19,_l416NcByWidth(l.id)):null;
-      if(_d16&&!_dl19) return;   /* [B54] rebut total : re-produit — [L419] rebut chiffre : la part LIVREE compte (fusion+projection) */
+      const _dl19=_d16?_l419Delivered(_cf19,_l416NcByWidth(l.id),l.origConf||null):null;
+      if(_d16&&!_dl19) return;   /* [B54] rebut total : re-produit — [L419→L425] la part LIVREE compte (fusion+projection+plafond manuel) */
       const k=lineKey(l);
       const m=committedByRef[k]||(committedByRef[k]={});
       if(_d16){ Object.keys(_dl19).forEach(w=>{m[w]=(m[w]||0)+_dl19[w];}); }
@@ -11485,7 +11487,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   // l'écart « à vérifier ». Hors manque-matière (opts.manqueMatiere : un reste couvre déjà le manque).
   // Pièces comptées uniquement sur 🗑 Déchet (perte non ambiguë) ; NC quantité → simple signal.
   if(!opts.manqueMatiere){
-    const _dechetPieces=ficheData.reduce((s,fd)=>{ if(fd.recut||!fd.actDechet) return s; const tot=parseConf(fd.conf||'').reduce((a,p)=>a+(Number(p.qty)||0),0); const _dl19=_l419Delivered(fd.conf,_l416NcByWidthFd(fd)); if(_dl19){ const liv=Object.values(_dl19).reduce((a,v)=>a+(Number(v)||0),0); return s+Math.max(0,tot-liv); } return s+tot; },0);   /* [L419] rebut reel = conf − part livree (helper unique) */
+    const _dechetPieces=ficheData.reduce((s,fd)=>{ if(fd.recut||!fd.actDechet) return s; const tot=parseConf(fd.conf||'').reduce((a,p)=>a+(Number(p.qty)||0),0); const _dl19=_l419Delivered(fd.conf,_l416NcByWidthFd(fd),fd.origConf||null); if(_dl19){ const liv=Object.values(_dl19).reduce((a,v)=>a+(Number(v)||0),0); return s+Math.max(0,tot-liv); } return s+tot; },0);   /* [L419] rebut reel = conf − part livree (helper unique) */
     /* [L414] la NC quantite devient « EN TROP » (surplus -> chutes) : elle ne declenche plus l'ecart « verifier la couverture » (seul le rebut manque a la commande) */
     if(_dechetPieces>0){
       hasEcart=true;
@@ -11503,7 +11505,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   let _cliParts=null;
   if(typeof cliMulti==='function'&&cliMulti()){
     // [L71 · Audit B13+B14] entrées riches : clé robuste + snapshots figés + déchets exclus.
-    try{ _cliParts=cliPartsFromGroups(ficheData.map(fd=>({ref:fd.ref,refIdKey:fd.refIdKey||null,machine:fd.machine||'',dechet:!!fd.actDechet,ncByWidth:(typeof _l416NcByWidthFd==='function')?_l416NcByWidthFd(fd):null,frozen:(Array.isArray(fd.cliParts)&&fd.cliParts.length)?fd.cliParts:null,conf:fd.conf})),getRefGroups(),cliStockByRef()); }
+    try{ _cliParts=cliPartsFromGroups(ficheData.map(fd=>({ref:fd.ref,refIdKey:fd.refIdKey||null,machine:fd.machine||'',dechet:!!fd.actDechet,ncByWidth:(typeof _l416NcByWidthFd==='function')?_l416NcByWidthFd(fd):null,origConf:fd.origConf||null,frozen:(Array.isArray(fd.cliParts)&&fd.cliParts.length)?fd.cliParts:null,conf:fd.conf})),getRefGroups(),cliStockByRef()); }
     catch(e){ console.warn('Archive multi-clients :',e); _cliParts=null; }
   }
   const ficheDetailTagged=ficheData.map((fd,i)=>{
@@ -16502,8 +16504,8 @@ function _resteGroupsFromFiche(f){
   const cutByRef={};            // {nrmRef:{width:qty}}
   det.forEach(fd=>{
     if(!fd||fd.coupee!==true) return;
-    const _dl19=(fd.actDechet===true)?_l419Delivered(fd.conf,_l416NcByWidthFd(fd)):null;
-    if(fd.actDechet===true&&!_dl19) return;   // [L100 B54] rebut total : re-produit — [L419] part livree via helper
+    const _dl19=(fd.actDechet===true)?_l419Delivered(fd.conf,_l416NcByWidthFd(fd),fd.origConf||null):null;
+    if(fd.actDechet===true&&!_dl19) return;   // [L100 B54] rebut total : re-produit — [L419→L425] plafond manuel
     const rk=nrm(fd.ref);
     const m=cutByRef[rk]||(cutByRef[rk]={});
     if(fd.actDechet===true){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
@@ -16545,8 +16547,8 @@ function _resteGroupsFromFiche(f){
     const cutByKey={};
     det.forEach(fd=>{
       if(!fd||fd.coupee!==true) return;
-      const _dl19=(fd.actDechet===true)?_l419Delivered(fd.conf,_l416NcByWidthFd(fd)):null;
-      if(fd.actDechet===true&&!_dl19) return;   // memes exclusions (L100 #2) — [L419] helper unique
+      const _dl19=(fd.actDechet===true)?_l419Delivered(fd.conf,_l416NcByWidthFd(fd),fd.origConf||null):null;
+      if(fd.actDechet===true&&!_dl19) return;   // memes exclusions (L100 #2) — [L419→L425] plafond manuel
       const rk=_resolveKey(fd);
       const m=cutByKey[rk]||(cutByKey[rk]={});
       if(fd.actDechet===true){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
@@ -18733,13 +18735,11 @@ function renderFicheMachineBlocks(opts){
       // 1 ligne « ✓ Réf N terminée (déplier) » : libère l'écran, garde le repère de progression ET l'accès au
       // bouton 🔄 recorriger (dans le dépliable). JAMAIS de display:none sec. Classe .ref-done posée/retirée par
       // _syncRefDonePills (updateCoupeeStatus + rendu) — matching par refIdKey/idx, PAS par nom (homonymes).
+      /* [L423 · demande Esteban] la ref VALIDEE ne reaffiche plus mere/bords/laize ni « ✓ VÉRIFIÉES » (doublon
+         de la Partie operateur du Plan depuis L420-L422) : juste la ligne « terminée » + ✎ MODIFIER pour corriger. */
       body='<div class="fmm-done-line" onclick="this.closest(\'.fmm-inline-block\').classList.toggle(\'ref-open\')">✓ Réf '+(pos+1)+' · '+esc(refDispCtx(r.ref))+' terminée <span class="fdl-hint fdl-o">(déplier)</span><span class="fdl-hint fdl-c">(replier)</span></div>'
         +'<div class="fmm-valsum">'
         +(_ml?'<span class="frs-mch" style="--mc:'+_mc+'">⚙ '+esc(_ml)+'</span>':'')
-        +(_mo>0?'<span class="frs-m">mère '+V(r.mother)+' mm</span>':'')
-        +(_ed>0?'<span class="frs-m">bords '+V(r.edge)+' mm</span>':'')
-        +(_uf>0?'<span class="frs-m">laize '+fmt(_uf)+' mm</span>':'')
-        +'<span class="fmm-verif">✓ VÉRIFIÉES</span>'
         +'<button type="button" class="fmm-recorr" onclick="unvalidateFicheRef('+r.idx+')">✎ MODIFIER</button>'
         +'</div>';
       hint='';
@@ -18994,8 +18994,8 @@ function _fichePrintSurplus(){
       if(typeof isLineFrozen==='function' && !isLineFrozen(l.id)) return;                       // seulement les bobines réellement figées (coupées / engagées)
       const _d16=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
       const _cf19=document.getElementById('flConf_'+l.id)?.value||'';
-      const _dl19=_d16?_l419Delivered(_cf19,_l416NcByWidth(l.id)):null;
-      if(_d16&&!_dl19) return;    // rebut TOTAL : pas de production livree — [L419] rebut chiffre : part livree via helper
+      const _dl19=_d16?_l419Delivered(_cf19,_l416NcByWidth(l.id),l.origConf||null):null;
+      if(_d16&&!_dl19) return;    // rebut TOTAL : pas de production livree — [L419→L425] plafond manuel appli
       const nm=nrm(l.ref||''); if(_disp[nm]===undefined)_disp[nm]=(l.ref||''); const m=com[nm]||(com[nm]={});
       if(_d16){ Object.keys(_dl19).forEach(w=>{ m[w]=(m[w]||0)+_dl19[w]; }); }
       else parseConf(_cf19).forEach(p=>{ if(p.width>0&&p.qty>0) m[p.width]=(m[p.width]||0)+p.qty; });
@@ -19065,7 +19065,7 @@ function _buildFichePlanPrintHTML(){
     const _mother=Number(p.mother)||_useful;
     // [L284] rebut 🗑 déjà coupé (tracé à part, jamais dans la liste « à couper »)
     const _dechetMap={};
-    dechetLines.forEach(l=>{ const _cf=document.getElementById('flConf_'+l.id)?.value||''; const _dl19=_l419Delivered(_cf,_l416NcByWidth(l.id)); parseConf(_cf).forEach(pp=>{ if(pp.width>0&&pp.qty>0) _dechetMap[pp.width]=(_dechetMap[pp.width]||0)+pp.qty; }); if(_dl19) Object.keys(_dl19).forEach(w=>{ _dechetMap[w]=Math.max(0,(_dechetMap[w]||0)-_dl19[w]); if(!_dechetMap[w]) delete _dechetMap[w]; }); });   /* [L419] le papier ne sur-declare plus le rebut chiffre */
+    dechetLines.forEach(l=>{ const _cf=document.getElementById('flConf_'+l.id)?.value||''; const _dl19=_l419Delivered(_cf,_l416NcByWidth(l.id),l.origConf||null); parseConf(_cf).forEach(pp=>{ if(pp.width>0&&pp.qty>0) _dechetMap[pp.width]=(_dechetMap[pp.width]||0)+pp.qty; }); if(_dl19) Object.keys(_dl19).forEach(w=>{ _dechetMap[w]=Math.max(0,(_dechetMap[w]||0)-_dl19[w]); if(!_dechetMap[w]) delete _dechetMap[w]; }); });   /* [L419] le papier ne sur-declare plus le rebut chiffre */
     const dechetStr=Object.keys(_dechetMap).map(Number).sort((a,b)=>a-b).map(w=>_dechetMap[w]+'×'+fmt(w)+'mm').join(' + ');
     return {ref, refIdKey:p.refIdKey||l0.refIdKey||null, useful:_useful, blade:_blade,
       longueur:p.longueur||'', mother:_mother, edge:Math.max(0,_mother-_useful), film:p.film||'', veka:p.veka||'', machine:l0.machine||p.machine||'',
@@ -20284,6 +20284,10 @@ function test2Resolved(id){
   const elNC=document.getElementById('flTest2nc_'+id);
   if(!elDevi||!elDroit) return true; // pas de bloc test = pas de gating
   const feba=(_flMachineOf(id)==='feba'); // FEBA : pas d'angle -> « Droit » ignoré ([L65] machine de la ligne)
+  /* [L424 · demande Esteban] une NC REELLE declaree (Angle/Casse/Largeur/Qte en trop) SUFFIT : le test du
+     2e bobineau peut etre BON alors qu'une bobine a lache PLUS LOIN — on n'exige plus « ⚠ Test NC » en plus
+     (le chiffrage de la NC reste exige a l'envoi, garde L400/L412). */
+  try{ const _ncOn=['larg','qty','casse','ang'].some(function(k){ const el=document.getElementById('nc_'+k+'_'+id); return !!(el&&el.querySelector('input')&&el.querySelector('input').checked); }); if(_ncOn) return true; }catch(e){}
   if(elNC&&elNC.checked){
     // Non conforme : au moins un motif requis (en FEBA, seul Dévidage existe).
     return feba?elDevi.checked:(elDevi.checked||elDroit.checked);
@@ -20450,7 +20454,7 @@ function updateAllCumuls(){
     // [L70 · Audit B54] bobine 🗑 Déchet : laizes NON comptées dans le cumul (pas livrées) —
     // le reliquat les re-produit ; le compteur ne doit plus afficher « couvert » à tort.
     const _dechet=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
-    const _dl16=_dechet?_l419Delivered(confEl.value,_l416NcByWidth(l.id)):null;   /* [L416→L419] rebut chiffre : credit de la part LIVREE (fusion + projection laize) */
+    const _dl16=_dechet?_l419Delivered(confEl.value,_l416NcByWidth(l.id),l.origConf||null):null;   /* [L416→L425] rebut chiffre, plafonne par le retrait manuel de la conf */
     if(!_dechet) pieces.forEach(p=>{run[p.width]=(run[p.width]||0)+p.qty;});
     else if(_dl16) Object.keys(_dl16).forEach(w=>{run[w]=(run[w]||0)+_dl16[w];});
     if(cliP){
@@ -21028,12 +21032,21 @@ function _l416NcByWidth(id){ try{ const lots=_l408NcLots(id); if(!lots.length) r
    (b) laize NC MESUREE absente de la conf (61 saisi, conf 63) -> PROJECTION sur la laize de conf la plus proche ;
    (c) rien d'imputable -> null = l'appelant repasse en exclusion totale B54 (banniere honnete).
    Retourne {laize: qte LIVREE} ({} = tout au rebut), ou null. */
-function _l419Delivered(confStr,ncMap){ try{
+function _l419Delivered(confStr,ncMap,origStr){ try{
   if(!ncMap) return null;
   const order=[],m=new Map();
   parseConf(confStr||'').forEach(function(pp){ const w=Number(pp.width)||0,q=Number(pp.qty)||0; if(w<=0||q<=0) return; if(!m.has(w)){ m.set(w,0); order.push(w); } m.set(w,m.get(w)+q); });
   if(!order.length) return null;
   const rest={}; Object.keys(ncMap).forEach(function(k){ rest[Number(k)]=(rest[Number(k)]||0)+(Number(ncMap[k])||0); });
+  /* [L425 · bug Esteban (13 au lieu de 14)] l'operateur a DEJA retire le bobineau detruit de la conf (15->14)
+     ET chiffre la NC : le retrait manuel couvre d'abord le rebut — deduction PLAFONNEE par la difference
+     origConf − conf (sinon double comptage -> cumul faux ET reliquat regenere des bobines fantomes). */
+  if(origStr){ try{
+    const om=new Map(); parseConf(origStr).forEach(function(pp){ const w=Number(pp.width)||0,q=Number(pp.qty)||0; if(w>0&&q>0) om.set(w,(om.get(w)||0)+q); });
+    om.forEach(function(q,w){ const removed=Math.max(0,q-(m.get(w)||0)); if(removed>0&&rest[w]>0){ rest[w]=Math.max(0,rest[w]-removed); } });
+    let totRest=0; Object.keys(rest).forEach(function(k){ totRest+=rest[k]; });
+    if(totRest<=0){ const full={}; order.forEach(function(w){ if(m.get(w)>0) full[w]=m.get(w); }); return full; }   /* NC entierement couverte par le retrait manuel : TOUTE la conf actuelle est livree */
+  }catch(e){} }
   let any=false;
   order.forEach(function(w){ const r=Math.min(rest[w]||0,m.get(w)); if(r>0){ m.set(w,m.get(w)-r); rest[w]-=r; any=true; } });
   Object.keys(rest).forEach(function(k){ let q=rest[k]; if(q<=0) return; const wn=Number(k);
