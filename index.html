@@ -3127,7 +3127,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L417';
+const APP_VERSION='2026.08.25-L418';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10926,6 +10926,16 @@ function recalcEcartsFromFiche(opts){
     const cont=document.getElementById('ficheLines');
     // D-4 : recapture de l'état FIGÉ + du coupé réel à l'instant de l'application.
     frozenSet=new Set(ficheLines.filter(l=>isLineFrozen(l.id)).map(l=>l.id));
+    /* [L418 · demande Esteban 25/08] MAVEG coupe DEUX bobines a la fois : au moment d'« Appliquer les
+       changements », la bobine EN COURS et la SUIVANTE sont deja physiquement engagees sur la machine ->
+       elles sont CONSERVEES telles quelles (gelees), le changement ne s'applique qu'a partir de la 3e. */
+    try{
+      const _nx18=ficheLines.filter(l=>{ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee')&&!l.recut; });
+      if(_nx18[0]&&typeof _flMachineOf==='function'&&_flMachineOf(_nx18[0].id)==='maveg'){
+        if(_nx18[0]) frozenSet.add(_nx18[0].id);
+        if(_nx18[1]) frozenSet.add(_nx18[1].id);
+      }
+    }catch(e){}
     committedByRef={};
     ficheLines.forEach(l=>{
       if(!frozenSet.has(l.id)) return;

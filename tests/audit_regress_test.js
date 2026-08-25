@@ -1376,5 +1376,8 @@ has(/function iniDisp/,'L417 : MT s affiche MR partout (archives intactes)');
 has(/une seule courbe\/serie/,'L417 : graphe productivite fusionne MT+MR');
 has(/filtrer MR couvre l'historique MT/,'L417 : les filtres MR couvrent les releves MT');
 
+console.log('── L418 : MAVEG — le changement de plan s applique a partir de la 3e bobine ──');
+has(/MAVEG coupe DEUX bobines a la fois/,'L418 : bobine en cours + suivante conservees sur MAVEG (machine double)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
