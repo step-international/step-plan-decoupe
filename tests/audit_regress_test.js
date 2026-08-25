@@ -1409,6 +1409,8 @@ has(/function _l421SyncUseful/,'L421 : la case affiche mere−bords (vieux plans
 has(/JAUNE = prochaine action \(comme COMMENCER A COUPER\)/,'L421 : VALIDER jaune avant, vert apres');
 has(/le chrono se lance a l'arrivee en fiche/,'L421 : chrono instantane apres COMMENCER A COUPER');
 has(/aucun appelant UI restant/,'L421→L422 : pop retire du flux entier');
+has(/une ref deja VALIDEE au Plan \(Partie operateur\) arrive VALIDEE en fiche/,'L422 : plus de double validation (la ref 2 non validee garde son bouton fiche)');
+has(/le seed « validee au Plan » vit dans renderFicheMachineBlocks/,'L422 : seed place APRES les clear du rendu (sinon efface)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
