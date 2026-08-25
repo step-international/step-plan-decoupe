@@ -1443,5 +1443,12 @@ has(/compteur NC retire de l'onglet Analyse/,'L427 : badge « 9 » retire de l o
 has(/function _l427PurgeDraftsOf/,'L427 : fiche validee = brouillon purge (solde epargne)');
 has(/la ref est validee DES le clic/,'L427 : validation Plan posee immediatement (fiche ne redemande plus)');
 
+console.log('── L428 : correctifs urgents terrain (2 bugs signales par Esteban) ──');
+has(/les 2 bobines gelees sont DEJA dans comW/,'L428 : plus de faux « plan a change » au 1er ✂ sur MAVEG (restW excluait pas le gel)');
+has(/planHasContent RETIRE : un residu de plan bloquait la reprise/,'L428 : la reprise apres rechargement restaure la FICHE (pas seulement le chrono)');
+has(/la reprise a 600 ms COURAIT contre le 1er/,'L428 : reprise APRES l arrivee des brouillons (filet 4 s) — plus de chrono orphelin');
+has(/un plan CHARGE arrive NON valide/,'L428 : charger un plan = preparation a re-valider par l operateur');
+has(/plus de grille qui ecrasait/,'L428 : boutons de la carte lisibles (fini le « ... »)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

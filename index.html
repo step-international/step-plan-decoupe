@@ -767,6 +767,8 @@ body.has-topbanner #nav{top:48px}
 #fichesList .fc-stat i{display:block;font-style:normal;font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-top:5px}
 #fichesList .fc-actions{margin-top:12px;gap:8px}
 #fichesList .fc-btn-green{flex:1;min-height:48px;font-size:17px;font-weight:800;justify-content:center;letter-spacing:.05em;text-transform:uppercase}
+#fichesList .fc-actions{display:flex;flex-wrap:wrap}/* [L428] plus de grille qui ecrasait ✏ Modifier / 🗑 Archiver en « ... » */
+#fichesList .fc-actions .fc-btn{white-space:nowrap;min-height:46px}
 .fc-actions .fc-btn{width:100%}
 .fc-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 12px;border-radius:9px;min-height:44px;font-size:14px;font-weight:700;border:1px solid transparent;cursor:pointer;font-family:inherit;min-height:42px;transition:all .15s;text-align:center}
 .fc-btn-ghost{background:#222;color:var(--text);border-color:#3a3a38}
@@ -3161,7 +3163,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L427';
+const APP_VERSION='2026.08.25-L428';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4274,7 +4276,13 @@ document.addEventListener('keydown',function(e){
         // Reprise auto d'une commande dont le chrono tournait à la fermeture
         // (app tuée / téléphone éteint). On propose la reprise pour ne pas
         // écraser une éventuelle nouvelle saisie sans le consentement de l'opérateur.
-        setTimeout(function(){ maybeResumeRunningChrono().then(maybeResumePlan).catch(function(){ maybeResumePlan(); }); },600);
+        /* [L428 · bug Esteban « rechargement pendant la coupe »] la reprise a 600 ms COURAIT contre le 1er
+           snapshot brouillons : cache vide -> get() serveur -> selon le reseau, chrono relance SEUL sans la
+           fiche. Desormais la reprise part QUAND les brouillons sont arrives (signal), filet 4 s. */
+        window._l428ResumeDone=false;
+        window._l428TryResume=function(){ try{ if(window._l428ResumeDone) return; window._l428ResumeDone=true;
+          maybeResumeRunningChrono().then(maybeResumePlan).catch(function(){ maybeResumePlan(); }); }catch(e){} };
+        setTimeout(function(){ try{ window._l428TryResume(); }catch(e){} },4000);
       }else{
         // UID non reconnu — déconnecter
         console.warn('UID non reconnu:',user.uid);
@@ -5781,7 +5789,7 @@ function _fichePlanDriftCheck(opts){
         if(!_pm && _eqAgg[key]){   // [revue P2] déjà borné à un passage par clé via _firstOfKey (englobe ce bloc)
           const needBase=_eqAgg[key];
           const restW={};
-          lines.forEach(d=>{ if(_frozenLike(d)) return; parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) restW[p.width]=(restW[p.width]||0)+p.qty; }); });
+          lines.forEach(d=>{ if(_frozenLike(d)||(_mvIds19&&_mvIds19.has(d.id))) return; parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) restW[p.width]=(restW[p.width]||0)+p.qty; }); });   /* [L428 · bug Esteban 1er ✂ MAVEG] les 2 bobines gelees sont DEJA dans comW : les compter aussi dans le reste doublait -> « en TROP » des la 1re coupe */
           const _uf=Number(c.useful)||0;
           const lack=[], extra=[];
           new Set([...Object.keys(needBase),...Object.keys(comW),...Object.keys(restW)].map(Number)).forEach(w=>{
@@ -10036,6 +10044,7 @@ async function doLoad(){
   try{
     if(hasGroups){
       restoreRefGroups(s.refGroups);
+      try{ document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){ delete b.dataset.opValidated; }); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}   /* [L428 · demande Esteban] un plan CHARGE arrive NON valide — la preparation se verifie au moment de couper, pas a la sauvegarde */
     }else{
       document.querySelectorAll('.order-row').forEach(r=>r.remove());
       applySavedRef(G('planRef'),s.ref,s.client);
@@ -22328,6 +22337,7 @@ function startBrouillons(){
     try{ if(_isDataTabVisible('brouillons')) renderDrafts(); }catch(e){}   // [L80·PERF-5] ne reconstruit la liste des brouillons QUE si l'onglet est visible (avant : liste complète rebâtie à chaque snapshot de fond d'un autre poste) — switchTab la rend à la navigation
     try{ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }catch(e){}
     try{ if(typeof _l414BootDone==='function') _l414BootDone(); }catch(e){}   /* [L414] signal 2/2 : brouillons synchronises */
+    try{ if(typeof window._l428TryResume==='function') window._l428TryResume(); }catch(e){}   /* [L428] les brouillons sont la : la reprise auto peut lire le cache local */
   }, function(err){ console.warn('Brouillons (sync) :',err.message);
     // [L373 · audit chrono E6] un listener mort gelait partage / verrous ✂ / passation SANS RIEN DIRE jusqu'au reload.
     try{ showToast('⚠ Synchro des brouillons interrompue ('+String(err&&err.message||'').slice(0,60)+') — reconnexion…','err'); }catch(_){}
@@ -22737,7 +22747,7 @@ async function maybeResumeRunningChrono(){
       if(sameDay){
         // Commande du jour : reprise directe, chrono tel qu'il était (marche ou pause).
         if(live&&live.override) _chronoAutoStopOverride=live.override;
-        if(ficheLines.length||chronoRunning||(typeof planHasContent==='function'&&planHasContent())){ return; }   /* [L419 audit #24] l'operateur a commence a saisir PENDANT le get() lent : ne rien ecraser */
+        if(ficheLines.length||chronoRunning){ return; }   /* [L419→L428] ne rien ecraser si l'operateur a commence (fiche/chrono) — planHasContent RETIRE : un residu de plan bloquait la reprise complete (« chrono ok mais plan disparu ») */
         restoreFicheState(d.state); _rearmResume(d.state); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono à '+fmtTimeFr(showSec),'ok'); }catch(e){}
         // [L294 · audit 30/07] ÉMETTEUR d'un partage reconstruit par la reprise AUTO : libérer le gel du push
@@ -22753,7 +22763,7 @@ async function maybeResumeRunningChrono(){
         // Jour précédent : reprise FIGÉE (jamais recalée sur l'horloge d'aujourd'hui).
         const stFrozen=Object.assign({},d.state);
         stFrozen.chrono=Object.assign({},cRef,{wasRunning:false,runStart:null,sec:showSec});
-        if(ficheLines.length||chronoRunning||(typeof planHasContent==='function'&&planHasContent())){ return; }   /* [L419 audit #24] idem cross-day */
+        if(ficheLines.length||chronoRunning){ return; }   /* [L419→L428] idem cross-day */
         restoreFicheState(stFrozen); _rearmResume(stFrozen); showPage(1);
         try{ showToast('⏱ Commande reprise — chrono figé à '+fmtTimeFr(showSec),'ok'); }catch(e){}
         // [L298 · audit v2] même libération du gel qu'en reprise même-jour (L294) : la reprise CROSS-DAY d'une
