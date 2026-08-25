@@ -1048,7 +1048,7 @@ has(/return \[\.\.\.cumEl\.children\]\.map\(function\(n\)\{ return n\.classList\
 has(/line\.classList\.toggle\('t2-todo',\(!!_t2nc\|\|ncMode\)&&!test2Resolved\(id\)\);/,'L376 A4 : indice test 2ᵉ aussi sur bobine NC');
 has(/tape le bouton ROUGE de la bannière en haut/,'L376 A5 : garde ✂ sous plan-drift pointe le gros bouton');
 has(/#page0 \.btn\.plan-outils-top/,'L376 2.3 : lanceur OUTILS réellement teinté (spécificité)');
-has(/Bobineaux \/ chutes en stock \?\?/,'L376 2.10 (retiré L405, pop L408) : le rappel stock existe sans confirm natif bloquant');
+has(/PARTIE OPERATEUR du Plan porte ces verifications/,'L376→L422 : le rappel stock vit dans la Partie operateur du Plan (plus de confirm ni de pop)');
 has(/if\(first\) document\.body\.classList\.add\('show-ref-bands'\);/,'L376 2.11 : recorriger sans réf validée = no-op propre');
 has(/function _l376PostMachineSwap\(withFiche\)/,'L376 1.4/1.5/2.1 : swap machine du poste unifié (bords/lame personnalisés conservés)');
 has(/signatures autosave posées sur l'état FINAL chargé \(swap compris\)/,'L376 1.4 : signatures autosave APRÈS le swap (protection L291 rétablie)');
@@ -1279,7 +1279,7 @@ has(/Recharger s'applique DIRECT/,'L403 : mise à jour sans confirm');
 
 console.log('── L405 : pré-vol sans pop-up ──');
 has(/le confirm natif « BOBINEAUX ou CHUTES \? » disparaît/,'L405 : pop-up natif du démarrage retiré (le bandeau pré-vol porte le rappel)');
-has(/Bobine mère validée \?\?/,'L405→L408 : rappel court et impactant (2 questions, gros texte)');
+has(/VALIDER la préparation/,'L405→L422 : les 2 questions du rappel = la zone Partie operateur + VALIDER');
 
 console.log('── L407 : multi-clients v2 — étape a (saisie par bloc) ──');
 has(/MULTI-CLIENTS V2 étape a/,'L407 : chaque bloc client porte SES LAIZES éditables (source de vérité = order-rows, moteur intact)');
@@ -1295,9 +1295,9 @@ has(/function _l408PrevolPop/,'L408 : pop pré-vol GROS texte au tap ▶ (Bobine
 has(/onclick="_l408PrevolPop\(\)">▶ Démarrer/,'L408 : le bouton ▶ passe par le pop (le démarrage auto au 1er ✂ reste direct)');
 
 console.log('── L409 : pop fiable + emballage a onglets + ligne clients lisible + cumul compact ──');
-has(/meme lecon que confirmDlg L79/,'L409 : pop pre-vol z-index 100000 (il passait DERRIERE les overlays en prod)');
+has(/le pop pre-vol est SUPPRIME/,'L409→L422 : pop supprime (decision Esteban) — demarrage direct');
 has(/_abMode==='start'\)\{ _l408PrevolPop\(\)/,'L409 : la barre d action passe AUSSI par le pop (elle court-circuitait chronoStart)');
-has(/CHAQUE demarrage a zero/,'L409 : le pop sort a chaque demarrage a zero (la memoire 1x/commande le masquait)');
+has(/demarrage DIRECT du chrono, toutes les/,'L409→L422 : demarrage direct, gardes dans chronoStart');
 has(/voir carte EMBALLAGE \(onglets\)/,'L409 : palette/type/etiquetage/cerclage retires des blocs clients B/C/D (redondants)');
 has(/function _l409PkgTabs/,'L409 : carte EMBALLAGE — onglets par client (A/B/...) avec selects relies a cliEdit');
 has(/function _l409CliGroups/,'L409 : ligne clients groupee — badge unique en tete par client (mono = 1 badge)');
@@ -1337,7 +1337,7 @@ has(/il ne marque plus l'emballage de A/,'L412-18 : saisie B/C/D ne marque plus 
 
 console.log('── L413 : rappel pre-vol au 1er ✂ (decision Esteban 25/08) ──');
 has(/le geste est porte par l'APPEL/,'L413→L419 : les 3 entrees passent par le pop, geste porte par l appel');
-has(/le ✂ qui a declenche le pop est REJOUE/,'L413 : le geste de coupe est rejoue apres « je lance » (pas de tap avale)');
+has(/plus de rejeu : le flux synchrone du ✂ suit chronoRunning/,'L413→L422 : plus de rejeu necessaire (chronoStart synchrone au ✂)');
 
 console.log('── L414 : retouches Esteban 25/08 (6 demandes) ──');
 has(/bouton « \+ Ligne manuelle » retire/,'L414 : bouton ligne manuelle retire (barre + tiroir, addFicheLine conservee)');
@@ -1369,7 +1369,7 @@ has(/le chiffrage NC modifie la deduction du cumul/,'L416 : la saisie qty×laize
 
 console.log('── L417 : pop conditionnel + bandeau sobre + MT affiche MR ──');
 has(/function _chronoBlocked/,'L417 : gardes de demarrage extraites (toast direct, pas de pop si refus)');
-has(/pre-check SANS le confirm de reprise/,'L417→L419 : (b) pre-check sans pop ni mutation, pending nettoye');
+has(/_pre19\) return false;/,'L417→L419 : _chronoBlocked garde le mode pre-check (sans confirm ni mutation)');
 has(/barre SOBRE : le detail passe en infobulle/,'L417 : bandeau plan-a-change compact (detail en title)');
 has(/Appliquer les changements<\/button>/,'L417 : libelle court du bouton drift');
 has(/function iniDisp/,'L417 : MT s affiche MR partout (archives intactes)');
@@ -1386,7 +1386,7 @@ has(/rebut chiffre : la part LIVREE compte \(fusion\+projection\)/,'L419 : produ
 has(/le papier ne sur-declare plus le rebut chiffre/,'L419 : trace papier rebut deduite');
 has(/function _l418Frozen2Ids/,'L419 : gel MAVEG partage avec le detecteur d equilibre (banniere incoercible)');
 has(/en PRE-verification \(pop\) : ni confirm ni mutation/,'L419 : le pop ne leve plus le verrou ISO en pre-check');
-has(/pending = le geste de CET appel, jamais un reliquat/,'L419 : plus de rejeu fantome du ✂ memorise');
+has(/window\._l413PendingCut=null;   \/\* plus de rejeu/,'L419→L422 : pending toujours purge (rejeu fantome impossible)');
 has(/TOUTE action retiree \(meme manuelle\)/,'L419 : plus d action invisible quand aucune NC cochee');
 has(/SAUF si un Déchet est deja pose/,'L419 : le Dechet pose gagne sur Qte en trop');
 has(/un bouton eteint perd ses drapeaux AUTO/,'L419 : flags l401auto/l414auto jamais orphelins');
@@ -1402,6 +1402,13 @@ has(/function _l420RefOk/,'L420 : le chrono exige la ref EN COURS validee (comma
 has(/#fMachineMono \.row3,#fPlanChangeBtn,#fPlanHint\{display:none!important\}/,'L420 : mere/bords/valider retires de la fiche (miroirs DOM conserves)');
 has(/la validation operateur survit au brouillon/,'L420 : opValidated serialise + restaure');
 has(/plan vierge = preparation a re-valider/,'L420 : reset = re-validation requise');
+
+console.log('── L421 : guidage jaune + laize utilisable en UNE case + chrono instantane ──');
+has(/function _l421UsefulInput/,'L421 : UNE case laize utilisable (ecrit mere=valeur, bords=0 — moteur inchange)');
+has(/function _l421SyncUseful/,'L421 : la case affiche mere−bords (vieux plans, machine choisie), jamais sous le doigt');
+has(/JAUNE = prochaine action \(comme COMMENCER A COUPER\)/,'L421 : VALIDER jaune avant, vert apres');
+has(/le chrono se lance a l'arrivee en fiche/,'L421 : chrono instantane apres COMMENCER A COUPER');
+has(/aucun appelant UI restant/,'L421→L422 : pop retire du flux entier');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

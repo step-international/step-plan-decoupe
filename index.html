@@ -637,6 +637,7 @@ body.atelier #coupeeBanner{font-size:18px;padding:16px}
 .rb-operator .rb-op-title{font-weight:800;color:#ffd45e;letter-spacing:.03em;margin-bottom:6px;font-size:15px}
 .ref-block[data-op-validated="1"] .rb-operator{border-color:var(--green);background:#12271a}
 .rb-op-validate{width:100%;min-height:54px;font-weight:800;font-size:16px;margin-top:10px}
+.rb-op-validate.val-todo{background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310}/* [L421] JAUNE = prochaine action (comme COMMENCER A COUPER) */
 body:not(.op-ready) #btnStartCut{display:none!important}/* [L420] COMMENCER A COUPER n'apparait qu'apres une validation operateur */
 #fMachineMono .row3,#fPlanChangeBtn,#fPlanHint{display:none!important}/* [L420] mere/bords/valider retires de la FICHE (doublon) — champs conserves en DOM (miroirs du flux) */
 #planDriftBanner{margin-bottom:8px;padding:6px 10px;border-radius:8px;background:#3d1414;border:1.5px solid #7a2222;color:var(--red);font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}/* [L417 · demande Esteban] barre rouge compacte *//* [L231 · audit MIN-6] styles en CSS (l'inline écrasait l'override atelier — même piège que L218 #4) */
@@ -2281,22 +2282,19 @@ html.theme-light .fp-num small{color:#8a8a84}
         </div>
         <div class="rb-chutes" data-rb="chutes" style="margin-top:8px"></div>
         <div class="rb-recuts" data-rb="recuts"></div>
-        <div class="row3" style="margin-top:8px">
+        <div class="row2" style="margin-top:8px"><!-- [L421 · demande Esteban] UNE seule case : la laize UTILISABLE (mere − bords) saisie directement -->
           <div class="field">
-            <label for="motherWidth">Bobine mère (mm)</label>
+            <label>Laize utilisable bobine (mm)</label>
+            <input type="text" data-op-useful oninput="_l421UsefulInput(this)" inputmode="decimal" placeholder="2080">
+            <div class="useful-display" id="usefulDisplay" style="display:none"></div>
+          </div>
+          <div class="field" style="display:none"><!-- miroirs data-rb conserves : moteur/getRefGroups/fiche inchanges -->
             <input type="text" id="motherWidth" data-rb="mother" value="2100" oninput="onParamChange();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
-            <div class="useful-display" id="usefulDisplay"></div>
-          </div>
-          <div class="field">
-            <label for="edgeLoss">Bords (mm)</label>
             <input type="text" id="edgeLoss" data-rb="edge" value="10" oninput="onParamChange();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
-          </div>
-          <div class="field">
-            <label for="bladeWidth">Perte lame (mm)</label>
             <input type="text" id="bladeWidth" data-rb="blade" value="5" oninput="onParamChange()" inputmode="decimal">
           </div>
         </div>
-        <button type="button" class="btn btn-orange rb-op-validate" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
+        <button type="button" class="btn rb-op-validate val-todo" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
       </div>
     </div>
   </div>
@@ -3139,7 +3137,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L420';
+const APP_VERSION='2026.08.25-L422';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5865,7 +5863,7 @@ function showPage(i){
     if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck({autoApply:true});   /* [L221 · bug Dominique] dérive plan→fiche signalée au lieu d'être tue ; [L286 · choix Esteban] dérives SÛRES (stock/rouleaux) appliquées AUTOMATIQUEMENT à l'arrivée sur la fiche — machine/sur-coupe/équilibre restent bannière 1 clic */
     if(typeof refreshEtiqPhotoZone==='function') refreshEtiqPhotoZone(); }   /* [L226 · ergo #14] vignettes étiquettes à jour en arrivant sur la Fiche (couvre doLoad/brouillon/reset) */
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
-  if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }
+  if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); try{ if(typeof _l421SyncUseful==='function') _l421SyncUseful(); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){} }
   try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
   try{ localStorage.setItem('step_lastPage',String(i)); }catch(e){}   // [L243 · demande Esteban] mémorise la page courante → reprise au même endroit au rechargement/réouverture (pas de retour forcé à l'accueil)
 }
@@ -6028,7 +6026,7 @@ function importPlanToFiche(opts){
     if(!auto && !_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }   // [L298] passation désarmée SEULEMENT une fois tous les confirms passés (la régénération va vraiment avoir lieu)
     // Régénération complète = repart de zéro pour le gating multi-réf, SAUF si
     // l'appel vient d'une revalidation par référence (keepRefValidation).
-    if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); ficheRefOrder=[]; }
+    if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); ficheRefOrder=[]; }   /* [L422] le seed « validee au Plan » vit dans renderFicheMachineBlocks (apres SES clear) */
 
     // En-têtes : copie depuis le Plan. En multi-réf, fRef liste toutes les réfs.
     const copy=(planId,ficheId)=>{
@@ -6449,6 +6447,26 @@ function _localDay(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getM
 /* [L420 · PARTIE OPERATEUR · spec Esteban 4/4 (QCM 25/08)] validation PAR REFERENCE dans le Plan :
    bobineaux/chutes en stock + largeur utile mere verifies puis UN bouton VALIDER. « Commencer a couper »
    n'apparait qu'apres ; le chrono exige la ref EN COURS validee (commande deja entamee = de facto validee). */
+/* [L421 · demande Esteban] la case unique ecrit mother=valeur, edge=0 (useful = mother − edge partout
+   ailleurs — moteur, fiche, papier : rien d'autre ne change). La resync AFFICHE mother−edge (machine choisie,
+   restauration, vieux plans mere 2100/bords 10 -> case 2090), jamais sous le doigt (garde focus). */
+function _l421UsefulInput(inp){ try{
+  const blk=inp.closest('.ref-block'); if(!blk) return;
+  const mo=blk.querySelector('[data-rb="mother"]'), ed=blk.querySelector('[data-rb="edge"]');
+  if(mo) mo.value=String(inp.value||'').trim();
+  if(ed) ed.value='0';
+  _l420Invalidate(blk);
+  if(blk.querySelector('#motherWidth')) onParamChange(); else debouncedRecalcPlan();
+}catch(e){} }
+function _l421SyncUseful(){ try{
+  document.querySelectorAll('#refBlocks .ref-block').forEach(function(blk){
+    const inp=blk.querySelector('[data-op-useful]'); if(!inp||inp===document.activeElement) return;
+    const mo=parseNum(blk.querySelector('[data-rb="mother"]')?.value)||0;
+    const ed=parseNum(blk.querySelector('[data-rb="edge"]')?.value)||0;
+    const u=mo>0?Math.max(0,mo-ed):0;
+    inp.value=u>0?String(Math.round(u*10)/10):'';
+  });
+}catch(e){} }
 function _l420OpValidate(btn){ try{
   const blk=btn.closest('.ref-block'); if(!blk) return;
   const mo=parseNum(blk.querySelector('[data-rb="mother"]')?.value)||0;
@@ -6462,7 +6480,8 @@ function _l420SyncStart(){ try{
   const blocks=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
   const anyVal=blocks.some(function(b){ return b.dataset.opValidated==='1'; });
   document.body.classList.toggle('op-ready',anyVal);
-  blocks.forEach(function(b){ const bt=b.querySelector('.rb-op-validate'); if(bt){ const on=b.dataset.opValidated==='1'; bt.className='btn '+(on?'btn-green':'btn-orange')+' rb-op-validate'; bt.textContent=on?'✓ Préparation validée':'✓ VALIDER la préparation'; } });
+  blocks.forEach(function(b){ const bt=b.querySelector('.rb-op-validate'); if(bt){ const on=b.dataset.opValidated==='1'; bt.className='btn rb-op-validate '+(on?'btn-green':'val-todo'); bt.textContent=on?'✓ Préparation validée':'✓ VALIDER la préparation'; } });
+  try{ _l421SyncUseful(); }catch(e){}
 }catch(e){} }
 function _l420Invalidate(blk){ try{ if(blk&&blk.dataset.opValidated==='1') delete blk.dataset.opValidated; _l420SyncStart(); }catch(e){} }
 function _l420RefOk(){ try{
@@ -6486,6 +6505,7 @@ function startCutFromPlan(){
     try{ const _c=packRefGroupsPal(g).filter(c=>c.rows.length); if(_c.some(c=>c.oversize&&c.oversize.length)){ showToast('⛔ Une laize dépasse la largeur utile (⛔ sur le plan) — corrige avant de couper.','err'); return; } }catch(e){}
   }catch(e){}
   showPage(1);
+  setTimeout(function(){ try{ if(!chronoRunning) chronoStart(); }catch(e){} },300);   /* [L421 · demande Esteban] pre-decoupe faite au Plan -> le chrono se lance a l'arrivee en fiche */
 }
 function bumpDateLiv(days){
   try{
@@ -7045,21 +7065,18 @@ function addRefBlock(){
       </div>
       <div class="rb-chutes" data-rb="chutes" style="margin-top:8px"></div>
       <div class="rb-recuts" data-rb="recuts"></div>
-      <div class="row3" style="margin-top:8px">
+      <div class="row2" style="margin-top:8px"><!-- [L421] laize UTILISABLE en une case -->
       <div class="field">
-        <label>Bobine mère (mm)</label>
-        <input type="text" data-rb="mother" value="2100" oninput="debouncedRecalcPlan();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
-              </div>
-      <div class="field">
-        <label>Bords (mm)</label>
-        <input type="text" data-rb="edge" value="10" oninput="debouncedRecalcPlan();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
+        <label>Laize utilisable bobine (mm)</label>
+        <input type="text" data-op-useful oninput="_l421UsefulInput(this)" inputmode="decimal" placeholder="2080">
       </div>
-      <div class="field">
-        <label>Perte lame (mm)</label>
+      <div class="field" style="display:none">
+        <input type="text" data-rb="mother" value="2100" oninput="debouncedRecalcPlan();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
+        <input type="text" data-rb="edge" value="10" oninput="debouncedRecalcPlan();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
         <input type="text" data-rb="blade" value="5" oninput="debouncedRecalcPlan()" inputmode="decimal">
       </div>
       </div>
-      <button type="button" class="btn btn-orange rb-op-validate" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
+      <button type="button" class="btn rb-op-validate val-todo" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
     </div>`;
   document.getElementById('refBlocks').appendChild(block);
   // La machine reste à choisir (choix obligatoire). Les défauts perte bords/lame
@@ -10091,30 +10108,15 @@ function maybeShowChutesRappel(){
 function dismissChutesRappel(){ try{ const b=document.getElementById('chutesRappelBanner'); if(b) b.style.display='none'; }catch(e){} }
 // [L408 · demande Esteban] le pré-vol POP au tap ▶ : GROS texte, 1×/commande (même mémoire que l'ancien
 // rappel), « Voir le plan » ouvre le plan sans lancer ; le démarrage AUTO par le 1er ✂ n'est pas bloqué.
+/* [L422 · demande Esteban 25/08 (« enleve ce message de base »)] le pop pre-vol est SUPPRIME : la
+   PARTIE OPERATEUR du Plan porte ces verifications (stock + laize utilisable + VALIDER). Les 3 entrees
+   (▶, barre d'action, 1er ✂) restent cablees sur cette fonction : demarrage DIRECT du chrono, toutes les
+   gardes (preparation validee, champs, plan re-valide) vivent dans chronoStart et s'expliquent en toast. */
 function _l408PrevolPop(_cut19){ try{
-  window._l413PendingCut=(_cut19!==undefined&&_cut19!==null)?_cut19:null;   /* [L419 audit #5/#6] pending = le geste de CET appel, jamais un reliquat */
-  /* [L409 · retour Esteban « il n'y a pas de pop »] la memoire 1x/commande (posee par l'ancien confirm
-     d'avant L405) MASQUAIT le pop sur les commandes deja demarrees. Nouveau critere : le pop sort a
-     CHAQUE demarrage a zero (chrono vierge), jamais sur une reprise apres pause. */
-  if(chronoRunning||((typeof chronoSec==='number')&&chronoSec>0)){ window._l413PendingCut=null; chronoStart(); return; }   /* [L419 audit] pending consomme par le flux synchrone : jamais de rejeu fantome */
-  try{ if(typeof _chronoBlocked==='function'&&_chronoBlocked(true)) { window._l413PendingCut=null; return; } }catch(e){}   /* [L417 (b) → L419] pre-check SANS le confirm de reprise (pas de mutation d'etat en pre-verification) + pending nettoye */
-  let ov=document.getElementById('prevolPop');
-  if(ov){ ov.classList.add('open'); return; }
-  ov=document.createElement('div'); ov.id='prevolPop'; ov.className='modal-overlay open';
-  ov.style.zIndex='100000';   /* [L409 · meme lecon que confirmDlg L79] .modal-overlay=200 hors entrainement : le pop passait DERRIERE les overlays 9999 -> invisible en prod */
-  ov.innerHTML='<div class="modal" role="dialog" aria-modal="true" style="max-width:440px;text-align:center">'
-    +'<div style="font-size:22px;font-weight:800;line-height:1.6;margin:8px 0 16px">✂ Bobineaux / chutes en stock ??<br>🔄 Bobine mère validée ??</div>'
-    +'<div class="modal-btns" style="justify-content:center;gap:10px">'
-    +'<button class="btn btn-ghost" style="min-height:54px" onclick="document.getElementById(\'prevolPop\').remove();window._l413PendingCut=null;showPage(0)">✂ Voir le plan</button>'
-    +'<button class="btn btn-green" style="min-height:54px;font-weight:800" onclick="_l408PrevolGo()">✓ C\'est bon — je lance</button></div></div>';
-  ov.addEventListener('click',function(e){ if(e.target===ov){ ov.remove(); window._l413PendingCut=null; } });   /* [L412 audit] sortie neutre au tap sur le fond (tablette sans Echap) — [L413] geste ✂ oublie */
-  document.body.appendChild(ov);
-}catch(e){ try{ chronoStart(); }catch(_){} } }
-function _l408PrevolGo(){ try{
-  const ov=document.getElementById('prevolPop'); if(ov) ov.remove();
+  window._l413PendingCut=null;   /* plus de rejeu : le flux synchrone du ✂ suit chronoRunning */
   chronoStart();
-  try{ const pc=window._l413PendingCut; window._l413PendingCut=null; if(pc&&chronoRunning&&typeof coupeeTapOne==='function'){ coupeeTapOne(pc); } }catch(e){}   /* [L413] le ✂ qui a declenche le pop est REJOUE : l'operateur n'a pas a retaper */
-}catch(e){} }
+}catch(e){ try{ chronoStart(); }catch(_){} } }
+function _l408PrevolGo(){ try{ chronoStart(); }catch(e){} }   /* [L422] conservee (aucun appelant UI restant) */
 /* [L417 · decision Esteban (b)] gardes de demarrage EXTRAITES de chronoStart : refus explique (toast +
    surlignage) = return true. Appelees AUSSI par _l408PrevolPop AVANT d'afficher le pop pre-vol : le refus
    s'explique SANS pop (fini le « pop -> je lance -> toast contradictoire »). La branche reprise-apres-crash
@@ -18627,6 +18629,9 @@ function renderFicheMachineBlocks(opts){
   multi.style.display='';
   if(opts.fresh) ficheRefValidated.clear();
   if(opts.allValidated) refs.forEach(r=>ficheRefValidated.add(r.idx));
+  try{ /* [L422 · demande Esteban] une ref deja VALIDEE au Plan (Partie operateur) arrive VALIDEE en fiche — apres les clear() de ce rendu, jamais avant */
+    Array.from(document.querySelectorAll('#refBlocks .ref-block')).forEach(function(b,i){ if(b.dataset.opValidated==='1') ficheRefValidated.add(i); });
+  }catch(e){}
   const activeIdx=fmmActiveIdx();
   // [L283] Y a-t-il au moins une réf avec une vraie bobine à couper ? Le traitement « réf sans bobine » (masquer
   // sa carte + l'étiqueter « rien à couper ») ne s'active QUE dans ce cas — sinon (fiche 100% stock, dégénérée)
