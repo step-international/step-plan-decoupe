@@ -1394,5 +1394,14 @@ has(/MEME garde que l'envoi \(le detail est facultatif depuis L400\)/,'L419 : ar
 has(/ne rien ecraser/,'L419 : reprise auto re-verifie apres le await (saisie en cours protegee)');
 has(/l'etat VISIBLE est l'etat PERSISTE/,'L419 : masquage des coupees restaure a l identique au rechargement');
 
+console.log('── L420 : PARTIE OPERATEUR dans le Plan (spec Esteban 4/4) ──');
+has(/rb-op-title">4 · 👷 Partie opérateur/,'L420 : zone coloree operateur sous chaque reference (bloc 1)');
+has(/function _l420OpValidate/,'L420 : bouton VALIDER par reference (3 etapes d un coup)');
+has(/body:not\(\.op-ready\) #btnStartCut\{display:none!important\}/,'L420 : COMMENCER A COUPER cache tant que non valide');
+has(/function _l420RefOk/,'L420 : le chrono exige la ref EN COURS validee (commande entamee = de facto validee)');
+has(/#fMachineMono \.row3,#fPlanChangeBtn,#fPlanHint\{display:none!important\}/,'L420 : mere/bords/valider retires de la fiche (miroirs DOM conserves)');
+has(/la validation operateur survit au brouillon/,'L420 : opValidated serialise + restaure');
+has(/plan vierge = preparation a re-valider/,'L420 : reset = re-validation requise');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

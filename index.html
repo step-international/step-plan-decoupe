@@ -633,6 +633,12 @@ body.atelier .ini-btn{font-size:18px;padding:14px 18px;min-width:64px}
 body.atelier [id^="coupeeBtn_"]{font-size:18px !important;padding:16px !important;min-height:60px !important}
 body.atelier #nav button{font-size:16px;padding:14px 12px}
 body.atelier #coupeeBanner{font-size:18px;padding:16px}
+.rb-operator{margin-top:12px;padding:10px 12px;border:2px solid #b8860b;border-radius:12px;background:#241d05}/* [L420 · PARTIE OPERATEUR] zone coloree distincte */
+.rb-operator .rb-op-title{font-weight:800;color:#ffd45e;letter-spacing:.03em;margin-bottom:6px;font-size:15px}
+.ref-block[data-op-validated="1"] .rb-operator{border-color:var(--green);background:#12271a}
+.rb-op-validate{width:100%;min-height:54px;font-weight:800;font-size:16px;margin-top:10px}
+body:not(.op-ready) #btnStartCut{display:none!important}/* [L420] COMMENCER A COUPER n'apparait qu'apres une validation operateur */
+#fMachineMono .row3,#fPlanChangeBtn,#fPlanHint{display:none!important}/* [L420] mere/bords/valider retires de la FICHE (doublon) — champs conserves en DOM (miroirs du flux) */
 #planDriftBanner{margin-bottom:8px;padding:6px 10px;border-radius:8px;background:#3d1414;border:1.5px solid #7a2222;color:var(--red);font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}/* [L417 · demande Esteban] barre rouge compacte *//* [L231 · audit MIN-6] styles en CSS (l'inline écrasait l'override atelier — même piège que L218 #4) */
 body.atelier #planDriftBanner{font-size:14px;padding:8px 12px}/* [L417] compact aussi en atelier *//* [L221] lisible avec gants */
 @media(max-width:1099px){ body.has-actionbar.ab-progress #coupeeBanner{display:none!important} }
@@ -2261,31 +2267,37 @@ html.theme-light .fp-num small{color:#8a8a84}
           </select>
         </div>
       </div>
-      <div class="row3">
-        <div class="field">
-          <label for="motherWidth">Bobine mère (mm)</label>
-          <input type="text" id="motherWidth" data-rb="mother" value="2100" oninput="onParamChange()" inputmode="decimal">
-          <div class="useful-display" id="usefulDisplay"></div>
-        </div>
-        <div class="field">
-          <label for="edgeLoss">Bords (mm)</label>
-          <input type="text" id="edgeLoss" data-rb="edge" value="10" oninput="onParamChange()" inputmode="decimal">
-        </div>
-        <div class="field">
-          <label for="bladeWidth">Perte lame (mm)</label>
-          <input type="text" id="bladeWidth" data-rb="blade" value="5" oninput="onParamChange()" inputmode="decimal">
-        </div>
-      </div>
       <input type="hidden" id="planLargeur" data-rb="largeur">
       <div class="section-title" style="margin:12px 0 8px">3 · Laizes</div><!-- [L336 · maquette 18] -->
       <div class="rb-rows" data-rb="rows"></div>
       <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ligne</button>
-        <button class="btn btn-orange btn-sm" onclick="addPlanChuteTo(this)" title="Bobineaux déjà en stock à la bonne largeur — déduits de la commande">✂ Bobineaux en stock</button>
-        <button class="btn btn-recut btn-sm" onclick="addPlanRecutTo(this)" title="Chute : rouleau résiduel d'une autre laize — recoupé en 1er dans le plan, optimiseur chute mini">♻ Chute</button>
       </div>
-      <div class="rb-chutes" data-rb="chutes" style="margin-top:8px"></div>
-      <div class="rb-recuts" data-rb="recuts"></div>
+      <div class="rb-operator"><!-- [L420 · PARTIE OPERATEUR · spec Esteban 4/4] tout ce que l'OPERATEUR verifie avant la coupe, valide d'un coup -->
+        <div class="rb-op-title">4 · 👷 Partie opérateur — à vérifier avant la coupe</div>
+        <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
+          <button class="btn btn-orange btn-sm" onclick="addPlanChuteTo(this)" title="Bobineaux déjà en stock à la bonne largeur — déduits de la commande">✂ Bobineaux en stock</button>
+          <button class="btn btn-recut btn-sm" onclick="addPlanRecutTo(this)" title="Chute : rouleau résiduel d'une autre laize — recoupé en 1er dans le plan, optimiseur chute mini">♻ Chute</button>
+        </div>
+        <div class="rb-chutes" data-rb="chutes" style="margin-top:8px"></div>
+        <div class="rb-recuts" data-rb="recuts"></div>
+        <div class="row3" style="margin-top:8px">
+          <div class="field">
+            <label for="motherWidth">Bobine mère (mm)</label>
+            <input type="text" id="motherWidth" data-rb="mother" value="2100" oninput="onParamChange();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
+            <div class="useful-display" id="usefulDisplay"></div>
+          </div>
+          <div class="field">
+            <label for="edgeLoss">Bords (mm)</label>
+            <input type="text" id="edgeLoss" data-rb="edge" value="10" oninput="onParamChange();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="bladeWidth">Perte lame (mm)</label>
+            <input type="text" id="bladeWidth" data-rb="blade" value="5" oninput="onParamChange()" inputmode="decimal">
+          </div>
+        </div>
+        <button type="button" class="btn btn-orange rb-op-validate" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
+      </div>
     </div>
   </div>
 <div class="flex mt8" style="margin-bottom:14px">
@@ -3127,7 +3139,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L419';
+const APP_VERSION='2026.08.25-L420';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6434,7 +6446,38 @@ function _localDay(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getM
 // [L315 · LOT 15 · §2.14] « Commencer à couper » = le passage Plan→Fiche EXISTANT rendu explicite.
 // Aucune nouvelle mécanique : showPage(1) déclenche importPlanToFiche({auto:true}) comme le tap sur l'onglet 📋
 // (qui reste cliquable). Refus POLI (toast) si le plan est vide — au lieu d'ouvrir une fiche bancale.
+/* [L420 · PARTIE OPERATEUR · spec Esteban 4/4 (QCM 25/08)] validation PAR REFERENCE dans le Plan :
+   bobineaux/chutes en stock + largeur utile mere verifies puis UN bouton VALIDER. « Commencer a couper »
+   n'apparait qu'apres ; le chrono exige la ref EN COURS validee (commande deja entamee = de facto validee). */
+function _l420OpValidate(btn){ try{
+  const blk=btn.closest('.ref-block'); if(!blk) return;
+  const mo=parseNum(blk.querySelector('[data-rb="mother"]')?.value)||0;
+  if(!(mo>0)){ showToast('⚠ Renseigne la largeur de la BOBINE MÈRE avant de valider.','err'); const el=blk.querySelector('[data-rb="mother"]'); if(el){ try{el.focus({preventScroll:true});}catch(e){} el.style.borderColor='var(--red)'; setTimeout(function(){el.style.borderColor='';},2200); } return; }
+  blk.dataset.opValidated='1';
+  try{ clearTimeout(_recalcPlanTimer); recalcPlan(); }catch(e){}
+  _l420SyncStart();
+  showToast('✓ Préparation validée — stock vérifié, bobine mère '+fmt(mo)+' mm.','ok');
+}catch(e){} }
+function _l420SyncStart(){ try{
+  const blocks=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
+  const anyVal=blocks.some(function(b){ return b.dataset.opValidated==='1'; });
+  document.body.classList.toggle('op-ready',anyVal);
+  blocks.forEach(function(b){ const bt=b.querySelector('.rb-op-validate'); if(bt){ const on=b.dataset.opValidated==='1'; bt.className='btn '+(on?'btn-green':'btn-orange')+' rb-op-validate'; bt.textContent=on?'✓ Préparation validée':'✓ VALIDER la préparation'; } });
+}catch(e){} }
+function _l420Invalidate(blk){ try{ if(blk&&blk.dataset.opValidated==='1') delete blk.dataset.opValidated; _l420SyncStart(); }catch(e){} }
+function _l420RefOk(){ try{
+  if(typeof countCoupees==='function'&&countCoupees()>0) return true;   /* commande entamee = validee de facto (brouillons d'avant L420 inclus) */
+  const blocks=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
+  if(!blocks.length) return true;
+  const l=(typeof _nextUncutLine==='function')?_nextUncutLine():null;
+  if(l&&l.refIdKey&&typeof getRefGroups==='function'&&typeof _refIdKey==='function'){
+    const gs=getRefGroups();
+    for(let i=0;i<gs.length;i++){ if(_refIdKey(gs[i])===l.refIdKey) return blocks[i]?blocks[i].dataset.opValidated==='1':true; }
+  }
+  return blocks.some(function(b){ return b.dataset.opValidated==='1'; });
+}catch(e){ return true; } }
 function startCutFromPlan(){
+  if(!document.body.classList.contains('op-ready')){ showToast('👷 Valide d\'abord la PRÉPARATION (zone Partie opérateur sous la référence).','err'); try{ const z=document.querySelector('.ref-block:not([data-op-validated="1"]) .rb-operator')||document.querySelector('.rb-operator'); if(z){ z.scrollIntoView({behavior:'smooth',block:'center'}); z.style.outline='3px solid var(--orange)'; setTimeout(function(){z.style.outline='';},2500); } }catch(e){} return; }
   try{
     const g=(typeof getRefGroups==='function')?getRefGroups():[];
     const hasRows=g.some(x=>((x.rows&&x.rows.length)||(x.rawRows&&x.rawRows.length)));
@@ -6988,30 +7031,36 @@ function addRefBlock(){
         </select>
       </div>
     </div>
-    <div class="row3">
-      <div class="field">
-        <label>Bobine mère (mm)</label>
-        <input type="text" data-rb="mother" value="2100" oninput="debouncedRecalcPlan()" inputmode="decimal">
-      </div>
-      <div class="field">
-        <label>Bords (mm)</label>
-        <input type="text" data-rb="edge" value="10" oninput="debouncedRecalcPlan()" inputmode="decimal">
-      </div>
-      <div class="field">
-        <label>Perte lame (mm)</label>
-        <input type="text" data-rb="blade" value="5" oninput="debouncedRecalcPlan()" inputmode="decimal">
-      </div>
-    </div>
     <input type="hidden" data-rb="largeur">
     <div class="section-title" style="margin:12px 0 8px">Laizes</div><!-- [L370 · A19] même mot que le bloc 1 -->
     <div class="rb-rows" data-rb="rows"></div>
     <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="addOrderRowTo(this)">+ Ligne</button>
+    </div>
+    <div class="rb-operator"><!-- [L420 · PARTIE OPERATEUR · spec Esteban 4/4] tout ce que l'OPERATEUR verifie avant la coupe, valide d'un coup -->
+      <div class="rb-op-title">4 · 👷 Partie opérateur — à vérifier avant la coupe</div>
+      <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
       <button class="btn btn-orange btn-sm" onclick="addPlanChuteTo(this)" title="Bobineaux déjà en stock à la bonne largeur — déduits de la commande">✂ Bobineaux en stock</button>
       <button class="btn btn-recut btn-sm" onclick="addPlanRecutTo(this)" title="Chute : rouleau résiduel d'une autre laize — recoupé en 1er dans le plan, optimiseur chute mini">♻ Chute</button>
-    </div>
-    <div class="rb-chutes" data-rb="chutes" style="margin-top:8px"></div>
-    <div class="rb-recuts" data-rb="recuts"></div>`;
+      </div>
+      <div class="rb-chutes" data-rb="chutes" style="margin-top:8px"></div>
+      <div class="rb-recuts" data-rb="recuts"></div>
+      <div class="row3" style="margin-top:8px">
+      <div class="field">
+        <label>Bobine mère (mm)</label>
+        <input type="text" data-rb="mother" value="2100" oninput="debouncedRecalcPlan();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
+              </div>
+      <div class="field">
+        <label>Bords (mm)</label>
+        <input type="text" data-rb="edge" value="10" oninput="debouncedRecalcPlan();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>Perte lame (mm)</label>
+        <input type="text" data-rb="blade" value="5" oninput="debouncedRecalcPlan()" inputmode="decimal">
+      </div>
+      </div>
+      <button type="button" class="btn btn-orange rb-op-validate" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
+    </div>`;
   document.getElementById('refBlocks').appendChild(block);
   // La machine reste à choisir (choix obligatoire). Les défauts perte bords/lame
   // seront appliqués par onRefMachineChange au moment du choix de la machine.
@@ -7519,7 +7568,9 @@ function getRefGroups(){
 
 // Sérialise les blocs réf pour la sauvegarde (structure persistée).
 function serializeRefGroups(){
-  return getRefGroups().map(g=>({
+  const _blks20=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
+  return getRefGroups().map((g,i)=>({
+    opValidated:(_blks20[i]&&_blks20[i].dataset.opValidated==='1')||undefined,   /* [L420] la validation operateur survit au brouillon */
     ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine||'', rows:g.rows, chutes:g.chutes||[], recuts:g.recuts||[], rawRows:g.rawRows||[], rawChutes:g.rawChutes||[], rawRecuts:g.rawRecuts||[]   // [L271 · audit #2] rawRows persistées pour ne pas perdre une ligne mal saisie (réf disparue) au ré-enregistrement ; [L287] même filet pour bobineaux stock + rouleaux chute
   }));
 }
@@ -7610,6 +7661,7 @@ function restoreRefGroups(arr){
   // les blocs par position → plan sauvegardé chargé partiellement. La fusion reprend après.
   _restoringRefGroups=true;
   try{ _restoreRefGroupsBody(arr); }finally{ _restoringRefGroups=false; }
+  try{ const _b20=Array.from(document.querySelectorAll('#refBlocks .ref-block')); (arr||[]).forEach(function(g,i){ if(g&&g.opValidated&&_b20[i]) _b20[i].dataset.opValidated='1'; }); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}   /* [L420] */
 }
 let _restoringRefGroups=false;
 function _restoreRefGroupsBody(arr){
@@ -10068,6 +10120,11 @@ function _l408PrevolGo(){ try{
    s'explique SANS pop (fini le « pop -> je lance -> toast contradictoire »). La branche reprise-apres-crash
    MUTE fichePlanValidated sur OK -> idempotente si chronoStart re-verifie juste apres. */
 function _chronoBlocked(_pre19){
+  if(typeof _l420RefOk==='function'&&!_l420RefOk()){
+    showToast('👷 Valide la PRÉPARATION de cette référence dans le Plan (zone Partie opérateur) avant de démarrer.','err');
+    try{ showPage(0); const z=document.querySelector('.ref-block:not([data-op-validated=\'1\']) .rb-operator')||document.querySelector('.rb-operator'); if(z){ z.scrollIntoView({behavior:'smooth',block:'center'}); z.style.outline='3px solid var(--orange)'; setTimeout(function(){z.style.outline='';},2500); } }catch(e){}
+    return true;
+  }   /* [L420] la validation operateur du Plan est LE verrou d'entree */
   const miss=ficheParamMissing();
   if(miss){
     // Surligner le champ manquant au lieu d'un alert bloquant.
@@ -10107,7 +10164,7 @@ function _chronoBlocked(_pre19){
       if(_blk){ try{_blk.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){} _blk.style.outline='3px solid var(--orange)'; setTimeout(function(){ _blk.style.outline=''; },2500); }
       return true;
     } else {
-      showToast('⚠ Tu as modifié une dimension (mère / bords) — clique « 🔄 Changement plan » avant de démarrer le chrono.','err');
+      showToast('⚠ Dimension modifiée (mère / bords) — repasse par le PLAN : re-valide la Partie opérateur ou tape « Appliquer les changements ».','err');   /* [L420] le bouton fiche est retire */
       const _h=document.getElementById('fPlanHint'); if(_h){ try{ if(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()) _l340RevealBox(document.getElementById('fMachineMono')); }catch(e){} try{ _h.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} _h.style.color='var(--red)'; setTimeout(function(){ if(typeof updateFPlanHint==='function') updateFPlanHint(); },3000); }   // [L340 · fix audit] en paysage le bouton « Changement plan » vit dans le bloc REPLIÉ → déplier + défiler (jamais pointer un élément caché)
       return true;
     }
@@ -11920,6 +11977,7 @@ function resetAll(){
 
   // Reset chrono
   chronoReset(true);   // [L79] reset forcé (reset site / nouveau plan)
+  try{ document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){ delete b.dataset.opValidated; }); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}   /* [L420] plan vierge = preparation a re-valider */
 
   // Reset état bouton envoi
   document.getElementById('coupeeBanner').style.display='none';

@@ -92,6 +92,8 @@ const PAGE_ONE = `(async function(k){
     // 4) coupe de toutes les bobines (chrono AUTO au 1er ✂) — [L356] en multi, valider chaque réf quand son bloc devient actif
     let cut=0, tries=0, wasRunning=chronoRunning; const T=ficheLines.length; let jalonSeen=false;
     const popGo=async()=>{ const p=document.getElementById('prevolPop'); if(p){ const g=[...p.querySelectorAll('button')].find(x=>/je lance/.test(x.textContent)); if(g){ g.click(); await wait(150); } } };   /* [L413] le 1er ✂ ouvre le pop pre-vol : l'operateur simule « ✓ je lance » (le geste est rejoue par l'app) */
+    /* [L420] l'operateur VALIDE la preparation de chaque reference (zone Partie operateur du Plan) avant de couper */
+    try{ document.querySelectorAll('#refBlocks .ref-block .rb-op-validate').forEach(b=>{ try{ b.click(); }catch(e){} }); await wait(400); }catch(e){}
     for(let i=0;i<ficheLines.length&&tries<T*3+20;i++){ if(multi){ if(await _valRef()) await wait(1500); }   /* [L359] borne vivante : une NC déchet + recalcul peut AJOUTER une bobine de remplacement */   /* [L356] valider AVANT de lire la ligne : la validation régénère les lignes (ids neufs) */
       const l=ficheLines[i]; if(!l){ bug('ligne '+i+' disparue après validation'); break; } const el=document.getElementById(l.id); const b=document.getElementById('coupeeBtn_'+l.id); if(!el||!b){ bug('bobine sans bouton ✂ '+i); continue; }
       if(el.classList.contains('coupee')){ cut++; continue; }
