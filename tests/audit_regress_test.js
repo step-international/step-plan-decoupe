@@ -1318,7 +1318,19 @@ has(/le bandeau ⏳ DETRUISAIT le bouton 💾/,'L410 : bandeau commande volumine
 
 console.log('── L411 : Reinitialiser visible et disponible commande en cours ──');
 has(/↺ Réinitialiser DE RETOUR en tête de page/,'L411 : le bouton rouge n est plus cache en paysage');
-has(/Le CHRONO EN COURS sera ARRÊTÉ et remis à zéro/,'L411 : reset possible chrono en cours — confirm renforce (jamais silencieux)');
+has(/plus de confirm : on photographie l'ecran pour pouvoir tout remettre en un tap/,'L411 acquis + L434 : reset possible chrono en cours (confirm remplace par un annulable)');
+
+console.log('── L434 : humain -> dechet · plus de pop-up ordre de coupe · reset annulable ──');
+has(/erreur HUMAINE : meme regle qu'angle\/casse -> 🗑 Déchet automatique/,'L434 : case « Humain » a cote d Angle et Casse');
+has(/if\(ang\|\|casse\|\|hum\)\{/,'L434 : Humain part directement en Dechet (comme angle\/casse)');
+has(/ncCasse:ncInput\('casse'\),ncAng:ncInput\('ang'\),ncHum:ncInput\('hum'\)/,'L434 : le motif Humain est enregistre avec la fiche');
+has(/hum:'Humain'/,'L434 : Humain nomme dans le registre NC');
+has(/les etiquettes deja tapees au lieu de demander l'autorisation de les perdre/,'L434 : ordre de coupe — n° d etiquette PRESERVES (plus de pop-up)');
+absent(/Changer l'ordre va RÉGÉNÉRER les bobines et effacer les n°/,'L434 : le pop-up de l ordre de coupe a bien disparu');
+has(/_l434RestoreLabels\(_lbl434\)/,'L434 : restauration appelee apres chaque regeneration');
+has(/le confirm de securite est remplace par/,'L434 : ↺ Reinitialiser instantane');
+has(/function l434UndoReset\(\)/,'L434 : reinitialisation ANNULABLE 15 s (rien n est perdu)');
+absent(/vider entièrement le plan et la fiche en cours pour repartir d/,'L434 : le pop-up du reset a bien disparu');
 
 console.log('── L412 : 13 correctifs de l audit adversarial du 24/08 (6 chasseurs) ──');
 has(/la slice\(1\) supposait ncLots\[0\]=1re ligne/,'L412-1 : restauration — 1er lot NC plus perdu quand la 1re ligne est vide');

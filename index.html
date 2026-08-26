@@ -2867,6 +2867,7 @@ html.theme-light .fp-num small{color:#8a8a84}
             <option value="qty">Quantité</option>
             <option value="casse">Casse</option>
             <option value="ang">Angle</option>
+            <option value="hum">Humain</option><!-- [L434] -->
           </select>
           <select id="ncFilterClient" aria-label="Filtrer les NC par client" onchange="renderNc()" style="flex:1;min-width:130px;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:13px">
             <option value="">Tous clients</option>
@@ -3168,7 +3169,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.26-L432';
+const APP_VERSION='2026.08.26-L434';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5650,7 +5651,7 @@ function _fichePlanDriftCheck(opts){
     const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
     if(!computed.length){ hide(); return; }
     const data=getFicheLinesData();
-    const engagedOf=d=>d.coupee||!!d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||!!(d.ncDetail||'').trim();
+    const engagedOf=d=>d.coupee||!!d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||d.ncHum||!!(d.ncDetail||'').trim();
     const drifts=[];
     let needClick=false;   // [L286] une dérive « sensible » (machine / sur-coupe / équilibre) est présente → JAMAIS d'auto-application
     const allKeys=new Set(computed.map(c=>_refIdKey(c)));
@@ -5721,7 +5722,7 @@ function _fichePlanDriftCheck(opts){
       // (L286) car les détecteurs rouleaux + équilibre + sur-coupe l'utilisent tous.
       const _frozenLike=d=>{
         if(d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc) return true;   // [L290 · audit #NC] test2nc figé (miroir isLineFrozen, mis à jour ensemble)
-        if((d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng) return true;
+        if((d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||d.ncHum) return true;
         const _lv=(d.label||'').trim(); if(_lv && _lv!==(d.autoLabel||'').trim()) return true;   // étiquette mère éditée = ligne engagée (B21)
         if(typeof normConf==='function' && normConf(d.conf||'')!==(d.origConf||'')) return true;   // config modifiée à la main
         return false;
@@ -5817,7 +5818,7 @@ function _fichePlanDriftCheck(opts){
         if(d.refIdKey&&allKeys.has(d.refIdKey)) return;
         if(_names.has(nrm(d.ref||''))) return;   // rattachée par le repli de nom : déjà couverte par la boucle
         const nm2=(d.ref||'?'); _orph[nm2]=(_orph[nm2]||0)+1;
-        const _fz=d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||(d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng;
+        const _fz=d.coupee||d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||(d.ncDetail||'').trim()||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||d.ncHum;
         if(!_fz) _orphFree[nm2]=(_orphFree[nm2]||0)+1;
       });
       Object.keys(_orphFree).forEach(nm2=>{
@@ -5973,7 +5974,7 @@ function isFicheUntouched(){
     if(document.getElementById(id)?.classList.contains('coupee')) return false;
     if(ficholinePhotos[id]) return false;
     if((document.getElementById('nc_detail_'+id)?.value||'').trim()) return false;
-    const ncBad=['larg','qty','casse','ang'].some(k=>document.getElementById('nc_'+k+'_'+id)?.querySelector('input')?.checked);
+    const ncBad=['larg','qty','casse','ang','hum'].some(k=>document.getElementById('nc_'+k+'_'+id)?.querySelector('input')?.checked);
     if(ncBad) return false;
     if(document.getElementById('act_dechet_'+id)?.classList.contains('btn-red')) return false;
     if(document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')) return false;
@@ -7202,7 +7203,7 @@ function isLineFrozen(id){
   if(line.classList.contains('coupee')) return true;
   if(ficholinePhotos[id]) return true;
   if((document.getElementById('nc_detail_'+id)?.value||'').trim()) return true;
-  if(['larg','qty','casse','ang'].some(k=>document.getElementById('nc_'+k+'_'+id)?.querySelector('input')?.checked)) return true;
+  if(['larg','qty','casse','ang','hum'].some(k=>document.getElementById('nc_'+k+'_'+id)?.querySelector('input')?.checked)) return true;
   if(document.getElementById('act_dechet_'+id)?.classList.contains('btn-red')) return true;
   if(document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange')) return true;
   // [L70 · Audit B21] une étiquette bobine mère saisie = l'opérateur a engagé la ligne :
@@ -10531,7 +10532,7 @@ async function stopManqueMatiere(){
         showToast('⚠ Test 2ᵉ bobineau dé-validé sur « '+((document.getElementById('flLabel_'+l.id)?.value||'').trim()||l.label||'?')+' ».\n\nRe-coche Dévidage'+(_flMachineOf(l.id)==='feba'?'':' / Droit')+' (ou ⚠ Non conforme + motif) avant l\'arrêt manque-matière.','err');
         return;
       }
-      const fd=_fd[i], hasNC=fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng);
+      const fd=_fd[i], hasNC=fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum);
       if(hasNC && !((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0) && !(Array.isArray(fd.ncLots)&&fd.ncLots.length) && !String(fd.ncDetail||'').trim()){ _reveal(_el); showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité cochée sans QUANTITÉ ni LAIZE.\n\nChiffre la NC (ou un commentaire) avant l\'arrêt manque-matière.','err'); return; }   /* [L419 audit #14] MEME garde que l'envoi (le detail est facultatif depuis L400) */
       if(hasNC&&!(fd.actDechet||fd.actChutes||fd.actAccept)){ _reveal(_el); showToast('⚠ Bobine '+(i+1)+(fd.label?' ('+fd.label+')':'')+' : non-conformité sans destination.\n\nChoisis l\'action — Chutes ou Déchet — avant l\'arrêt.','err'); return; }
     }
@@ -10553,7 +10554,7 @@ async function stopManqueMatiere(){
       const _allLines=(st.lines||[]).slice();   // [L103 · audit-max] positions ORIGINALES + flags coupée (pour remapper les bascules ci-dessous)
       st.lines=(st.lines||[]).filter(l=>!l.coupee).map(l=>Object.assign({},l,{
         coupee:false, devi:false, droit:false, conforme:false, test2nc:false,
-        ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false,
+        ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false, ncHum:false,
         ncDetail:'', ncQtyVal:0, ncWidthVal:0, ncLots:[], photo:'', actDechet:false, actChutes:false, actAccept:false   /* [L412 audit] lots L408 remis a zero aussi (lot fantome au solde sinon) */
       }));
       st.chrono={sec:0, startTs:null, wasRunning:false, runStart:null};
@@ -10892,7 +10893,7 @@ async function confirmCommande(){
   const ficheCheck=getFicheLinesData();
   for(let i=0;i<ficheCheck.length;i++){
     const fd=ficheCheck[i];
-    const hasNC=fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng;
+    const hasNC=fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum;
     if(hasNC && !((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0) && !(Array.isArray(fd.ncLots)&&fd.ncLots.length) && !fd.ncDetail.trim()){   /* [L412 audit] les lots saisis au bouton ＋ comptent (l'envoi etait refuse a tort) */
       showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité cochée sans QUANTITÉ ni LAIZE.\n\nRenseigne les deux cases (elles chiffrent la matière NC en m²) avant de confirmer.`,'err');
       return;
@@ -11903,14 +11904,44 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   }
 }
 
+// [L434 · demande Esteban 26/08] ↺ Reinitialiser INSTANTANE : le confirm de securite est remplace par
+// un « ↩ Annuler » de 15 s. On photographie l'ecran (serializeFicheState — exactement ce qu'ecrit un
+// brouillon) AVANT de vider ; l'annulation le remet en place. Rien n'est detruit en base : le reset ne
+// touchait deja que l'ecran + les brouillons AUTO de ce poste.
+let _l434ResetSnap=null,_l434ResetTimer=null;
+function _l434ShowResetUndo(extra){
+  try{
+    document.getElementById('l434UndoBar')?.remove();
+    const b=document.createElement('div'); b.id='l434UndoBar';
+    b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:9300;display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border2);border-radius:12px;background:#1a1a18;box-shadow:0 10px 28px rgba(0,0,0,.6);font-size:14px;font-weight:700;max-width:94vw';
+    b.innerHTML='<span style="flex:1">↺ Site réinitialisé'+(extra||'')+'</span><button class="btn btn-sm" style="min-height:48px;white-space:nowrap" onclick="l434UndoReset()">↩ Annuler</button>';
+    document.body.appendChild(b);
+    if(_l434ResetTimer) clearTimeout(_l434ResetTimer);
+    _l434ResetTimer=setTimeout(function(){ try{ b.remove(); }catch(e){} _l434ResetSnap=null; _l434ResetTimer=null; },15000);
+  }catch(e){}
+}
+function l434UndoReset(){
+  const st=_l434ResetSnap;
+  if(!st){ try{ showToast('Trop tard pour annuler la réinitialisation.','err'); }catch(e){} return; }
+  _l434ResetSnap=null;
+  try{ document.getElementById('l434UndoBar')?.remove(); }catch(e){}
+  if(_l434ResetTimer){ clearTimeout(_l434ResetTimer); _l434ResetTimer=null; }
+  try{
+    restoreFicheState(st);
+    try{ if(typeof _rearmResume==='function') _rearmResume(st); }catch(e){}
+    try{ showPage((typeof ficheLines!=='undefined'&&ficheLines.length)?1:0); }catch(e){}
+    showToast('↩ Réinitialisation annulée — ta commande est revenue.','ok');
+  }catch(e){ console.warn('l434UndoReset:',e); try{ showToast('Impossible d\'annuler (rien n\'a été touché en base).','err'); }catch(_){} }
+}
 // L34 — Bouton "Nouveau plan" (Plan) : vide plan + fiche pour repartir de zéro.
 function resetSiteConfirm(){
   /* [L411 · demande Esteban] le reset marche AUSSI commande/chrono en cours (avant : refus « arrête d'abord le
      chrono »). Le confirm de sécurité RESTE et s'alourdit ; resetAll() appelle chronoReset(true) qui stoppe tout. */
-  const _msgChrono=chronoRunning?'\n\n⏱ Le CHRONO EN COURS sera ARRÊTÉ et remis à zéro (temps non enregistré).':'';
-  // [L67 · Audit] partage actif : prévenir que le reset l'arrête (resetAll clôt le partage).
-  const _msgShare=_shareActive?'\n\n⚠ Le PARTAGE en cours sera ARRÊTÉ (les collègues ne verront plus la commande).':'';
-  if(!confirm('↺ Réinitialiser : vider entièrement le plan et la fiche en cours pour repartir d\'un site vierge ?'+_msgChrono+_msgShare+'\n\n(Les données déjà enregistrées — plans, fiches, brouillons manuels — ne sont pas touchées.)')) return;
+  /* [L434] plus de confirm : on photographie l'ecran pour pouvoir tout remettre en un tap. */
+  const _avait=!!((typeof ficheLines!=='undefined'&&ficheLines.length)||(typeof planHasContent==='function'&&planHasContent()));
+  _l434ResetSnap=null;
+  if(_avait){ try{ _l434ResetSnap=serializeFicheState(); }catch(e){ _l434ResetSnap=null; console.warn('resetSiteConfirm photo:',e); } }
+  const _msgShare434=_shareActive?' · le partage a été arrêté':'';
   // [L294 · revue] capture AVANT resetAll : il annule _viewingSharedId/_localCopyFromShare et vide les champs
   // n° de commande → la garde de protection des brouillons auto (plus bas) serait toujours fausse (code mort).
   const _wasCopy=!!(_localCopyFromShare||_viewingSharedId);
@@ -11943,7 +11974,8 @@ function resetSiteConfirm(){
     if(_keepA||_keepP) showToast('💾 Ta commande en pause reste dans Données > Brouillons (le reset ne vide que l\'écran).','ok');
   }catch(e){ console.warn('resetSiteConfirm purge brouillons auto:',e); }
   try{ if(typeof showPage==='function') showPage(0); }catch(e){}
-  try{ showToast('↺ Site réinitialisé','ok'); }catch(e){}
+  if(_l434ResetSnap) _l434ShowResetUndo(_msgShare434);   /* [L434] instantane, mais annulable 15 s */
+  else { try{ showToast('↺ Site réinitialisé','ok'); }catch(e){} }
 }
 function resetAll(){
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
@@ -12083,7 +12115,7 @@ function getFicheLinesData(){
       droit:get('flDroit')?.checked||false,
       conforme:get('flTest2main')?.checked||false,
       test2nc:get('flTest2nc')?.checked||false,
-      ncRas:ncInput('ras'),ncLarg:ncInput('larg'),ncQty:ncInput('qty'),ncCasse:ncInput('casse'),ncAng:ncInput('ang'),
+      ncRas:ncInput('ras'),ncLarg:ncInput('larg'),ncQty:ncInput('qty'),ncCasse:ncInput('casse'),ncAng:ncInput('ang'),ncHum:ncInput('hum'),
       ncDetail:get('nc_detail')?.value||'',
       ncQtyVal:parseNum(get('nc_qty_val')?.value)||0,ncWidthVal:parseNum(get('nc_w_val')?.value)||0,   /* [L400] NC chiffrée */
       ncLots:(typeof _l408NcLots==='function')?_l408NcLots(id):[],   /* [L408] tous les lots (1re ligne comprise) */
@@ -13311,7 +13343,7 @@ function buildFicheAnalytics(){
     &&(analyseFilter.client==='ALL'||nrm(f.client||'')===nrm(analyseFilter.client)));   // [L83 · Audit #42] fiches REFUSÉES exclues — même règle que le KPI mensuel
   const _faEmpty=`<div class="ana-card" style="text-align:center;color:var(--muted);padding:24px">🎛 Aucune bobine de fiche dans ce périmètre — élargis le filtre.</div>`;
   if(!fiches.length) return _anaFiltered()?_faEmpty:'';
-  let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,totBob=0,ncBob=0;
+  let ncLarg=0,ncQty=0,ncCasse=0,ncAng=0,ncHum=0,totBob=0,ncBob=0;
   const opStat={},machStat={};   // [L86 · simpl.1] clientPct/clientItems morts supprimés
   fiches.forEach(f=>{
     const det=f.ficheDetail||[];
@@ -13335,18 +13367,20 @@ function buildFicheAnalytics(){
       if(d.ncQty){ncQty++;isNc=true;}
       if(d.ncCasse){ncCasse++;isNc=true;}
       if(d.ncAng){ncAng++;isNc=true;}
+      if(d.ncHum){ncHum++;isNc=true;}   /* [L434] */
       if(isNc)ncBob++;
       if(!opStat[op])opStat[op]={nc:0,tot:0}; opStat[op].tot++; if(isNc)opStat[op].nc++;
       if(!machStat[m])machStat[m]={nc:0,tot:0}; machStat[m].tot++; if(isNc)machStat[m].nc++;
     });
   });
   if(!totBob&&_anaFiltered()) return _faEmpty;   // [L249 · R4a] périmètre vide APRÈS filtre bobine → message honnête
-  const ncTotal=ncLarg+ncQty+ncCasse+ncAng;
+  const ncTotal=ncLarg+ncQty+ncCasse+ncAng+ncHum;
   const ncSlices=[
     {label:'Largeur',value:ncLarg,color:'#f87171'},
     {label:'Quantité',value:ncQty,color:'#f59e0b'},
     {label:'Casse',value:ncCasse,color:'#a78bfa'},
-    {label:'Angle',value:ncAng,color:'#60a5fa'}
+    {label:'Angle',value:ncAng,color:'#60a5fa'},
+    {label:'Humain',value:ncHum,color:'#fb923c'}
   ].filter(s=>s.value>0);
   const ncLegend=ncSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">
     <span style="width:12px;height:12px;border-radius:2px;background:${s.color};flex-shrink:0"></span>
@@ -13487,7 +13521,7 @@ function buildMonthlyKpi(ym,fiches,temps){
     let m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m){ const d=new Date(v); return isNaN(d)?new Date(+m[1],+m[2]-1,+m[3],12).getTime():new Date(d.getFullYear(),d.getMonth(),d.getDate(),12).getTime(); }
     m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return new Date(+m[3],+m[2]-1,+m[1],12).getTime();   // repli fr-FR (dateLiv historique jj/mm/aaaa)
     return null; };
-  let qCtrl=0,qNc=0,qLarg=0,qQty=0,qCasse=0,qAng=0,qOuv=0,qDelaiSum=0,qDelaiN=0,ecartsN=0,livTot=0,livOk=0;
+  let qCtrl=0,qNc=0,qLarg=0,qQty=0,qCasse=0,qAng=0,qHum=0,qOuv=0,qDelaiSum=0,qDelaiN=0,ecartsN=0,livTot=0,livOk=0;
   const cliVol={},refVol={};   // [L79·AN-3] volume (bobines) par client / par réf → top 5 stockés dans l'agrégat
   F.forEach(f=>{
     let b=Number(f.totalBobines)||0,p=parseFloat(f.pct);
@@ -13530,6 +13564,7 @@ function buildMonthlyKpi(ym,fiches,temps){
       if(fd.ncQty){qQty++;_is=true;}
       if(fd.ncCasse){qCasse++;_is=true;}
       if(fd.ncAng){qAng++;_is=true;}
+      if(fd.ncHum){qHum++;_is=true;}   /* [L434] */
       if(_is){ qNc++;
         if((fd.ncStatut||'ouvert')!=='cloture') qOuv++;
         const _tr=_pDate(fd.ncDateTraite);
@@ -13559,7 +13594,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
   return {mois:ym,nbFiches:F.length,totalBobines,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13]
-    qual:{ctrl:qCtrl,nc:qNc,larg:qLarg,qty:qQty,casse:qCasse,ang:qAng,ouv:qOuv,delaiMoy:qDelaiN?+(qDelaiSum/qDelaiN).toFixed(1):null},   // [L247 · R3]
+    qual:{ctrl:qCtrl,nc:qNc,larg:qLarg,qty:qQty,casse:qCasse,ang:qAng,hum:qHum,ouv:qOuv,delaiMoy:qDelaiN?+(qDelaiSum/qDelaiN).toFixed(1):null},   // [L247 · R3]
     liv:{tot:livTot,ok:livOk},ecartsN};   // [L247 · R3]
 }
 
@@ -16038,7 +16073,7 @@ function lameNcByBlade(period){
   const map={};
   (fichesCache||[]).forEach(f=>{ if(!f||f.deleted) return; if(!_inPeriod(f.date,period)) return;
     const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[]; const chgAt=(f.lameChg&&f.lameChgBob)?(parseInt(f.lameChgBob,10)||0):0;
-    det.forEach((fd,idx)=>{ if(!fd||!(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng)) return; let blade=f.lame; if(chgAt&&(idx+1)>=chgAt&&f.lameNew) blade=f.lameNew; const k=(blade!=null&&String(blade).trim()!=='')?('Lame '+String(blade).trim()):'Lame ?'; map[k]=(map[k]||0)+1; });
+    det.forEach((fd,idx)=>{ if(!fd||!(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum)) return; let blade=f.lame; if(chgAt&&(idx+1)>=chgAt&&f.lameNew) blade=f.lameNew; const k=(blade!=null&&String(blade).trim()!=='')?('Lame '+String(blade).trim()):'Lame ?'; map[k]=(map[k]||0)+1; });
   });
   return Object.entries(map).map(([label,value])=>({label,value,color:'#f87171'})).sort((a,b)=>b.value-a.value).slice(0,8);
 }
@@ -16049,7 +16084,7 @@ function lameNcByMachine(period){
   (fichesCache||[]).forEach(f=>{ if(!f||f.deleted) return; if(!_inPeriod(f.date,period)) return;
     const lbl=getMachineLabel(f.machine||''); if(!lbl) return;
     const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
-    det.forEach(fd=>{ if(fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng)) map[lbl]=(map[lbl]||0)+1; });
+    det.forEach(fd=>{ if(fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum)) map[lbl]=(map[lbl]||0)+1; });
   });
   return LAME_MACHINES.map(m=>{const lbl=getMachineLabel(m);return {label:lbl,value:map[lbl]||0,color:_mcol(lbl)};});
 }
@@ -17308,6 +17343,7 @@ function buildNcRows(){
       if(fd.ncQty) types.push('qty');
       if(fd.ncCasse) types.push('casse');
       if(fd.ncAng) types.push('ang');
+      if(fd.ncHum) types.push('hum');   /* [L434] */
       if(types.length){
         rows.push({
           ficheId:f._id,bobIdx:i,date:f.date,client:f.client||'—',ref:(fd.ref||f.ref||'—'),numCmd:f.numCmd||'',   // [L83 · Audit #17] multi-réf : la réf RÉELLE de la bobine (fd.ref) prime sur l'en-tête de fiche
@@ -17322,7 +17358,7 @@ function buildNcRows(){
   rows.sort((a,b)=>new Date(b.date)-new Date(a.date));
   return rows;
 }
-const NC_LABELS={larg:'Largeur',qty:'Qté en trop',casse:'Casse',ang:'Angle'};   /* [L414] */
+const NC_LABELS={larg:'Largeur',qty:'Qté en trop',casse:'Casse',ang:'Angle',hum:'Humain'};   /* [L434] */   /* [L414] */
 // [L397 · demande Esteban 24/08] PERTE MATIÈRE d'une NC : les « q×w » du détail (écrits par les puces défaut)
 // × le métrage (ml) de la réf → laize NC (mm) et MATIÈRE NC (m²). Base des futurs calculs de valeur (€/m²).
 // « + Acceptable » = part avec la commande → 0. Détail sans dimension chiffrée → 0 (pas de fausse donnée).
@@ -17521,7 +17557,7 @@ function renderNc(){
   empty.classList.add('hidden');
 
   // Résumé par type
-  const counts={larg:0,qty:0,casse:0,ang:0};
+  const counts={larg:0,qty:0,casse:0,ang:0,hum:0};   /* [L434] */
   rows.forEach(r=>r.types.forEach(t=>counts[t]++));
   const nbOuvertes=rows.filter(r=>r.statut!=='cloture').length;
   summary.innerHTML=partialDataBanner()+`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
@@ -17537,6 +17573,8 @@ function renderNc(){
       <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.casse}</div><div class="u-meta">Casse</div></div>
     <div class="u-tile">
       <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.ang}</div><div class="u-meta">Angle</div></div>
+    <div class="u-tile">
+      <div style="font-size:22px;font-weight:800;color:var(--text)">${counts.hum}</div><div class="u-meta">Humain</div></div>
     ${(function(){ const sD=rows.reduce((a,r)=>a+((r.action==='Déchet')?(r.perteM2||0):0),0), sC=rows.reduce((a,r)=>a+((r.action==='Chutes')?(r.perteM2||0):0),0), tot=sD+sC;
       const f=v=>String(Math.round(v*10)/10).replace('.',','); const pc=v=>tot>0?' <span style="font-size:13px;color:var(--muted)">('+Math.round(v/tot*100)+' %)</span>':'';
       return `<div class="u-tile"><div style="font-size:22px;font-weight:800;color:var(--red)">${f(sD)}${pc(sD)}</div><div class="u-meta">m² en DÉCHET (perdus)</div></div>
@@ -17650,7 +17688,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
   const _exp=f.ficheDetail[bobIdx]||{};
   const expectLabel=(_exp.label||'');
   const expectConf=normConf(_exp.conf);   // [L88] * accepté (une conf tapée « 6*502 » ne fait plus échouer le traitement NC)
-  const expectNc=['ncLarg','ncQty','ncCasse','ncAng'].map(k=>!!_exp[k]).join(',');
+  const expectNc=['ncLarg','ncQty','ncCasse','ncAng','ncHum'].map(k=>!!_exp[k]).join(',');
   try{
     // TX-ncSaveTreat (B2) : lecture-modification-écriture ATOMIQUE. Avant, on réécrivait TOUT
     // le tableau ficheDetail depuis le CACHE local → une clôture NC d'une AUTRE bobine faite
@@ -17670,7 +17708,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
       const cur=det[bobIdx]||{};
       if((cur.label||'')!==expectLabel
          || normConf(cur.conf)!==expectConf
-         || ['ncLarg','ncQty','ncCasse','ncAng'].map(k=>!!cur[k]).join(',')!==expectNc)
+         || ['ncLarg','ncQty','ncCasse','ncAng','ncHum'].map(k=>!!cur[k]).join(',')!==expectNc)
         throw new Error('Fiche modifiée ailleurs (bobines décalées ?) — recharge l\'historique et rouvre la NC.');   // [L72 · Audit B35]
       det[bobIdx]=Object.assign({},cur,changes);          // patch de la SEULE bobine ciblée, sur la version fraîche
       const _fstrip=_ficheStripHeavyPhotos(det);           // M5 : garde-fou 1 Mo (défense en profondeur)
@@ -17972,6 +18010,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
         if(fd.ncQty) ncs.push('Qté en trop');
         if(fd.ncCasse) ncs.push('Casse');
         if(fd.ncAng) ncs.push('Angle');
+        if(fd.ncHum) ncs.push('Humain');   /* [L434] */
         if(ncs.length) ncBadge=`<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;background:#3d1414;color:var(--red)">⚠ ${ncs.join(', ')}</span>`;
       }
       const coupeeTag=fd&&fd.coupee?'<span style="color:#4ade80;font-weight:700">✓ Coupée</span>':'<span style="color:#888">— À couper</span>';
@@ -18006,6 +18045,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
     if(fd.ncQty) ncs.push('Qté en trop');
     if(fd.ncCasse) ncs.push('Casse');
     if(fd.ncAng) ncs.push('Angle');
+    if(fd.ncHum) ncs.push('Humain');   /* [L434] */
     const ncBadge=ncs.length
       ?`<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;background:#3d1414;color:var(--red)">⚠ ${ncs.join(', ')}</span>`
       :'<span style="display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-weight:700;background:#14371f;color:#4ade80">✓ RAS</span>';
@@ -18537,6 +18577,41 @@ function fmmGenOrder(computed){
 // Les GARDES sont STRICTEMENT celles de fmmMoveRef (partage actif · production engagée · étiquettes saisies).
 // Dépose = fmmMoveRefTo (splice) + bandeau « ↩ Annuler » 8 s + vibration 60 ms. ▲▼ restent le plan B.
 let _fmmDrag=null,_fmmPrevOrder=null;
+// [L434 · demande Esteban 26/08] Plus de pop-up « ca va effacer les n° d'etiquette » : on PRESERVE
+// les etiquettes deja tapees au lieu de demander l'autorisation de les perdre. Cle = reference +
+// rang de la bobine DANS sa reference : reordonner les REFS ne change ni leur nombre ni leur ordre
+// interne, donc chaque n° retombe sur SA bobine. Ecrit uniquement dans les champs de saisie.
+function _l434SnapLabels(){
+  const m={};
+  try{
+    const seen={};
+    (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(l){
+      if(!l) return;
+      const k=String(l.refIdKey||('nom\u00a6'+nrm(l.ref||'')));
+      seen[k]=(seen[k]||0)+1;
+      const v=String(((document.getElementById('flLabel_'+l.id)||{}).value)||'').trim();
+      /* on ne memorise QUE ce que l'operateur a reellement tape : l'etiquette AUTO (identique a la
+         meta de la ligne) doit se recalculer librement apres la regeneration, sinon on figerait
+         une numerotation perimee sur les bobines deplacees. */
+      if(v && v!==String(l.label||'').trim()) m[k+'\u00a6'+seen[k]]=v;
+    });
+  }catch(e){}
+  return m;
+}
+function _l434RestoreLabels(m){
+  try{
+    if(!m||!Object.keys(m).length) return;
+    const seen={};
+    (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(l){
+      if(!l) return;
+      const k=String(l.refIdKey||('nom\u00a6'+nrm(l.ref||'')));
+      seen[k]=(seen[k]||0)+1;
+      const v=m[k+'\u00a6'+seen[k]]; if(!v) return;
+      const el=document.getElementById('flLabel_'+l.id);
+      if(el&&String(el.value||'').trim()!==v){ el.value=v; try{ el.dispatchEvent(new Event('input',{bubbles:true})); }catch(_){ } }   /* la saisie operateur repasse DEVANT l'etiquette auto regeneree */
+    });
+  }catch(e){}
+}
 function _fmmOrderGuardsOk(){
   if(typeof _shareCurrentDocId==='function' && _shareCurrentDocId()){
     showToast('🔒 Commande PARTAGÉE : réordonne AVANT de partager (arrête le partage d\'abord).','err'); return false; }
@@ -18546,8 +18621,7 @@ function _fmmOrderGuardsOk(){
 }
 function fmmMoveRefTo(idx,toPos){
   if(!_fmmOrderGuardsOk()) return false;
-  const _typed=ficheLines.some(({id})=>((document.getElementById('flLabel_'+id)?.value||'').trim()!==''));
-  if(_typed && !confirm('Changer l\'ordre va RÉGÉNÉRER les bobines et effacer les n° d\'étiquette bobine mère déjà saisis.\n\nContinuer ?')) return false;
+  const _lbl434=_l434SnapLabels();   /* [L434] les n° d'etiquette sont repris apres la regeneration : plus rien a confirmer */
   const order=fmmCutOrder();
   const from=order.indexOf(idx);
   if(from<0||toPos<0||toPos>=order.length||from===toPos) return false;
@@ -18556,6 +18630,7 @@ function fmmMoveRefTo(idx,toPos){
   ficheRefOrder=order;
   importPlanToFiche({keepRefValidation:true});
   renderFicheMachineBlocks();
+  _l434RestoreLabels(_lbl434);   /* [L434] */
   _fmmPrevOrder=_prevLocal;   // [L313 · fix audit] posé APRÈS l'import (qui purge l'undo) : l'↩ ne peut jamais s'appliquer à une AUTRE commande
   try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
   _fmmShowUndo();
@@ -18574,10 +18649,12 @@ function _fmmShowUndo(){
 }
 function fmmUndoOrder(){
   if(!_fmmPrevOrder||!_fmmOrderGuardsOk()) return;
+  const _lbl434=_l434SnapLabels();   /* [L434] */
   ficheRefOrder=_fmmPrevOrder.slice(); _fmmPrevOrder=null;
   try{ document.getElementById('fmmUndoBar')?.remove(); }catch(e){}
   importPlanToFiche({keepRefValidation:true});
   renderFicheMachineBlocks();
+  _l434RestoreLabels(_lbl434);   /* [L434] */
 }
 function fmmDragStart(ev,idx){
   if(ev.pointerType==='mouse' && ev.button!==0) return;
@@ -18645,8 +18722,7 @@ function fmmMoveRef(idx,dir){
   }
   // [L113 · audit U12] isFicheUntouched ne voit NI étiquette tapée NI conf éditée, mais régénérer
   // les EFFACE. Si des n° de bobine mère ont été saisis, confirmer avant de perdre la saisie.
-  const _typed=ficheLines.some(({id})=>((document.getElementById('flLabel_'+id)?.value||'').trim()!==''));
-  if(_typed && !confirm('Changer l\'ordre va RÉGÉNÉRER les bobines et effacer les n° d\'étiquette bobine mère déjà saisis.\n\nContinuer ?')) return;
+  const _lbl434=_l434SnapLabels();   /* [L434] etiquettes preservees -> plus de pop-up */
   const order=fmmCutOrder();
   const pos=order.indexOf(idx), to=pos+dir;
   if(pos<0||to<0||to>=order.length) return;
@@ -18655,6 +18731,7 @@ function fmmMoveRef(idx,dir){
   // Rien d'engagé (garanti par la garde) : on régénère les bobines dans le nouvel ordre.
   importPlanToFiche({keepRefValidation:true});
   renderFicheMachineBlocks();
+  _l434RestoreLabels(_lbl434);   /* [L434] */
 }
 function fmmIsMulti(){ return fmmRawRefs().length>1; }
 // Index de la réf « en cours » = 1re réf non encore validée (ordre plan).
@@ -19652,6 +19729,7 @@ function addFicheLine(data){
         <div class="nc-checks"><!-- [L105 · Phase 1 · G] libellés courts, ordre Angle/Casse/Larg./Qté ; ids inchangés (updateNC itère par id) -->
           <label class="nc-check bad" id="nc_ang_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Angle</label>
           <label class="nc-check bad" id="nc_casse_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Casse</label>
+          <label class="nc-check bad" id="nc_hum_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Humain</label><!-- [L434 · demande Esteban 26/08] erreur HUMAINE : meme regle qu'angle/casse -> 🗑 Déchet automatique -->
           <label class="nc-check bad" id="nc_larg_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Largeur</label><!-- [L406] mot entier -->
           <label class="nc-check bad" id="nc_qty_${id}"><input type="checkbox" onchange="updateNC('${id}')"> Qté en trop</label><!-- [L414] bobineaux coupes EN PLUS -->
         </div>
@@ -19815,7 +19893,7 @@ function coupeeTapOne(id){
   const ncEl=document.getElementById('flTest2nc_'+id);
   // [L307 · fix audit ISO] « saine » = ni NC test 2ᵉ, NI motif NC dimensionnel coché (Angle/Casse/Larg./Qté) :
   // une bobine déjà en flux défaut ne reçoit AUCUNE attestation automatique — l'opérateur coche lui-même.
-  const ncMotif=['larg','qty','casse','ang'].some(k=>{ const el=document.getElementById('nc_'+k+'_'+id); return el&&el.querySelector('input')&&el.querySelector('input').checked; });
+  const ncMotif=['larg','qty','casse','ang','hum'].some(k=>{ const el=document.getElementById('nc_'+k+'_'+id); return el&&el.querySelector('input')&&el.querySelector('input').checked; });
   let setD=false,setR=false,d=null,r=null;
   if(!already && !(ncEl&&ncEl.checked) && !ncMotif){
     d=document.getElementById('flDevi_'+id);
@@ -19910,7 +19988,7 @@ function toggleCoupee(id){
       return;
     }
     const ncEl=k=>document.getElementById('nc_'+k+'_'+id);
-    const hasNC=['larg','qty','casse','ang'].some(k=>{const el=ncEl(k);return el&&el.querySelector('input').checked;});
+    const hasNC=['larg','qty','casse','ang','hum'].some(k=>{const el=ncEl(k);return el&&el.querySelector('input').checked;});
     const dechet=document.getElementById('act_dechet_'+id)?.classList.contains('btn-red');
     const chutes=document.getElementById('act_chutes_'+id)?.classList.contains('btn-orange');
     if(hasNC && !dechet && !chutes){
@@ -20341,7 +20419,7 @@ function updateTest2Subs(id){
 // d'alarmant ne reste replié. Le statut du test 2ᵉ n'y figure plus : il est VISIBLE sur la carte.
 function syncFlMore(id){
   const det=document.getElementById('flMore_'+id); if(!det) return;
-  const nc=['larg','qty','casse','ang'].some(k=>{const el=document.getElementById('nc_'+k+'_'+id);return el&&el.querySelector('input').checked;});
+  const nc=['larg','qty','casse','ang','hum'].some(k=>{const el=document.getElementById('nc_'+k+'_'+id);return el&&el.querySelector('input').checked;});
   const t2nc=!!(document.getElementById('flTest2nc_'+id)?.checked);
   const stat=document.getElementById('flMoreStat_'+id);
   if(stat) stat.innerHTML=nc?'<span class="st-nc">⚠ NC</span>':(t2nc?'<span class="st-nc">⚠ Test NC</span>':'');   /* [L399 · audit défaut] badge distinct : défaut réel vs test non conforme */
@@ -20358,11 +20436,11 @@ function _l355NcFrequent(id){ try{
   const l=(typeof ficheLines!=='undefined')?ficheLines.find(function(x){ return x&&x.id===id; }):null; if(!l) return;
   const box=document.getElementById(id); const zone=box&&box.querySelector('.nc-checks'); if(!zone||zone.querySelector('.nc-freq')) return;
   const k=nrm(l.ref||((document.getElementById('fRef')||{}).value||'')); if(!k) return;
-  const cnt={ang:0,casse:0,larg:0,qty:0}; let n=0;
-  fichesCache.forEach(function(f){ if(!f||f.deleted||f.valide===false) return; const L=Array.isArray(f.ficheDetail)?f.ficheDetail:(Array.isArray(f.lines)?f.lines:null); if(!L) return;   /* [fix audit] les bobines d'une fiche envoyée sont dans ficheDetail (lines = brouillons) */ L.forEach(function(d){ if(!d||nrm(d.ref||f.ref||'')!==k) return; if(d.ncAng){cnt.ang++;n++;} if(d.ncCasse){cnt.casse++;n++;} if(d.ncLarg){cnt.larg++;n++;} if(d.ncQty){cnt.qty++;n++;} }); });
+  const cnt={ang:0,casse:0,larg:0,qty:0,hum:0}; let n=0;
+  fichesCache.forEach(function(f){ if(!f||f.deleted||f.valide===false) return; const L=Array.isArray(f.ficheDetail)?f.ficheDetail:(Array.isArray(f.lines)?f.lines:null); if(!L) return;   /* [fix audit] les bobines d'une fiche envoyée sont dans ficheDetail (lines = brouillons) */ L.forEach(function(d){ if(!d||nrm(d.ref||f.ref||'')!==k) return; if(d.ncAng){cnt.ang++;n++;} if(d.ncHum){cnt.hum++;n++;} if(d.ncCasse){cnt.casse++;n++;} if(d.ncLarg){cnt.larg++;n++;} if(d.ncQty){cnt.qty++;n++;} }); });
   if(n<2) return;
   const top=Object.keys(cnt).sort(function(a,b){ return cnt[b]-cnt[a]; })[0]; if(cnt[top]<2) return;
-  const lbl={ang:'Angle',casse:'Casse',larg:'Larg.',qty:'Qté'}[top];
+  const lbl={ang:'Angle',casse:'Casse',larg:'Larg.',qty:'Qté',hum:'Humain'}[top];
   const chip=document.createElement('span'); chip.className='nc-freq'; chip.textContent='cause fréquente sur cette réf : '+lbl+' ('+cnt[top]+'×)'; chip.title='Historique en mémoire — indication seulement, rien n\'est coché'; zone.appendChild(chip);
   const lab=document.getElementById('nc_'+top+'_'+id); if(lab) lab.classList.add('nc-freq-hint');
 }catch(e){} }
@@ -20381,7 +20459,7 @@ function test2Resolved(id){
   /* [L424 · demande Esteban] une NC REELLE declaree (Angle/Casse/Largeur/Qte en trop) SUFFIT : le test du
      2e bobineau peut etre BON alors qu'une bobine a lache PLUS LOIN — on n'exige plus « ⚠ Test NC » en plus
      (le chiffrage de la NC reste exige a l'envoi, garde L400/L412). */
-  try{ const _ncOn=['larg','qty','casse','ang'].some(function(k){ const el=document.getElementById('nc_'+k+'_'+id); return !!(el&&el.querySelector('input')&&el.querySelector('input').checked); }); if(_ncOn) return true; }catch(e){}
+  try{ const _ncOn=['larg','qty','casse','ang','hum'].some(function(k){ const el=document.getElementById('nc_'+k+'_'+id); return !!(el&&el.querySelector('input')&&el.querySelector('input').checked); }); if(_ncOn) return true; }catch(e){}
   if(elNC&&elNC.checked){
     // Non conforme : au moins un motif requis (en FEBA, seul Dévidage existe).
     return feba?elDevi.checked:(elDevi.checked||elDroit.checked);
@@ -20392,14 +20470,14 @@ function test2Resolved(id){
 function updateNC(id){
   const rasEl=document.getElementById('nc_ras_'+id);
   const rasCb=rasEl.querySelector('input');
-  const hasNC=['larg','qty','casse','ang'].some(k=>{
+  const hasNC=['larg','qty','casse','ang','hum'].some(k=>{
     const el=document.getElementById('nc_'+k+'_'+id);
     return el&&el.querySelector('input').checked;
   });
   try{ const _ln=document.getElementById(id); if(hasNC&&_ln&&_ln.classList.contains('coupee')&&!_ln.classList.contains('coupee-other')) streakReset(); }catch(e){}   // [L324 · LOT 12·G1] NC déclarée sur une bobine DÉJÀ coupée → série remise à 0 (jamais de message culpabilisant)
   rasCb.checked=!hasNC;
   rasEl.classList.toggle('sel',!hasNC);
-  ['larg','qty','casse','ang'].forEach(k=>{
+  ['larg','qty','casse','ang','hum'].forEach(k=>{
     const el=document.getElementById('nc_'+k+'_'+id);
     if(el) el.classList.toggle('sel',el.querySelector('input').checked);
   });
@@ -20427,17 +20505,17 @@ function _ncActionCue(id){
   const fieldEl=lbl.parentElement;
   const g=k=>{ const el=document.getElementById('nc_'+k+'_'+id); return !!(el&&el.querySelector('input')&&el.querySelector('input').checked); };
   const c=document.getElementById('act_chutes_'+id), d=document.getElementById('act_dechet_'+id);
-  const ang=g('ang'), casse=g('casse'), larg=g('larg'), qty=g('qty');
-  const hasNC=ang||casse||larg||qty;
+  const ang=g('ang'), casse=g('casse'), larg=g('larg'), qty=g('qty'), hum=g('hum');   /* [L434] erreur humaine */
+  const hasNC=ang||casse||larg||qty||hum;
   if(fieldEl) fieldEl.style.display=hasNC?'':'none';
   if(!hasNC){ if(d&&d.classList.contains('btn-red')){ try{ toggleAction(id,'dechet'); }catch(e){} }
     if(c&&c.classList.contains('btn-orange')){ try{ toggleAction(id,'chutes'); }catch(e){} }
     if(d) delete d.dataset.l401auto; if(c) delete c.dataset.l414auto;
     return; }   /* [L419 audit #12/#22] plus AUCUNE NC cochee -> TOUTE action retiree (meme manuelle) : une action invisible (zone masquee) faussait cumuls et registre en silence */
-  if(ang||casse){
+  if(ang||casse||hum){   /* [L434] humain = matiere perdue, comme angle/casse */
     if(d&&!d.classList.contains('btn-red')){ try{ toggleAction(id,'dechet'); }catch(e){} if(d) d.dataset.l401auto='1'; }   /* [L401] on note que c'est NOUS qui l'avons posé */
     if(c) c.style.display='none'; if(d) d.style.display='';
-    lbl.style.color=''; lbl.textContent='Action : 🗑 Déchet (automatique — angle / casse)';
+    lbl.style.color=''; lbl.textContent='Action : 🗑 Déchet (automatique — '+((hum&&!ang&&!casse)?'erreur humaine':('angle / casse'+(hum?' / humain':'')))+')';
     return;
   }
   if(qty&&!(d&&d.classList.contains('btn-red'))){   /* [L414→L419 audit #23] quantite EN TROP -> ✂ CHUTES auto, SAUF si un Déchet est deja pose (manuel ou angle/casse) : il gagne */
@@ -21994,7 +22072,7 @@ function _shareQualityRead(id){
   const act=(()=>{const d=document.getElementById('act_dechet_'+id),c=document.getElementById('act_chutes_'+id),a=document.getElementById('act_accept_'+id);
     if(d&&d.classList.contains('btn-red'))return'dechet'; if(c&&c.classList.contains('btn-orange'))return'chutes'; if(a&&a.classList.contains('btn-green'))return'accept'; return'';})();
   const det=document.getElementById('nc_detail_'+id);
-  return {larg:ck('larg'),qty:ck('qty'),casse:ck('casse'),ang:ck('ang'),det:(det?det.value||'':''),devi:cb2('flDevi'),droit:cb2('flDroit'),t2nc:cb2('flTest2nc'),act:act,
+  return {larg:ck('larg'),qty:ck('qty'),casse:ck('casse'),ang:ck('ang'),hum:ck('hum'),det:(det?det.value||'':''),devi:cb2('flDevi'),droit:cb2('flDroit'),t2nc:cb2('flTest2nc'),act:act,
     lots:(typeof _l408NcLots==='function')?_l408NcLots(id):[]};   /* [L426 · audit doubles comptages] le CHIFFRAGE de la NC voyage : sans lui l'emetteur comptait la bobine ENTIERE au rebut (15/30 au lieu de 29/30) */
 }
 // Application IDEMPOTENTE côté émetteur (la bobine est coupee-other, verrouillée → aucun conflit avec sa saisie).
@@ -22002,7 +22080,7 @@ function _shareQualityApply(id,q){
   if(!q) return;
   const setCk=(k,v)=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb&&cb.checked!==!!v)cb.checked=!!v;};
   let dirty=false;
-  ['larg','qty','casse','ang'].forEach(k=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb&&cb.checked!==!!q[k]){cb.checked=!!q[k];dirty=true;}});
+  ['larg','qty','casse','ang','hum'].forEach(k=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb&&cb.checked!==!!q[k]){cb.checked=!!q[k];dirty=true;}});
   if(dirty) try{ updateNC(id); }catch(e){}
   const det=document.getElementById('nc_detail_'+id); if(det&&det.value!==(q.det||'')) det.value=q.det||'';
   const setCb2=(k,v)=>{const el=document.getElementById(k+'_'+id);if(el&&el.checked!==!!v){el.checked=!!v;return true;}return false;};
@@ -23118,7 +23196,7 @@ function restoreFicheLineFromData(ld){
   const id=ficheLines[ficheLines.length-1].id;
   if(ld.photo){ficholinePhotos[id]=ld.photo;refreshPhotoZone(id);}
   const setCk=(k,val)=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb)cb.checked=!!val;};
-  setCk('larg',ld.ncLarg);setCk('qty',ld.ncQty);setCk('casse',ld.ncCasse);setCk('ang',ld.ncAng);
+  setCk('larg',ld.ncLarg);setCk('qty',ld.ncQty);setCk('casse',ld.ncCasse);setCk('ang',ld.ncAng);setCk('hum',ld.ncHum);
   updateNC(id);
   const det=document.getElementById('nc_detail_'+id);if(det)det.value=ld.ncDetail||'';
   const _q4=document.getElementById('nc_qty_val_'+id);if(_q4)_q4.value=(ld.ncQtyVal>0)?ld.ncQtyVal:'';
@@ -23456,7 +23534,7 @@ function printFiche(){
     const test2=conf2?'✓':((devi?'Dév.':'')+(droit?'Droit':''))||'';
     const cumEl=document.getElementById('flCumul_'+l.id);
     const cumText=(function(){ if(!cumEl) return '—'; try{ const cards=[...cumEl.querySelectorAll('.cumul-card')]; if(cards.length){ const fmtCard=function(c){ const t=(c.querySelector('.cc-t')||{}).textContent||''; const v=(c.querySelector('.cc-v')||{}).textContent||''; const x=(c.querySelector('.cc-x')||{}).textContent||''; const s9=(function(){ const el=c.querySelector('.cumul-cli'); if(!el) return ''; return Array.from(el.children).map(function(x){ return (x.textContent||'').replace(/\s+/g,' ').trim(); }).filter(Boolean).join(' · '); })();   /* [L412 audit] textContent collait les clients (« 5/9B 3/4 ») */ return t.replace(/^\s*LAIZE\s+/i,'').trim()+' : '+v.replace(/\s+/g,' ').trim()+(x.trim()?', '+x.replace(/\s+/g,' ').trim():'')+(s9.trim()?', '+s9.replace(/\s+/g,' ').trim():''); }; return [...cumEl.children].map(function(n){ return n.classList.contains('cumul-card')?fmtCard(n):n.innerText.replace(/\s+/g,' ').trim(); }).filter(Boolean).join(', '); } }catch(e){} return cumEl.innerText.trim().replace(/\n+/g,', '); })();   // [L351 · audit régression] les cartes L334 collaient le texte (« LAIZE 502 mm5 / 9 ») : format papier L303 restauré (« 502 mm : 5 / 9 »)
-    const nc=['larg','qty','casse','ang'].filter(k=>document.getElementById('nc_'+k+'_'+l.id)?.querySelector('input')?.checked);
+    const nc=['larg','qty','casse','ang','hum'].filter(k=>document.getElementById('nc_'+k+'_'+l.id)?.querySelector('input')?.checked);
     const ncText=nc.length?nc.join(', '):'RAS';
     const ncDetail=document.getElementById('nc_detail_'+l.id)?.value||'';
     const dechet=document.getElementById('act_dechet_'+l.id)?.classList.contains('btn-red');
