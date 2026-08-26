@@ -1348,6 +1348,11 @@ has(/Donnees > Lame est a jour|Données > Lame est à jour/,'L435 : le changemen
 has(/id="railMmBtn"|railMmBtn/,'L435 : ⛔ Arret manque de matiere sous Changements dans le rail');
 absent(/🤝 Partager la commande<\/button>/,'L435 : « Partager la commande » retire du tiroir Outils');
 
+console.log('── L436 : finitions (inventaire du 26/08) ──');
+has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque partout (partage abandonne)');
+has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
+has(/registre des lames non mis a jour : machine manquante|registre des lames non mis à jour : machine manquante/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
+
 console.log('── L412 : 13 correctifs de l audit adversarial du 24/08 (6 chasseurs) ──');
 has(/la slice\(1\) supposait ncLots\[0\]=1re ligne/,'L412-1 : restauration — 1er lot NC plus perdu quand la 1re ligne est vide');
 has(/devenu facultatif L400/,'L412-2 : PDF fiche — la perte m² s imprime aussi sans commentaire');

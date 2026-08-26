@@ -127,6 +127,7 @@ button:focus-visible,#nav button:focus-visible,.tab-btn:focus-visible,.nc-check:
 .btn-sm{padding:9px 12px;font-size:13px;border-radius:7px;min-height:44px}
 /* [L59 · Lot 1] Commande partagée (rose depuis L62) — mêmes codes visuels que les autres boutons de l'app */
 .btn-shared{background:var(--shared-bg);color:var(--shared);border:1px solid #8a2857}.btn-shared:hover{background:#42152b}
+#shareBtn{display:none!important}   /* [L436 · decision Esteban 26/08] partage abandonne : le bouton « 🤝 Partager » ne s'affiche plus (portrait comme paysage). Toute la mecanique de partage reste en place et fonctionnelle. */
 /* [L321 · LOT 19] .btn-shared:disabled SUPPRIMÉ (dernier vestige anti zéro-tap-mort) : le bouton Partager n'est plus jamais disabled — estompé + garde parlante */
 .share-modal{background:var(--card);border:1px solid var(--shared);border-radius:12px;padding:13px 14px}
 .share-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border-radius:20px;border:1px solid var(--border2);background:#1a1a18;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;min-height:44px}
@@ -1600,6 +1601,9 @@ body.atelier .stat-tile b{font-size:36px}
   .fiche-line.coupee [id^="flConf_"]{color:var(--muted)!important}
   /* — rail : 🤝 PARTAGER gris (§2.17-A : geste rare, pas une couleur), bandeau chutes plus compact — */
   #shareBtn.btn-shared{background:linear-gradient(#33332f,#2e2e2b)!important;color:var(--text)!important;border:1px solid #59584f!important}
+  /* [L436 · decision Esteban 26/08] le partage est ABANDONNE : le bouton « 🤝 Partager » ne s'affiche plus
+     nulle part (le paysage le masquait deja, le portrait non). Le bloc #shareBlock, le volet et toute la
+     mecanique restent EN PLACE et intouches — un partage encore actif continue de s'afficher et de vivre. */
   #chutesRappelBanner{padding:8px 12px!important;min-height:0}
   /* — cumul : titre du bloc en capitales (pas d'unité dedans) — */
   .cumul-head label{text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--text3)}
@@ -2494,7 +2498,7 @@ html.theme-light .fp-num small{color:#8a8a84}
       </div>
     </div>
   </div>
-<button type="button" class="btn" id="outilsFicheBtn" onclick="openOutilsDlg('outilsFicheDlg')" style="display:none;width:100%;min-height:56px;justify-content:space-between">⚙ Outils <span class="outils-badge">5</span></button><!-- [L338 · §2.13-B maquette 17] tiroir OUTILS du rail (≥1100px) -->
+<button type="button" class="btn" id="outilsFicheBtn" onclick="openOutilsDlg('outilsFicheDlg')" style="display:none;width:100%;min-height:56px;justify-content:space-between">⚙ Outils <span class="outils-badge">4</span></button><!-- [L338 · §2.13-B maquette 17] tiroir OUTILS du rail (≥1100px) -->
 <div class="section" id="etiquetteSoldeFiche" style="margin-top:6px">
     <div class="section-title">🏷️ Étiquette solde</div><!-- [L333 · §2.20] suffixe explicatif retiré (maquette 17) -->
     <div id="etiquetteSoldeList"><div style="font-size:13px;color:var(--muted)">—</div></div>
@@ -3190,7 +3194,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.26-L435';
+const APP_VERSION='2026.08.26-L436';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -23754,7 +23758,11 @@ async function _l435ChgValider(kind){
     const num=V('fLameNew');
     let mk=''; try{ mk=String((typeof ficheMachine!=='undefined'&&ficheMachine)||'').toLowerCase(); }catch(e){}
     if(!mk||typeof LAME_MACHINES==='undefined'||!LAME_MACHINES.includes(mk)){
-      showToast('✓ Changement de lame pris en compte (machine inconnue : le registre sera mis à jour à l\'envoi).','ok'); return; }
+      /* [L436] NE PAS promettre une mise a jour « a l'envoi » : lameDetectOnFiche sort exactement sur la
+         meme machine vide (l.~15097). On dit ce qui est vrai et on donne le geste qui repare. */
+      showToast('✓ Changement de lame noté sur la fiche.\n\n⚠ La MACHINE n\'est pas renseignée : le registre Données > Lame n\'a PAS été mis à jour. Choisis la machine, puis retape ✓ Validé.','err');
+      if(done) done.textContent='✓ '+_l435ChgResume(kind)+' — noté sur la fiche (registre des lames non mis à jour : machine manquante)';
+      return; }
     if(typeof lameActiveForMachine==='function'){
       try{ const cur=lameActiveForMachine(mk); if(cur&&String(cur.lameNum||'').trim().toLowerCase()===num.toLowerCase()){
         showToast('✓ Lame '+num+' — déjà enregistrée sur '+getMachineLabel(mk)+', rien à ressaisir.','ok'); return; } }catch(e){}
