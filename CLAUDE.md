@@ -10,7 +10,7 @@
 1. **Moteur de calcul intouchable** : 11 fonctions gelées byte-identiques. `node tests/engine_identity.js` doit rester 🏆. Ne jamais les modifier, même « pour améliorer ».
 2. **Sorties papier / PDF / étiquettes : format strictement inchangé** (documents qualité ISO).
 3. **Portrait (tablette verticale) = layout historique.** Tout changement visuel se scope en `@media(min-width:1100px)` (paysage).
-4. **Les `confirm()` de sécurité restent** (dé-marquage d'une bobine coupée, reset chrono, suppressions). Seuls les dialogues « conservateurs » ont été retirés sur décision d'Esteban (L390).
+4. **Les `confirm()` de sécurité restent** (dé-marquage d'une bobine coupée, reset chrono, suppressions). Seuls les dialogues « conservateurs » ont été retirés sur décision d'Esteban (L390). **L434** : le confirm de l'ordre de coupe et celui de ↺ Réinitialiser sont retirés sur demande explicite d'Esteban — règle de remplacement : ne jamais retirer un garde-fou sans **supprimer la perte** qu'il protégeait (étiquettes préservées à travers la régénération) ou sans offrir une **annulation** (bandeau « ↩ Annuler » 15 s).
 5. **Jamais de suppression de données de production. Jamais toucher à la console Firebase / aux règles Firestore** — c'est le domaine d'Esteban.
 6. Un lot de modifications = **APP_VERSION bumpé** (`'AAAA.MM.JJ-LNNN'`, LNNN incrémenté) + un **marqueur** dans `tests/audit_regress_test.js` pour tout correctif important.
 7. Écrire dans le fichier via des scripts : attention aux commentaires `//` qui avalent la fin de ligne — toujours re-vérifier la syntaxe (étape 1 ci-dessous).
