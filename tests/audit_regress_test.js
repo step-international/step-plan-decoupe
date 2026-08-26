@@ -821,7 +821,7 @@ console.log('── L349 : retours Esteban n°3 (18/08) ──');
 has(/#planCards \.bobine-card \.card-sub\{display:none\}/,'L349 : cartes du plan compactes en paysage (plus de sous-lignes explicatives)');
 has(/#chgBtnRow\{display:none\}   \/\* ligne 🔧 Changements du haut retirée/,'L349 : ligne 🔧 Changements du haut retirée en paysage (bouton du rail = bascule)');
 has(/#ficheRail>#shareBlock>#shareBtn\{display:none\}/,'L349 : PARTAGER hors du rail (⚙ OUTILS), bloc conservé pour l état partagé');
-has(/class="btn outils-share" onclick="closeOutilsDlg\('outilsFicheDlg'\);toggleSharePanel\(true\)"/,'L349 : entrée 🤝 Partager dans ⚙ OUTILS');
+// [L435 · demande Esteban 26/08] entree « 🤝 Partager la commande » RETIREE du tiroir (partage abandonne) — l acquis L349 « le partage ne squatte plus le rail » reste vrai a fortiori.
 has(/hb\.classList\.add\('rail-hide'\)/,'L349 : 🙈/👁 coupées déplacé dans le rail en paysage (retour dans #chgBtnRow en portrait)');
 
 console.log('── L350 : retours Esteban n°4 (18/08) ──');
@@ -1331,6 +1331,22 @@ has(/_l434RestoreLabels\(_lbl434\)/,'L434 : restauration appelee apres chaque re
 has(/le confirm de securite est remplace par/,'L434 : ↺ Reinitialiser instantane');
 has(/function l434UndoReset\(\)/,'L434 : reinitialisation ANNULABLE 15 s (rien n est perdu)');
 absent(/vider entièrement le plan et la fiche en cours pour repartir d/,'L434 : le pop-up du reset a bien disparu');
+
+console.log('── L435 : reprise au rechargement · reset complet · changements ──');
+has(/MIROIR LOCAL DE LA COMMANDE/,'L435 : la commande est photographiee en localStorage comme le chrono');
+has(/function persistCmdLive/,'L435 : ecriture du miroir local');
+has(/PHOTO LOCALE D'ABORD, avant TOUTE garde susceptible de sortir/,'L435 : le miroir echappe a la garde « brouillon consomme »');
+has(/FILET LOCAL : ni le cache ni la base n'ont rendu la commande/,'L435 : la reprise lit le miroir local en dernier recours');
+has(/on ne se verrouille QUE sur la fiche revenue/,'L435 : le one-shot ne se referme plus sur un echec');
+has(/_l435InstallResume/,'L435 : la reprise existe meme sans authentification (tablette hors ligne)');
+has(/SITE VRAIMENT VIERGE/,'L435 : ↺ Reinitialiser vide aussi les blocs reference');
+has(/document\.querySelectorAll\('\.rb-chutes,\.rb-recuts'\)\.forEach/,'L435 : stock et chutes vides par le reset');
+has(/},3500\);/,'L435 : bandeau d annulation raccourci a 3,5 s');
+has(/function _l435ChgValider/,'L435 : bouton « ✓ Valide » par changement');
+has(/chg-ok-btn/,'L435 : le bouton Valide vit sur la MEME ligne que ses champs');
+has(/Donnees > Lame est a jour|Données > Lame est à jour/,'L435 : le changement de lame alimente le registre (plus de double saisie)');
+has(/id="railMmBtn"|railMmBtn/,'L435 : ⛔ Arret manque de matiere sous Changements dans le rail');
+absent(/🤝 Partager la commande<\/button>/,'L435 : « Partager la commande » retire du tiroir Outils');
 
 console.log('── L412 : 13 correctifs de l audit adversarial du 24/08 (6 chasseurs) ──');
 has(/la slice\(1\) supposait ncLots\[0\]=1re ligne/,'L412-1 : restauration — 1er lot NC plus perdu quand la 1re ligne est vide');

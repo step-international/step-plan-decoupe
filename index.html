@@ -87,6 +87,21 @@ label{font-size:13.5px;color:var(--muted);display:block;margin-bottom:4px}
 /* [L79] Boîtes « changement en cours » (lame / machine / op.2) regroupées sous le bouton « Changements » */
 .chg-section{background:#1a1a18;border:1px solid var(--border2);border-radius:10px;padding:12px}
 #changementsZone .chg-section{margin:0 0 9px}
+/* ── [L435 · demande Esteban 26/08] bloc CHANGEMENTS : plus compact, plus lisible, un « ✓ Validé »
+      par changement SUR LA MEME LIGNE que ses champs (les vieux boutons prenaient toute la largeur). */
+.chg-section{transition:border-color .18s,background .18s}
+.chg-section .row2{align-items:flex-end;gap:8px}
+.chg-section .row2:has(.chg-ok-btn){grid-template-columns:1fr 1fr auto}
+.chg-row{display:flex;align-items:flex-end;gap:8px}
+.chg-ok-btn{flex:0 0 auto;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #2c5c3d;background:#16301f;color:#7bd99f;
+  font-family:inherit;font-size:14px;font-weight:800;letter-spacing:.03em;white-space:nowrap;cursor:pointer;transition:background .15s,transform .12s}
+.chg-ok-btn:active{transform:scale(.97)}
+.chg-ok-btn:hover{background:#1d3f2a}
+.chg-section.chg-ok{border-color:#2c5c3d;background:#141a16}
+.chg-section.chg-ok .chg-ok-btn{background:#7bd99f;color:#0f1a13;border-color:#7bd99f}
+.chg-done{display:none;margin-top:8px;font-size:13px;font-weight:700;color:#7bd99f;display:none}
+.chg-section.chg-ok .chg-done{display:block}
+.chg-section.chg-ok .text-muted{display:none}   /* la phrase d'aide s'efface une fois valide : l'ecran respire */
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:400px){.row2{grid-template-columns:1fr}}/* [L142 · ergo #24] très petit écran (iPhone SE/mini) : paires Client/N°, Palette/Type… tombaient à ~140px (libellés tronqués) — 1 colonne, aligné sur .row3/.fiche-grid */
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
@@ -1746,7 +1761,8 @@ body.atelier .stat-tile b{font-size:36px}
 .fp-jalon{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;border:1px solid #6a5200;background:#1f1804;color:#ffd45e;font:700 14px/1 var(--f-head);letter-spacing:.04em;white-space:nowrap}
 .rail-chg{display:none}
 @media(min-width:1100px){
-  #ficheRail>.rail-chg{display:flex!important;order:5;min-height:48px;justify-content:space-between;font-size:15px;margin-top:6px}
+  #ficheRail>.rail-chg{display:flex!important;order:5;min-height:60px;justify-content:space-between;font-size:17px;font-weight:800;margin-top:6px}   /* [L435 · demande Esteban] bouton CHANGEMENTS plus gros */
+  #ficheRail>.rail-mm{display:flex!important;order:6;min-height:56px;justify-content:flex-start;font-size:16px;font-weight:800;margin-top:6px;background:#3d1414;border:1px solid #f87171;color:var(--red)}   /* [L435] ⛔ Arret manque de matiere SOUS Changements */
   #ficheRail>.rail-chg .outils-badge{font-size:12px;letter-spacing:.02em}
   /* chrono : les chiffres restent XXL, PAUSE/RESET (rares) passent en boutons discrets 48px */
   #ficheRail #chronoStartBtn,#ficheRail #chronoPauseBtn{min-height:48px;font-size:16px}
@@ -2558,8 +2574,9 @@ html.theme-light .fp-num small{color:#8a8a84}
               <option value="">— Choisir une bobine —</option>
             </select>
           </div>
+          <button type="button" class="chg-ok-btn" id="chgOkLame" onclick="_l435ChgValider('lame')">✓ Validé</button><!-- [L435 · demande Esteban] valide SUR LA MEME LIGNE : met a jour Donnees > Lame sans ressaisie -->
         </div>
-        <div class="text-muted" style="font-size:12px;margin-top:6px">La liste se remplit automatiquement depuis le plan, comme l'opérateur 2.</div>
+        <div class="chg-done" id="chgDoneLame"></div>
       </div>
     </div>
     <!-- [L65] Changement de MACHINE en cours de commande (op. 1) — même logique que la lame -->
@@ -2585,7 +2602,9 @@ html.theme-light .fp-num small{color:#8a8a84}
               <option value="">— Choisir une bobine —</option>
             </select>
           </div>
+          <button type="button" class="chg-ok-btn" id="chgOkMach" onclick="_l435ChgValider('mach')">✓ Validé</button><!-- [L435] -->
         </div>
+        <div class="chg-done" id="chgDoneMach"></div>
         <div class="text-muted" style="font-size:12px;margin-top:6px">Les bobines à partir de ce n° passent sur la nouvelle machine : couleur de la carte, test 2ᵉ bobineau adapté (FEBA = Dévidage seul), bandeau ⚙ sur le PDF de la fiche. Si la nouvelle machine impose d'autres bords/lame, ajuste les champs Machine ci-dessus puis « 🔄 Changement plan » pour ré-empaqueter le reste.</div>
       </div>
     </div>
@@ -2625,10 +2644,13 @@ html.theme-light .fp-num small{color:#8a8a84}
         </div>
         <input type="hidden" id="fInitiales2" value="">
         <label id="fOp2BobLbl">Repris à partir de la bobine n°</label><!-- [L133 · revue B] passe « ⚠ à choisir » si op.2 actif sans bobine (temps op.2 sinon invisible dans les stats) -->
-        <select id="fOp2Bobine" onchange="_op2BobCue()">
-          <option value="">— Choisir une bobine —</option>
-        </select>
-        <div class="text-muted" style="font-size:12px;margin-top:6px">La liste se remplit automatiquement depuis le plan.</div>
+        <div class="chg-row">
+          <select id="fOp2Bobine" onchange="_op2BobCue()" style="flex:1;min-width:0">
+            <option value="">— Choisir une bobine —</option>
+          </select>
+          <button type="button" class="chg-ok-btn" id="chgOkOp2" onclick="_l435ChgValider('op2')">✓ Validé</button><!-- [L435] -->
+        </div>
+        <div class="chg-done" id="chgDoneOp2"></div>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:12px">
           <input type="checkbox" id="fOp2DiffMachine" onchange="toggleOp2Machine()" style="width:18px;height:18px;flex:0 0 auto;accent-color:var(--orange)">
           <span style="font-size:13px;color:var(--text)">A coupé sur une autre machine</span>
@@ -2974,8 +2996,7 @@ html.theme-light .fp-num small{color:#8a8a84}
       <button class="btn outils-chg" onclick="closeOutilsDlg('outilsFicheDlg');outilsChangements()">🔧 Changements — machine · lame · op.2</button><!-- [L350 · demande Esteban] masqué en paysage : le bouton 🔧 du rail suffit --><!-- [L339 · audit] ouvre VRAIMENT la zone (elle est repliée .hidden) -->
       <!-- [L414] « ＋ Ligne manuelle » retire du tiroir aussi -->
       <button class="btn outils-hide-coupees" onclick="closeOutilsDlg('outilsFicheDlg');toggleHideCoupees()">🙈 Masquer / afficher les coupées</button><!-- [L349] masqué en paysage : le bouton vit dans le rail -->
-      <button class="btn outils-share" onclick="closeOutilsDlg('outilsFicheDlg');toggleSharePanel(true)">🤝 Partager la commande</button><!-- [L349 · demande Esteban] le partage (rare) ne vit plus que dans ⚙ OUTILS -->
-      <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');saveDraftManual()">💾 Brouillon</button>
+      <!-- [L435 · demande Esteban 26/08] « 🤝 Partager la commande » RETIRE (partage abandonne) et « 💾 Brouillon » RETIRE (l'enregistrement est automatique toutes les 15 s + photo locale L435). -->
       <!-- [L361 → retiré L382 · décision Esteban 21/08] entrée « 🔄 Recorriger une bobine mère » supprimée du tiroir (recorrection restante : bloc de la réf EN COURS dans l'en-tête, et portrait) -->
       <button class="btn" id="outilsRecapBtn" onclick="closeOutilsDlg('outilsFicheDlg');outilsReveal('#cliRecapFiche')">📥 Récap emballage par client</button><!-- [L339 · audit] visible seulement en multi-clients (openOutilsDlg) — en mono la cible n'existe pas à l'écran -->
       <button class="btn" onclick="closeOutilsDlg('outilsFicheDlg');stopManqueMatiere()">⛔ Arrêt — manque de matière</button>
@@ -3169,7 +3190,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.26-L434';
+const APP_VERSION='2026.08.26-L435';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4285,10 +4306,10 @@ document.addEventListener('keydown',function(e){
         /* [L428 · bug Esteban « rechargement pendant la coupe »] la reprise a 600 ms COURAIT contre le 1er
            snapshot brouillons : cache vide -> get() serveur -> selon le reseau, chrono relance SEUL sans la
            fiche. Desormais la reprise part QUAND les brouillons sont arrives (signal), filet 4 s. */
-        window._l428ResumeDone=false;
-        window._l428TryResume=function(){ try{ if(window._l428ResumeDone) return; window._l428ResumeDone=true;
-          maybeResumeRunningChrono().then(maybeResumePlan).catch(function(){ maybeResumePlan(); }); }catch(e){} };
-        setTimeout(function(){ try{ window._l428TryResume(); }catch(e){} },4000);
+        /* [L435] la fonction est definie au niveau global (voir _l435InstallResume) : ici on ne fait que
+           REVEILLER la reprise maintenant que l'operateur est identifie — c'est le moment ou autosaveId()
+           devient juste (avant, _uid() vaut 'anon' et l'identifiant du brouillon ne correspond a rien). */
+        [0,1200,4000,9000,20000].forEach(function(ms){ setTimeout(function(){ try{ window._l428TryResume(); }catch(e){} },ms); });
       }else{
         // UID non reconnu — déconnecter
         console.warn('UID non reconnu:',user.uid);
@@ -10426,6 +10447,32 @@ function persistChronoLive(){
   }catch(e){}
 }
 function readChronoLive(){ try{ return JSON.parse(localStorage.getItem(CHRONO_LS_KEY)||'null'); }catch(e){ return null; } }
+// ============================================================
+// [L435 · bug Esteban 26/08 (photo IMG_5683)] MIROIR LOCAL DE LA COMMANDE.
+// Au rechargement, le CHRONO revenait au bon temps mais la commande avait disparu :
+// asymetrie structurelle. Le chrono vit dans localStorage (synchrone, hors-ligne, sans
+// identite) ; la commande ne vivait QUE dans le brouillon auto Firestore, lu via
+// brouillonsCache — donc dependante du reseau, de la persistance offline (qui echoue
+// quand un 2e onglet la detient) et de l'uid resolu. Si l'un des trois manque a l'instant
+// du boot : chrono seul, ecran vide.
+// On ecrit donc la commande la ou le chrono survit deja. Aucune donnee de production ne
+// transite ici : c'est une PHOTO LOCALE de l'ecran, effacee des que la commande est
+// envoyee ou reinitialisee. Le brouillon Firestore reste le canal principal.
+// ============================================================
+const CMD_LS_KEY='step_cmd_live';
+function persistCmdLive(st){
+  try{
+    if(typeof trainingGuard==='function'&&trainingGuard()) return;
+    if((typeof _viewingSharedId!=='undefined'&&_viewingSharedId)||(typeof _localCopyFromShare!=='undefined'&&_localCopyFromShare)) return;   /* meme garde que le brouillon auto : une commande de collegue ne devient jamais une commande perso */
+    const s0=st||((typeof serializeFicheState==='function')?serializeFicheState():null);
+    if(!s0||!s0.lines||!s0.lines.length) return;
+    let light=s0;
+    try{ const _w=_draftStrip({id:'cmdlive',state:s0}); if(_w&&_w.state) light=_w.state; }catch(e){}   /* photos lourdes retirees : le quota localStorage est petit */
+    localStorage.setItem(CMD_LS_KEY,JSON.stringify({v:1,uid:_uid(),dev:_deviceId(),id:autosaveId(),at:Date.now(),state:light}));
+  }catch(e){}   /* quota depasse / mode prive : on n'insiste pas, le brouillon Firestore reste */
+}
+function readCmdLive(){ try{ return JSON.parse(localStorage.getItem(CMD_LS_KEY)||'null'); }catch(e){ return null; } }
+function clearCmdLive(){ try{ localStorage.removeItem(CMD_LS_KEY); }catch(e){} }
 let _wakeLock=null;
 async function acquireWakeLock(){
   try{ if('wakeLock' in navigator && chronoRunning && !_wakeLock){ _wakeLock=await navigator.wakeLock.request('screen'); _wakeLock.addEventListener('release',()=>{_wakeLock=null;}); } }catch(e){}
@@ -11917,10 +11964,10 @@ function _l434ShowResetUndo(extra){
     b.innerHTML='<span style="flex:1">↺ Site réinitialisé'+(extra||'')+'</span><button class="btn btn-sm" style="min-height:48px;white-space:nowrap" onclick="l434UndoReset()">↩ Annuler</button>';
     document.body.appendChild(b);
     if(_l434ResetTimer) clearTimeout(_l434ResetTimer);
-    _l434ResetTimer=setTimeout(function(){ try{ b.remove(); }catch(e){} _l434ResetSnap=null; _l434ResetTimer=null; },15000);
+    _l434ResetTimer=setTimeout(function(){ try{ b.remove(); }catch(e){} _l434ResetSnap=null; _l434ResetTimer=null; },3500);   /* [L435 · demande Esteban] 15 s etait trop long — le bandeau squattait l'ecran */
   }catch(e){}
 }
-function l434UndoReset(){
+function l434UndoReset(){   /* [L435] bandeau raccourci a 3,5 s */
   const st=_l434ResetSnap;
   if(!st){ try{ showToast('Trop tard pour annuler la réinitialisation.','err'); }catch(e){} return; }
   _l434ResetSnap=null;
@@ -11978,6 +12025,7 @@ function resetSiteConfirm(){
   else { try{ showToast('↺ Site réinitialisé','ok'); }catch(e){} }
 }
 function resetAll(){
+  try{ clearCmdLive(); }catch(e){}   /* [L435] site vierge : la photo locale de la commande part avec l'ecran */
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
   _resumedDraftId=null; _loadedSoldeDraftId=null;   // [L108 · Phase 4C] · [L367]
@@ -12016,6 +12064,32 @@ function resetAll(){
   document.getElementById('planDateLiv').value='';
   document.getElementById('packagingAlert').classList.add('hidden');
   document.querySelectorAll('.order-row').forEach(function(r){r.remove();});
+  /* ============================================================
+     [L435 · bug Esteban 26/08 (photos IMG_5684/5685)] SITE VRAIMENT VIERGE.
+     resetAll ne retirait que les .order-row : tout le reste des blocs reference survivait au ↺ —
+     les bobineaux en stock (.rb-chute-row) et les chutes/rouleaux recoupes (.rb-recut-row), la laize
+     utilisable saisie, la longueur, le film, la reference, et meme les blocs « Reference 2/3 » entiers.
+     L'operateur repartait donc sur une commande neuve avec la matiere de la precedente deja deduite :
+     silencieux, et faux dans les cumuls. On vide ici EXACTEMENT ce que la reprise d'un plan vide
+     (_restoreRefGroupsBody) vide deja — meme selecteurs, meme ordre.
+     ============================================================ */
+  try{
+    document.querySelectorAll('.ref-block.extra').forEach(function(b){ try{ const _lt=b.previousElementSibling; if(_lt&&_lt.classList&&_lt.classList.contains('plan-outils-top')) _lt.remove(); }catch(e){} b.remove(); });
+    if(typeof _refBlockSeq!=='undefined') _refBlockSeq=1;
+    if(typeof renumberRefBlocks==='function') renumberRefBlocks();
+    document.querySelectorAll('.rb-chutes,.rb-recuts').forEach(function(z){ z.innerHTML=''; });   /* bobineaux en stock + chutes recoupees */
+    document.querySelectorAll('#refBlocks [data-rb="film"],#refBlocks [data-rb="veka"],#refBlocks [data-rb="longueur"],#refBlocks [data-op-useful]').forEach(function(el){ el.value=''; });
+    document.querySelectorAll('#refBlocks [data-rb="ref"]').forEach(function(sel){ try{ sel.innerHTML='<option value="">— Référence —</option>'; sel.value=''; }catch(e){} });
+    const _ud=document.getElementById('usefulDisplay'); if(_ud){ _ud.style.display='none'; _ud.textContent=''; }
+    /* mere / bords / lame : on repart des valeurs par defaut de la MACHINE choisie (les miroirs caches
+       gardaient sinon la bobine mere de la commande precedente, et la case « laize utilisable » la reaffichait). */
+    const _md=(typeof MACHINE_DEFAULTS!=='undefined')?(MACHINE_DEFAULTS[(typeof _l363DefaultMachine==='function'?_l363DefaultMachine():'')||'feba']||MACHINE_DEFAULTS.feba):null;
+    document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){
+      const mo=b.querySelector('[data-rb="mother"]'); if(mo) mo.value='';
+      const ed=b.querySelector('[data-rb="edge"]'); if(ed) ed.value=_md?String(_md.edge):'';
+      const bl=b.querySelector('[data-rb="blade"]'); if(bl) bl.value=_md?String(_md.blade):'';
+    });
+  }catch(e){ console.warn('resetAll blocs reference :',e); }
   // [L363 · analyse parcours B3 (validée Esteban 19/08)] machine PRÉ-CHOISIE pour la commande suivante : compte machine « Poste X »
   // d'abord, sinon la dernière machine choisie sur ce poste (step_last_machine, déjà utilisée au boot) — corrigeable en 1 tap ; rien n'est attesté
   // (c'est le même défaut qu'au boot ; la fiche hérite via L359). Sans poste ni mémoire : comme avant (selects vides).
@@ -20881,6 +20955,9 @@ function _l340SetupFichePills(){ try{
     _placeHide(); const mq2=window.matchMedia('(min-width:1100px)'); const on2=function(){ try{ _placeHide(); }catch(_){} }; if(mq2.addEventListener) mq2.addEventListener('change',on2); else if(mq2.addListener) mq2.addListener(on2); }catch(e){}
   // [L344 · inventaire §2.10] 🔧 CHANGEMENTS (lame · machine · op.2 · changement plan) en 1 tap dans le rail (paysage) — il fallait ⚙ → 🔧 → case = 3 taps
   try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railChgBtn')){ const b=document.createElement('button'); b.type='button'; b.id='railChgBtn'; b.className='btn rail-chg'; b.setAttribute('aria-controls','ficheChgSec'); b.innerHTML='🔧 Changements <span class="outils-badge">lame · machine · op.2</span>'; b.addEventListener('click',function(){ try{ const sec=document.getElementById('ficheChgSec'); if(sec&&sec.classList.contains('reveal')){ sec.classList.remove('reveal'); renderFicheHeadPills(); } else outilsChangements(); }catch(_){} });   /* [L349] bascule : 2e tap = replier */ const ob=document.getElementById('outilsFicheBtn'); if(ob&&ob.parentNode===rail) rail.insertBefore(b,ob.nextSibling); else rail.appendChild(b); } }catch(e){}
+  /* [L435 · demande Esteban] ⛔ ARRET MANQUE DE MATIERE : sorti du tiroir ⚙ OUTILS, place JUSTE SOUS « Changements »
+     dans le rail. Meme handler (stopManqueMatiere) donc memes gardes ; l'entree du tiroir reste pour le portrait. */
+  try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railMmBtn')){ const m=document.createElement('button'); m.type='button'; m.id='railMmBtn'; m.className='btn rail-mm'; m.innerHTML='⛔ Arrêt — manque de matière'; m.addEventListener('click',function(){ try{ stopManqueMatiere(); }catch(_){} }); const cb2=document.getElementById('railChgBtn'); if(cb2&&cb2.parentNode===rail) rail.insertBefore(m,cb2.nextSibling); else rail.appendChild(m); } }catch(e){}
   // les pastilles suivent la saisie dans les sections repliables (input/change/click délégués — sans toucher aux handlers)
   ['ficheHeadSec','fMachineMono','ficheChgSec'].forEach(function(id){ const el=document.getElementById(id); if(!el) return;
     ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ setTimeout(renderFicheHeadPills,0); }); });
@@ -22499,6 +22576,7 @@ async function clearCurrentDraft(ficheId){
   // attendant le résultat ; en cas d'échec on marque {consumed:true, ficheId} — ces
   // brouillons sont filtrés au rendu et refusés à la reprise.
   const ids=[autosaveId(), planAutosaveId()];
+  try{ clearCmdLive(); }catch(e){}   /* [L435] commande produite : la photo locale est consommee (jamais de commande ressuscitee) */
   if(_resumedForeignDraftId){
     // [L103 · audit-max] passation : le brouillon auto du poste précédent est consommé par CET envoi.
     // [L245 · sceptique] GARDE DE CONCORDANCE : on ne le consomme QUE si sa commande correspond à celle
@@ -22747,6 +22825,14 @@ function autosaveDraftTick(force){
   // ressort comme une commande normale, sans bandeau ni confirm → double découpe.
   if(_viewingSharedId||_localCopyFromShare) return;
   const st=serializeFicheState();
+  /* [L435] PHOTO LOCALE D'ABORD, avant TOUTE garde susceptible de sortir. C'est delibere : les gardes
+     ci-dessous (signature inchangee, brouillon marque « consomme » apres un envoi dont la suppression a
+     echoue, deuxieme onglet) protegent la BASE contre une resurrection — mais elles empechaient aussi la
+     commande d'etre memorisee QUELQUE PART. Un poste dont le brouillon auto est reste « consomme » ne
+     sauvegardait plus rien : au rechargement, chrono seul et ecran vide (bug terrain du 26/08).
+     La photo locale n'a aucune de ces consequences : elle ne vit que sur CE poste, et elle est effacee
+     des que la commande est envoyee (clearCurrentDraft) ou l'ecran vide (resetAll). */
+  try{ persistCmdLive(st); }catch(e){}
   // CO-2 : ne réécrire le brouillon auto que si le CONTENU a changé (comme planAutosaveTick).
   // On EXCLUT le chrono de la signature (chrono.sec ticke chaque seconde et ferait un write
   // à chaque tick) : l'état live du chrono est déjà sauvegardé en localStorage (CHRONO_LS_KEY)
@@ -22799,6 +22885,33 @@ function _rearmResume(st){
     if(d && !d.consumed && !d.deleted) _resumedDraftId=rid;
   }catch(e){}
 }
+// ============================================================
+// [L435] REPRISE APRES RECHARGEMENT — installee au niveau global.
+// Avant, tout (la fonction ET ses minuteries) vivait dans le callback d'authentification :
+// une tablette qui demarre sans reseau n'avait tout simplement AUCUNE reprise. Et le verrou
+// one-shot etait pose avant de savoir si la reprise avait abouti : une tentative malheureuse
+// (brouillons pas encore arrives, get() en echec) laissait l'ecran vide DEFINITIVEMENT, avec
+// le chrono qui tourne — le bug etait incomprehensible en atelier.
+// Desormais : on ne verrouille qu'en cas de SUCCES, et on retente a plusieurs rendez-vous.
+// ============================================================
+window._l428ResumeDone=false;
+window._l428ResumeBusy=false;
+window._l428TryResume=function(){ try{
+  if(window._l428ResumeDone||window._l428ResumeBusy) return;
+  if(typeof maybeResumeRunningChrono!=='function') return;
+  window._l428ResumeBusy=true;
+  const _fin=function(){
+    window._l428ResumeBusy=false;
+    /* on ne se verrouille QUE sur la fiche revenue. Se verrouiller parce que « le plan a du contenu »
+       fermerait la porte a cause d'un simple RESIDU de saisie plan — c'est exactement le scenario qui a
+       coute la commande d'Esteban. maybeResumePlan est idempotent (gardes en tete) : retenter ne coute rien. */
+    try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) window._l428ResumeDone=true; }catch(e){}
+  };
+  Promise.resolve(maybeResumeRunningChrono()).then(maybeResumePlan).catch(function(){ return maybeResumePlan(); }).then(_fin,_fin);
+}catch(e){ window._l428ResumeBusy=false; } };
+(function _l435InstallResume(){ try{
+  [2500,6000,12000,25000].forEach(function(ms){ setTimeout(function(){ try{ window._l428TryResume(); }catch(e){} },ms); });   /* filets INDEPENDANTS de l'authentification : la photo locale suffit a tout rendre */
+}catch(e){} })();
 async function maybeResumeRunningChrono(){
   try{
     if(ficheLines&&ficheLines.length) return;           // une fiche est déjà à l'écran
@@ -22807,9 +22920,20 @@ async function maybeResumeRunningChrono(){
     const live=readChronoLive();                         // sauvegarde instantanée (localStorage, hors-ligne)
     const aid=(typeof autosaveId==='function')?autosaveId():null;
     let d=null;
-    if(db&&aid){
+    if(aid){
       d=loadDrafts().find(x=>x.id===aid);
-      if(!d){ try{ const snap=await db.collection('brouillons').doc(aid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
+      if(!d&&db){ try{ const snap=await db.collection('brouillons').doc(aid).get(); if(snap.exists) d=Object.assign({id:snap.id},snap.data()); }catch(e){} }
+    }
+    /* [L435] FILET LOCAL : ni le cache ni la base n'ont rendu la commande (reseau coupe, persistance
+       offline refusee a cause d'un 2e onglet, uid pas encore resolu, brouillon jamais parti). La photo
+       localStorage du meme POSTE prend le relais — c'est ce qui fait deja revenir le chrono. */
+    if(!d||!(d.state&&d.state.lines&&d.state.lines.length)){
+      try{
+        const lv=readCmdLive();
+        if(lv&&lv.state&&lv.state.lines&&lv.state.lines.length&&lv.dev===_deviceId()&&(lv.uid===_uid()||_uid()==='anon')){
+          if(!d||(d.savedAt&&lv.at&&Date.parse(d.savedAt)<lv.at)) d={id:lv.id||aid,savedAt:new Date(lv.at||Date.now()).toISOString(),state:lv.state,auto:true,_l435Local:true};
+        }
+      }catch(e){}
     }
     // Bug « commande validée reproposée » : un brouillon AUTO marqué consumed = commande
     // DÉJÀ produite (envoi OK mais delete du brouillon échoué hors-ligne → repli consumed).
@@ -23589,6 +23713,71 @@ function _l79SyncChgBtn(){
   b.classList.toggle('btn-orange',on);
   b.textContent=(on?'🔧 Changements EN COURS ●':'🔧 Changements');
 }
+// ============================================================
+// [L435 · demande Esteban 26/08] « ✓ Validé » par changement.
+// Un seul tap confirme le changement, replie les explications et affiche un resume vert.
+// Pour la LAME, c'est aussi la fin de la double saisie : la pose part DIRECTEMENT dans
+// Donnees > Lame via lameInstall() — qui recharge le registre, demonte l'ancienne lame
+// et ecrit l'evenement d'installation. La detection a l'envoi (lameDetectOnFiche) verra
+// alors la lame deja posee et ne posera plus sa question : zero doublon, zero popup.
+// Aucune valeur de la fiche n'est modifiee ici : on ne fait que confirmer et tracer.
+// ============================================================
+function _l435ChgResume(kind){
+  const V=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; };
+  if(kind==='lame'){ const b=V('fLameChgBob'); return '🔧 Lame '+(V('fLameNew')||'?')+(b?(' — à partir de la bobine '+b):''); }
+  if(kind==='mach'){ const m=V('fMachChgTo'), b=V('fMachChgBob'); return '⚙ '+((typeof getMachineLabel==='function'&&m)?getMachineLabel(m):(m||'?'))+(b?(' — à partir de la bobine '+b):''); }
+  const b2=V('fOp2Bobine'); return '👤 Opérateur 2 : '+(V('fInitiales2')||'?')+(b2?(' — à partir de la bobine '+b2):'');
+}
+async function _l435ChgValider(kind){
+  try{
+    const V=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; };
+    const sec=document.getElementById(kind==='lame'?'chgLame':(kind==='mach'?'chgMach':'chgOp2'));
+    const done=document.getElementById(kind==='lame'?'chgDoneLame':(kind==='mach'?'chgDoneMach':'chgDoneOp2'));
+    if(kind==='lame'){
+      const num=V('fLameNew'), bob=V('fLameChgBob');
+      if(!num){ showToast('🔧 Indique le n° de la NOUVELLE lame avant de valider.','err'); document.getElementById('fLameNew')?.focus(); return; }
+      if(!bob){ showToast('🔧 Indique à partir de QUELLE BOBINE la nouvelle lame a coupé.','err'); document.getElementById('fLameChgBob')?.focus(); return; }
+    } else if(kind==='mach'){
+      if(!V('fMachChgTo')){ showToast('⚙ Choisis la nouvelle machine avant de valider.','err'); return; }
+      if(!V('fMachChgBob')){ showToast('⚙ Indique à partir de quelle bobine.','err'); return; }
+    } else {
+      if(!V('fInitiales2')){ showToast('👤 Choisis les initiales de l\'opérateur 2 avant de valider.','err'); return; }
+      if(!V('fOp2Bobine')){ showToast('👤 Indique à partir de quelle bobine il a repris.','err'); return; }
+    }
+    if(sec) sec.classList.add('chg-ok');
+    if(done) done.textContent='✓ '+_l435ChgResume(kind)+' — pris en compte';
+    try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){}
+    try{ if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }catch(e){}
+    if(kind!=='lame'){ showToast('✓ '+_l435ChgResume(kind)+' — pris en compte.','ok'); return; }
+
+    /* ── LAME : on pousse la pose dans Donnees > Lame (plus de double saisie) */
+    const num=V('fLameNew');
+    let mk=''; try{ mk=String((typeof ficheMachine!=='undefined'&&ficheMachine)||'').toLowerCase(); }catch(e){}
+    if(!mk||typeof LAME_MACHINES==='undefined'||!LAME_MACHINES.includes(mk)){
+      showToast('✓ Changement de lame pris en compte (machine inconnue : le registre sera mis à jour à l\'envoi).','ok'); return; }
+    if(typeof lameActiveForMachine==='function'){
+      try{ const cur=lameActiveForMachine(mk); if(cur&&String(cur.lameNum||'').trim().toLowerCase()===num.toLowerCase()){
+        showToast('✓ Lame '+num+' — déjà enregistrée sur '+getMachineLabel(mk)+', rien à ressaisir.','ok'); return; } }catch(e){}
+    }
+    if(typeof lameInstall!=='function'){ showToast('✓ Changement de lame pris en compte.','ok'); return; }
+    const ok=await lameInstall(mk,num,{description:'Lame changée en cours de commande — à partir de la bobine '+(V('fLameChgBob')||'?')});
+    if(ok){
+      showToast('✓ Lame '+num+' posée sur '+getMachineLabel(mk)+' — Données > Lame est à jour, rien à ressaisir.','ok');
+      if(done) done.textContent='✓ '+_l435ChgResume(kind)+' — enregistré dans Données > Lame';
+      try{ if(typeof renderLameAlertBanner==='function') renderLameAlertBanner(); }catch(e){}
+      try{ if(typeof renderMaintenance==='function'&&_isDataTabVisible&&_isDataTabVisible('maintenance')) renderMaintenance(); }catch(e){}
+    } else {
+      showToast('✓ Changement pris en compte sur la fiche — le registre des lames sera mis à jour à l\'envoi.','ok');
+    }
+  }catch(e){ console.warn('_l435ChgValider:',e); try{ showToast('Changement pris en compte.','ok'); }catch(_){ } }
+}
+/* une modification apres coup re-ouvre la ligne : le ✓ ne doit jamais mentir */
+function _l435ChgTouch(kind){ try{ const sec=document.getElementById(kind==='lame'?'chgLame':(kind==='mach'?'chgMach':'chgOp2')); if(sec) sec.classList.remove('chg-ok'); }catch(e){} }
+(function _l435ChgWatch(){ try{
+  const map={fLameNew:'lame',fLameChgBob:'lame',fMachChgTo:'mach',fMachChgBob:'mach',fInitiales2:'op2',fOp2Bobine:'op2'};
+  Object.keys(map).forEach(function(id){ const el=document.getElementById(id); if(el) ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ _l435ChgTouch(map[id]); }); }); });
+  document.getElementById('initBtns2')?.addEventListener('click',function(){ _l435ChgTouch('op2'); });
+}catch(e){} })();
 function toggleChangements(){
   const z=document.getElementById('changementsZone'); if(!z) return;
   const nowHidden=z.classList.toggle('hidden');
