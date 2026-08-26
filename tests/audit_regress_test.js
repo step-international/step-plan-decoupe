@@ -1523,5 +1523,16 @@ has(/les refs VALIDEES au Plan passent EN TETE/,'L432 : Commencer a couper met l
 has(/fmm-first-btn/,'L432 : bouton « ⬆ Couper en 1er » sur chaque rangee (memes gardes que le glisser)');
 has(/ou mets ta référence déjà validée en premier/,'L432 : la garde chrono propose les deux sorties');
 
+console.log('── L440 : perte = dechet uniquement + export fiches refondu (regle Esteban 26/08) ──');
+absent(/upd.pct=/,'L440 CRITIQUE : saveFicheConfigs ne reecrit PLUS le pct — il comptait fins de phase et rouleaux recoupes en perte, donc plus on reutilisait de chutes plus le % archive montait');
+has(/pct N.EST PLUS R/,'L440 : la suppression du recalcul est documentee sur place');
+has(/Perte .déchet. m²/,'L440 : export fiches — colonne perte = DECHET seul');
+has(/Chutes réutilisées m²/,'L440 : export fiches — chutes reutilisees comptees a part, JAMAIS en perte');
+has(/function _l440M2Engage/,'L440 : export fiches — m2 engages (laize MERE x metrage x bobines) = denominateur du %');
+has(/UNE LIGNE PAR CLIENT/,'L440 : export fiches — multi-clients eclate par client (avant : seul le client A sortait)');
+has(/function _l440SansSec/,'L440 : export fiches — colonne Temps sans les secondes');
+has(/_l440HasNc=[^;]*ncHum/,'L440 : filtre NC de l export ALIGNE sur buildNcRows — le type Humain (L434, route auto vers Dechet) compte dans Perte (dechet) m2');
+has(/Largeur bobine mère .mm./,'L440 : export fiches — renommages J et M demandes par Esteban');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

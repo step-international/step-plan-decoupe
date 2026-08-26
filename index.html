@@ -3222,7 +3222,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L439';
+const APP_VERSION='2026.08.27-L440';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -17379,18 +17379,21 @@ async function saveFicheConfigs(id){
     // Régénère le plan (groups) depuis les bobines modifiées → le PDF reflète la modif.
     const useful=parseNum(f.useful)||0, blade=parseNum(f.blade)||0;
     const newGroups=groupsFromDetail(newDetail,useful,blade);
-    const totalUsed=newGroups.reduce((s,g)=>s+parseNum(g.total)*g.count,0);
-    const totalMat=useful*newDetail.length;
     upd.groups=newGroups;                                              // [L73 · Lot 5 · B53]
     // [L76 · B53] Plan théorique FIGÉ quand un écart d'origine est conservé : réécrire
     // nbPlan=nbFiche rendait le bandeau PDF contradictoire (« ÉCART — +2 bobines » mais
     // « Plan théorique : 12 · Fiche terrain : 12 »). Seul consommateur de nbPlan : cet affichage.
     if(f.hasEcart!==true) upd.nbPlan=newDetail.length;                 // [L76 · B53] (était inconditionnel)
-    // [L83 · Audit #13] même règle qu'à la CRÉATION : le solde (chute de la dernière bobine,
-    // conservé en stock) est EXCLU de la perte — un simple ré-enregistrement admin gonflait le pct.
-    const _lastG=newGroups[newGroups.length-1];
-    const _chuteStock=_lastG?Math.max(0,useful-parseNum(_lastG.total)):0;
-    upd.pct=(totalMat>0?(Math.max(0,totalMat-totalUsed-_chuteStock)/totalMat*100):0).toFixed(1);   // [L73 · Lot 5 · B53]
+    // [L440 · règle Esteban 26/08] pct N'EST PLUS RÉÉCRIT ICI.
+    // Ce recalcul local était plus grossier que le calcul d'origine : il ignorait les FINS DE
+    // PHASE (chutes RÉUTILISABLES — la fiche dit elle-même « à CONSERVER, pas un déchet ») et
+    // comptait chaque ligne pour une bobine mère ENTIÈRE, donc un rouleau ♻ recoupé de 300 mm
+    // pour 1560 mm engagés. Résultat : plus on réutilisait de chutes, plus le % archivé montait
+    // — l'inverse exact de la règle. Une simple correction d'étiquette gonflait le pct en base,
+    // puis le KPI mensuel et le PDF de revue de direction.
+    // Champ ABSENT de l'update = valeur d'origine conservée en base. C'est déjà le comportement
+    // en multi-référence (cf. commentaire ci-dessus). upd.groups reste régénéré : le PDF reflète
+    // bien les bobines modifiées.
   }
   try{
     // M5 : garde-fou 1 Mo — retire les photos base64 lourdes avant l'update.
@@ -18504,19 +18507,313 @@ async function permanentDelete(collection,id){
   renderCorbeille();
 }
 
+/* ============================================================
+   [L440 · demande Esteban 26/08] EXPORT FICHES — m2, non-conformites, client, livraison.
+   Fonctions PURES, lecture seule : elles ne lisent que des champs DEJA archives sur la fiche.
+   Aucune ecriture en base, aucun appel au moteur de decoupe, aucune requete reseau.
+   Chaque regle est reprise TELLE QUELLE d'un endroit existant de l'app :
+     · metrage par ref        -> meme regle que ncLoss
+     · bobineaux livres       -> _l419Delivered + _l426NcOut (deduction NC unique de l'app)
+     · repartition par client -> meme cle r.cli que renderCliRecapFiche
+   DECISION METIER Esteban 26/08 : « perte en m2 = non-conformites ». La colonne Perte m2
+   n'est donc PAS la matiere mere non decoupee (bords, soldes) : c'est la matiere partie en NC.
+   ============================================================ */
+
+// Nombre pour Excel FR : arrondi + VIRGULE decimale. '' si non exploitable.
+function _l440Num(x,dec){
+  const v=Number(x);
+  if(!isFinite(v)) return '';
+  const d=(dec==null?1:dec), p=Math.pow(10,d);
+  return String(Math.round(v*p)/p).replace('.',',');
+}
+
+// Metrage (en METRES) de la reference d'UNE ligne de fiche. refGroups d'abord
+// (multi-ref : f.longueur y vaut « 600 / 500 », inexploitable), repli f.longueur.
+function _l440Lg(f,fd){
+  try{
+    if(Array.isArray(f.refGroups)&&f.refGroups.length){
+      const g=f.refGroups.find(x=>(x.ref||'')===((fd&&fd.ref)||''))||f.refGroups[0];
+      const v=parseNum(g&&g.longueur)||0;
+      if(v>0) return v;
+    }
+  }catch(e){}
+  return parseNum(f&&f.longueur)||0;
+}
+
+// Bobines MERES reellement coupees (rouleaux recoupes exclus, comme totalBobines).
+function _l440NbMeres(f){
+  try{
+    const dets=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+    const n=dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true).length;
+    if(n>0) return n;
+    return f.manqueMatiere?0:(Number(f.totalBobines)||0);
+  }catch(e){ return 0; }
+}
+
+// Parcours des bobineaux REELLEMENT coupes ET livrables : rebut total exclu,
+// NC chiffrees deduites via _l419Delivered (la deduction UNIQUE de l'app).
+function _l440Livres(f,cb){
+  const dets=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+  dets.forEach(fd=>{
+    if(!fd||fd.coupee!==true) return;
+    let dl=null;
+    try{ dl=_l419Delivered(fd.conf,_l426NcOut(fd.actDechet===true,fd.actChutes===true,_l416NcByWidthFd(fd)),fd.origConf||null); }catch(e){ dl=null; }
+    if(fd.actDechet===true&&!dl) return;
+    if(dl) Object.keys(dl).forEach(w=>cb(Number(w)||0,Number(dl[w])||0,fd));
+    else parseConf(fd.conf||'').forEach(p=>{ if(p.qty>0) cb(Number(p.width)||0,Number(p.qty)||0,fd); });
+  });
+}
+
+// m2 de matiere MERE ENGAGEE : ce qui est reellement SORTI DU STOCK.
+// Formule officielle de l'app pour la sortie de stock (proposeStockSortie) :
+// (laize MERE / 1000) x metrage x nombre de bobines meres coupees. Laize MERE et non utile :
+// les bords rognes sortent bien du stock, meme s'ils ne comptent pas en perte (regle Esteban 26/08).
+function _l440M2Engage(f){
+  try{
+    const gs=(Array.isArray(f.refGroups)&&f.refGroups.length)?f.refGroups:null;
+    const dets=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+    if(gs){
+      // [L440 · audit 28/08] boucle sur les BOBINES, pas sur les groupes : deux refs HOMONYMES
+      // comptaient chacune TOUTES les bobines du nom (m2 engages doubles, % de perte divise par
+      // deux dans le sens flatteur). Desambiguisation par largeurs, meme regle que proposeStockSortie.
+      let meres=dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true);
+      if(!meres.length) meres=dets.filter(fd=>fd&&!fd.recut);   // vieilles fiches sans champ coupee
+      if(meres.length){
+        const _gw=gs.map(gr=>new Set(((gr&&gr.rows)||[]).map(r=>Number(r.width)||0)));
+        return meres.reduce((s,fd)=>{
+          const cand=[]; gs.forEach((gr,i)=>{ if(nrm(gr.ref)===nrm(fd.ref)) cand.push(i); });
+          let gi=cand.length?cand[0]:0;
+          if(cand.length>1){
+            const ws=parseConf(fd.conf||'').map(p=>Number(p.width)||0).filter(w=>w>0);
+            let bs=-1; cand.forEach(i=>{ const sc=ws.filter(w=>_gw[i].has(w)).length; if(sc>bs){bs=sc;gi=i;} });
+          }
+          const g=gs[gi];
+          return s+(parseNum(g&&g.mother)||0)/1000*(parseNum(g&&g.longueur)||0);
+        },0);
+      }
+      return 0;
+    }
+    return (parseNum(f.mother)||0)/1000*(parseNum(f.longueur)||0)*_l440NbMeres(f);
+  }catch(e){ return 0; }
+}
+
+// Quantites COMMANDEES par client et par laize, + m2 commandes par client.
+// Meme cle r.cli que renderCliRecapFiche. Multi-ref : OBLIGATOIREMENT via refGroups
+// (f.rows y est aplati sans champ ref, le metrage serait faux).
+function _l440CmdParClient(f){
+  const par={};
+  try{
+    const gs=(Array.isArray(f.refGroups)&&f.refGroups.length)?f.refGroups:[{rows:(f.rows||[]),longueur:f.longueur}];
+    gs.forEach(g=>{
+      const lg=parseNum(g&&g.longueur)||parseNum(f.longueur)||0;
+      ((g&&g.rows)||[]).forEach(r=>{
+        const q=Number(r.qty)||0, w=Number(r.width)||0;
+        if(!(q>0&&w>0)) return;
+        const c=r.cli||'A';
+        const m=par[c]||(par[c]={laizes:{},m2:0});
+        m.laizes[w]=(m.laizes[w]||0)+q;
+        m.m2+=q*(w/1000)*lg;
+      });
+    });
+  }catch(e){}
+  return par;
+}
+
+// NC : une ligne de fiche a-t-elle une non-conformite chiffrable ?
+// Filtre de types IDENTIQUE a buildNcRows : sans lui, un « 2x500 » ecrit dans un
+// commentaire SANS NC cochee serait chiffre, et le total du CSV Fiches depasserait
+// celui du registre NC.
+const _l440HasNc=fd=>!!(fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum));   /* [L440] + ncHum : le type « Humain » (L434, routé auto vers Déchet) doit entrer dans la perte — sans lui la matière disparaissait du bilan */
+
+// DECISION METIER Esteban 26/08 : les CHUTES sont reutilisees -> ce n'est PAS une perte.
+// Seul le DECHET est une perte nette. D'ou trois seaux distincts, jamais additionnes a tort.
+function _l440SeauNc(fd){
+  if(fd&&fd.actDechet===true) return 'dechet';
+  if(fd&&fd.actChutes===true) return 'chutes';
+  return 'autre';
+}
+
+// [L440 · audit 28/08] _l440NcSeaux SUPPRIMEE (code mort) : la ventilation reelle des seaux
+// dechet/chutes/autre vit dans _l440ProdParClient — un seul endroit porte la regle.
+
+// Clients d'une fiche, normalises. TOUJOURS au moins un element.
+// multi=true => la fiche sort sur PLUSIEURS lignes CSV, une par client.
+function _l440Clients(f){
+  try{
+    const cs=Array.isArray(f.clients)?f.clients.filter(Boolean):[];
+    if(cs.length>1) return cs.map(c=>({
+      /* [L440 · audit 28/08] meme nettoyage que la branche mono : le nom du client A vient du
+         meme champ libre que f.client — sans _l440ClientNom, la colonne « nom seul » sortait
+         « Socredis pour le 02 09 26 n° cf26070403 » sur les fiches multi. Idem repli numCmd (A). */
+      id:c.id||'A', nom:_l440ClientNom(c.nom)||('Client '+(c.id||'?')),
+      numCmd:(c.numCmd&&c.numCmd!=='—')?c.numCmd:(((c.id||'A')==='A')?_l440NumCmd(f):''),
+      liv:_l440Iso(c.dateLiv), multi:true
+    }));
+  }catch(e){}
+  return [{ id:'A', nom:_l440ClientNom(f.client), numCmd:_l440NumCmd(f), liv:_l440LivIso(f), multi:false }];
+}
+
+// Production REELLE ventilee par client : {nb, m2, dechet, chutes, autre}.
+// Repartition PAR LAIZE, au prorata des quantites commandees sur cette laize : EXACTE des
+// qu'une laize n'appartient qu'a un seul client (cas courant en multi-clients), approchee
+// sinon. Une laize produite que personne n'a commandee est portee au premier client, pour
+// ne jamais perdre de matiere dans le total.
+function _l440ProdParClient(f){
+  const par=_l440CmdParClient(f);
+  const ids=Object.keys(par);
+  const out={}; ids.forEach(c=>out[c]={nb:0,m2:0,engage:0,dechet:0,chutes:0,autre:0});
+  if(!ids.length) return out;
+  const tot={};
+  ids.forEach(c=>Object.keys(par[c].laizes).forEach(w=>{ tot[w]=(tot[w]||0)+par[c].laizes[w]; }));
+  // [L440] m2 ENGAGES ventiles au prorata des m2 commandes : les bobines meres ne sont pas
+  // attribuables a un client, mais la part de matiere engagee pour lui l'est.
+  try{
+    const eng=_l440M2Engage(f), totM2=ids.reduce((s,c)=>s+par[c].m2,0);
+    if(eng>0&&totM2>0) ids.forEach(c=>{ out[c].engage=eng*(par[c].m2/totM2); });
+    else if(eng>0) out[ids[0]].engage=eng;
+  }catch(e){}
+
+  // bobineaux livres
+  try{
+    _l440Livres(f,function(w,q,fd){
+      const lg=_l440Lg(f,fd), T=tot[w]||0;
+      if(T>0) ids.forEach(c=>{ const p=(par[c].laizes[w]||0)/T; if(p>0){ out[c].nb+=q*p; out[c].m2+=q*p*(w/1000)*lg; } });
+      else { out[ids[0]].nb+=q; out[ids[0]].m2+=q*(w/1000)*lg; }
+    });
+  }catch(e){}
+
+  // non-conformites, ventilees par laize elles aussi
+  try{
+    (Array.isArray(f.ficheDetail)?f.ficheDetail:[]).forEach(fd=>{
+      if(!_l440HasNc(fd)) return;
+      const seau=_l440SeauNc(fd), lg=_l440Lg(f,fd);
+      let carte=null; try{ carte=_l416NcByWidthFd(fd); }catch(e){ carte=null; }
+      if(carte&&Object.keys(carte).length){
+        Object.keys(carte).forEach(w=>{
+          const q=Number(carte[w])||0, W=Number(w)||0; if(!(q>0&&W>0)) return;
+          const m2=q*(W/1000)*lg, T=tot[W]||0;
+          if(T>0) ids.forEach(c=>{ const p=(par[c].laizes[W]||0)/T; if(p>0) out[c][seau]+=m2*p; });
+          else out[ids[0]][seau]+=m2;
+        });
+      } else {
+        const m2=((ncLoss(f,fd).m2)||0);
+        const totM2=ids.reduce((s,c)=>s+par[c].m2,0);
+        if(totM2>0) ids.forEach(c=>{ out[c][seau]+=m2*(par[c].m2/totM2); });
+        else out[ids[0]][seau]+=m2;
+      }
+    });
+  }catch(e){}
+  return out;
+}
+
+// Nom de client SEUL : « Socredis pour le 02 09 26 n° cf26070403 » -> « Socredis ».
+// Match de PREFIXE ANCRE sur les cles de CLIENT_DATA, le plus long gagnant. Si aucune cle
+// ne matche : decoupage de repli ; et si celui-ci rend du vide, on renvoie la saisie BRUTE
+// (on ne perd JAMAIS l'information).
+const _l440NoAcc=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase();
+function _l440ClientNom(v){
+  try{
+    const n=_l440NoAcc(v);
+    if(!n) return '';
+    let best='';
+    Object.keys(CLIENT_DATA).forEach(k=>{ const kn=_l440NoAcc(k); if(kn&&n.indexOf(kn)===0&&kn.length>best.length) best=k; });
+    if(best) return best;
+    const cut=String(v||'').split(/\s+pour\s+le\s+|\s*n\s*°/i)[0].trim();
+    return cut||String(v||'');
+  }catch(e){ return String(v||''); }
+}
+
+// N° de commande : f.numCmd fait autorite ; a defaut on recupere le n° enfoui dans la
+// chaine client. Le tiret cadratin compte comme vide (valeur par defaut, jamais obligatoire).
+function _l440NumCmd(f){
+  try{
+    if(f.numCmd&&f.numCmd!=='—') return f.numCmd;
+    const m=String(f.client||'').match(/n\s*°\s*([A-Za-z0-9][A-Za-z0-9\-\/_.]*)/i);
+    return m?m[1]:'';
+  }catch(e){ return ''; }
+}
+
+// Une date quelconque -> ISO AAAA-MM-JJ. '' si vide, tiret cadratin ou illisible.
+function _l440Iso(v){
+  v=String(v==null?'':v).trim();
+  if(!v||v==='—') return '';
+  let m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  return '';
+}
+
+// Date de livraison la plus EXIGEANTE de la fiche, en ISO (tri alphabetique = chronologique).
+function _l440LivIso(f){
+  try{
+    const ds=[_l440Iso(f.dateLivIso),_l440Iso(f.dateLiv)];
+    if(Array.isArray(f.clients)) f.clients.forEach(c=>{ if(c) ds.push(_l440Iso(c.dateLiv)); });
+    const ok=ds.filter(Boolean).sort();
+    return ok.length?ok[0]:'';
+  }catch(e){ return ''; }
+}
+
+// Temps SANS les secondes. Ancre en ^ et conditionne a la presence d'une partie min/h :
+// « 45s (EL — 26/08/2026) » (duree < 1 min) reste INTACT, sinon la duree disparaitrait.
+function _l440SansSec(t){
+  const s=String(t==null?'':t);
+  return s.replace(/^(\d+h\s*)?(\d{1,2}min)\s*\d{1,2}s/,function(m,h,mn){ return (h?h.trim()+' ':'')+mn; });
+}
 async function exportFiches(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
   const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length){showToast('Aucune donnée.','err');return;}
-  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;Perte %;Temps;Statut validation;Validée par;Validée le';   // [L83 · Audit #20] statut ISO en fin de ligne
-  const rows=fiches.map(f=>[
-    f.name,new Date(f.date).toLocaleDateString('fr-FR'),f.ini,f.ini2||'',f.op2Bob||'',f.client,f.ref,f.machine,f.machine2||'',
-    f.mother,f.useful,f.blade,f.longueur,f.lame,(f.lameChg?(f.lameNew||''):''),(f.lameChg?(f.lameChgBob||''):''),f.numJour,
-    f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
-    (f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'),
-    f.totalBobines,f.pct,f.tempsStr,
-    (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'')
-  ].map(csvCell).join(';')).join('\n');
+  /* [L440] ORDRE DES COLONNES (demande Esteban 26/08) : identification commerciale EN TETE
+     — client, n° de commande, livraison, mois, m2 commandes — puis la fiche de production.
+     ATTENTION : les lettres Excel des colonnes historiques sont donc DECALEES de 5 rangs. */
+  const hdr='Client (nom seul);N° commande;Livraison;Mois livraison;m² commandés;'
+    +'Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;'
+    +'Largeur bobine mère (mm);Utile;Lame;Longueur bobine mère (m);N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;'
+    +'Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;'
+    +'Total bobines mères;Perte % (plan);Temps;Statut validation;Validée par;Validée le;'
+    +'Multi-clients;Bobines mères coupées;Bobineaux découpés;m² engagés (mère);m² découpés livrés;'
+    +'Perte (déchet) m²;Perte (déchet) % m²;Chutes réutilisées m²;NC m² non tranchées';
+  /* [L440] UNE LIGNE PAR CLIENT sur les commandes multi-clients (decision Esteban 26/08).
+     Avant, seul le client A sortait : les autres etaient perdus en silence.
+     Les colonnes qui decrivent la FICHE ENTIERE (total bobines meres, perte % plan, temps,
+     bobines meres coupees) ne sont ecrites QUE sur la 1re ligne du groupe : les repeter
+     ferait double compte dans un tableau croise dynamique. */
+  const rows=fiches.map(f=>{
+    const par=_l440CmdParClient(f), prod=_l440ProdParClient(f), cls=_l440Clients(f);
+    return cls.map((c,idx)=>{
+      const p=par[c.id]||{laizes:{},m2:0}, pr=prod[c.id]||{nb:0,m2:0,dechet:0,chutes:0,autre:0};
+      const premier=(idx===0);
+      const cmdTxt=Object.keys(p.laizes).sort((a,b)=>Number(a)-Number(b)).map(w=>p.laizes[w]+'x'+w).join('+')
+                   ||(c.multi?'':(f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'));
+      const liv=c.liv||_l440LivIso(f);
+      return [
+        /* ---- [L440] identification commerciale, en tete ---- */
+        c.nom,
+        c.numCmd,
+        liv,
+        liv?liv.slice(0,7):'',
+        p.m2>0?_l440Num(p.m2):'',
+        /* ---- colonnes historiques ---- */
+        f.name,new Date(f.date).toLocaleDateString('fr-FR'),f.ini,f.ini2||'',f.op2Bob||'',f.client,f.ref,f.machine,f.machine2||'',
+        f.mother,f.useful,f.blade,f.longueur,f.lame,(f.lameChg?(f.lameNew||''):''),(f.lameChg?(f.lameChgBob||''):''),f.numJour,
+        f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
+        cmdTxt,
+        premier?f.totalBobines:'',
+        premier?String(f.pct==null?'':f.pct).replace('.',','):'',
+        premier?_l440SansSec(f.tempsStr):'',
+        (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):''),
+        /* ---- [L440] production et matiere ---- */
+        c.multi?'oui':'non',
+        premier?_l440NbMeres(f):'',
+        pr.nb>0?_l440Num(pr.nb,0):'',
+        pr.engage>0?_l440Num(pr.engage):'',
+        pr.m2>0?_l440Num(pr.m2):'',
+        pr.dechet>0?_l440Num(pr.dechet):'',
+        (pr.engage>0&&pr.dechet>0)?_l440Num(pr.dechet/pr.engage*100):'',   /* [L440] % rapporte aux m2 ENGAGES (sortis du stock), decision Esteban 26/08 */
+        pr.chutes>0?_l440Num(pr.chutes):'',
+        pr.autre>0?_l440Num(pr.autre):''
+      ].map(csvCell).join(';');
+    }).join('\n');
+  }).join('\n');
   const b=new Blob(['\ufeff'+csvMetaLine('Fiches de découpe',fiches.length)+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});   // [L251 · R6] périmètre DANS le fichier
   downloadBlob(b,'step_fiches_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
