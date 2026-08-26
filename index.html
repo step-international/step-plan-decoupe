@@ -148,6 +148,7 @@ body.atelier .machine-btn-fiche{min-height:52px;font-size:16px;padding:14px 10px
 .fmm-block.active{border-color:var(--green)}
 .fmm-block.locked{opacity:.55}
 .fmm-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.fmm-first-btn{background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800;min-height:44px;white-space:nowrap}/* [L432] meme jaune « prochaine action » */
 .fmm-badge{font-size:14px;font-weight:800;padding:3px 9px;border-radius:6px}
 .fmm-badge.act,.fmm-badge.val{background:#14371f;color:var(--green)}
 .fmm-badge.lock{background:#2a2a28;color:var(--muted)}
@@ -3167,7 +3168,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.26-L431';
+const APP_VERSION='2026.08.26-L432';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6065,7 +6066,7 @@ function importPlanToFiche(opts){
     if(!auto && !_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }   // [L298] passation désarmée SEULEMENT une fois tous les confirms passés (la régénération va vraiment avoir lieu)
     // Régénération complète = repart de zéro pour le gating multi-réf, SAUF si
     // l'appel vient d'une revalidation par référence (keepRefValidation).
-    if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); ficheRefOrder=[]; }   /* [L422] le seed « validee au Plan » vit dans renderFicheMachineBlocks (apres SES clear) */
+    if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); if(!window._l432KeepOrder) ficheRefOrder=[]; window._l432KeepOrder=false; }   /* [L422] seed validee-au-Plan dans renderFicheMachineBlocks — [L432] l'ordre pose par « Commencer a couper » (refs validees en tete) survit a CET import (drapeau one-shot) */
 
     // En-têtes : copie depuis le Plan. En multi-réf, fRef liste toutes les réfs.
     const copy=(planId,ficheId)=>{
@@ -6551,6 +6552,17 @@ function startCutFromPlan(){
     if(!hasRows){ showToast('⚠ Saisis d\'abord la commande (au moins une laize avec quantité) avant de lancer la coupe.','err'); return; }
     // [L359 · analyse parcours 19/08 · QW2] laize > largeur utile : la fiche serait générée VIDE (importPlanToFiche auto refuse en silence) → on le dit ici, avant de basculer (zéro cul-de-sac ; lecture seule du moteur, comme importPlanToFiche)
     try{ const _c=packRefGroupsPal(g).filter(c=>c.rows.length); if(_c.some(c=>c.oversize&&c.oversize.length)){ showToast('⛔ Une laize dépasse la largeur utile (⛔ sur le plan) — corrige avant de couper.','err'); return; } }catch(e){}
+  }catch(e){}
+    /* [L432 · demande Esteban] valider UNE seule reference suffit : les refs VALIDEES au Plan passent EN TETE
+     de l'ordre de coupe (ordre stable entre elles) -> le chrono demarre dessus sans toucher aux fleches.
+     Uniquement a l'import d'une fiche VIERGE (une fiche engagee garde son ordre). */
+  try{
+    if(typeof countCoupees!=='function'||countCoupees()===0){   /* [L432] une commande EN COUPE garde son ordre ; sinon les validees passent devant */
+      const _bl32=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
+      const _val32=[],_rest32=[];
+      _bl32.forEach(function(b,i2){ (b.dataset.opValidated==='1'?_val32:_rest32).push(i2); });
+      if(_val32.length&&_rest32.length){ ficheRefOrder=_val32.concat(_rest32); window._l432KeepOrder=true; }
+    }
   }catch(e){}
   showPage(1);
   setTimeout(function(){ try{ if(!chronoRunning) chronoStart(); }catch(e){} },300);   /* [L421 · demande Esteban] pre-decoupe faite au Plan -> le chrono se lance a l'arrivee en fiche */
@@ -10175,7 +10187,7 @@ function _l408PrevolGo(){ try{ chronoStart(); }catch(e){} }   /* [L422] conserve
    MUTE fichePlanValidated sur OK -> idempotente si chronoStart re-verifie juste apres. */
 function _chronoBlocked(_pre19){
   if(typeof _l420RefOk==='function'&&!_l420RefOk()){
-    showToast('👷 Valide la PRÉPARATION de cette référence dans le Plan (zone Partie opérateur) avant de démarrer.','err');
+    showToast('👷 Valide la PRÉPARATION de cette référence dans le Plan — ou mets ta référence déjà validée en premier (bouton « ⬆ Couper en 1er » dans Ordre de coupe).','err');   /* [L432] les deux sorties possibles */
     try{ showPage(0); const z=document.querySelector('.ref-block:not([data-op-validated=\'1\']) .rb-operator')||document.querySelector('.rb-operator'); if(z){ z.scrollIntoView({behavior:'smooth',block:'center'}); z.style.outline='3px solid var(--orange)'; setTimeout(function(){z.style.outline='';},2500); } }catch(e){}
     return true;
   }   /* [L420] la validation operateur du Plan est LE verrou d'entree */
@@ -18774,9 +18786,10 @@ function renderFicheMachineBlocks(opts){
         +(_tagsNoMl.length?'<span class="fmm-order-tags">'+_tagsNoMl.map(t=>'<span class="fmm-tag">'+t+'</span>').join('')+'</span>':'')
         +'</span>'
         +'<span class="fmm-order-btns">'
+        +(pos>0?'<button class="btn btn-sm fmm-first-btn" title="Couper cette référence en premier" onclick="fmmMoveRefTo('+r.idx+',0)">⬆ Couper en 1er</button>':'')
         +'<button class="btn btn-ghost btn-sm" title="Monter — couper cette réf plus tôt" aria-label="Monter cette référence" '+(pos===0?'disabled ':'')+'onclick="fmmMoveRef('+r.idx+',-1)">▲</button>'
         +'<button class="btn btn-ghost btn-sm" title="Descendre — couper cette réf plus tard" aria-label="Descendre cette référence" '+(pos===refs.length-1?'disabled ':'')+'onclick="fmmMoveRef('+r.idx+',1)">▼</button>'
-        +'</span></div>';
+        +'</span></div>';   /* [L432 · demande Esteban] bouton EVIDENT (les fleches restaient invisibles a l'atelier) — memes gardes/regeneration/undo que le glisser */
     });
     oh+='</div>';
     orderEl.innerHTML=oh;

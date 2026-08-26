@@ -1410,7 +1410,7 @@ has(/JAUNE = prochaine action \(comme COMMENCER A COUPER\)/,'L421 : VALIDER jaun
 has(/le chrono se lance a l'arrivee en fiche/,'L421 : chrono instantane apres COMMENCER A COUPER');
 has(/aucun appelant UI restant/,'L421→L422 : pop retire du flux entier');
 has(/une ref deja VALIDEE au Plan \(Partie operateur\) arrive VALIDEE en fiche/,'L422 : plus de double validation (la ref 2 non validee garde son bouton fiche)');
-has(/le seed « validee au Plan » vit dans renderFicheMachineBlocks/,'L422 : seed place APRES les clear du rendu (sinon efface)');
+has(/seed validee-au-Plan dans renderFicheMachineBlocks/,'L422→L432 : seed apres les clear + ordre pose par Commencer-a-couper protege (drapeau one-shot)');
 
 console.log('── L423 : fiche allegee + Confirmer gris/jaune ──');
 has(/ne reaffiche plus mere\/bords\/laize ni « ✓ VÉRIFIÉES »/,'L423 : bloc compact validee retire de la fiche (doublon du Plan)');
@@ -1468,6 +1468,11 @@ has(/empilait TOUT en colonne sous flex/,'L430 : rangee d actions sur UNE ligne 
 
 console.log('── L431 : chrono — fausse « fin de journee » le matin (bug atelier 26/08) ──');
 has(/La coupure se juge sur le JOUR REEL de travail/,'L431 : cutoff sur le jour reel, plus sur le depart virtuel (cumul 7h+ repris le matin = arret en boucle)');
+
+console.log('── L432 : multi-ref — valider UNE ref suffit + bouton Couper en 1er ──');
+has(/les refs VALIDEES au Plan passent EN TETE/,'L432 : Commencer a couper met les refs validees en tete de l ordre (fiche vierge seulement)');
+has(/fmm-first-btn/,'L432 : bouton « ⬆ Couper en 1er » sur chaque rangee (memes gardes que le glisser)');
+has(/ou mets ta référence déjà validée en premier/,'L432 : la garde chrono propose les deux sorties');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
