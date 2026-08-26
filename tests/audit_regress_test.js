@@ -1466,5 +1466,8 @@ has(/les gelees MAVEG sont PRESERVEES par le recalcul/,'L430 : detecteur sur-cou
 has(/sinon la ref restait VALIDEE cote fiche apres modification/,'L430 : de-valider au Plan retire la ref de la fiche (verrou ISO)');
 has(/empilait TOUT en colonne sous flex/,'L430 : rangee d actions sur UNE ligne (width:100% herite neutralise)');
 
+console.log('── L431 : chrono — fausse « fin de journee » le matin (bug atelier 26/08) ──');
+has(/La coupure se juge sur le JOUR REEL de travail/,'L431 : cutoff sur le jour reel, plus sur le depart virtuel (cumul 7h+ repris le matin = arret en boucle)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);

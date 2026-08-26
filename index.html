@@ -3167,7 +3167,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.25-L430';
+const APP_VERSION='2026.08.26-L431';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10340,11 +10340,15 @@ function chronoCrossDaySec(sec,runStart){
 function chronoAutoStopCheck(){
   if(!chronoRunning || chronoRunStart==null) return;
   const now=Date.now();
-  const cutoff=dayChronoCutoffMs(chronoRunStart);          // fin de journée du JOUR de démarrage
+  /* [L431 · BUG ATELIER 26/08] chronoRunStart est un depart VIRTUEL (now − cumul, cf. chronoStart) :
+     une commande reprise le matin avec un gros cumul (7h+) le faisait pointer sur HIER → la coupure
+     de fin de journee d'HIER (deja passee) s'appliquait → « Fin de journee » en boucle a 8h du matin,
+     chrono impossible a relancer. La coupure se juge sur le JOUR REEL de travail. */
+  const cutoff=dayChronoCutoffMs(now);                     // fin de journée du JOUR RÉEL
   if(cutoff==null || now<cutoff) return;                   // week-end, ou pas encore l'heure
-  if(_chronoAutoStopOverride===_dateKey(chronoRunStart)) return;  // heures supp ce jour-là
+  if(_chronoAutoStopOverride===_dateKey(now)) return;      // heures supp aujourd'hui
   if(chronoRunStart<cutoff){
-    chronoSec=Math.max(0,Math.floor((cutoff-chronoRunStart)/1000)); // figer À l'heure de fin
+    chronoSec=Math.max(0,Math.floor((cutoff-chronoRunStart)/1000)); // figer à l'heure de fin
   }
   autoStopChrono();
 }
