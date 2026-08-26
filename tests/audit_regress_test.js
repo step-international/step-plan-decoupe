@@ -1351,7 +1351,15 @@ absent(/🤝 Partager la commande<\/button>/,'L435 : « Partager la commande » 
 console.log('── L436 : finitions (inventaire du 26/08) ──');
 has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque partout (partage abandonne)');
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
-has(/registre des lames non mis a jour : machine manquante|registre des lames non mis à jour : machine manquante/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
+has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
+
+console.log('── L437 : bloc Changements minimaliste · arret gris · case Outils effacee ──');
+has(/MINIMALISTE : le bloc prend deux fois moins de place/,'L437 : bloc Changements condense');
+has(/#changementsZone \.text-muted\{display:none\}/,'L437 : les phrases d aide retirees du bloc');
+has(/resume COURT : l'operateur lit une ligne/,'L437 : resume raccourci');
+has(/en GRIS \(geste rare, il n'a pas a crier\)/,'L437 : ⛔ Arret manque de matiere en gris');
+has(/#outilsFicheBtn\[data-l437-empty="1"\]\{display:none!important\}/,'L437 : la case ⚙ OUTILS disparait quand le tiroir est vide');
+has(/outils-mm\{display:none\}/,'L437 : l entree Arret du tiroir masquee en paysage (doublon du rail)');
 
 console.log('── L412 : 13 correctifs de l audit adversarial du 24/08 (6 chasseurs) ──');
 has(/la slice\(1\) supposait ncLots\[0\]=1re ligne/,'L412-1 : restauration — 1er lot NC plus perdu quand la 1re ligne est vide');
