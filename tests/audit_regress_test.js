@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L439 : URGENT — sauvegarde de plan non valide reparee ──');
+has(/opValidated:!!\(_blks20\[i\]&&_blks20\[i\]\.dataset\.opValidated==='1'\)/,'L439 : opValidated toujours booleen (jamais undefined)');
+absent(/opValidated:\(_blks20\[i\]&&_blks20\[i\]\.dataset\.opValidated==='1'\)\|\|undefined/,'L439 : le ||undefined fautif a disparu');
+
 console.log('── L438 : chaque changement sur UNE ligne ──');
 has(/TOUT SUR UNE LIGNE : ☐ titre · champ · bobine · ✓ Validé/,'L438 : case + champs + Valide sur la meme rangee');
 has(/#changementsZone \.field label\{display:none\}/,'L438 : micro-libelles retires (placeholders suffisent)');
