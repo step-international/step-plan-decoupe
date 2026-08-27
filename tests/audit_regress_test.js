@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L458 : reserves anti-chevauchement recalibrees police systeme ──');
+has(/padding-left:165px;padding-right:210px/,'L458 : reserves BOBINE/CHUTE recalibrees (130/145 mesures Barlow -> 165/210)');
+has(/font:700 13\.5px\/1 var\(--f-head\)/,'L458 : chip CHUTE reduite pour la police systeme');
+
 console.log('── L457 : onglet validation bureau + Plan sans textes redondants ──');
 has(/body\.role-op #tabFiches\{display:none!important\}/,'L457 : onglet Validation fiches masque pour operateurs et comptes machine');
 has(/tab==='fiches'&&typeof currentRole!=='undefined'&&currentRole==='operateur'/,'L457 : switchTab redirige un operateur qui atterrit sur fiches');
