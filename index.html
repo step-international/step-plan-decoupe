@@ -3231,7 +3231,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.28-L449';
+const APP_VERSION='2026.08.28-L450';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9258,6 +9258,14 @@ function packagingRecapHTML(groups){
     const e=byW[w]||(byW[w]={});
     if(Number(r.carton)>0) e.carton=Number(r.carton);
     if(r.mandrin) e.mandrin=r.mandrin;
+    /* [L450 · photos Esteban 28/08] le tableau imprimait la SAISIE seule : une ligne tapee avant que
+       l'autofill trouve (mauvaise ref au moment de la frappe, ref transparente absente avant L449...)
+       gardait son « — » pour toujours alors que la TABLE Legrand a le code. On complete les trous a la
+       CONSTRUCTION du tableau, ref par ref — la valeur saisie garde la priorite. */
+    try{ if((!e.mandrin||!(e.carton>0))&&typeof legrandPkg==='function'){
+      const lp=legrandPkg(c.ref,w);
+      if(lp){ if(!e.mandrin&&lp.c) e.mandrin=lp.c; if(!(e.carton>0)&&lp.k>0) e.carton=lp.k; }
+    } }catch(_){}
   });});
   const widths=Object.keys(byW).map(Number).sort((a,b)=>a-b);
   if(!widths.length) return '';
@@ -19232,6 +19240,11 @@ function onFmmMachineBtn(btn,m){
 // [L217] « recorriger » depuis le résumé compact d'une réf validée → dé-valide cette réf et ré-affiche sa carte éditable (mère/bords/machine). N'efface QUE cette réf (pas opts.fresh).
 function unvalidateFicheRef(idx){
   if(typeof ficheRefValidated!=='undefined') ficheRefValidated.delete(idx);
+  /* [L450 · bug Esteban 28/08 « le bouton MODIFIER ne marche pas »] le re-rendu RE-SEEDait la validation
+     depuis le bloc du PLAN (data-op-validated, seed L422) : la carte revenait aussitot au resume « validee »
+     — MODIFIER ne faisait visuellement RIEN. On de-valide AUSSI cote Plan (meme geste que _l420Invalidate) :
+     la carte editable (machine + bobine mere + « Valider ») revient vraiment, et le VALIDER regenere le plan. */
+  try{ const _b50=Array.from(document.querySelectorAll('#refBlocks .ref-block'))[idx]; if(_b50){ delete _b50.dataset.opValidated; } if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}
   if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks({});
   try{ const _r=String((fmmGetRefs().find(r=>r.idx===idx)||{}).ref||('réf '+(idx+1))); logAudit('edit','fiches','ref-check','Vérification bobine mère RÉOUVERTE (recorriger) — '+_r).catch(function(){}); }catch(_){}   // [L231 · audit MAJ-1] piste ISO complète : la ré-ouverture est tracée aussi
 }
