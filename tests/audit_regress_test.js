@@ -1353,6 +1353,24 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L441 : page Lame — degel + jetee a la benne ──');
+has(/audit lame #2\] meme boucle infinie que renderMaintenance/,'L441 : renderLameStats ne reboucle plus sur echec');
+has(/data-mch="\$\{esc\(m\)\}" data-num="\$\{esc\(String\(cur\.lameNum\|\|''\)\)\}" onclick="lameJeter\(this\.dataset\.mch,this\.dataset\.num\)"/,'L441 : bouton benne en data-* (apostrophe/XSS)');
+has(/audit lame #17\] on ne bloque QUE la re-pose de l'ANCIENNE lame/,'L441 : une NOUVELLE lame apres le ✓ repasse par le confirm');
+has(/audit lame #6\] chargement rate/,'L441 : registre indisponible = pas de fausse « premiere lame »');
+has(/audit lame #10\] plus d'await : la piste qui pend/,'L441 : logAudit ne gele plus lameInstall');
+has(/audit lame #11\] un timeout hors-ligne = ecriture EN FILE/,'L441 : hors-ligne, la pose en file n est plus un « echec »');
+has(/audit lame #9\] un chargement TARDIF/,'L441 : une pose locale fraiche ne disparait plus au refresh tardif');
+has(/audit lame #18\] cache de SESSION/,'L441 : la page se rafraichit toute seule au-dela de 5 min');
+has(/pointer-events:none;position:fixed;top:0/,'L441 : le bandeau alerte lame ne bloque plus les taps');
+has(/bug terrain 27\/08 « page Lame figee, on n'arrive pas a modifier »/,'L441 : l echec de chargement ne boucle plus (ecran d erreur + Reessayer + retry au retour en ligne)');
+has(/timeout registre \(12 s\)/,'L441 : les lectures du registre sont bornees (reseau zombie)');
+has(/function lameJeter/,'L441 : une lame morte se MARQUE jetee a la benne (trace ISO, jamais supprimee)');
+has(/categorie:'rebut'/,'L441 : evenement rebut dans le journal append-only');
+has(/'demonte','affutage','stock','rebut'/,'L441 : une lame jetee n est plus montee sur sa machine');
+has(/Jetées à la benne/,'L441 : section « Jetees » visible (lecture seule)');
+has(/🗑 Jeter à la benne/,'L441 : la lame montee de chaque machine peut partir a la benne');
+
 console.log('── L440 : 18 correctifs de l audit adversarial L431-L437 (26 signalements, 6 chasseurs) ──');
 has(/audit #4 CRITIQUE\] ecran DEJA vierge : ne rien faire/,'L440 : double tap ↺ ne detruit plus la photo d annulation');
 has(/audit #5\] le reset a PURGE le brouillon auto et le miroir local/,'L440 : l annulation resauvegarde brouillon + miroir immediatement');

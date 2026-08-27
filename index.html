@@ -2204,7 +2204,7 @@ html.theme-light .fp-num small{color:#8a8a84}
 </div>
 <div id="dbErrorMsg" role="alert" style="display:none;position:fixed;bottom:14px;right:14px;max-width:min(480px,90vw);white-space:pre-line;background:#3d1414;color:var(--red);border:1px solid #7a2222;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:600;z-index:5000;cursor:pointer" onclick="_dbErrTap(this)">&#9888; Erreur base de données (clique pour fermer)</div><!-- [L159 · a11y #2] annoncé aux lecteurs d'écran · [L161 · revue #4] pre-line (le \n de l'indice UID rendait en espace) + tap intelligent : copie l'UID s'il est affiché, sinon ferme -->
 <!-- [L96 · vérif #1] bannière verte de veille (L87) SUPPRIMÉE : son « Recharger » (location.reload nu) resservait la version ÉPINGLÉE par le gel L89 → clic sans effet + 2 bannières concurrentes. La bannière bleue updBanner (gel de version) est la seule voie de mise à jour. -->
-<div id="lameAlertBanner" style="display:none;position:fixed;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-size:14px;font-weight:700;z-index:5999;align-items:center;justify-content:center;gap:12px;text-align:center;flex-wrap:wrap"></div>
+<div id="lameAlertBanner" style="display:none;pointer-events:none;position:fixed;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-size:14px;font-weight:700;z-index:5999;align-items:center;justify-content:center;gap:12px;text-align:center;flex-wrap:wrap"></div>
 
 <!-- ÉCRAN DE CONNEXION -->
 <div id="loginOverlay">
@@ -3221,7 +3221,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L440';
+const APP_VERSION='2026.08.27-L441';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -15037,12 +15037,12 @@ const LAME_MACHINES=MACHINE_KEYS;
 // gagne (elle réactive). Prend le cache en paramètre (lameAlerts passe le sien).
 function _activeLameIn(cache,machine){
   const key=r=>String(r.dateInstall||r.date||r.createdAt||'');
-  const rank={affutage:0,stock:1,demonte:2,installation:3};
+  const rank={affutage:0,stock:1,demonte:2,rebut:2,installation:3};   /* [L441 · demande Esteban 27/08] rebut = jetee a la benne (plus affutable) */
   const evts=(cache||[]).filter(r=>r&&r.type==='lame'&&r.machine===machine&&!r.deleted&&String(r.lameNum||'').trim())
     .slice().sort((a,b)=>key(b).localeCompare(key(a))||((rank[b.categorie]||0)-(rank[a.categorie]||0)));   // date DÉCROISSANTE (index 0 = plus récent)
   const lastInstall=evts.find(r=>r.categorie==='installation');
   if(!lastInstall) return null;
-  const removed=evts.some(r=>['demonte','affutage','stock'].indexOf(r.categorie)>=0 && nrm(r.lameNum)===nrm(lastInstall.lameNum) && evts.indexOf(r)<evts.indexOf(lastInstall));
+  const removed=evts.some(r=>['demonte','affutage','stock','rebut'].indexOf(r.categorie)>=0 && nrm(r.lameNum)===nrm(lastInstall.lameNum) && evts.indexOf(r)<evts.indexOf(lastInstall));   /* [L441] une lame jetee a la benne n'est plus montee */
   return removed?null:lastInstall;
 }
 function lameActiveForMachine(machine){ return _activeLameIn(maintenanceCache,machine); }
@@ -15112,10 +15112,11 @@ async function lameInstall(machine,lameNum,opts){
       dRef=db.collection('maintenance').doc();
     }
     const batch=db.batch(); batch.set(iRef,rec); if(dRef) batch.set(dRef,dRec);
-    await boundedWrite(batch.commit(),10000);   // [L83 · Audit #37] borné
+    try{ await boundedWrite(batch.commit(),10000); }   // [L83 · Audit #37] borné
+    catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ try{ showToast('📡 Hors-ligne : pose enregistrée, elle partira au retour du réseau.','ok'); }catch(_){} } else throw e; }   /* [L441 · audit lame #11] un timeout hors-ligne = ecriture EN FILE, pas un echec : le message « Erreur » poussait a re-saisir -> doublon au retour du reseau */
     rec.id=iRef.id; maintenanceCache.unshift(rec);
     if(dRec){ dRec.id=dRef.id; maintenanceCache.unshift(dRec); }
-    await logAudit('create','maintenance',iRef.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${(function(){try{return new Date(pose).toLocaleDateString('fr-FR');}catch(e){return String(pose).slice(0,10);}})()})`);   // [L272 · audit #17] date en heure LOCALE (slice UTC reculait d'un jour entre minuit et 2 h à Paris)
+    logAudit('create','maintenance',iRef.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${(function(){try{return new Date(pose).toLocaleDateString('fr-FR');}catch(e){return String(pose).slice(0,10);}})()})`).catch(function(){});   // [L272 · audit #17] date locale — [L441 · audit lame #10] plus d'await : la piste qui pend gelait le retour de lameInstall (et le verrou du bloc Changements avec) ; la trace part en arriere-plan comme TOUTES les autres
     if(dRef) logAudit('create','maintenance',dRef.id,`Démontage — lame ${_prevLame} remplacée par ${num} (${getMachineLabel(machine)})`).catch(function(){});
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
     if(typeof renderLameAlertBanner==='function') renderLameAlertBanner();
@@ -15183,13 +15184,17 @@ async function lameDetectOnFiche(machineKey,lameNum){
   if(!num||!machineKey||!LAME_MACHINES.includes(machineKey)) return;
   // S'assurer que le journal lame est chargé (sinon fausse détection).
   if(!maintLoaded){ try{ await loadMaintenance(); }catch(e){ return; } }
+  if(!maintLoaded) return;   /* [L441 · audit lame #6] chargement rate (loadMaintenance ne rejette jamais) : cache VIDE -> « Premiere lame declaree » a tort + ecriture parasite si l'operateur confirme. Pas de registre fiable = pas de question. */
   const cur=lameActiveForMachine(machineKey);
   const curNum=cur?String(cur.lameNum||'').trim():'';
   if(curNum.toLowerCase()===num.toLowerCase()) return; // déjà la lame en place
   /* [L440 · audit #8] la lame ACTIVE est celle posee par le ✓ Valide de CETTE commande : si la fiche envoyee
      porte encore l'ancien n° (changement decoche apres coup, champ non resaisi), ne pas proposer de REPOSER
      l'ancienne lame par-dessus la pose toute fraiche. */
-  try{ const _lp=window._l440LamePosed; if(_lp&&curNum&&String(_lp.num).toLowerCase()===curNum.toLowerCase()&&_lp.mk===machineKey) return; }catch(e){}
+  try{ const _lp=window._l440LamePosed;
+    if(_lp&&curNum&&String(_lp.num).toLowerCase()===curNum.toLowerCase()&&_lp.mk===machineKey
+       &&nrm(num)===nrm(_lp.prev||'')) return;   /* [L441 · audit lame #17] on ne bloque QUE la re-pose de l'ANCIENNE lame (le cas retrograde) : une NOUVELLE lame saisie apres le ✓ (L-16 apres L-15) repasse par le confirm normal — l'early return L440 l'avalait */
+  }catch(e){}
   const machLbl=getMachineLabel(machineKey);
   const msg=cur
     ? `🔪 Nouvelle lame détectée sur ${machLbl}.\n\nLame courante : ${curNum||'—'}\nLame saisie : ${num}\n\nConfirmer la pose de la lame ${num} sur ${machLbl} ?`
@@ -15271,21 +15276,51 @@ async function loadMaintenance(){
     let docs;
     if(migrated){
       try{ // CO-3 : filtrage serveur si migration deleted faite (repli client sinon / index absent)
-        const s=await db.collection('maintenance').where('deleted','==',false).orderBy('date','desc').limit(2000).get();
+        const s=await Promise.race([db.collection('maintenance').where('deleted','==',false).orderBy('date','desc').limit(2000).get(),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout registre (12 s)')),12000))]);   /* [L441 · bug terrain « page Lame figee »] un reseau zombie laissait pendre le get() a vie */
         docs=s.docs.map(d=>Object.assign({id:d.id},d.data()));
       }catch(e){ if(e.code!=='failed-precondition') console.warn('Maintenance filtrée :',e.message); }
     }
     if(!docs){
-      const s=await db.collection('maintenance').orderBy('date','desc').limit(2000).get();
+      const s=await Promise.race([db.collection('maintenance').orderBy('date','desc').limit(2000).get(),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout registre (12 s)')),12000))]);   /* [L441] */
       docs=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
     }
-    maintenanceCache=docs; maintLoaded=true;
+    /* [L441 · audit lame #9] un chargement TARDIF (course des 4 s de lameInstall perdue) ecrasait le cache
+       avec une lecture d'AVANT la pose : la lame venait de « disparaitre » de l'ecran. Les traces locales
+       ecrites il y a moins de 2 min et absentes de la lecture restent en tete. */
+    try{ const _fresh=(Array.isArray(maintenanceCache)?maintenanceCache:[]).filter(function(x){ try{ return x&&x.id&&!docs.some(function(d){return d.id===x.id;})&&(Date.now()-Date.parse(x.createdAt||0))<120000; }catch(e){ return false; } });
+      docs=_fresh.concat(docs); }catch(e){}
+    maintenanceCache=docs; maintLoaded=true; _maintLoadedAt=Date.now();   /* [L441 · audit lame #18] */
   }catch(e){ console.warn('Chargement maintenance:',e); }
 }
+let _maintLoadedAt=0;   /* [L441 · audit lame #18] date du dernier chargement reussi — sert au refresh silencieux */
 function renderMaintenance(){
   const c=document.getElementById('tabContentMaintenance'); if(!c) return;
   if(!canAccessMaintenance()){ c.innerHTML='<div class="text-muted" style="padding:20px">Connexion requise.</div>'; return; }
-  if(!maintLoaded){ c.innerHTML='<div class="text-muted" style="padding:20px">Chargement du registre…</div>'; loadMaintenance().then(()=>renderMaintenance()); return; }
+  /* [L441 · audit lame #18] cache de SESSION : la pose faite depuis la fiche d'un AUTRE poste n'apparaissait
+     jamais ici avant un rechargement complet. Registre plus vieux que 5 min -> refresh silencieux en fond
+     (le rendu courant reste affiche, on re-rend au retour). */
+  if(maintLoaded&&_maintLoadedAt&&(Date.now()-_maintLoadedAt)>300000&&!window._l441Refreshing){
+    window._l441Refreshing=true;
+    loadMaintenance().then(function(){ window._l441Refreshing=false; try{ if(_isDataTabVisible&&_isDataTabVisible('maintenance')) renderMaintenance(); }catch(e){} },function(){ window._l441Refreshing=false; });
+  }
+  if(!maintLoaded){
+    /* [L441 · bug terrain 27/08 « page Lame figee, on n'arrive pas a modifier »] AVANT : l'echec de
+       loadMaintenance (hors-ligne, reseau d'atelier, cache offline detenu par un autre onglet) laissait
+       maintLoaded a false et le .then() rappelait renderMaintenance -> re-« Chargement… » -> RE-loadMaintenance
+       -> boucle infinie SERREE de requetes ratees, ecran fige a vie sans message ni retry. DESORMAIS :
+       l'echec s'affiche, un bouton relance, et le retour du reseau relance tout seul (one-shot). */
+    c.innerHTML='<div class="text-muted" style="padding:20px">Chargement du registre…</div>';
+    loadMaintenance().then(function(){
+      if(maintLoaded){ renderMaintenance(); return; }
+      c.innerHTML='<div style="padding:20px;display:flex;flex-direction:column;gap:12px;align-items:flex-start">'
+        +'<div style="color:var(--red);font-weight:700">⚠ Registre des lames inaccessible'+(navigator.onLine===false?' — la tablette est HORS-LIGNE.':' (réseau lent ou coupé — ou droits insuffisants pour ce compte).')+'</div>'
+        +'<div class="text-muted" style="font-size:13px">Rien n\'est perdu : le registre est en base, seule la lecture a échoué.</div>'
+        +'<button class="btn btn-blue" style="min-height:48px" onclick="renderMaintenance()">↻ Réessayer</button></div>';
+      try{ if(!window._l441OnlineRetry){ window._l441OnlineRetry=true; window.addEventListener('online',function _r(){ window.removeEventListener('online',_r); window._l441OnlineRetry=false; try{ if(_isDataTabVisible&&_isDataTabVisible('maintenance')) renderMaintenance(); }catch(e){} }); } }catch(e){}
+    });
+    return; }
   c.innerHTML=maintViewHTML();
   renderLameEtat();
   renderAffutageList();
@@ -15329,6 +15364,7 @@ function renderLameEtat(){
       <div class="u-meta">Le ${esc(String(since).slice(0,10))}${cur.responsable?' · '+esc(cur.responsable):''}</div>
       <div class="u-meta" style="margin-top:6px"><b>${bob}</b> bobineau${bob>1?'x':''} coupé${bob>1?'s':''} depuis${bobNote}</div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="lameInstallPrompt('${m}')">🔄 Changer la lame</button>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px;border-color:#6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(String(cur.lameNum||''))}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : la lame sort du cycle, la machine reste sans lame jusqu'à la prochaine pose">🗑 Jeter à la benne</button><!-- [L441 · demande Esteban 27/08 — audit : data-* comme les autres boutons, un n° avec apostrophe tuait l'onclick inline -->
     </div>`;
   }).join('');
   el.innerHTML=`<div class="u-panel" style="margin-bottom:14px">
@@ -15396,7 +15432,7 @@ function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${
 // Fonction PURE (testée par harnais Node).
 function lameClasseurEtat(traces,nowIso){
   const evts=(traces||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&String(r.lameNum||'').trim())
-    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||''))||((({affutage:0,stock:1,demonte:2,installation:3})[a.categorie]||0)-(({affutage:0,stock:1,demonte:2,installation:3})[b.categorie]||0))||String(a.machine||'').localeCompare(String(b.machine||''))||String(a.lameNum||'').localeCompare(String(b.lameNum||''))||String(a.id||'').localeCompare(String(b.id||'')));   // [L243 · props P3] départage FINAL machine/n°/id : ordre TOTAL — l'état ne dépend plus jamais de l'ordre du cache   // [L94 · vérif #2][L237 · revue #4] rang de catégorie COMPLET : à date égale stock vs affutage n'est plus tributaire de l'ordre du cache (non déterministe au rechargement Firestore) à date ÉGALE l'installation passe APRÈS l'affûtage — la lame qu'on venait d'affûter disparaissait du classeur (non déterministe au rechargement)
+    .slice().sort((a,b)=>String(a.dateInstall||a.date||a.createdAt||'').localeCompare(String(b.dateInstall||b.date||b.createdAt||''))||((({affutage:0,stock:1,demonte:2,rebut:2,installation:3})[a.categorie]||0)-(({affutage:0,stock:1,demonte:2,rebut:2,installation:3})[b.categorie]||0))||String(a.machine||'').localeCompare(String(b.machine||''))||String(a.lameNum||'').localeCompare(String(b.lameNum||''))||String(a.id||'').localeCompare(String(b.id||'')));   /* [L441] rebut au rang du demontage */   // [L243 · props P3] départage FINAL machine/n°/id : ordre TOTAL — l'état ne dépend plus jamais de l'ordre du cache   // [L94 · vérif #2][L237 · revue #4] rang de catégorie COMPLET : à date égale stock vs affutage n'est plus tributaire de l'ordre du cache (non déterministe au rechargement Firestore) à date ÉGALE l'installation passe APRÈS l'affûtage — la lame qu'on venait d'affûter disparaissait du classeur (non déterministe au rechargement)
   const last={}, activeByMachine={};
   evts.forEach(r=>{ const n=nrm(r.lameNum); last[n]=r; if(r.categorie==='installation'&&r.machine) activeByMachine[r.machine]=n; });   // [L94 · vérif #4] clé insensible à la casse : reposer « l-2401 » ne crée plus une lame fantôme à côté de « L-2401 »
   const groupes={feba:[],maveg:[],cevenini:[],hors:[]}, recentes=[];
@@ -15424,7 +15460,7 @@ function lameClasseurEtat(traces,nowIso){
     if(!datesMK[k]) datesMK[k]={};
     if(r.categorie==='affutage') datesMK[k].envoi=d;
     else if(r.categorie==='stock') datesMK[k].retour=d; });
-  const parMachine={feba:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},maveg:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},cevenini:{montees:[],aAffuter:[],stockees:[],enAffutage:[]},hors:{montees:[],aAffuter:[],stockees:[],enAffutage:[]}};
+  const parMachine={feba:{montees:[],aAffuter:[],stockees:[],enAffutage:[],jetees:[]},maveg:{montees:[],aAffuter:[],stockees:[],enAffutage:[],jetees:[]},cevenini:{montees:[],aAffuter:[],stockees:[],enAffutage:[],jetees:[]},hors:{montees:[],aAffuter:[],stockees:[],enAffutage:[],jetees:[]}};   /* [L441] + jetees */
   Object.values(lastMK).forEach(r=>{
     const m=(r.machine&&parMachine[r.machine])?r.machine:'hors';
     const k2=nrm((r.machine&&groupes[r.machine]!==undefined&&r.machine!=='hors')?r.machine:(r.machine||'hors'))+'|'+nrm(r.lameNum);   // [L240 · campagne #5] MÊME expression de clé que lastMK/datesMK — une machine legacy inconnue perdait ses dates ➜🏭/🏭➜
@@ -15435,6 +15471,7 @@ function lameClasseurEtat(traces,nowIso){
     }else if(r.categorie==='affutage') parMachine[m].enAffutage.push(item);
     else if(r.categorie==='stock') parMachine[m].stockees.push(item);
     else if(r.categorie==='demonte') parMachine[m].aAffuter.push(item);   // [L237] à-affûter explicite (seed + futurs démontages manuels)
+    else if(r.categorie==='rebut') parMachine[m].jetees.push(item);   /* [L441 · demande Esteban] jetee a la benne : sortie du cycle, trace conservee */
     else parMachine[m].aAffuter.push(item);   // catégorie inconnue : visible, jamais perdue
   });
   Object.values(parMachine).forEach(g=>Object.values(g).forEach(a=>a.sort((x,y)=>String(x.num).localeCompare(String(y.num),undefined,{numeric:true}))));
@@ -15576,14 +15613,42 @@ function renderAffutageList(){
   };
   el.innerHTML=
     sec('🟠','Départ affûtage','Démontées de leur machine, en attente de départ chez l\'affûteur.','aAffuter',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
       'démontée le','aucune lame en départ affûtage 👍')
     +sec('📦','Lames stockées','Affûtées, disponibles — prêtes à être montées.','stockees',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameMonterDepuisStock(this.dataset.mch,this.dataset.num)">⬆ Monter</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameMonterDepuisStock(this.dataset.mch,this.dataset.num)">⬆ Monter</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
       'en stock depuis le','aucune lame en stock')
     +sec('🛠','Lames en cours d\'affûtage','Parties chez l\'affûteur — à réceptionner au retour.','enAffutage',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(96,165,250,.12);border:1px solid var(--blue);color:var(--blue)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetourStock(this.dataset.mch,this.dataset.num)">📦 Réceptionner</button>`:'',
-      'envoyée le','aucune lame chez l\'affûteur');
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(96,165,250,.12);border:1px solid var(--blue);color:var(--blue)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetourStock(this.dataset.mch,this.dataset.num)">📦 Réceptionner</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
+      'envoyée le','aucune lame chez l\'affûteur')
+    +sec('⚫','Jetées à la benne','Plus affûtables — sorties du cycle. La trace reste dans le registre (ISO).','jetees',
+      ()=>'',
+      'jetée le','aucune lame jetée');   /* [L441 · demande Esteban] lecture seule : une lame jetee ne revient pas */
+}
+// [L441 · demande Esteban 27/08] LAME MORTE → BENNE : quand une lame ne peut plus etre affutee, l'operateur
+// la MARQUE jetee. Trace ISO append-only (categorie 'rebut') : la lame sort du cycle (plus montee, plus en
+// stock, plus a affuter) mais TOUT son historique reste dans le registre et la section « Jetees ».
+// Le confirm reste (geste definitif — regle n°4 du depot).
+async function lameJeter(machine,num){
+  if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
+  if(!db||!currentUser){ showToast('Connexion requise.','err'); return; }
+  const lbl=machine?getMachineLabel(machine):'hors machine';
+  if(!confirm('🗑 Jeter la lame '+num+' à la BENNE ('+lbl+') ?\n\nElle ne peut plus être affûtée : elle sort du cycle (plus jamais proposée au montage).\nSa trace reste dans le registre (ISO).')) return;
+  const now=isoNow(); const who=currentUser?currentUser.ini:'?';
+  const doc={ type:'lame', categorie:'rebut', machine:machine||'', lameNum:String(num).trim(),
+    dateInstall:now, date:now,
+    description:'Lame '+num+' jetée à la benne — plus affûtable', responsable:who,
+    createdAt:now, createdBy:who, deleted:false };
+  try{
+    const ref=db.collection('maintenance').doc();
+    try{ await boundedWrite(ref.set(doc),10000); }
+    catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ try{ showToast('📡 Hors-ligne : le rebut est enregistré, il partira au retour du réseau.','ok'); }catch(_){} } else throw e; }   /* [L441 · audit lame #11] */
+    doc.id=ref.id; maintenanceCache.unshift(doc);
+    logAudit('create','maintenance',ref.id,'Lame '+num+' jetée à la benne ('+lbl+') — plus affûtable').catch(function(){});
+    showToast('🗑 Lame '+num+' marquée JETÉE — trace conservée dans le registre.','ok');
+    renderMaintenance();
+    try{ renderLameAlertBanner(); }catch(e){}
+  }catch(e){ showToast('Erreur : '+e.message,'err'); }
 }
 // [L233 · A3] STOCKÉE → MONTÉE : pose une lame du stock sur SA machine (la lame montée actuelle, s'il y en
 // a une, bascule automatiquement « à affûter » au prochain état dérivé — cycle demandé par Esteban).
@@ -16272,7 +16337,7 @@ function renderLameStats(){
   if(typeof canAccessMaintenance==='function'&&!canAccessMaintenance()){ el.innerHTML=''; return; }   // [L233 · A3] même garde que l'onglet Lame qui l'héberge
   // Chargement paresseux de la maintenance (sinon graphiques poses vides).
   if(typeof maintLoaded!=='undefined'&&!maintLoaded&&typeof loadMaintenance==='function'){
-    loadMaintenance().then(()=>{ try{ renderLameStats(); }catch(e){} });
+    loadMaintenance().then(()=>{ try{ if(typeof maintLoaded!=='undefined'&&maintLoaded) renderLameStats(); }catch(e){} });   /* [L441 · audit lame #2] meme boucle infinie que renderMaintenance : on ne re-rend QUE si le chargement a reussi */
   }
   const period=_lameStatsPeriod, months=_lameStatsMonths(), pl=_periodLabel(period);
   const opts='<option value="all"'+(period==='all'?' selected':'')+'>Tout l\'historique</option>'+months.map(mo=>{const a=mo.split('-');const lbl=(_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0];return '<option value="'+mo+'"'+(period===mo?' selected':'')+'>'+lbl+'</option>';}).join('');
@@ -23852,6 +23917,8 @@ async function _l435ChgValider(kind){
 
     /* ── LAME : on pousse la pose dans Donnees > Lame (plus de double saisie) */
     if(window._l440ChgBusy) return; window._l440ChgBusy=true;   /* [L440 · audit #10] deux taps rapides passaient tous deux la garde avant la 1re ecriture -> double pose en base */
+    const _btn41=document.getElementById('chgOkLame'); const _txt41=_btn41?_btn41.textContent:'';
+    if(_btn41){ _btn41.textContent='⏳…'; _btn41.disabled=true; }   /* [L441 · audit lame #14] l'ecriture peut prendre >10 s : sans retour visuel l'operateur re-tapait dans le vide */
     try{
     const num=V('fLameNew');
     let mk=''; try{ mk=String((typeof ficheMachine!=='undefined'&&ficheMachine)||'').toLowerCase(); }catch(e){}
@@ -23876,12 +23943,13 @@ async function _l435ChgValider(kind){
       return; }
     if(typeof lameActiveForMachine==='function'){
       try{ const cur=lameActiveForMachine(mk); if(cur&&String(cur.lameNum||'').trim().toLowerCase()===num.toLowerCase()){
+        window._l440LamePosed={mk:mk,num:num,at:Date.now(),prev:V('fNumLame')||''};   /* [L441 · audit lame #19] memo pose AUSSI ici, sinon le popup retrograde revenait a l'envoi */
         showToast('✓ Lame '+num+' — déjà enregistrée sur '+getMachineLabel(mk)+', rien à ressaisir.','ok'); return; } }catch(e){}
     }
     if(typeof lameInstall!=='function'){ showToast('✓ Changement de lame pris en compte.','ok'); return; }
     const ok=await lameInstall(mk,num,{description:'Lame changée en cours de commande — à partir de la bobine '+(V('fLameChgBob')||'?')});
     if(ok){
-      window._l440LamePosed={mk:mk,num:num,at:Date.now()};   /* [L440 · audit #8] memoire de la pose de CETTE commande : l'envoi ne re-proposera pas l'ANCIENNE lame si l'operateur decoche ensuite */
+      window._l440LamePosed={mk:mk,num:num,at:Date.now(),prev:V('fNumLame')||''};   /* [L440 · audit #8 — L441 #17 : prev = l'ancienne lame, la SEULE dont la re-pose est bloquee a l'envoi */
       showToast('✓ Lame '+num+' posée sur '+getMachineLabel(mk)+' — Données > Lame est à jour, rien à ressaisir.','ok');
       if(done) done.textContent='✓ '+_l435ChgResume(kind)+' · registre à jour';
       try{ if(typeof renderLameAlertBanner==='function') renderLameAlertBanner(); }catch(e){}
@@ -23889,7 +23957,7 @@ async function _l435ChgValider(kind){
     } else {
       showToast('✓ Changement pris en compte sur la fiche — le registre des lames sera mis à jour à l\'envoi.','ok');
     }
-    }finally{ window._l440ChgBusy=false; }   /* [L440 · audit #10] */
+    }finally{ window._l440ChgBusy=false; if(_btn41){ _btn41.textContent=_txt41||'✓ Validé'; _btn41.disabled=false; } }   /* [L440 · audit #10 — L441 : bouton rendu */
   }catch(e){ window._l440ChgBusy=false; console.warn('_l435ChgValider:',e); try{ showToast('Changement pris en compte.','ok'); }catch(_){ } }
 }
 /* une modification apres coup re-ouvre la ligne : le ✓ ne doit jamais mentir */
