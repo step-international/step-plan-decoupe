@@ -1353,12 +1353,19 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L455 : fleches ordre de coupe + validation reservee bureau ──');
+has(/\.fmm-drag-handle\{display:none\}/,'L455 : poignee de drag retiree (fleches = seul geste)');
+has(/\.fmm-order-btns\{display:flex;flex-direction:column/,'L455 : fleches visibles en paysage, empilees');
+has(/f\.valide==null&&currentRole!=='operateur'/,'L455 : bouton Valider cache pour operateurs et comptes machine');
+has(/La validation des fiches se fait au bureau/,'L455 : garde profonde dans validateFiche');
+has(/body\.atelier #statsBar \.stat-chip\{font-size:12px!important/,'L455 : chips Plan compactes a toutes les largeurs (badge chute tablette)');
+
 console.log('── L454 : refs client texte libre + police lisible ──');
 has(/function _l454CatalogRefs\(client\)/,'L454 : resolveur catalogue tolerant (client texte libre)');
 has(/_l454CatalogRefs\(client\);   \/\* \[L454\] tolere le client texte libre \*\//,'L454 : addRefBlock et onClientChange passent par le resolveur');
 has(/n==='legrand france'\|\|n\.indexOf\('legrand france'\)===0/,'L454 : predicat Legrand France tolere le suffixe texte libre');
-has(/font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:400/,'L454 : police Atkinson Hyperlegible embarquee (400)');
-has(/--f-body:'Atkinson Hyperlegible','Barlow'/,'L454 : corps de texte bascule sur Atkinson (ecran seulement)');
+has(/font-family:'AH Chiffres';font-style:normal;font-weight:400/,'L454-L455 : chiffres Atkinson embarques (sous-ensemble 400)');
+has(/--f-body:'AH Chiffres',Arial,Helvetica/,'L455 : corps lettres Arial + chiffres Atkinson (demande « classique genre arial »)');
 has(/--f-head:'AH Chiffres','Barlow Condensed'/,'L454 : chiffres Atkinson dans les titres condenses');
 
 console.log('── L453 : filtres Analyse retires + Recharger sans perte ──');
