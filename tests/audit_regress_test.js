@@ -1364,9 +1364,10 @@ console.log('── L454 : refs client texte libre + police lisible ──');
 has(/function _l454CatalogRefs\(client\)/,'L454 : resolveur catalogue tolerant (client texte libre)');
 has(/_l454CatalogRefs\(client\);   \/\* \[L454\] tolere le client texte libre \*\//,'L454 : addRefBlock et onClientChange passent par le resolveur');
 has(/n==='legrand france'\|\|n\.indexOf\('legrand france'\)===0/,'L454 : predicat Legrand France tolere le suffixe texte libre');
-has(/font-family:'AH Chiffres';font-style:normal;font-weight:400/,'L454-L455 : chiffres Atkinson embarques (sous-ensemble 400)');
-has(/--f-body:'AH Chiffres',Arial,Helvetica/,'L455 : corps lettres Arial + chiffres Atkinson (demande « classique genre arial »)');
-has(/--f-head:'AH Chiffres','Barlow Condensed'/,'L454 : chiffres Atkinson dans les titres condenses');
+has(/--f-head:system-ui,-apple-system/,'L456 : titres en pile systeme (police de la maquette Analyse)');
+has(/--f-body:system-ui,-apple-system/,'L456 : corps en pile systeme');
+has(/POLICE DE LA MAQUETTE/,'L456 : historique du choix de police documente (3 iterations Esteban)');
+absent(/@font-face/,'L456 : plus AUCUNE @font-face embarquee (pile systeme pure, -186 Ko)');
 
 console.log('── L453 : filtres Analyse retires + Recharger sans perte ──');
 has(/filtres OPERATEUR et MOIS retires/,'L453 : filtres Operateur et Mois retires de l Analyse');
