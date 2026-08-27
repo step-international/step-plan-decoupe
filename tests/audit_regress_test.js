@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L452 : bandeau palettes retire du Plan ──');
+has(/le bandeau\n     « Ce plan ouvrira jusqu'a N palettes/,'L452 : bandeau palettes retire (tolerance 6 assumee)');
+absent(/Prévois la place au sol/,'L452 : le texte « Prevois la place au sol » a disparu');
+
 console.log('── L451 : urgences DC — validation NC · 2e BL · captures de l ecran actuel ──');
 has(/regle L424 alignee : une NC REELLE declaree \(larg\/qte\/casse\/angle\/humain\) EST un controle/,'L451 : une bobine en CASSE ne bloque plus la validation pilotage');
 has(/livre sur 2 BL, impossible d'ajouter le second/,'L451 : bouton ＋ BL sur la puce (plusieurs BL par commande)');
