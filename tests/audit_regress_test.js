@@ -916,7 +916,7 @@ has(/showToast\(auto\?'⛔ Une laize dépasse la largeur utile — la fiche rest
 
 console.log('── L360 : analyse des parcours — quick wins CSS ──');
 has(/\.fl-current \.cumul-box\{grid-template-columns:repeat\(auto-fit,minmax\(180px,1fr\)\)\}/,'L360 n°3 : cumul de la carte en cours sur une rangée (paysage)');
-has(/\.fiche-line\.fl-current \.fiche-grid>\.field:has\(\[id\^="flConf_"\]\)\{padding-left:130px;padding-right:145px\}/,'L360 n°4 : config de la carte en cours sur 1 ligne (313→388px)');
+has(/\.fiche-line\.fl-current \.fiche-grid>\.field:has\(\[id\^="flConf_"\]\)\{padding-left:165px;padding-right:210px\}/,'L360 n°4 (recalibre L458) : config de la carte en cours sur 1 ligne — reserves police systeme');
 has(/<span class="fmm-btn-ref"> — '\+esc\(String\(r\.ref\)\)\+'<\/span>/,'L360 n°5 : réf du bouton VALIDER dans un span (masqué ≥1100, chaîne portrait identique)');
 has(/#ficheRight>#sendPlanWrap>#sendPlanHint:empty\{display:none!important\}/,'L360 n°6 : hint vide de la barre = 0px');
 has(/^  \.btn-blue\{background:#16283d\}/m,'L360 n°7 : .btn-blue ≥4,5:1 en paysage');
