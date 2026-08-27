@@ -1353,6 +1353,13 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L447 : chip petite · textes retires · etiquette solde homonymes ──');
+has(/« n references » PETITE, au meme niveau que les tuiles/,'L447 : chip references petite sur la ligne des tuiles');
+has(/intro Brouillons retiree/,'L447 : intro Brouillons retiree');
+has(/intro Corbeille retiree/,'L447 : intro Corbeille retiree');
+has(/chapeau Lame retire/,'L447 : chapeau Lame retire');
+has(/deux refs de MEME NOM \(ml ou film differents\) etaient indistinguables/,'L447 : etiquette solde — homonymes suffixes ml\/film');
+
 console.log('── L446 : matiere d abord (diagnostic PRIMA/VEKA) + m2 Qte en trop ──');
 has(/_seqMinPalettes \(gelee\) peut rendre un ordre PIRE que/,'L446 : le re-pack palettes injustifie ne coute plus une bobine mere');
 has(/_l446Brut:true/,'L446 : le plan brut est choisi quand il fait moins de bobines a pic <= 4');
@@ -1364,7 +1371,7 @@ console.log('── L445 : retouches Esteban 27/08 soir ──');
 has(/les chips « n references \/ n clients » RESTENT sur la ligne des tuiles/,'L445 : chip references sur la ligne des stats');
 has(/une ligne de plus sans remonter au bouton du haut/,'L445 : bouton ＋ sur les lignes stock\/chute');
 has(/APERCU d'abord — l'impression part du bouton 🖨/,'L445 : PDF de la carte = apercu avant impression');
-has(/chapeau raccourci/,'L445 : textes longs retires de la page Lame');
+has(/chapeau Lame retire/,'L445 : textes longs retires de la page Lame — [L447] chapeau supprime completement');
 absent(/Le nombre de bobineaux est recalculé depuis les fiches/,'L445 : phrase « recalcule depuis les fiches » retiree');
 
 console.log('── L444 : chutes regroupees sur la derniere bobine (spec QCM 27/08) ──');

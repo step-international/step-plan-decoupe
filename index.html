@@ -1697,6 +1697,7 @@ body.atelier .stat-tile b{font-size:36px}
   #planCards .card-config{font-size:26px;line-height:1.1}
   #planCards .bobine-card .badge.bc-waste{font-size:16px}
   #statsBar .stat-chip.sc-utile,#statsBar .stat-chip.sc-solde{display:none}   /* doublons des tuiles/lignes (utile = tuile bleue, solde = dernière ligne) */
+  #statsBar .stat-chip{flex:0 0 auto;align-self:center;font-size:12px!important;padding:4px 10px}   /* [L447 · demande Esteban] « n references » PETITE, au meme niveau que les tuiles — en mode atelier elle gonflait a 17px et ecrasait toute la rangee */
   #statsBar{gap:10px}
   #statsBar .stat-tile{flex:1 1 0;min-width:0}   /* [L386] flex-basis 0 : 2 tuiles + 💾 tiennent TOUJOURS sur une rangée (elles se partagent le reste) */   /* [fix audit] les chips (références/clients/rouleaux) passent à la rangée suivante au lieu d'écraser les tuiles */
   /* — 📦 emballage : carte-RÉSUMÉ (tap = détail) — le formulaire garde ses ids et handlers — */
@@ -2943,7 +2944,7 @@ html.theme-light .fp-num small{color:#8a8a84}
 
   <!-- ONGLET BROUILLONS -->
   <div id="tabContentBrouillons" class="hidden">
-    <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Fiches parquées ou non envoyées (réseau coupé). Partagées entre les 3 tablettes — couleur = machine d'origine. « Reprendre » recharge la fiche pour la compléter et l'envoyer.</div>
+<!-- [L447 · demande Esteban] intro Brouillons retiree -->
     <!-- [L61 · Lot 3] commandes partagées avec moi (rempli par renderDrafts → renderSharedDraftsBlock) -->
     <div id="sharedDraftsBlock" style="display:none;margin-bottom:12px"></div>
     <div id="draftsList"></div>
@@ -2955,7 +2956,7 @@ html.theme-light .fp-num small{color:#8a8a84}
 
   <!-- ONGLET CORBEILLE -->
   <div id="tabContentCorbeille" class="hidden">
-    <div style="padding:10px 0 14px;font-size:13px;color:var(--muted)">Éléments archivés. Fiches <b>validées</b> conservées 2 ans (qualité/ISO). Autres éléments supprimés après 45 jours. Avant suppression, tout est sauvegardé dans l'archive froide (🧊 dans Plans).</div>
+<!-- [L447 · demande Esteban] intro Corbeille retiree -->
     <div id="corbeilleList"></div>
     <div id="corbeilleEmpty" class="text-muted" style="padding:8px 0">Corbeille vide.</div>
   </div>
@@ -3220,7 +3221,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L446';
+const APP_VERSION='2026.08.27-L447';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9720,7 +9721,8 @@ function refreshEtiquetteSolde(){
   const multi=list.length>1;
   wrap.innerHTML=list.map(d=>`
     <div class="solde-card" data-key="${d.key}" style="border:1px solid #7a6010;${d.color?`border-left:6px solid ${d.color};`:''}background:#221c06;border-radius:10px;padding:12px 14px;margin-bottom:10px"><!-- [L260 · demande Esteban] bordure gauche à la couleur de la réf : distingue 2 réfs identiques à l'œil -->
-      ${multi?`<div style="font-size:13px;font-weight:800;color:${d.color||'var(--ref-accent)'};margin-bottom:6px">▸ ${esc(d.ref||'—')}</div>`:''}
+      ${multi?`<div style="font-size:13px;font-weight:800;color:${d.color||'var(--ref-accent)'};margin-bottom:6px">▸ ${esc(refDisp(d.ref||'—'))}${(function(){ /* [L447 · demande Esteban] deux refs de MEME NOM (ml ou film differents) etaient indistinguables : on suffixe ce qui les separe */
+        try{ const _tw=list.filter(x=>refDisp(String(x.ref||'').replace(/ ⟲ fin de phase$/,''))===refDisp(String(d.ref||'').replace(/ ⟲ fin de phase$/,''))); if(_tw.length>1){ let sfx=''; if(d.longueur) sfx+=' · '+esc(String(d.longueur))+' ml'; if(d.film) sfx+=' · '+esc(String(d.film)); if(d.veka) sfx+=' · '+esc(String(d.veka)); return sfx; } }catch(e){} return ''; })()}</div>`:''}
       <div class="field" style="margin-bottom:8px">
         <label>Laize restante (mm) <span style="color:var(--muted);font-weight:400">— modifiable si la bobine a changé</span></label>
         <input type="text" id="etiqSolde_${d.key}" value="${esc(String(d.solde))}" inputmode="decimal" placeholder="ex : 120">
@@ -15577,7 +15579,7 @@ async function confirmLameInstall(){
 // [L83 · Audit #24] maintRespOpts supprimée (morte — le formulaire « Installer/déclarer une lame » a été retiré au L79)
 function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
   return `
-  <div style="padding:6px 0 12px;font-size:13px;color:var(--muted)">Alerte : FEBA 15 j · MAVEG et CEVENINI 10 j après la pose.</div><!-- [L445 · demande Esteban] chapeau raccourci -->
+<!-- [L447 · demande Esteban] chapeau Lame retire (l'info vit deja sur chaque carte machine « max 15 j ») -->
   <div id="lameEtat"></div>
   <div id="lameSections"></div><!-- [L233 · refonte Lames A3] 3 sections par statut × machine : À affûter / Stockées / En cours d'affûtage -->
   <!-- [L240] bouton seed RETIRÉ (inventaire injecté et validé par Esteban le 23/07 — lameSeedInventaire reste en code, réactivable) -->
