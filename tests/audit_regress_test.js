@@ -945,7 +945,7 @@ has(/var _keep=!!\(window\._l363PkgTouched&&window\._l363PkgClient===clientName\
 has(/if\(t\.dataset\.l363edit!=='1'\) t\.readOnly=true;/,'L363 B11 : config en lecture seule tant que ✎ MODIFIER n est pas tapé (paysage)');
 has(/function initDefaultRows\(\)\{for\(let i=0;i<3;i\+\+\) addOrderRow\(\);\}/,'L363 B15 : 3 lignes vides par défaut (la suivante s ajoute seule)');
 has(/let delay=600;/,'L363 B15 : recalcul du plan léger à 600 ms');
-has(/#planSaveBtn\{display:inline-flex;min-height:52px;width:auto/,'L363 A17 (révisé L385-L386) : 💾 Sauvegarder à 1 tap, à côté de la perte, une seule rangée');
+has(/#planSaveBtn\{display:inline-flex;min-height:64px;width:auto/,'L363 A17 (révisé L385-L386, agrandi L459) : 💾 Sauvegarder à 1 tap, une seule rangée');
 has(/body\.calc-pending #planCards/,'L363 A20 : plan périmé signalé pendant le recalcul');
 
 console.log('── L364 : correctifs audit L359→L363 ──');
@@ -1144,7 +1144,7 @@ absent(/onclick="doRedo\(\)"/,'L385 : bouton « ⟳ Refaire (nouveau n°) » ret
 has(/l'en-tête suit la réf EN COURS même VALIDÉE/,'L385 : en-tête fiche = réf en cours toujours visible (recorrigeable), vidée quand tout est coupé');
 has(/💾 SAUVEGARDER en GRAND, posé à côté de la tuile PERTE/,'L385 : 💾 à côté de la tuile perte, en grand');
 has(/le sortir avant de réécrire innerHTML sinon il serait détruit/,'L385 : 💾 sauvé avant chaque réécriture de #statsBar (2 branches)');
-has(/#planCards \.card-config\{font-size:26px;line-height:1\.1\}/,'L385 (recalibré L386) : compositions lisibles ET serrées — plus de lignes visibles');
+has(/#planCards \.card-config\{font-size:20px;line-height:1\.1\}/,'L385 (recalibré L386 puis L459) : compositions lisibles ET serrées — plus de lignes visibles');
 
 console.log('── L386 : gros lot de retours prod Esteban (21/08) ──');
 has(/\[L342 → retiré L386 · demande Esteban 21\/08\] cartes compactes une-rangée SUPPRIMÉES/,'L386 : fiches découpe — retour au format complet historique');
@@ -1352,6 +1352,12 @@ console.log('── L436 : finitions (inventaire du 26/08) ──');
 has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque partout (partage abandonne)');
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
+
+console.log('── L459 : Plan epure et lisible ──');
+has(/#planSaveBtn\{display:inline-flex;min-height:64px/,'L459 : bouton SAUVEGARDER agrandi');
+has(/#planCards \.card-config\{font-size:20px/,'L459 : config du plan 26->20px (plus de lignes visibles)');
+has(/\.fl-current \.fl-edit-chip:not\(\.need-recalc\)\{display:none\}/,'L459 : MODIFIER cache au repos, revient en APPLIQUER');
+absent(/Reste rouleaux <span/,'L459 : chip Reste rouleaux retiree');
 
 console.log('── L458 : reserves anti-chevauchement recalibrees police systeme ──');
 has(/padding-left:165px;padding-right:210px/,'L458 : reserves BOBINE/CHUTE recalibrees (130/145 mesures Barlow -> 165/210)');

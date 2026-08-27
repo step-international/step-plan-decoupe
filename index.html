@@ -1705,7 +1705,15 @@ body.atelier .stat-tile b{font-size:36px}
   /* [L443] regle retiree : la rangee solde n'est plus teintee */
   #planCards .bobine-card .card-sub:has(>.v){display:none}
   #planCards .bc-count{font-size:17px;min-width:56px;color:var(--text3)}
-  #planCards .card-config{font-size:26px;line-height:1.1}
+  #planCards .card-config{font-size:20px;line-height:1.1}   /* [L459] 26->20 : voir plus de plan sans defiler (demande Esteban) */
+  #planCards .bobine-card{padding:6px 12px}
+  #planCards .bc-count{font-size:14px;min-width:44px}
+  #planCards .bobine-card .badge.bc-waste{font-size:13px}
+  /* [L459] bande Ref compacte a droite : chips plus petites, moins de hauteur */
+  #planCards .ref-band,#statsBar~* .ref-band{padding:6px 10px;margin:10px 0 6px;gap:8px}
+  .ref-band .rb-refchip{font-size:10.5px;padding:1px 7px}
+  .ref-band .rb-name{font-size:12.5px}
+  .ref-band .rb-m,.ref-band .rb-mch{font-size:10.5px;padding:1px 6px}
   #planCards .bobine-card .badge.bc-waste{font-size:16px}
   #statsBar .stat-chip.sc-utile,#statsBar .stat-chip.sc-solde{display:none}   /* doublons des tuiles/lignes (utile = tuile bleue, solde = dernière ligne) */
   #statsBar .stat-chip{flex:0 0 auto;align-self:center;font-size:12px!important;padding:4px 10px}   /* [L447 · demande Esteban] « n references » PETITE, au meme niveau que les tuiles — en mode atelier elle gonflait a 17px et ecrasait toute la rangee */
@@ -2095,7 +2103,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   /* B1 — ambre unique sur la carte en cours : la pastille BOBINE n/T, MODIFIER, CHUTE et le cumul passent en « ici » (jaune outline / neutre) */
   .fl-current .fl-pos{background:transparent;border:1.5px solid #b8860b;color:#ffd45e}
   .fiche-line.fl-current:has(.fl-badge.badge-red) .fl-pos{color:#ff8a8f;border-color:#8a2b2f}
-  .fl-current .fl-edit-chip:not(.need-recalc){background:transparent;color:var(--text2);border-color:var(--border2)}
+  .fl-current .fl-edit-chip:not(.need-recalc){display:none}   /* [L459 · demande Esteban 28/08] MODIFIER retire : on tape directement la barre de chiffres ; le bouton ne reapparait que devenu « APPLIQUER LES CHANGEMENTS » (need-recalc), indispensable au recalcul */
   .fl-current .fl-chute:not(.over){color:var(--text2)}
   .fl-current .cumul-card{border-color:var(--border2);background:#1a1a18}
   .fl-current .cc-t{color:var(--text2)}
@@ -2135,7 +2143,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
 }
 /* [L363 · analyse parcours — logique validée : B3 machine du poste · B4 réf unique · B5 emballage main gagne · B11 config lecture seule · B15 3 lignes/600 ms · A16 · A17 · A20] */
 @media(min-width:1100px){
-  #planSaveBtn{display:inline-flex;min-height:52px;width:auto;justify-content:center;align-items:center;font-size:15px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;padding:8px 16px;margin:0}   /* [L382 → L385 · demande Esteban 21/08] 💾 en GRAND, dans #statsBar à côté de la tuile perte (déplacé par _l341PlanPolish) */
+  #planSaveBtn{display:inline-flex;min-height:64px;width:auto;justify-content:center;align-items:center;font-size:19px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;padding:10px 24px;margin:0}   /* [L459 · demande Esteban 28/08] 💾 EN PLUS GROS */   /* [L382 → L385 · demande Esteban 21/08] 💾 en GRAND, dans #statsBar à côté de la tuile perte (déplacé par _l341PlanPolish) */
   #planResultSec>.section-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;font-size:14px;color:var(--text3);margin-bottom:4px}
   #planResultSec>.section-title .prs-lbl{display:none}   /* [L400] */   /* [L386 · demande Esteban] titre discret à droite — toute la place au plan */
   #planResultSec .title-chip{font-size:13px;padding:5px 10px;text-transform:none;letter-spacing:0}
@@ -3242,7 +3250,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.28-L458';
+const APP_VERSION='2026.08.28-L459';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8783,7 +8791,7 @@ function recalcPlan(){
     ${chutesPieces>0?`<div class="stat-tile"><b>${chutesPieces}</b><i>en stock ✂${chutesChipLabel?' · '+chutesChipLabel:''}</i></div>`:''}
     ${cliMulti()?`<div class="stat-chip">👥 <span>${cliIds().length}</span> clients</div>`:''}
     ${multi?'':`<div class="stat-chip sc-utile">utile <span>${fmt((computed.find(c=>(c.rows||[]).length)||computed[0]).useful)} mm</span></div>`}<!-- [L457 · demande Esteban 28/08] chip « n references » retiree (les cartes Ref dessous disent deja tout) -->
-    ${resteRouleauxMm>0?`<div class="stat-chip" style="border-color:#115e52;background:#06231c">♻ Reste rouleaux <span style="color:#5eead4">${fmt(resteRouleauxMm)} mm</span></div>`:''}
+<!-- [L459 · demande Esteban 28/08] chip « Reste rouleaux » retiree : deja lisible sur les rangees ♻ du plan (zero repetition) -->
     <div class="stat-chip sc-solde">✂ Chute stock <span style="font-weight:700;color:var(--orange)">${fmt(chuteStockMm)} mm</span></div><!-- [L146 · audit ergo #12] « Chute stock » unifié en ORANGE (convention ✂ chute partout, CSS 192-215) — était vert ici vs orange ailleurs pour la même notion -->
 `;   /* [L457 · demande Esteban 28/08] chip « ♻ N rouleaux chute recoupes » RETIREE de la rangee du haut : deja indiquee sur la carte Ref (♻ 1 rouleau) et sur la rangee bobine elle-meme */
   if(statsEl){ try{ statsEl.dataset.l384Fresh='1'; statsEl.dataset.pertePct=pertePct.toFixed(1); }catch(_){} }   /* [L457] la tuile perte est retiree (demande Esteban) mais la VALEUR reste exposee pour le harnais sim (invariant 0-100%) */   /* [L384 · audit final] marque « rendu frais » : seule une barre re-rendue autorise la purge des chips du titre (un polish à vide les mangeait) */
