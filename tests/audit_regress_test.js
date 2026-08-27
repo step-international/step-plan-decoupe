@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L443 : mail d erreur auto — photos jointes + bruits filtres ──');
+has(/LES PHOTOS DES PAGES ARRIVENT AUSSI SUR LE MAIL AUTO/,'L443 : le mail automatique joint les ecrans Plan et Fiche');
+has(/ResizeObserver loop\/i\.test\(_m43\)/,'L443 : l avertissement benin ResizeObserver ne part plus en mail');
+
 console.log('── L442 : retouches Esteban 27/08 (outils plan · lame · BL · solde) ──');
 has(/RETIRES du tiroir : les boutons existent deja dans la page/,'L442 : Sauvegarder et Reinitialiser retires du tiroir plan');
 has(/UN SEUL lanceur ⚙ OUTILS, au-dessus de la Reference 1/,'L442 : le lanceur OUTILS ne s empile plus');
