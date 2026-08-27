@@ -1353,6 +1353,12 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L451 : urgences DC — validation NC · 2e BL · captures de l ecran actuel ──');
+has(/regle L424 alignee : une NC REELLE declaree \(larg\/qte\/casse\/angle\/humain\) EST un controle/,'L451 : une bobine en CASSE ne bloque plus la validation pilotage');
+has(/livre sur 2 BL, impossible d'ajouter le second/,'L451 : bouton ＋ BL sur la puce (plusieurs BL par commande)');
+has(/LES CAPTURES MONTRENT CE QUE VOIT L'OPERATEUR/,'L451 : le mail joint l ecran ACTUEL du signalement');
+has(/ecran-au-signalement\.jpg/,'L451 : piece jointe nommee ecran-au-signalement');
+
 console.log('── L450 : bouton MODIFIER repare + tableau conditionnement auto-complete ──');
 has(/le re-rendu RE-SEEDait la validation/,'L450 : MODIFIER de-valide AUSSI cote Plan (la carte editable revient vraiment)');
 has(/On complete les trous a la\n       CONSTRUCTION du tableau, ref par ref/,'L450 : le tableau conditionnement complete les codes depuis la table Legrand');

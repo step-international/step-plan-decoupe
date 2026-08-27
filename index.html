@@ -3231,7 +3231,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.28-L450';
+const APP_VERSION='2026.08.28-L451';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3383,13 +3383,13 @@ function _reportWrite(kind,texte,err){
     var subj='STEP '+lbl+' · '+(ctx.ecran||'')+(ctx.ini?(' · '+ctx.ini):'')+' · '+(ctx.version||'');
     var shots=arguments.length>3?arguments[3]:null;   // [L388] captures d'écran (URLs Storage) — optionnelles
     var html=_repHtml(kind,texte,ctx,err);
-    if(shots&&(shots.plan||shots.fiche)) html+='<p><b>Écrans au moment du signalement :</b> '+(shots.plan?'<a href="'+shots.plan+'">écran Plan</a>':'')+(shots.plan&&shots.fiche?' · ':'')+(shots.fiche?'<a href="'+shots.fiche+'">écran Fiche</a>':'')+' (aussi en pièces jointes)</p>';
+    if(shots&&(shots.actuel||shots.plan||shots.fiche)){ const _links=[]; if(shots.actuel) _links.push('<a href="'+shots.actuel+'"><b>ÉCRAN AU MOMENT DU SIGNALEMENT ('+esc(ctx.ecran||'?')+')</b></a>'); if(shots.plan) _links.push('<a href="'+shots.plan+'">écran Plan</a>'); if(shots.fiche) _links.push('<a href="'+shots.fiche+'">écran Fiche</a>'); html+='<p>📸 '+_links.join(' · ')+' (aussi en pièces jointes)</p>'; }   /* [L451] l'ecran ACTUEL en tete */
     var doc={ to:REPORT_RECIPIENTS, message:{ subject:subj, html:html },
       kind:kind, poste:ctx.poste, ini:ctx.ini, version:ctx.version, ecran:ctx.ecran, machine:ctx.machine,
       numCmd:ctx.numCmd, client:ctx.client, bobine:ctx.bobine, err:(err||''), at:ctx.at };
-    if(shots&&(shots.plan||shots.fiche)){
+    if(shots&&(shots.actuel||shots.plan||shots.fiche)){
       doc.shots=shots;
-      doc.message.attachments=[]; if(shots.plan) doc.message.attachments.push({filename:'ecran-plan.jpg',path:shots.plan}); if(shots.fiche) doc.message.attachments.push({filename:'ecran-fiche.jpg',path:shots.fiche});   // [L388] Trigger Email (nodemailer) télécharge le path à l'envoi — rien de lourd dans Firestore
+      doc.message.attachments=[]; if(shots.actuel) doc.message.attachments.push({filename:'ecran-au-signalement.jpg',path:shots.actuel}); if(shots.plan) doc.message.attachments.push({filename:'ecran-plan.jpg',path:shots.plan}); if(shots.fiche) doc.message.attachments.push({filename:'ecran-fiche.jpg',path:shots.fiche});   // [L388+L451] l'ecran ACTUEL d'abord — Trigger Email télécharge le path à l'envoi
     }
     return boundedWrite(db.collection('mail').add(doc),10000).then(function(){return true;}).catch(function(e){ return !!(e&&e.queued); });
   }catch(e){ return Promise.resolve(false); }
@@ -3456,9 +3456,14 @@ async function _l388CaptureShots(){ try{
   const t0=Date.now();
   const cap=async function(pid,nm){ const d=await _l388CapturePage(pid); if(!d||Date.now()-t0>12000) return null; return await Promise.race([_l388Upload(d,nm),new Promise(function(r){ setTimeout(function(){ r(null); },6000); })]); };
   const out={};
-  const p=await cap('page0','plan'); if(p) out.plan=p;
-  const f=await cap('page1','fiche'); if(f) out.fiche=f;
-  return (out.plan||out.fiche)?out:null;
+  /* [L451 · demande Esteban 28/08] LES CAPTURES MONTRENT CE QUE VOIT L'OPERATEUR : l'ecran ACTIF est
+     capture EN PREMIER (DC signalait depuis Donnees, le mail montrait Plan et Fiche VIDES de son poste
+     — aucun contexte). Plan et Fiche ne partent EN PLUS que s'ils ne sont pas l'ecran actif. */
+  let activeId=''; try{ activeId=(document.querySelector('.page.active')||{}).id||''; }catch(e){}
+  if(activeId){ const a=await cap(activeId,'actuel'); if(a) out.actuel=a; }
+  if(activeId!=='page0'){ const p=await cap('page0','plan'); if(p) out.plan=p; }
+  if(activeId!=='page1'){ const f=await cap('page1','fiche'); if(f) out.fiche=f; }
+  return (out.actuel||out.plan||out.fiche)?out:null;
 }catch(e){ return null; } }
 function _l380AssistEnabled(){ try{ return !!window._l380Enabled; }catch(e){ return false; } }
 function _l380CheckEnabled(){ try{ if(!db) return; db.collection('config').doc('assistant').get().then(function(d){ window._l380Enabled=!!(d.exists&&d.data()&&d.data().enabled); const n=document.getElementById('reportAiNote'); if(n) n.style.display=window._l380Enabled?'':'none'; }).catch(function(){}); }catch(e){} }
@@ -16974,7 +16979,7 @@ function renderFiches(){
           :(blOk?(function(){ /* [L442 · demande Esteban 27/08] le NOM du fichier joint (il porte le n° de BL) s'affiche sur la puce — fini la chasse au document */
             const _bl42=ficheBLs(f); const _n1=(_bl42[0]&&_bl42[0].name)?String(_bl42[0].name).replace(/\.(pdf|jpe?g|png|webp)$/i,''):'';
             const _lbl=_n1?((_bl42.length>1?('📎 '+_bl42.length+' BL · '):'📎 ')+esc(_n1.length>26?_n1.slice(0,25)+'…':_n1)):'📎 BL joint';
-            return `<span class="fc-chip fc-chip-g" title="${esc(_bl42.map(function(b){return b.name||'BL';}).join(' · '))}">${_lbl}</span>`; })():'');
+            return `<span class="fc-chip fc-chip-g" title="${esc(_bl42.map(function(b){return b.name||'BL';}).join(' · '))}">${_lbl}</span>`+(canValidate()?`<button class="fc-bl-add" style="min-height:34px;padding:4px 10px;font-size:13px" onclick="triggerBLFiche('${f._id}',null)" title="Joindre un BL supplémentaire (commande livrée en plusieurs fois)">＋ BL</button>`:''); })():'');   /* [L451 · signalement DC « livre sur 2 BL, impossible d'ajouter le second »] le bouton disparaissait des le 1er BL joint */
         return (chips||blBtn)?`<div class="fc-strip"><div class="fc-chips">${chips}</div>${blBtn}</div>`:'';
       })()}
       ${blCardBlock(f)}
@@ -17287,7 +17292,7 @@ function _ficheValidBlockReason(data){
     const det=Array.isArray(data.ficheDetail)?data.ficheDetail:[];
     const notCut=det.filter(fd=>!fd.coupee).length;
     if(notCut>0) return notCut+' bobine(s) non coupée(s)';
-    const tested=fd=>!!(fd.test2nc||(fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit)));
+    const tested=fd=>!!(fd.test2nc||fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum||(fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit)));   /* [L451 · signalement DC 28/08 « impossible de valider, une bobine annotee en CASSE »] regle L424 alignee : une NC REELLE declaree (larg/qte/casse/angle/humain) EST un controle — la bobine cassee n'a souvent ni devidage ni droit coches, elle bloquait la validation pilotage */
     const notTested=det.filter(fd=>!tested(fd)).length;
     if(notTested>0) return notTested+' bobine(s) non testée(s)';
   }
@@ -17453,7 +17458,7 @@ async function validateFiche(id){
       showToast(`⛔ Validation impossible : ${notCut} bobine(s) non coupée(s).\n\nToutes les bobines (op.1 et op.2) doivent être coupées avant validation.`,'err');
       return;
     }
-    const tested=fd=>!!(fd.test2nc||(fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit)));
+    const tested=fd=>!!(fd.test2nc||fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum||(fd.conforme!=null?fd.conforme:(fd.devi&&fd.droit)));   /* [L451 · signalement DC 28/08 « impossible de valider, une bobine annotee en CASSE »] regle L424 alignee : une NC REELLE declaree (larg/qte/casse/angle/humain) EST un controle — la bobine cassee n'a souvent ni devidage ni droit coches, elle bloquait la validation pilotage */
     const notTested=det.filter(fd=>!tested(fd)).length;
     if(notTested>0){
       showToast(`⛔ Validation impossible : ${notTested} bobine(s) sans test 2ème bobineau.\n\nChaque bobine doit être testée (conforme, ou non conforme + motif) avant validation.`,'err');
