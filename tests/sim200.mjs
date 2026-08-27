@@ -73,7 +73,7 @@ const PAGE_ONE = `(async function(k){
     const tiles=[...document.querySelectorAll('#statsBar .stat-tile b')].map(e=>e.textContent.trim());
     rep.plan={cli,ref,cmd,cards,tiles,useful};
     if(!cards) bug('plan : aucune bobine calculée ('+JSON.stringify(cmd)+', utile '+useful+')');
-    const pct=parseFloat(String(tiles[1]||'').replace(',','.').replace('%','')); if(!(pct>=0&&pct<=100)) bug('plan : % perte invalide '+tiles[1]);
+    const pct=parseFloat(document.getElementById('statsBar')?.dataset?.pertePct||''); if(!(pct>=0&&pct<=100)) bug('plan : % perte invalide '+(document.getElementById('statsBar')?.dataset?.pertePct));   /* [L457] la tuile perte n'existe plus (retrait Esteban) : lecture via data-perte-pct */
     if(q('.badge-solde')){ const sm=parseInt(String(q('.badge-solde').textContent).replace(/\\D/g,''),10); if(!(sm>=0)) bug('plan : SOLDE négatif/illisible '+q('.badge-solde').textContent); }
     // 2) fiche
     startCutFromPlan(); await wait(80);

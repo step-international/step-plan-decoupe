@@ -1353,6 +1353,13 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L457 : onglet validation bureau + Plan sans textes redondants ──');
+has(/body\.role-op #tabFiches\{display:none!important\}/,'L457 : onglet Validation fiches masque pour operateurs et comptes machine');
+has(/tab==='fiches'&&typeof currentRole!=='undefined'&&currentRole==='operateur'/,'L457 : switchTab redirige un operateur qui atterrit sur fiches');
+absent(/rouleau\$\{recutCountAll>1\?'x':''\} chute recoupé/,'L457 : chip rouleaux chute recoupes retiree du haut du Plan');
+absent(/<i>de perte\$\{multi\?' globale':''\}/,'L457 : tuile % de perte globale retiree du Plan');
+absent(/ mm — À RECOUPER EN 1ER \(avant les bobines mères\)'\}/,'L457 : suffixe A RECOUPER EN 1ER retire des notes ecran');
+
 console.log('── L455 : fleches ordre de coupe + validation reservee bureau ──');
 has(/\.fmm-drag-handle\{display:none\}/,'L455 : poignee de drag retiree (fleches = seul geste)');
 has(/\.fmm-order-btns\{display:flex;flex-direction:column/,'L455 : fleches visibles en paysage, empilees');
