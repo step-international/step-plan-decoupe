@@ -91,7 +91,6 @@ label{font-size:13.5px;color:var(--muted);display:block;margin-bottom:4px}
       par changement SUR LA MEME LIGNE que ses champs (les vieux boutons prenaient toute la largeur). */
 .chg-section{transition:border-color .18s,background .18s}
 .chg-section .row2{align-items:flex-end;gap:8px}
-.chg-section .row2:has(.chg-ok-btn){grid-template-columns:1fr 1fr auto}
 .chg-row{display:flex;align-items:flex-end;gap:8px}
 .chg-ok-btn{flex:0 0 auto;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #2c5c3d;background:#16301f;color:#7bd99f;
   font-family:inherit;font-size:14px;font-weight:800;letter-spacing:.03em;white-space:nowrap;cursor:pointer;transition:background .15s,transform .12s}
@@ -104,7 +103,7 @@ label{font-size:13.5px;color:var(--muted);display:block;margin-bottom:4px}
 /* ── [L437 · demande Esteban] MINIMALISTE : le bloc prend deux fois moins de place.
       Les phrases d'aide disparaissent (l'ecran de l'atelier n'est pas une notice), les libelles
       passent en micro-capitales, les champs et le bouton se resserrent. */
-#changementsZone .text-muted{display:none}
+#changementsZone .text-muted:not(:has(#fUtile2)){display:none}   /* [L440 · audit #11] la ligne « Largeur utile : X mm » (fUtile2) est une DONNEE, pas une aide */
 #changementsZone .chg-section{padding:8px 10px;margin:0 0 7px}
 /* [L438 · demande Esteban 27/08] TOUT SUR UNE LIGNE : ☐ titre · champ · bobine · ✓ Validé.
    La case-titre reste a gauche, la zone depliee vient a sa droite sur la MEME rangee ;
@@ -1790,7 +1789,7 @@ body.atelier .stat-tile b{font-size:36px}
    complété (perte %, série). Scopé ≥1100px sauf le chip jalon (portrait aussi, 3 s, non probant).
    ============================================================ */
 .fp-jalon{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;border:1px solid #6a5200;background:#1f1804;color:#ffd45e;font:700 14px/1 var(--f-head);letter-spacing:.04em;white-space:nowrap}
-.rail-chg{display:none}
+.rail-chg,.rail-mm{display:none}   /* [L440 · audit #24] .rail-mm n'avait pas de regle de base : il s'affichait en 1re position de la page Fiche en portrait */
 @media(min-width:1100px){
   #ficheRail>.rail-chg{display:flex!important;order:5;min-height:60px;justify-content:space-between;font-size:17px;font-weight:800;margin-top:6px}   /* [L435 · demande Esteban] bouton CHANGEMENTS plus gros */
   #ficheRail>.rail-mm{display:flex!important;order:6;min-height:56px;justify-content:flex-start;font-size:16px;font-weight:800;margin-top:6px;background:linear-gradient(#33332f,#2e2e2b);border:1px solid #59584f;color:var(--text)}   /* [L435] sous Changements — [L437 · demande Esteban] en GRIS (geste rare, il n'a pas a crier) */
@@ -3222,7 +3221,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L439';
+const APP_VERSION='2026.08.27-L440';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4144,6 +4143,7 @@ async function doLogout(){
         if(!confirm('⏳ Des enregistrements sont encore en attente d\'envoi (réseau lent ?).\nSi tu te déconnectes maintenant, ils risquent d\'être perdus.\n\nQuitter quand même ?')) return;   // [L73 · Lot 5 · B45]
       }
     }
+    try{ clearCmdLive(); }catch(e){}   /* [L440 · audit #18] deconnexion volontaire : la photo locale du compte part avec lui */
     await firebase.auth().signOut();
     // L'état sera nettoyé par onAuthStateChanged
   }catch(e){
@@ -5043,6 +5043,7 @@ let _chronoAutoStopOverride = null;
 // Astuce "start virtuel" : chronoRunStart = maintenant - tempsDéjàÉcoulé, donc
 // (now - chronoRunStart) = total cumulé, pauses comprises.
 let chronoRunStart = null;
+let _chronoRunBeganAt = null;   /* [L440 · audit #21] instant REEL du dernier ▶ (pas le depart virtuel now−cumul) : seul repere fiable pour detecter un chrono oublie qui traverse minuit */
 // Vrai une fois que l'opérateur a cliqué « Changement plan » avec les 4 params machine
 // remplis. Toute modif d'un param (mère/bords/lame/n° lame) le repasse à false :
 // le chrono reste bloqué tant que le plan n'a pas été (re)validé.
@@ -6615,7 +6616,9 @@ function startCutFromPlan(){
       const _bl32=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
       const _val32=[],_rest32=[];
       _bl32.forEach(function(b,i2){ (b.dataset.opValidated==='1'?_val32:_rest32).push(i2); });
-      if(_val32.length&&_rest32.length){ ficheRefOrder=_val32.concat(_rest32); window._l432KeepOrder=true; }
+      if(_val32.length&&_rest32.length){ ficheRefOrder=_val32.concat(_rest32); window._l432KeepOrder=true;
+        try{ _ficheGenPlanSig=null; }catch(e){}   /* [L440 · audit #15/#22] la signature de generation ne connait PAS l'ordre de coupe : une fiche deja generee (visite de l'onglet) court-circuitait l'import -> ordre jamais applique -> chrono refuse en boucle (garde _l420RefOk sur la ref non validee restee en tete). Signature invalidee = regeneration garantie. */
+      }
     }
   }catch(e){}
   showPage(1);
@@ -10301,6 +10304,7 @@ function chronoStart(){
   const _premierDepart=(countCoupees()===0)&&(typeof chronoSec!=='number'||chronoSec===0);
   if(_premierDepart){ let _go=true; try{ _go=(maybeShowChutesRappel()!==false); }catch(e){} if(!_go) return; }   // [L345 · demande Esteban] question stock AVANT le chrono (confirm natif) ; Annuler → plan, chrono non lancé — [L306]  avec le démarrage auto (un confirm surgissant au 1er ✂ aurait été bloquant en plein geste)
   chronoRunning=true;
+  _chronoRunBeganAt=Date.now();   /* [L440 · audit #21] */
   updateNumJourForToday();   // commande travaillée un nouveau jour → 152 → 152+153
   chronoStartTs=chronoStartTs||new Date().toISOString();
   // Start virtuel : on retranche le temps déjà cumulé (cas reprise après pause).
@@ -10410,6 +10414,16 @@ function chronoAutoStopCheck(){
      une commande reprise le matin avec un gros cumul (7h+) le faisait pointer sur HIER → la coupure
      de fin de journee d'HIER (deja passee) s'appliquait → « Fin de journee » en boucle a 8h du matin,
      chrono impossible a relancer. La coupure se juge sur le JOUR REEL de travail. */
+  /* [L440 · audit #21] chrono OUBLIE qui traverse minuit (heures supp + onglet jamais ferme) : l'override
+     d'hier expire a minuit mais le cutoff redevient celui d'AUJOURD'HUI (pas encore atteint a 3h du matin)
+     -> le chrono comptait la nuit entiere. Si le ▶ date d'un AUTRE jour reel, on fige au cutoff/minuit du
+     jour de depart (chronoCrossDaySec) et on arrete. Sans effet sur le fix L431 : une reprise matinale
+     repose _chronoRunBeganAt a l'instant du ▶. */
+  if(_chronoRunBeganAt && _dateKey(_chronoRunBeganAt)!==_dateKey(now)){
+    chronoSec=chronoCrossDaySec(chronoSec||0,_chronoRunBeganAt);
+    autoStopChrono();
+    return;
+  }
   const cutoff=dayChronoCutoffMs(now);                     // fin de journée du JOUR RÉEL
   if(cutoff==null || now<cutoff) return;                   // week-end, ou pas encore l'heure
   if(_chronoAutoStopOverride===_dateKey(now)) return;      // heures supp aujourd'hui
@@ -10453,7 +10467,7 @@ function persistChronoLive(){
       // brouillon perso au boot la réécrivait mir:null et détruisait le temps du récepteur avant la réouverture).
       localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',mir:_viewingSharedId}));
     }else if(chronoRunning && chronoRunStart!=null){
-      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||''}));
+      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',began:_chronoRunBeganAt||null}));   /* [L440 · audit #21] le ▶ reel survit au reload */
       _wroteChronoLive=true;
     }else if((typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof chronoSec==='number'&&chronoSec>0)){
       // [L298 · audit v2] miroir + chrono EN PAUSE (⏸ ou arrêt auto 16h15) : les autosaves sont neutralisés en
@@ -10492,9 +10506,16 @@ function readChronoLive(){ try{ return JSON.parse(localStorage.getItem(CHRONO_LS
 // envoyee ou reinitialisee. Le brouillon Firestore reste le canal principal.
 // ============================================================
 const CMD_LS_KEY='step_cmd_live';
+let _cmdLiveBlockUntil=0;   /* [L440 · audit #17 CRITIQUE] fenetre posee a l'envoi : le pagehide/visibilitychange qui suit (operateur qui verrouille la tablette juste apres Envoyer) declenchait un tick avec ficheLines encore pleines -> le miroir d'une commande DEJA PRODUITE etait reecrit (le brouillon, lui, etait protege par ses gardes) -> reprise au boot = double decoupe. */
 function persistCmdLive(st){
   try{
     if(typeof trainingGuard==='function'&&trainingGuard()) return;
+    if(Date.now()<_cmdLiveBlockUntil) return;   /* [L440 · audit #17] commande qui vient de partir : resetAll arrive dans ~300 ms */
+    try{ const _cur17=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(function(d){return d&&d.id===autosaveId();});
+      if(_cur17&&_cur17.consumed){ const _f17=(_cur17.state&&_cur17.state.fiche)||{}, _p17=(_cur17.state&&_cur17.state.plan)||{};
+        const _nEc=nrm(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'');
+        const _nDoc=nrm(_f17.numCmd||_p17.numCmd||'');
+        if(_nDoc&&_nEc&&_nDoc===_nEc) return; } }catch(e){}   /* [L440 · audit #17] le brouillon consomme porte LA MEME commande que l'ecran : deja produite, on ne la photographie plus (une NOUVELLE commande sur ce poste passe, elle) */
     if((typeof _viewingSharedId!=='undefined'&&_viewingSharedId)||(typeof _localCopyFromShare!=='undefined'&&_localCopyFromShare)) return;   /* meme garde que le brouillon auto : une commande de collegue ne devient jamais une commande perso */
     const s0=st||((typeof serializeFicheState==='function')?serializeFicheState():null);
     if(!s0||!s0.lines||!s0.lines.length) return;
@@ -12008,6 +12029,13 @@ function l434UndoReset(){   /* [L435] bandeau raccourci a 3,5 s */
   try{
     restoreFicheState(st);
     try{ if(typeof _rearmResume==='function') _rearmResume(st); }catch(e){}
+    try{ if(st._l440Override){ _chronoAutoStopOverride=st._l440Override; persistChronoLive(); } }catch(e){}   /* [L440 · audit #6] sans ca, en heures supp le chrono restaure se refigeait au 1er tick a l'heure de coupure */
+    /* [L440 · audit #5] le reset a PURGE le brouillon auto et le miroir local, et l'annulation ne les
+       recreait pas : la commande annulee ne vivait plus QUE dans le DOM (crash/batterie = perte totale,
+       fenetre jusqu'au prochain tick — jamais relance si le chrono etait en pause). On resauvegarde TOUT
+       DE SUITE, brouillon + miroir (autosaveDraftTick ecrit les deux). */
+    try{ if(typeof ficheLines!=='undefined'&&ficheLines.length) autosaveDraftTick(true); }catch(e){}
+    try{ const _pk=st._l440ParkId; if(_pk){ persistDrafts(loadDrafts().filter(function(d){return d.id!==_pk;})); } }catch(e){}   /* [L440 · audit #20] la commande est revenue a l'ecran : le parking cree par le reset repart (pas de doublon) */
     try{ showPage((typeof ficheLines!=='undefined'&&ficheLines.length)?1:0); }catch(e){}
     showToast('↩ Réinitialisation annulée — ta commande est revenue.','ok');
   }catch(e){ console.warn('l434UndoReset:',e); try{ showToast('Impossible d\'annuler (rien n\'a été touché en base).','err'); }catch(_){} }
@@ -12018,8 +12046,13 @@ function resetSiteConfirm(){
      chrono »). Le confirm de sécurité RESTE et s'alourdit ; resetAll() appelle chronoReset(true) qui stoppe tout. */
   /* [L434] plus de confirm : on photographie l'ecran pour pouvoir tout remettre en un tap. */
   const _avait=!!((typeof ficheLines!=='undefined'&&ficheLines.length)||(typeof planHasContent==='function'&&planHasContent()));
+  /* [L440 · audit #4 CRITIQUE] ecran DEJA vierge : ne rien faire — surtout ne PAS detruire la photo
+     du tap precedent pendant que son bandeau « ↩ Annuler » est encore affiche (double tap nerveux =
+     commande definitivement perdue alors que le bandeau promettait le contraire). */
+  if(!_avait){ try{ showToast('↺ Le site est déjà vierge.','ok'); }catch(e){} return; }
   _l434ResetSnap=null;
-  if(_avait){ try{ _l434ResetSnap=serializeFicheState(); }catch(e){ _l434ResetSnap=null; console.warn('resetSiteConfirm photo:',e); } }
+  try{ _l434ResetSnap=serializeFicheState(); }catch(e){ _l434ResetSnap=null; console.warn('resetSiteConfirm photo:',e); }
+  try{ _l434ResetSnap&&( _l434ResetSnap._l440Override=(typeof _chronoAutoStopOverride!=='undefined'?_chronoAutoStopOverride:'')||'' ); }catch(e){}   /* [L440 · audit #6] les heures supp survivent a l'annulation */
   const _msgShare434=_shareActive?' · le partage a été arrêté':'';
   // [L294 · revue] capture AVANT resetAll : il annule _viewingSharedId/_localCopyFromShare et vide les champs
   // n° de commande → la garde de protection des brouillons auto (plus bas) serait toujours fausse (code mort).
@@ -12048,7 +12081,26 @@ function resetSiteConfirm(){
     const _all=loadDrafts();
     const _aDoc=_all.find(function(d){return d.id===_aid;}), _pDoc=_all.find(function(d){return d.id===_pid;});
     const _keepA=_protege(_aDoc), _keepP=_protege(_pDoc);
-    persistDrafts(_all.filter(function(d){ return (d.id!==_aid||_keepA) && (d.id!==_pid||_keepP); }));
+    /* [L440 · audit #20] depuis L435-L437 il n'y a PLUS de bouton 💾 Brouillon : le ↺ etait le seul geste
+       pour passer a une autre commande, et il JETAIT le travail entame (bobines coupees / chrono). Une
+       commande ENTAMEE est desormais PARQUEE (copie en brouillon normal, visible dans Donnees > Brouillons,
+       jamais reproposee au boot car l'id n'est plus celui de l'autosave) avant la purge de l'auto. */
+    let _park40=null;
+    try{
+      const _snap40=_l434ResetSnap;
+      const _entame=!!(_snap40&&_snap40.lines&&_snap40.lines.length&&((_snap40.lines.some(function(l){return l&&l.coupee;}))||((_snap40.chrono&&_snap40.chrono.sec)>0)));
+      if(_entame&&!_wasCopy){
+        const _stP=JSON.parse(JSON.stringify(_snap40)); delete _stP._l440Override; delete _stP._l440ParkId;
+        if(_stP.chrono&&_stP.chrono.wasRunning){ _stP.chrono=Object.assign({},_stP.chrono,{wasRunning:false,runStart:null}); }
+        _park40='d_park_'+Date.now();
+        const _lblP=((_stP.fiche&&_stP.fiche.client)||(_stP.plan&&_stP.plan.client)||'—')+' / '+((_stP.fiche&&_stP.fiche.numCmd)||(_stP.plan&&_stP.plan.numCmd)||'sans n°');
+        persistDrafts([{id:_park40,savedAt:isoNow(),label:'💾 Parquée au ↺ · '+_lblP,state:_stP,owner:_ini(),ownerPost:_machinePostName()}].concat(_all.filter(function(d){ return (d.id!==_aid||_keepA) && (d.id!==_pid||_keepP); })));
+        if(_l434ResetSnap) _l434ResetSnap._l440ParkId=_park40;
+        showToast('💾 Ta commande entamée est PARQUÉE dans Données > Brouillons (le ↺ ne la jette plus).','ok');
+      } else {
+        persistDrafts(_all.filter(function(d){ return (d.id!==_aid||_keepA) && (d.id!==_pid||_keepP); }));
+      }
+    }catch(e){ console.warn('parcage ↺:',e); persistDrafts(_all.filter(function(d){ return (d.id!==_aid||_keepA) && (d.id!==_pid||_keepP); })); }
     _autosaveLastSig=''; _planAutosaveLast='';
     if(_keepA||_keepP) showToast('💾 Ta commande en pause reste dans Données > Brouillons (le reset ne vide que l\'écran).','ok');
   }catch(e){ console.warn('resetSiteConfirm purge brouillons auto:',e); }
@@ -12058,6 +12110,8 @@ function resetSiteConfirm(){
 }
 function resetAll(){
   try{ clearCmdLive(); }catch(e){}   /* [L435] site vierge : la photo locale de la commande part avec l'ecran */
+  try{ ficheRefOrder=[]; window._l432KeepOrder=false; }catch(e){}   /* [L440 · audit #16] l'ordre de coupe (et son drapeau one-shot non consomme) ne FUIT plus vers la commande suivante */
+  try{ window._l440LamePosed=null; ['chgLame','chgMach','chgOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.remove('chg-ok'); }); ['chgDoneLame','chgDoneMach','chgDoneOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.textContent=''; }); }catch(e){}   /* [L440 · audit #9] le ✓ vert et le resume « registre a jour » d'une commande PRECEDENTE ne survivent plus au reset/envoi */
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
   _resumedDraftId=null; _loadedSoldeDraftId=null;   // [L108 · Phase 4C] · [L367]
@@ -15132,6 +15186,10 @@ async function lameDetectOnFiche(machineKey,lameNum){
   const cur=lameActiveForMachine(machineKey);
   const curNum=cur?String(cur.lameNum||'').trim():'';
   if(curNum.toLowerCase()===num.toLowerCase()) return; // déjà la lame en place
+  /* [L440 · audit #8] la lame ACTIVE est celle posee par le ✓ Valide de CETTE commande : si la fiche envoyee
+     porte encore l'ancien n° (changement decoche apres coup, champ non resaisi), ne pas proposer de REPOSER
+     l'ancienne lame par-dessus la pose toute fraiche. */
+  try{ const _lp=window._l440LamePosed; if(_lp&&curNum&&String(_lp.num).toLowerCase()===curNum.toLowerCase()&&_lp.mk===machineKey) return; }catch(e){}
   const machLbl=getMachineLabel(machineKey);
   const msg=cur
     ? `🔪 Nouvelle lame détectée sur ${machLbl}.\n\nLame courante : ${curNum||'—'}\nLame saisie : ${num}\n\nConfirmer la pose de la lame ${num} sur ${machLbl} ?`
@@ -18693,7 +18751,7 @@ function _l434SnapLabels(){
     const seen={};
     (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(l){
       if(!l) return;
-      const k=String(l.refIdKey||('nom\u00a6'+nrm(l.ref||'')));
+      const k=String(l.refIdKey||('nom\u00a6'+nrm(l.ref||'')))+'\u00a6'+String(l.machine||'');   /* [L440 · audit #14] _refIdKey n'inclut PAS la machine : une ref scindee FEBA/MAVEG (cas reel L286) partageait la cle et les n° tapes se TRANSPLANTAIENT sur les bobines de l'autre bloc au reordonnancement */
       seen[k]=(seen[k]||0)+1;
       const v=String(((document.getElementById('flLabel_'+l.id)||{}).value)||'').trim();
       /* on ne memorise QUE ce que l'operateur a reellement tape : l'etiquette AUTO (identique a la
@@ -18710,7 +18768,7 @@ function _l434RestoreLabels(m){
     const seen={};
     (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(l){
       if(!l) return;
-      const k=String(l.refIdKey||('nom\u00a6'+nrm(l.ref||'')));
+      const k=String(l.refIdKey||('nom\u00a6'+nrm(l.ref||'')))+'\u00a6'+String(l.machine||'');   /* [L440 · audit #14] meme cle qu'au snapshot */
       seen[k]=(seen[k]||0)+1;
       const v=m[k+'\u00a6'+seen[k]]; if(!v) return;
       const el=document.getElementById('flLabel_'+l.id);
@@ -19682,6 +19740,9 @@ function toggleLameChg(){
   const on=document.getElementById('fLameChg').checked;
   document.getElementById('lameChgZone').classList.toggle('hidden',!on);
   if(on) refreshOp2BobineList();
+  /* [L440 · audit #8] decocher APRES une pose validee n'annule PAS la pose (le registre est append-only) :
+     on le dit a l'operateur au lieu de le laisser croire le contraire. */
+  try{ if(!on&&window._l440LamePosed){ const _lp=window._l440LamePosed; showToast('⚠ La pose de la lame '+_lp.num+' sur '+getMachineLabel(_lp.mk)+' RESTE enregistrée dans Données > Lame — corrige là-bas si c\'était une erreur.','err'); } }catch(e){}
 }
 // [L103 · audit-max] une lame changée DEUX fois dans la même commande n'est pas représentable
 // (modèle mono-créneau) : la 2ᵉ saisie écrase la 1ʳᵉ — la lame intermédiaire disparaît de la
@@ -21114,7 +21175,7 @@ function _l370NcQuick(id,btn){ try{ const t=document.getElementById('nc_detail_'
     t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.remove('used'); return;
   }
   t.value=(cur.trim()?cur.replace(/\s*$/,'')+' ; ':'')+txt; t.dispatchEvent(new Event('input',{bubbles:true})); btn.classList.add('used');
-  try{ if(document.getElementById('nc_ras_'+id)?.querySelector('input')?.checked){ t.style.borderColor='var(--orange)'; showToast('📝 Détail noté — coche le motif (Angle · Casse · Larg. · Qté) si c\'est une non-conformité.','ok'); } }catch(e){} }catch(e){} }   // [L371 · fix audit] rappel NON-attestant : rien n'est coché à ta place
+  try{ if(document.getElementById('nc_ras_'+id)?.querySelector('input')?.checked){ t.style.borderColor='var(--orange)'; showToast('📝 Détail noté — coche le motif (Angle · Casse · Humain · Larg. · Qté) si c\'est une non-conformité.','ok'); } }catch(e){} }catch(e){} }   // [L371 · fix audit] rappel NON-attestant : rien n'est coché à ta place
 // [L370 · B13] clients RÉCENTS en tête du select (optgroup, même nœud portrait) — source mémoire (fichesCache + savesCache), catalogue seulement
 function _l370RecentClients(){ try{ const sel=document.getElementById('planClient'); if(!sel||typeof CLIENT_DATA==='undefined') return; const cur=sel.value; const old=sel.querySelector('optgroup[data-l370]'); if(old) old.remove();
   const seen=new Set(), rec=[]; const all=[].concat((Array.isArray(fichesCache)?fichesCache:[]).map(f=>({c:f&&f.client,t:(f&&f.date)||''})),(Array.isArray(savesCache)?savesCache:[]).filter(x=>x&&!x.deleted).map(x=>({c:x.client,t:x.date||''}))).sort((a,b)=>String(b.t).localeCompare(String(a.t)));
@@ -22150,7 +22211,7 @@ function _syncSharedApply(doc){
     const ae=document.activeElement;
     const editedLine=ae?ae.closest('.fiche-line'):null;
     if(editedLine){ const l=(Array.isArray(ficheLines)?ficheLines:[]).find(function(x){return x&&x.id===editedLine.id;});
-      if(l&&!editedLine.classList.contains('coupee-other')){ const lbl=_shareLineLabel(l.id); if(lbl){ const q=_shareQualityRead(l.id); if(q.larg||q.qty||q.casse||q.ang||q.devi||q.droit||q.t2nc||(q.det||'').trim()||q.act) _prevQ[lbl]=q; } } }
+      if(l&&!editedLine.classList.contains('coupee-other')){ const lbl=_shareLineLabel(l.id); if(lbl){ const q=_shareQualityRead(l.id); if(q.larg||q.qty||q.casse||q.ang||q.hum||q.devi||q.droit||q.t2nc||(q.det||'').trim()||q.act) _prevQ[lbl]=q;   /* [L440 · audit #1] q.hum manquait : une coche « Humain » en cours chez le destinataire etait effacee par le push de l'emetteur */ } } }
   }catch(e){}
   try{ restoreFicheState(_shareCloneForReceiver(doc.state)); }
   catch(e){ console.warn('Miroir live :',e); return; }
@@ -22612,7 +22673,7 @@ async function clearCurrentDraft(ficheId){
   // attendant le résultat ; en cas d'échec on marque {consumed:true, ficheId} — ces
   // brouillons sont filtrés au rendu et refusés à la reprise.
   const ids=[autosaveId(), planAutosaveId()];
-  try{ clearCmdLive(); }catch(e){}   /* [L435] commande produite : la photo locale est consommee (jamais de commande ressuscitee) */
+  try{ clearCmdLive(); _cmdLiveBlockUntil=Date.now()+8000; }catch(e){}   /* [L435] commande produite : photo locale consommee — [L440 · audit #17] + fenetre de 8 s contre le tick de pagehide qui la reecrivait */
   if(_resumedForeignDraftId){
     // [L103 · audit-max] passation : le brouillon auto du poste précédent est consommé par CET envoi.
     // [L245 · sceptique] GARDE DE CONCORDANCE : on ne le consomme QUE si sa commande correspond à celle
@@ -22966,7 +23027,7 @@ async function maybeResumeRunningChrono(){
     if(!d||!(d.state&&d.state.lines&&d.state.lines.length)){
       try{
         const lv=readCmdLive();
-        if(lv&&lv.state&&lv.state.lines&&lv.state.lines.length&&lv.dev===_deviceId()&&(lv.uid===_uid()||_uid()==='anon')){
+        if(lv&&lv.state&&lv.state.lines&&lv.state.lines.length&&lv.dev===_deviceId()&&lv.uid===_uid()){   /* [L440 · audit #18] la clause _uid()==='anon' restaurait la commande d'un AUTRE compte avant le login (tablette partagee) : retiree — les rendez-vous post-auth couvrent le cas « auth lente » */
           if(!d||(d.savedAt&&lv.at&&Date.parse(d.savedAt)<lv.at)) d={id:lv.id||aid,savedAt:new Date(lv.at||Date.now()).toISOString(),state:lv.state,auto:true,_l435Local:true};
         }
       }catch(e){}
@@ -23051,6 +23112,7 @@ async function maybeResumeRunningChrono(){
     // Pas de brouillon exploitable, mais un chrono tournait aujourd'hui (démarré avant toute
     // bobine) : on relance au moins le chrono là où il en était.
     if(live && live.runStart && _dateKey(live.runStart)===_dateKey(Date.now())){
+      try{ if(live.began) _chronoRunBeganAt=live.began; }catch(e){}   /* [L440 · audit #21] */
       restoreChrono({startTs:live.startTs, runStart:live.runStart, wasRunning:true,
         sec:Math.max(0,Math.floor((Date.now()-live.runStart)/1000))});
       if(live.override) _chronoAutoStopOverride=live.override;
@@ -23789,8 +23851,23 @@ async function _l435ChgValider(kind){
     if(kind!=='lame'){ showToast('✓ '+_l435ChgResume(kind)+' — pris en compte.','ok'); return; }
 
     /* ── LAME : on pousse la pose dans Donnees > Lame (plus de double saisie) */
+    if(window._l440ChgBusy) return; window._l440ChgBusy=true;   /* [L440 · audit #10] deux taps rapides passaient tous deux la garde avant la 1re ecriture -> double pose en base */
+    try{
     const num=V('fLameNew');
     let mk=''; try{ mk=String((typeof ficheMachine!=='undefined'&&ficheMachine)||'').toLowerCase(); }catch(e){}
+    /* [L440 · audit #7] MEME regle croisee qu'a l'envoi (l.~11798) : si la lame change APRES le passage a la
+       machine de l'op.2 ou apres un changement de machine declare, la pose va sur la machine CIBLE — pas sur
+       celle du debut de commande. */
+    try{
+      const _lcb=parseInt(V('fLameChgBob'),10)||0;
+      const _o2b=parseInt(V('fOp2Bobine'),10)||0;
+      const _o2on=!!document.getElementById('fOp2Active')?.checked, _o2diff=!!document.getElementById('fOp2DiffMachine')?.checked;
+      const _m2=(typeof ficheMachine2!=='undefined'&&ficheMachine2)?String(ficheMachine2).toLowerCase():'';
+      const _mcb=parseInt(V('fMachChgBob'),10)||0;
+      const _mto=String(V('fMachChgTo')||'').toLowerCase();
+      if(_lcb&&_o2on&&_o2diff&&_o2b&&_lcb>=_o2b&&_m2) mk=_m2;
+      else if(_lcb&&document.getElementById('fMachChg')?.checked&&_mcb&&_lcb>=_mcb&&typeof MACHINE_KEYS!=='undefined'&&MACHINE_KEYS.includes(_mto)) mk=_mto;
+    }catch(e){}
     if(!mk||typeof LAME_MACHINES==='undefined'||!LAME_MACHINES.includes(mk)){
       /* [L436] NE PAS promettre une mise a jour « a l'envoi » : lameDetectOnFiche sort exactement sur la
          meme machine vide (l.~15097). On dit ce qui est vrai et on donne le geste qui repare. */
@@ -23804,6 +23881,7 @@ async function _l435ChgValider(kind){
     if(typeof lameInstall!=='function'){ showToast('✓ Changement de lame pris en compte.','ok'); return; }
     const ok=await lameInstall(mk,num,{description:'Lame changée en cours de commande — à partir de la bobine '+(V('fLameChgBob')||'?')});
     if(ok){
+      window._l440LamePosed={mk:mk,num:num,at:Date.now()};   /* [L440 · audit #8] memoire de la pose de CETTE commande : l'envoi ne re-proposera pas l'ANCIENNE lame si l'operateur decoche ensuite */
       showToast('✓ Lame '+num+' posée sur '+getMachineLabel(mk)+' — Données > Lame est à jour, rien à ressaisir.','ok');
       if(done) done.textContent='✓ '+_l435ChgResume(kind)+' · registre à jour';
       try{ if(typeof renderLameAlertBanner==='function') renderLameAlertBanner(); }catch(e){}
@@ -23811,7 +23889,8 @@ async function _l435ChgValider(kind){
     } else {
       showToast('✓ Changement pris en compte sur la fiche — le registre des lames sera mis à jour à l\'envoi.','ok');
     }
-  }catch(e){ console.warn('_l435ChgValider:',e); try{ showToast('Changement pris en compte.','ok'); }catch(_){ } }
+    }finally{ window._l440ChgBusy=false; }   /* [L440 · audit #10] */
+  }catch(e){ window._l440ChgBusy=false; console.warn('_l435ChgValider:',e); try{ showToast('Changement pris en compte.','ok'); }catch(_){ } }
 }
 /* une modification apres coup re-ouvre la ligne : le ✓ ne doit jamais mentir */
 function _l435ChgTouch(kind){ try{ const sec=document.getElementById(kind==='lame'?'chgLame':(kind==='mach'?'chgMach':'chgOp2')); if(sec) sec.classList.remove('chg-ok'); }catch(e){} }

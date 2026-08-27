@@ -1010,7 +1010,7 @@ has(/function _l370FillWidth\(w\)/,'L370 B13 : tap chip = largeur dans la 1re li
 has(/#ficheLines:has\(\.fl-current\):not\(\.chrono-off\) \.fiche-line:not\(\.fl-current\) button\[onclick="recalcEcartsFromFiche\(\)"\]\{display:none\}/,'L371 : chrono arrêté = les ♻ restent visibles (A15 posait fl-current)');
 has(/if\(typeof planManual!=='undefined'&&planManual\)\{ const b0=document\.getElementById\('l370Laizes'\)/,'L371 : chips habituelles coupées en plan manuel');
 has(/\[L371 · fix audit\] chips « Habituelles » vidées/,'L371 : chips vidées au resetAll (plus de laize fantôme)');
-has(/coche le motif \(Angle · Casse · Larg\. · Qté\)/,'L371 : rappel non-attestant si détail rempli avec RAS coché');
+has(/coche le motif \(Angle · Casse · Humain · Larg\. · Qté\)/,'L371 : rappel non-attestant si détail rempli avec RAS coché — [L440] motif Humain inclus');
 has(/const _mqA15=window\.matchMedia\('\(min-width:1100px\)'\)/,'L371 : rotation = fl-current du mode start recalculé');
 
 console.log('── L372 : retours recette Esteban (20/08) ──');
@@ -1353,6 +1353,27 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L440 : 18 correctifs de l audit adversarial L431-L437 (26 signalements, 6 chasseurs) ──');
+has(/audit #4 CRITIQUE\] ecran DEJA vierge : ne rien faire/,'L440 : double tap ↺ ne detruit plus la photo d annulation');
+has(/audit #5\] le reset a PURGE le brouillon auto et le miroir local/,'L440 : l annulation resauvegarde brouillon + miroir immediatement');
+has(/_l440Override/,'L440 : les heures supp survivent a l annulation du reset');
+has(/audit #17 CRITIQUE\] fenetre posee a l'envoi/,'L440 : le miroir local ne ressuscite plus une commande deja produite');
+has(/audit #18\] la clause _uid\(\)==='anon'/,'L440 : plus de restauration du miroir d un autre compte avant login');
+has(/audit #16\] l'ordre de coupe \(et son drapeau one-shot non consomme\) ne FUIT plus/,'L440 : ordre de coupe purge par resetAll');
+has(/audit #15\/#22\] la signature de generation ne connait PAS l'ordre de coupe/,'L440 : « Commencer a couper » regenere meme si la fiche existait deja');
+has(/audit #14\] _refIdKey n'inclut PAS la machine/,'L440 : etiquettes preservees par cle ref+machine (refs scindees)');
+has(/audit #21\] instant REEL du dernier ▶/,'L440 : chrono oublie la nuit — arret cross-day sur le ▶ reel');
+has(/audit #7\] MEME regle croisee qu'a l'envoi/,'L440 : la pose de lame va sur la machine CIBLE (op2\/changement declare)');
+has(/audit #8\] memoire de la pose de CETTE commande|audit #8\] la lame ACTIVE est celle posee/,'L440 : l envoi ne re-propose plus l ancienne lame apres une pose validee');
+has(/audit #8\] decocher APRES une pose validee n'annule PAS la pose/,'L440 : decoche apres pose = message honnete');
+has(/audit #9\] le ✓ vert et le resume « registre a jour » d'une commande PRECEDENTE/,'L440 : etat vert nettoye au reset\/envoi');
+has(/audit #10\] deux taps rapides passaient tous deux la garde/,'L440 : verrou anti double-pose');
+has(/q\.hum\|\|q\.devi/,'L440 : la coche Humain du destinataire survit au push de l emetteur');
+has(/Angle · Casse · Humain · Larg\. · Qté/,'L440 : le toast des puces enumere les 5 motifs');
+has(/audit #24\] \.rail-mm n'avait pas de regle de base/,'L440 : ⛔ du rail invisible hors paysage');
+has(/audit #11\] la ligne « Largeur utile : X mm »/,'L440 : fUtile2 n est plus masque par le CSS minimaliste');
+has(/audit #20\] depuis L435-L437 il n'y a PLUS de bouton 💾/,'L440 : ↺ sur commande entamee = parcage, plus jamais la poubelle');
+
 console.log('── L439 : URGENT — sauvegarde de plan non valide reparee ──');
 has(/opValidated:!!\(_blks20\[i\]&&_blks20\[i\]\.dataset\.opValidated==='1'\)/,'L439 : opValidated toujours booleen (jamais undefined)');
 absent(/opValidated:\(_blks20\[i\]&&_blks20\[i\]\.dataset\.opValidated==='1'\)\|\|undefined/,'L439 : le ||undefined fautif a disparu');
@@ -1363,7 +1384,7 @@ has(/#changementsZone \.field label\{display:none\}/,'L438 : micro-libelles reti
 
 console.log('── L437 : bloc Changements minimaliste · arret gris · case Outils effacee ──');
 has(/MINIMALISTE : le bloc prend deux fois moins de place/,'L437 : bloc Changements condense');
-has(/#changementsZone \.text-muted\{display:none\}/,'L437 : les phrases d aide retirees du bloc');
+has(/#changementsZone \.text-muted:not\(:has\(#fUtile2\)\)\{display:none\}/,'L437 : les phrases d aide retirees du bloc — [L440] sauf la donnee « Largeur utile »');
 has(/resume COURT : l'operateur lit une ligne/,'L437 : resume raccourci');
 has(/en GRIS \(geste rare, il n'a pas a crier\)/,'L437 : ⛔ Arret manque de matiere en gris');
 has(/#outilsFicheBtn\[data-l437-empty="1"\]\{display:none!important\}/,'L437 : la case ⚙ OUTILS disparait quand le tiroir est vide');
