@@ -1353,6 +1353,9 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L449 : catalogue Legrand France — DQ1002 transparent ──');
+has(/41319526 - TacFlex® DQ1002",largeur:2100,longueur:1500\},\/\* \[L449/,'L449 : la ref transparente 41319526 existe pour Legrand France (code mandrin 3968 trouvable)');
+
 console.log('── L448 : tolerance palettes 6 · operateur au Plan · tri plans ──');
 has(/var L448_PAL_TOL=6/,'L448 : tolerance palettes relevee a 6 (decision Esteban 28\/08)');
 has(/le brut est accepte jusqu'a 6 palettes s'il economise des bobines/,'L448 : le plan brut gagne jusqu a 6 palettes');
