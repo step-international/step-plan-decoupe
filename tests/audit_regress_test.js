@@ -1120,7 +1120,7 @@ console.log('── L383 : correctifs de l audit de fusion (nuit du 21/08) ─�
 has(/else if\(ttl\)\{ const sb=document\.getElementById\('statsBar'\)/,'L383 : rotation en portrait — les chips reviennent dans #statsBar (layout historique)');
 has(/\[L383 · audit fusion\] plan vidé \(✓ envoi \/ ↺ réinitialiser\) : les chips/,'L383 : plan vidé — les chips du titre partent aussi (plus de compteurs d une commande précédente)');
 has(/les bobines DÉJÀ COUPÉES restent attribuées à la machine qui les a physiquement/,'L383 : passation — les bobines déjà coupées gardent leur machine (archive ISO juste)');
-has(/lanceurs orphelins \(bloc réf supprimé/,'L383 : lanceurs ⚙ OUTILS orphelins purgés (plus d empilement au fil de la journée)');
+has(/UN SEUL lanceur ⚙ OUTILS, au-dessus de la Reference 1/,'L383 acquis + L442 : plus JAMAIS d empilement de lanceurs (un seul, surplus retires)');
 has(/préservé autour du resetAll d'entrée\/sortie d'entraînement/,'L383 : temps miroir en attente préservé par l entraînement');
 has(/re-dérivé depuis\n          \/\/ loadedSaveId|_loadedSoldeDraftId \(RAM\) meurt au rechargement/,'L383 : solde ⛔ jumeau re-dérivé après rechargement (consommé à l envoi du reste)');
 { const fx=fs.readFileSync(require('path').join(__dirname,'..','functions','index.js'),'utf8');
@@ -1353,9 +1353,19 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L442 : retouches Esteban 27/08 (outils plan · lame · BL · solde) ──');
+has(/RETIRES du tiroir : les boutons existent deja dans la page/,'L442 : Sauvegarder et Reinitialiser retires du tiroir plan');
+has(/UN SEUL lanceur ⚙ OUTILS, au-dessus de la Reference 1/,'L442 : le lanceur OUTILS ne s empile plus');
+has(/le NOM du fichier joint \(il porte le n° de BL\)/,'L442 : la puce BL affiche le nom du fichier');
+has(/chiffre JAUNE seul, sans cadre ni fond/,'L442 : solde = chiffre jaune sans badge');
+has(/CONFIRMATION EN DEUX TEMPS PAR BOUTON/,'L442 : la benne se confirme par un 2e tap sur le bouton');
+has(/ENREGISTRER UNE NOUVELLE LAME/,'L442 : formulaire nouvelle lame (n° + machine) sous l etat des lames');
+has(/function l442RegisterLame/,'L442 : pose par le meme chemin que la modale (demontage auto)');
+has(/canDel&&!\/lameJeter\/\.test\(action\)/,'L442 : la poubelle grise disparait des cartes qui ont Benne');
+
 console.log('── L441 : page Lame — degel + jetee a la benne ──');
 has(/audit lame #2\] meme boucle infinie que renderMaintenance/,'L441 : renderLameStats ne reboucle plus sur echec');
-has(/data-mch="\$\{esc\(m\)\}" data-num="\$\{esc\(String\(cur\.lameNum\|\|''\)\)\}" onclick="lameJeter\(this\.dataset\.mch,this\.dataset\.num\)"/,'L441 : bouton benne en data-* (apostrophe/XSS)');
+has(/data-mch="\$\{esc\(m\)\}" data-num="\$\{esc\(String\(cur\.lameNum\|\|''\)\)\}" onclick="lameJeter\(this\.dataset\.mch,this\.dataset\.num,this\)"/,'L441 : bouton benne en data-* (apostrophe/XSS) — L442 : passe aussi le bouton (2 temps)');
 has(/audit lame #17\] on ne bloque QUE la re-pose de l'ANCIENNE lame/,'L441 : une NOUVELLE lame apres le ✓ repasse par le confirm');
 has(/audit lame #6\] chargement rate/,'L441 : registre indisponible = pas de fausse « premiere lame »');
 has(/audit lame #10\] plus d'await : la piste qui pend/,'L441 : logAudit ne gele plus lameInstall');
@@ -1369,7 +1379,7 @@ has(/function lameJeter/,'L441 : une lame morte se MARQUE jetee a la benne (trac
 has(/categorie:'rebut'/,'L441 : evenement rebut dans le journal append-only');
 has(/'demonte','affutage','stock','rebut'/,'L441 : une lame jetee n est plus montee sur sa machine');
 has(/Jetées à la benne/,'L441 : section « Jetees » visible (lecture seule)');
-has(/🗑 Jeter à la benne/,'L441 : la lame montee de chaque machine peut partir a la benne');
+has(/petit et discret, sans gros logo/,'L441 : la lame montee de chaque machine peut partir a la benne — L442 : bouton discret');
 
 console.log('── L440 : 18 correctifs de l audit adversarial L431-L437 (26 signalements, 6 chasseurs) ──');
 has(/audit #4 CRITIQUE\] ecran DEJA vierge : ne rien faire/,'L440 : double tap ↺ ne detruit plus la photo d annulation');

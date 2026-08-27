@@ -250,7 +250,7 @@ body.cli-multi .cli-cell{display:inline-flex}
 body.atelier .card-sub{font-size:15px}
 .badge{display:inline-block;border-radius:5px;padding:2px 8px;font-size:13px;font-weight:700;white-space:nowrap}
 .badge-green{background:#14371f;color:var(--green)}.badge-orange{background:#3d2a00;color:var(--orange)}.badge-red{background:#3d1414;color:var(--red)}
-.badge-solde{background:#3a2e00;color:#f59e0b;border-radius:5px;padding:2px 8px;font-size:12px;font-weight:700;white-space:nowrap}
+.badge-solde{background:transparent;color:#f5b301;border-radius:0;padding:2px 0;font-size:12px;font-weight:800;white-space:nowrap}   /* [L442 · demande Esteban] chiffre jaune seul */
 .ref-block{background:var(--section);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px;position:relative}
 .ref-block.rb-dup{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}/* [L152 · incident BEKA] blocs identiques non résolus : surlignés pendant que la bannière demande le choix (fusionner / distinguer les films) */
 .ref-block.extra{border-left:3px solid var(--ref-accent)}
@@ -1317,7 +1317,7 @@ body.atelier .cumul-row{font-size:22px}
 .order-row input[data-type="qty"]{max-width:92px!important}
 .order-lbl{font-size:13px;font-family:var(--f-head)}   /* [audit L333] pas d'uppercase : « mm » doit rester mm */
 .card-config{font-size:22px}
-.badge-solde{font-size:13px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;color:#ffb968;background:#241905;border:1px solid #b06a00}   /* [L336] uppercase retiré du CSS (« mm » reste mm — SOLDE est en capitales dans la chaîne) */
+.badge-solde{font-size:13px;font-family:var(--f-head);font-weight:800;letter-spacing:.03em;color:#f5b301;background:transparent;border:none;padding:2px 0}   /* [L442 · demande Esteban] chiffre JAUNE seul, sans cadre ni fond */
 .bobine-card.solde{background:#241905;border-color:#b06a00;border-left-color:#b06a00}
 .pct-green{border-color:#2a5c2a;background:#14371f}
 .useful-display{font-size:26px;font-family:var(--f-head);font-weight:800;font-variant-numeric:tabular-nums;border-color:#4f9df2;display:block}
@@ -3042,8 +3042,7 @@ html.theme-light .fp-num small{color:#8a8a84}
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');outilsReveal('#cliSection');try{ if(typeof cliMulti==='function'&&!cliMulti()&&typeof cliAdd==='function') cliAdd(); }catch(e){}">👥 Multi-clients — ＋ 2ᵉ client</button><!-- [L351 · audit] 2 taps au lieu de 3 : dévoile ET ajoute le 2ᵉ client -->
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');addRefBlock()">＋ Ajouter une référence</button>
       <button class="btn" id="outilsPmBtn" onclick="closeOutilsDlg('outilsPlanDlg');togglePlanManual()">✏️ Modifier le plan à la main</button><!-- [L339 · audit] libellé dynamique : dit « revenir en auto » quand le plan manuel est actif -->
-      <button class="btn" id="outilsSaveBtn" onclick="closeOutilsDlg('outilsPlanDlg');openSaveModal()">💾 Sauvegarder le plan</button><!-- [L363 · A17] gatée sur canManageData() comme #planSaveBtn (sinon erreur permissions brute pour un opérateur) -->
-      <button class="btn btn-red" onclick="closeOutilsDlg('outilsPlanDlg');resetSiteConfirm()">↺ Réinitialiser</button>
+      <!-- [L442 · demande Esteban 27/08] « 💾 Sauvegarder le plan » et « ↺ Réinitialiser » RETIRES du tiroir : les boutons existent deja dans la page (💾 #planSaveBtn dans la barre de stats, ↺ en tete de page) — doublons. -->
     </div>
     <div class="outils-foot"><span class="app-ver"></span></div><!-- [L368 · L382] -->
   </div>
@@ -3221,7 +3220,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L441';
+const APP_VERSION='2026.08.27-L442';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8644,8 +8643,8 @@ function recalcPlan(){
       const isLast=(gi===_pgDisp.length-1)||!!g._phaseEnd;  // [L83 · Audit #3] la DERNIÈRE bobine est le solde MÊME si elle porte une annotation chute · [L92 · Audit #8] idem pour la FIN DE PHASE d'un plan phasé
       const cls='bobine-card'+mc+(isLast?' solde':'');
       const wLabel=isLast
-        ?`<span class="badge-solde">SOLDE ${fmt(waste)} mm</span>`
-        :`<span class="badge bc-waste${waste<useful*0.08?'':' bc-waste-hi'}">${fmt(waste)} mm</span>`;   /* [L336 · maquette 18 · §2.16-A] chute en texte NEUTRE (rouge seulement ≥8% = avertissement) */
+        ?`<span class="badge-solde" title="Solde conservé sur la dernière bobine">${fmt(waste)} mm</span>`
+        :`<span class="badge bc-waste${waste<useful*0.08?'':' bc-waste-hi'}">${fmt(waste)} mm</span>`;   /* [L336] chute neutre — [L442 · demande Esteban] le solde n'est plus qu'un CHIFFRE en jaune (le cadre + le mot SOLDE mangeaient la rangée) */
       const bEnd=bGlobal+g.count-1;
       bGlobal=bEnd+1;
       const confHtml=hasChute?configHtmlWithChute(g.pattern,g.chute):makeLabel(g.pattern);
@@ -8678,7 +8677,7 @@ function recalcPlan(){
           const isLastRun=isLast&&ri===runs.length-1;
           const cls2='bobine-card'+mc+(isLastRun?' solde':'')+(mixte?' cli-mixte':'');
           const wl=isLastRun
-            ?`<span class="badge-solde">SOLDE ${fmt(waste)} mm</span>`
+            ?`<span class="badge-solde" title="Solde conservé sur la dernière bobine">${fmt(waste)} mm</span>`
             :`<span class="badge bc-waste${waste<useful*0.08?'':' bc-waste-hi'}">${fmt(waste)} mm</span>`;   /* [L337 · audit] même restyle que la branche mono (règle « toutes les surfaces ») */
           const confRun=(!hasChute&&typeof _l415ConfHtml==='function')?(_l415ConfHtml(g.pattern,run.alloc)||confHtml):confHtml;   /* [L415] segments contigus par client, COLORES */
           html+=`<div class="${cls2}">
@@ -15364,14 +15363,37 @@ function renderLameEtat(){
       <div class="u-meta">Le ${esc(String(since).slice(0,10))}${cur.responsable?' · '+esc(cur.responsable):''}</div>
       <div class="u-meta" style="margin-top:6px"><b>${bob}</b> bobineau${bob>1?'x':''} coupé${bob>1?'s':''} depuis${bobNote}</div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="lameInstallPrompt('${m}')">🔄 Changer la lame</button>
-      <button class="btn btn-ghost btn-sm" style="margin-top:6px;border-color:#6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(String(cur.lameNum||''))}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : la lame sort du cycle, la machine reste sans lame jusqu'à la prochaine pose">🗑 Jeter à la benne</button><!-- [L441 · demande Esteban 27/08 — audit : data-* comme les autres boutons, un n° avec apostrophe tuait l'onclick inline -->
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px;min-height:34px;padding:3px 10px;font-size:12px;border-color:#6b2020;color:var(--red);opacity:.85" data-mch="${esc(m)}" data-num="${esc(String(cur.lameNum||''))}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : la lame sort du cycle, la machine reste sans lame jusqu'à la prochaine pose">Benne</button><!-- [L441 audit data-* — L442 · demande Esteban : petit et discret, sans gros logo -->
     </div>`;
   }).join('');
   el.innerHTML=`<div class="u-panel" style="margin-bottom:14px">
     <div class="u-eyebrow" style="margin-bottom:10px">🔪 État des lames <span style="font-weight:400;color:var(--muted);font-size:12px">— visible par tous</span></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">${cards}</div>
     <div style="font-size:12px;color:var(--muted);margin-top:8px">Le nombre de bobineaux est recalculé depuis les fiches de découpe de chaque machine depuis la pose.</div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border2)"><!-- [L442 · demande Esteban 27/08] enregistrer une NOUVELLE lame (n° + machine) sans passer par les cartes -->
+      <div style="font-size:12px;font-weight:800;letter-spacing:.05em;margin-bottom:6px">➕ ENREGISTRER UNE NOUVELLE LAME</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="l442NewNum" placeholder="N° de lame (ex : L-31)" style="flex:1;min-width:150px;max-width:230px;min-height:44px">
+        <div class="machine-btns" id="l442NewMach" style="margin:0">${LAME_MACHINES.map(mm=>`<button type="button" class="machine-btn-fiche" data-m="${mm}" onclick="try{document.querySelectorAll('#l442NewMach .machine-btn-fiche').forEach(b=>b.classList.remove('sel-feba','sel-maveg','sel-cevenini'));this.classList.add('sel-'+this.dataset.m);}catch(e){}">${getMachineLabel(mm)}</button>`).join('')}</div>
+        <button class="btn btn-green btn-sm" style="min-height:44px" onclick="l442RegisterLame()">✓ Enregistrer</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:5px">La lame est posée sur la machine choisie — l'ancienne passe automatiquement « à affûter ».</div>
+    </div>
   </div>`;
+}
+/* [L442] pose depuis le formulaire global : meme chemin que la modale (lameInstall = demontage auto + trace) */
+async function l442RegisterLame(){
+  try{
+    const num=String((document.getElementById('l442NewNum')||{}).value||'').trim();
+    const selB=document.querySelector('#l442NewMach .machine-btn-fiche.sel-feba,#l442NewMach .machine-btn-fiche.sel-maveg,#l442NewMach .machine-btn-fiche.sel-cevenini');
+    const mk=selB?selB.dataset.m:'';
+    if(!num){ showToast('Tape le N° de la lame.','err'); document.getElementById('l442NewNum')?.focus(); return; }
+    if(!mk){ showToast('Choisis la machine (FEBA · MAVEG · CEVENINI).','err'); return; }
+    const cur=lameActiveForMachine(mk);
+    if(cur&&nrm(cur.lameNum)===nrm(num)){ showToast('La lame '+num+' est déjà montée sur '+getMachineLabel(mk)+'.','err'); return; }
+    const ok=await lameInstall(mk,num,{description:'Pose depuis l\'encart État des lames'});
+    if(ok){ const i=document.getElementById('l442NewNum'); if(i) i.value=''; renderMaintenance(); }
+  }catch(e){ console.warn('l442RegisterLame:',e); }
 }
 // Prompt manuel de pose/changement de lame depuis l'encart.
 function lameInstallPrompt(machine){
@@ -15594,7 +15616,7 @@ function renderAffutageList(){
       ${l.envoiDate&&l.envoiDate!==l.date?`<span class="lc-date" title="partie à l'affûtage le ${dt(l.envoiDate)}"><b style="color:var(--orange)">➜🏭</b> ${dt(l.envoiDate)}</span>`:''}
       ${l.retourDate&&l.retourDate!==l.date?`<span class="lc-date" title="revenue de l'affûtage le ${dt(l.retourDate)}"><b style="color:#4ade80">🏭➜</b> ${dt(l.retourDate)}</span>`:''}
       ${l.description&&!/^(Pose lame|Seed inventaire|Envoi à l|Retour affûteur)/.test(l.description)?`<span class="lc-com" title="${esc(l.description)}">💬</span>`:''}
-      <span class="lc-actions">${action}${canDel?`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:transparent;border:1px solid var(--border2);color:var(--muted)" data-mch="${esc(l.machine||'')}" data-num="${esc(l.num)}" onclick="lameRetirerDuSuivi(this.dataset.mch,this.dataset.num)" title="Retirer cette lame du suivi (toutes ses traces partent à la corbeille — récupérables 45 j)">🗑</button>`:''}</span>
+      <span class="lc-actions">${action}${(canDel&&!/lameJeter/.test(action))?`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:transparent;border:1px solid var(--border2);color:var(--muted)" data-mch="${esc(l.machine||'')}" data-num="${esc(l.num)}" onclick="lameRetirerDuSuivi(this.dataset.mch,this.dataset.num)" title="Retirer cette lame du suivi (toutes ses traces partent à la corbeille — récupérables 45 j)">🗑</button>`:''}</span>
     </div>`;
   const mgrp=(m,arr,mkAction,dateLbl,emptyTxt)=>{
     const lbl=m==='hors'?'📦 Hors machine':getMachineLabel(m);
@@ -15613,13 +15635,13 @@ function renderAffutageList(){
   };
   el.innerHTML=
     sec('🟠','Départ affûtage','Démontées de leur machine, en attente de départ chez l\'affûteur.','aAffuter',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
       'démontée le','aucune lame en départ affûtage 👍')
     +sec('📦','Lames stockées','Affûtées, disponibles — prêtes à être montées.','stockees',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameMonterDepuisStock(this.dataset.mch,this.dataset.num)">⬆ Monter</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameMonterDepuisStock(this.dataset.mch,this.dataset.num)">⬆ Monter</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
       'en stock depuis le','aucune lame en stock')
     +sec('🛠','Lames en cours d\'affûtage','Parties chez l\'affûteur — à réceptionner au retour.','enAffutage',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(96,165,250,.12);border:1px solid var(--blue);color:var(--blue)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetourStock(this.dataset.mch,this.dataset.num)">📦 Réceptionner</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(96,165,250,.12);border:1px solid var(--blue);color:var(--blue)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetourStock(this.dataset.mch,this.dataset.num)">📦 Réceptionner</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
       'envoyée le','aucune lame chez l\'affûteur')
     +sec('⚫','Jetées à la benne','Plus affûtables — sorties du cycle. La trace reste dans le registre (ISO).','jetees',
       ()=>'',
@@ -15629,11 +15651,23 @@ function renderAffutageList(){
 // la MARQUE jetee. Trace ISO append-only (categorie 'rebut') : la lame sort du cycle (plus montee, plus en
 // stock, plus a affuter) mais TOUT son historique reste dans le registre et la section « Jetees ».
 // Le confirm reste (geste definitif — regle n°4 du depot).
-async function lameJeter(machine,num){
+async function lameJeter(machine,num,btn){
   if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
   if(!db||!currentUser){ showToast('Connexion requise.','err'); return; }
   const lbl=machine?getMachineLabel(machine):'hors machine';
-  if(!confirm('🗑 Jeter la lame '+num+' à la BENNE ('+lbl+') ?\n\nElle ne peut plus être affûtée : elle sort du cycle (plus jamais proposée au montage).\nSa trace reste dans le registre (ISO).')) return;
+  /* [L442 · demande Esteban 27/08] CONFIRMATION EN DEUX TEMPS PAR BOUTON (remplace le confirm systeme,
+     penible au tactile) : le 1er tap ARME — le bouton devient « ⚠ SUR ? Jeter » 5 s — le 2e tap execute.
+     Deux gestes volontaires sur le meme bouton = meme garantie qu'un confirm, plus lisible en atelier. */
+  const _key=String(machine||'')+'|'+nrm(num);
+  const _arm=window._l442BenneArm;
+  if(!(_arm&&_arm.key===_key&&(Date.now()-_arm.at)<5000)){
+    window._l442BenneArm={key:_key,at:Date.now()};
+    if(btn){ const _t0=btn.innerHTML; btn.innerHTML='⚠ SÛR ? Jeter '+esc(String(num)); btn.style.background='var(--red)'; btn.style.color='#fff';
+      setTimeout(function(){ try{ if(window._l442BenneArm&&window._l442BenneArm.key===_key){ window._l442BenneArm=null; btn.innerHTML=_t0; btn.style.background=''; btn.style.color=''; } }catch(e){} },5000); }
+    else showToast('⚠ Retape « Benne » dans les 5 s pour CONFIRMER — la lame '+num+' sortira du cycle (trace conservée).','ok');
+    return;
+  }
+  window._l442BenneArm=null;
   const now=isoNow(); const who=currentUser?currentUser.ini:'?';
   const doc={ type:'lame', categorie:'rebut', machine:machine||'', lameNum:String(num).trim(),
     dateInstall:now, date:now,
@@ -16744,7 +16778,11 @@ function renderFiches(){
       </div>
       ${(function(){ /* [L427] UNE ligne : puces d'alerte a gauche, « Ajouter un BL » (plus gros) a droite */
         const chips=[mmBadge,(f.modifie||f.hasEcart)?`<span class="fc-chip fc-chip-a" title="${esc(f.ecartMsg||'')}">⚠ ${f.modifie?'Modifiée':'Écart plan'}</span>`:'',shareBadge,cliBadge].filter(Boolean).join('');
-        const blBtn=(canValidate()&&!blOk)?`<button class="fc-bl-add" onclick="triggerBLFiche('${f._id}',null)" title="Joindre le bon de livraison">📎 Ajouter un BL</button>`:(blOk?`<span class="fc-chip fc-chip-g">📎 BL joint</span>`:'');
+        const blBtn=(canValidate()&&!blOk)?`<button class="fc-bl-add" onclick="triggerBLFiche('${f._id}',null)" title="Joindre le bon de livraison">📎 Ajouter un BL</button>`
+          :(blOk?(function(){ /* [L442 · demande Esteban 27/08] le NOM du fichier joint (il porte le n° de BL) s'affiche sur la puce — fini la chasse au document */
+            const _bl42=ficheBLs(f); const _n1=(_bl42[0]&&_bl42[0].name)?String(_bl42[0].name).replace(/\.(pdf|jpe?g|png|webp)$/i,''):'';
+            const _lbl=_n1?((_bl42.length>1?('📎 '+_bl42.length+' BL · '):'📎 ')+esc(_n1.length>26?_n1.slice(0,25)+'…':_n1)):'📎 BL joint';
+            return `<span class="fc-chip fc-chip-g" title="${esc(_bl42.map(function(b){return b.name||'BL';}).join(' · '))}">${_lbl}</span>`; })():'');
         return (chips||blBtn)?`<div class="fc-strip"><div class="fc-chips">${chips}</div>${blBtn}</div>`:'';
       })()}
       ${blCardBlock(f)}
@@ -21166,14 +21204,18 @@ function _l340SetupFichePills(){ try{
 }catch(e){} })();
 // [L374 · demande Esteban 20/08] ⚙ OUTILS du Plan : un lanceur AU-DESSUS de chaque bloc de référence (paysage), plus grand, teinté.
 function _l374PlanOutilsTop(){ try{
-  document.querySelectorAll('#refBlocks .plan-outils-top').forEach(function(l){ const n=l.nextElementSibling; if(!(n&&n.classList&&n.classList.contains('ref-block'))) l.remove(); });   // [L383 · audit fusion] lanceurs orphelins (bloc réf supprimé / plan rechargé avec moins de réfs) : purgés au lieu de s'empiler
-  document.querySelectorAll('#refBlocks .ref-block').forEach(function(blk){
-    if(blk.previousElementSibling&&blk.previousElementSibling.classList&&blk.previousElementSibling.classList.contains('plan-outils-top')) return;
-    const b=document.createElement('button'); b.type='button'; b.className='btn plan-outils-top';
-    b.setAttribute('onclick',"openOutilsDlg('outilsPlanDlg')");
-    b.innerHTML='⚙ OUTILS <span class="outils-badge">4</span>';
-    blk.parentNode.insertBefore(b,blk);
-  });
+  /* [L442 · demande Esteban 27/08] UN SEUL lanceur ⚙ OUTILS, au-dessus de la Reference 1 (il s'empilait
+     au-dessus de CHAQUE bloc en multi-ref). Les surplus partent, le premier reste. */
+  const _tops42=Array.from(document.querySelectorAll('#refBlocks .plan-outils-top'));
+  _tops42.slice(1).forEach(function(l){ l.remove(); });
+  const _first42=document.querySelector('#refBlocks .ref-block');
+  if(_first42){
+    let b=_tops42[0]||null;
+    if(!b){ b=document.createElement('button'); b.type='button'; b.className='btn plan-outils-top';
+      b.setAttribute('onclick',"openOutilsDlg('outilsPlanDlg')");
+      b.innerHTML='⚙ OUTILS <span class="outils-badge">2</span>'; }
+    if(_first42.previousElementSibling!==b) _first42.parentNode.insertBefore(b,_first42);
+  } else if(_tops42[0]) _tops42[0].remove();
   try{ _l361SyncOutilsBadges(); }catch(e){}
 }catch(e){} }
 // [L376 · grande analyse 1.4/1.5/2.1] SWAP MACHINE DU POSTE, version sûre et partagée (doLoad + passation resumeDraft) :
