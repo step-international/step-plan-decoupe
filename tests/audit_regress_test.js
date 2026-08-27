@@ -1353,6 +1353,11 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L453 : filtres Analyse retires + Recharger sans perte ──');
+has(/filtres OPERATEUR et MOIS retires/,'L453 : filtres Operateur et Mois retires de l Analyse');
+has(/analyseFilter\.op='ALL'; analyseFilter\.month='ALL';/,'L453 : etat des filtres retires neutralise');
+has(/FLUSH IMMEDIAT au tap/,'L453 : Recharger sauve tout A L INSTANT du tap (perte zero)');
+
 console.log('── L452 : bandeau palettes retire du Plan ──');
 has(/le bandeau\n     « Ce plan ouvrira jusqu'a N palettes/,'L452 : bandeau palettes retire (tolerance 6 assumee)');
 absent(/Prévois la place au sol/,'L452 : le texte « Prevois la place au sol » a disparu');

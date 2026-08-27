@@ -3231,7 +3231,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.28-L452';
+const APP_VERSION='2026.08.28-L453';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3255,7 +3255,16 @@ function _updBanner(newVer){
 function updDismiss(){ _updDismissedUntil=Date.now()+45*60*1000; const b=document.getElementById('updBanner'); if(b) b.remove(); }   // [L199 · audit #11] snooze 45 min (checkAppUpdate tourne toutes les 30 min + au retour d'onglet → re-proposée)
 function updReload(){
   if(_updReloading) return;
-  // [L403 · demande Esteban] confirm retiré : Recharger s'applique DIRECT (l'autosave 15 s + la restauration au boot couvrent le rechargement, chrono compris)
+  // [L403 · demande Esteban] confirm retiré : Recharger s'applique DIRECT
+  /* [L453 · audit rechargement, demande Esteban 28/08] FLUSH IMMEDIAT au tap : l'intervalle d'autosave
+     (15 s) laissait jusqu'a 15 s de travail non ecrit au moment du Recharger. Plutot que de passer tout
+     l'atelier a 5 s (3x plus d'ecritures Firestore en continu), TOUT est sauve A L'INSTANT du tap :
+     chrono (localStorage, synchrone), commande (miroir local synchrone + brouillon Firestore force),
+     plan. Perte reelle : ZERO seconde. Les filets existants restent : pagehide re-flushe, et la reprise
+     L435 (miroir local + retentatives) rend tout au redemarrage. */
+  try{ persistChronoLive(); }catch(e){}
+  try{ if(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length) autosaveDraftTick(true); }catch(e){}
+  try{ if(typeof planAutosaveTick==='function') planAutosaveTick(); }catch(e){}
   _updReloading=true;
   setTimeout(function(){ if(_updReloading){ _updReloading=false; const b=document.querySelector('#updBanner .btn-blue'); if(b){ b.disabled=false; b.textContent='Recharger'; } } },30000);   // [L97 · relecture #3] réarmement si la page est toujours vivante (reload annulé)
   const btn=document.querySelector('#updBanner .btn-blue'); if(btn){btn.disabled=true;btn.textContent='⏳…';}
@@ -16624,7 +16633,7 @@ function analyseFilterBar(allTemps){
   const pill=(dim,val,txt,color,active)=>`<button onclick="setAnalyseFilter('${dim}','${val}')" style="border:1.5px solid ${active&&color?color:'var(--border2)'};background:${active?'rgba(255,255,255,.06)':'#1a1a18'};color:${active&&color?color:(active?'var(--text)':'var(--muted)')};font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:20px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">${color?`<span style="width:9px;height:9px;border-radius:50%;background:${color}"></span>`:''}${txt}</button>`;
   const grp=(lbl,html)=>`<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${lbl}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${html}</div></div>`;
   const monthLbl=m=>{const a=m.split('-');return (_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0];};
-  const monthOpts='<option value="ALL">Tous les mois</option>'+months.map(m=>`<option value="${m}"${analyseFilter.month===m?' selected':''}>${monthLbl(m)}</option>`).join('');
+  try{ analyseFilter.op='ALL'; analyseFilter.month='ALL'; }catch(e){}   /* [L453] filtres retires : etat neutralise (un vieux filtre memorise ne fausse plus rien) */
   // [L249 · R4a] dimension CLIENT (union temps + fiches — un client sans chrono reste filtrable côté NC)
   const clients=[...new Set([].concat(
     allTemps.map(t=>String(t.client||'').trim()),
@@ -16635,8 +16644,7 @@ function analyseFilterBar(allTemps){
   return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">
     <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
       ${grp('🎛 Machine', pill('mach','ALL','Toutes','',analyseFilter.mach==='ALL')+machs.map(m=>pill('mach',m,m,C[m],analyseFilter.mach===m)).join(''))}
-      ${ops.length?grp('Opérateur', pill('op','ALL','Tous','',analyseFilter.op==='ALL')+ops.map(o=>pill('op',o,o,(typeof OP_COLORS!=='undefined'&&OP_COLORS[o])||'',analyseFilter.op===o)).join('')):''}
-      ${months.length?grp('Mois', `<select onchange="setAnalyseFilter('month',this.value)" style="${selSt}">${monthOpts}</select>`):''}
+      <!-- [L453 · demande Esteban 28/08] filtres OPERATEUR et MOIS retires (« c'est inutile ») — machine et client restent ; analyseFilter.op/month sont forces a ALL au rendu, aucune logique aval touchee -->
       ${clients.length?grp('Client', `<select onchange="setAnalyseFilter('client',this.value)" style="${selSt}">${clientOpts}</select>`):''}
       ${_anaFiltered()?`<button onclick="resetAnalyseFilter()" style="border:1.5px solid #6b5416;background:rgba(245,158,11,.08);color:#fbbf24;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;min-height:38px">✕ Réinitialiser</button>`:''}
     </div>
