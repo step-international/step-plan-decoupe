@@ -2356,6 +2356,16 @@ html.theme-light .fp-num small{color:#8a8a84}
       </div>
       <div class="rb-operator"><!-- [L420 · PARTIE OPERATEUR · spec Esteban 4/4] tout ce que l'OPERATEUR verifie avant la coupe, valide d'un coup -->
         <div class="rb-op-title">4 · 👷 Partie opérateur — à vérifier avant la coupe</div>
+        <div class="flex mt8" style="gap:6px;align-items:center;flex-wrap:wrap"><!-- [L448 · demande Esteban 28/08] l'operateur se logue ICI : il choisit QUI il est en validant la preparation — plus rien a toucher dans la fiche -->
+          <span style="font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--muted)">OPÉRATEUR</span>
+          <div class="ini-btns" id="l448PlanIni" style="margin:0">
+            <button type="button" class="ini-btn" onclick="_l448PickIni('TB')">TB</button>
+            <button type="button" class="ini-btn" onclick="_l448PickIni('JF')">JF</button>
+            <button type="button" class="ini-btn" onclick="_l448PickIni('MR')">MR</button>
+            <button type="button" class="ini-btn" onclick="_l448PickIni('DC')">DC</button>
+            <button type="button" class="ini-btn" onclick="_l448PickIni('ER')">ER</button>
+          </div>
+        </div>
         <div class="flex mt8" style="gap:8px;flex-wrap:wrap">
           <button class="btn btn-orange btn-sm" onclick="addPlanChuteTo(this)" title="Bobineaux déjà en stock à la bonne largeur — déduits de la commande">✂ Bobineaux en stock</button>
           <button class="btn btn-recut btn-sm" onclick="addPlanRecutTo(this)" title="Chute : rouleau résiduel d'une autre laize — recoupé en 1er dans le plan, optimiseur chute mini">♻ Chute</button>
@@ -2647,7 +2657,7 @@ html.theme-light .fp-num small{color:#8a8a84}
       </div>
     </div>
     <div id="fFilmBadgeZone" style="display:none;margin-bottom:8px"></div>
-    <div class="field">
+    <div class="field" style="display:none"><!-- [L448 · demande Esteban 28/08] l'operateur se choisit AU PLAN (rangee OPERATEUR de la Partie operateur) : le bloc de la fiche est masque, fInitiales/selectIni restent le canal maitre (chrono, envoi, archives ; correction via le Plan) -->
       <label>Opérateur 1</label><!-- [L203 · demande Esteban] « (principal) » retiré (inutile) -->
       <div class="ini-btns" id="initBtns">
         <button class="ini-btn" onclick="selectIni('TB')">TB</button>
@@ -3221,7 +3231,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L447';
+const APP_VERSION='2026.08.28-L448';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6577,8 +6587,25 @@ function _l421SyncUseful(){ try{
     inp.value=u>0?String(Math.round(u*10)/10):'';
   });
 }catch(e){} }
+/* [L448 · demande Esteban 28/08] choix de l'operateur DEPUIS LE PLAN : ecrit fInitiales (le champ que toute
+   la fiche lit deja — chrono, envoi, archives) via selectIni, et surligne la rangee du Plan. */
+function _l448PickIni(v){ try{
+  const cur=(document.getElementById('fInitiales')?.value||'').trim();
+  if(cur!==v){ if(typeof selectIni==='function') selectIni(v); else { const f=document.getElementById('fInitiales'); if(f) f.value=v; } }
+  document.querySelectorAll('#l448PlanIni .ini-btn').forEach(function(b){ b.classList.toggle('sel',b.textContent===v); });
+}catch(e){} }
+function _l448SyncPlanIni(){ try{
+  const v=(document.getElementById('fInitiales')?.value||'').trim();
+  document.querySelectorAll('#l448PlanIni .ini-btn').forEach(function(b){ b.classList.toggle('sel',!!v&&b.textContent===v); });
+}catch(e){} }
 function _l420OpValidate(btn){ try{
   const blk=btn.closest('.ref-block'); if(!blk) return;
+  /* [L448] pas de preparation validee sans savoir QUI valide (comptes machine : personne de pre-selectionne) */
+  if(!((document.getElementById('fInitiales')?.value||'').trim())){
+    showToast('👷 Choisis TES INITIALES (rangée OPÉRATEUR juste au-dessus) avant de valider.','err');
+    try{ const z=document.getElementById('l448PlanIni'); if(z){ z.style.outline='3px solid var(--orange)'; setTimeout(function(){z.style.outline='';},2500); } }catch(e){}
+    return;
+  }
   const mo=parseNum(blk.querySelector('[data-rb="mother"]')?.value)||0;
   if(!(mo>0)){ showToast('⚠ Renseigne la largeur de la BOBINE MÈRE avant de valider.','err'); const el=blk.querySelector('[data-rb="mother"]'); if(el){ try{el.focus({preventScroll:true});}catch(e){} el.style.borderColor='var(--red)'; setTimeout(function(){el.style.borderColor='';},2200); } return; }
   blk.dataset.opValidated='1';
@@ -8110,6 +8137,11 @@ function _palSplitSolde(order){
 //   - la chute de la derniere bobine doit etre STRICTEMENT meilleure, sinon original ;
 //   - planManual jamais touche (la branche man d'importPlanToFiche ne passe pas ici).
 // ============================================================
+var L448_PAL_TOL=6;   /* [L448 · decision Esteban 28/08] tolerance palettes de la couche d'optimisation : le plan
+   brut ou regroupe est accepte jusqu'a 6 palettes simultanees quand ca economise des bobines meres ou regroupe
+   les chutes (cas LEGRAND SPAIN : le brut faisait UNE chute de 1744 en fin avec un pic 5 — la limite a 4 le
+   rejetait et laissait 328 mm au milieu). Le moteur gele continue de VISER 4 ; ceci n'est que la tolerance
+   d'acceptation de la couche. Reglable ici si l'atelier change d'avis. */
 function _l444PalettePeak(bobines){
   const first={},last={};
   bobines.forEach(function(pat,i){ (pat||[]).forEach(function(p){ if(first[p.width]===undefined) first[p.width]=i; last[p.width]=i; }); });
@@ -8177,7 +8209,7 @@ function _l444RegroupRef(c){
   const newSeq=seq.map(function(b,i){ return (newPat[i]!==undefined)?mk(newPat[i]):b.pattern; });
   for(let k=0;k<freeIdx.length-1;k++){ if(!newSeq[freeIdx[k]].length) return c; }
   const peakOrig=_l444PalettePeak(seq.map(function(b){return b.pattern;}));
-  if(_l444PalettePeak(newSeq)>Math.max(4,peakOrig)) return c;     /* contrainte palettes : jamais pire */
+  if(_l444PalettePeak(newSeq)>Math.max(L448_PAL_TOL,peakOrig)) return c;     /* [L448] tolerance 6 (decision Esteban), jamais pire que l'existant */
   const cntOf=function(arr){ const m={}; arr.forEach(function(p){ m[p.width]=(m[p.width]||0)+p.qty; }); return m; };
   const before=cntOf([].concat.apply([],seq.map(function(b){return b.pattern;})));
   const after=cntOf([].concat.apply([],newSeq));
@@ -8222,7 +8254,7 @@ function _l444Pal(groups){
       if(!b||!c||!Array.isArray(b.bobines)||!Array.isArray(c.bobines)) return c;
       if(b.bobines.length<c.bobines.length){
         const peakNat=_seqPeak(b.planGroups||[]);
-        if(peakNat<=PALETTES_MAX){
+        if(peakNat<=L448_PAL_TOL){   /* [L448] le brut est accepte jusqu'a 6 palettes s'il economise des bobines */
           const _o=_palSplitSolde(b.planGroups);
           return Object.assign({},b,{planGroups:_o,bobines:_palBobines(_o),_palPeak:peakNat,_l446Brut:true});
         }
@@ -9989,14 +10021,9 @@ function renderSaves(){
   // n'entrait pas dans la page des 50 dernieres preparations (trier PUIS decouper, cf. renderFiches L396).
   // [L394 · demande Esteban 22/08] tri par LIVRAISON : la commande à couper en premier TOUT EN HAUT
   // (date de livraison la plus proche — multi-clients : la plus proche des deux), puis chronologique ;
-  // sans date de livraison → en bas, plus récemment préparées d'abord.
-  try{ saves.sort(function(a,b){
-    const da=(typeof _plnDateLivMin==='function')?_plnDateLivMin(a):'', db2=(typeof _plnDateLivMin==='function')?_plnDateLivMin(b):'';
-    if(da&&db2&&da!==db2) return da<db2?-1:1;
-    if(da&&!db2) return -1;
-    if(!da&&db2) return 1;
-    return String(a.date||'')>String(b.date||'')?-1:1;
-  }); }catch(e){}
+  /* [L448 · demande Esteban 28/08] LE DERNIER PLAN SAUVEGARDE EN HAUT : tri par date d'enregistrement
+     decroissante (avant : par date de livraison — le plan qu'on venait de preparer se noyait au milieu). */
+  try{ saves.sort(function(a,b){ return String(a.date||'')>String(b.date||'')?-1:1; }); }catch(e){}
   saves=saves.slice(0,savesRenderLimit);   /* [L412 audit] pagination APRES le tri */
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
@@ -19810,6 +19837,7 @@ function selectIni(v){
   try{ if((document.getElementById('fInitiales')?.value||'').trim()===v){ openMonTableau(v); return; } }catch(e){}
   document.getElementById('fInitiales').value=v;
   document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===v));
+  try{ _l448SyncPlanIni(); }catch(e){}   /* [L448] la rangee OPERATEUR du Plan suit */
   try{ localStorage.setItem('step_op_day',JSON.stringify({ini:v,date:_localDay()})); }catch(e){}
   // [L376 · grande analyse A2.6] l'en-tête déplié par la GARDE (initiales manquantes) se replie tout seul une fois
   // les initiales choisies, et l'écran revient à la bobine en cours — avant : +330px permanents, volet NC sous le pli.

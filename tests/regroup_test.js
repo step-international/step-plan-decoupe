@@ -6,7 +6,7 @@
 const fs=require('fs');
 const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let s=(src.slice(i-6,i)==='async ')?i-6:i;let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(s,k+1);}
-global.PALETTES_MAX=4; global.MAX_USEFUL_MM=4000; global.MAX_BLADE_MM=50; global.packTruncated=false; global._laizeSortExcluded=()=>false;
+global.PALETTES_MAX=4; global.MAX_USEFUL_MM=4000; { const m=src.match(/var L448_PAL_TOL=(\d+)/); global.L448_PAL_TOL=m?Number(m[1]):6; } global.MAX_BLADE_MM=50; global.packTruncated=false; global._laizeSortExcluded=()=>false;
 ['expandDemand','buildCounts','calcStats','makeLabel','bestPattern','pack','groupBobines','computeChutesUsed','reduceItemsByChutes',
  'assignChutesForDisplay','groupBobinesWithChutes','packRecutRolls','groupRecutRolls','packRefGroups','_pgW','_seqPeak','_seqPeakPartial',
  '_seqMinPalettes','_palRepack','_palBobines','_palSplitSolde','packRefGroupsPal',
@@ -58,11 +58,11 @@ prop('R4 la chute de la DERNIERE bobine ne diminue jamais',900,genGroups,(groups
   }
   return '';
 });
-prop('R5 pic palettes jamais pire que max(4, original)',900,genGroups,(groups)=>{
+prop('R5 pic palettes jamais pire que max(tolerance 6, original)',900,genGroups,(groups)=>{
   const {base,post,trunc}=runPair(groups); if(trunc) return '';
   for(let i=0;i<base.length;i++){
     const po=_l444PalettePeak((base[i].bobines||[])), pn=_l444PalettePeak((post[i].bobines||[]));
-    if(pn>Math.max(4,po)) return 'pic aggrave ('+po+' -> '+pn+')';
+    if(pn>Math.max(L448_PAL_TOL,po)) return 'pic aggrave ('+po+' -> '+pn+')';   /* [L448] tolerance 6 decidee par Esteban le 28/08 */
   }
   return '';
 });
@@ -114,9 +114,21 @@ prop('R10 cas PRIMA (2080, 8 laizes, ~1630 pieces) : 31 bobines, chute unique 13
   return '';
 });
 // R11 — le brut n'est JAMAIS choisi si son ordre naturel casse les 4 palettes
-prop('R11 le choix brut respecte toujours PALETTES_MAX',400,genGroups,(groups)=>{
+prop('R11 le choix brut respecte la tolerance palettes (6, decision Esteban)',400,genGroups,(groups)=>{
   const out=_l444Pal(JSON.parse(JSON.stringify(groups)));
-  for(const c of out){ if(c._l446Brut&&_seqPeak(c.planGroups||[])>PALETTES_MAX) return 'brut choisi avec pic > 4'; }
+  for(const c of out){ if(c._l446Brut&&_seqPeak(c.planGroups||[])>L448_PAL_TOL) return 'brut choisi avec pic > '+L448_PAL_TOL; }
+  return '';
+});
+// R12 — commande REELLE LEGRAND SPAIN (28/08) : la limite 4 palettes laissait 328 mm au milieu
+prop('R12 cas LEGRAND (2080, 6 laizes) : UNE chute de 1744 en DERNIERE position',1,()=>null,()=>{
+  const groups=[{ref:'DQ',useful:2080,blade:0,longueur:1500,mother:0,edge:0,film:'',veka:'',machine:'maveg',
+    rows:[{width:75,qty:3},{width:63,qty:3},{width:61,qty:18},{width:48,qty:5},{width:44,qty:10},{width:28,qty:8}],chutes:[],recuts:[]}];
+  const c=_l444Pal(groups)[0]; const b=c.bobines||[];
+  if(b.length!==2) return '2 bobines attendues, '+b.length;
+  const ch=b.map((p,i)=>[i,2080-calcStats(p,0).total]).filter(x=>x[1]>=30);
+  if(ch.length!==1) return 'une seule chute attendue, '+ch.length;
+  if(ch[0][0]!==1) return 'chute pas en derniere position';
+  if(Math.round(ch[0][1])!==1744) return 'chute 1744 attendue, '+Math.round(ch[0][1]);
   return '';
 });
 console.log(fail?('\n💥 '+fail+' propriete(s) VIOLEE(S)'):'\n🏆 REGROUPEMENT VALIDÉ : conservation · capacité · nb constant · chute finale jamais réduite · palettes · cohérence · déterminisme · idempotence · cas Esteban');

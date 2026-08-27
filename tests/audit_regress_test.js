@@ -1353,6 +1353,14 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L448 : tolerance palettes 6 · operateur au Plan · tri plans ──');
+has(/var L448_PAL_TOL=6/,'L448 : tolerance palettes relevee a 6 (decision Esteban 28\/08)');
+has(/le brut est accepte jusqu'a 6 palettes s'il economise des bobines/,'L448 : le plan brut gagne jusqu a 6 palettes');
+has(/l'operateur se logue ICI : il choisit QUI il est en validant la preparation/,'L448 : rangee OPERATEUR dans la Partie operateur du Plan');
+has(/Choisis TES INITIALES \(rangée OPÉRATEUR juste au-dessus\)/,'L448 : pas de preparation validee sans operateur');
+has(/le bloc de la fiche est masque, fInitiales\/selectIni restent le canal maitre/,'L448 : bloc Operateur 1 retire de l en-tete fiche (canal intact)');
+has(/LE DERNIER PLAN SAUVEGARDE EN HAUT/,'L448 : tri des plans par date d enregistrement decroissante');
+
 console.log('── L447 : chip petite · textes retires · etiquette solde homonymes ──');
 has(/« n references » PETITE, au meme niveau que les tuiles/,'L447 : chip references petite sur la ligne des tuiles');
 has(/intro Brouillons retiree/,'L447 : intro Brouillons retiree');
