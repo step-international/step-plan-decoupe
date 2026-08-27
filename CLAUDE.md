@@ -20,7 +20,7 @@
    `python3 -c "import re,subprocess,tempfile,os; s=open('index.html',encoding='utf-8').read(); t=tempfile.gettempdir(); [print(i,subprocess.run(['node','--check',os.path.join(t,f'sc{i}.js')],capture_output=True,text=True).stderr[:200]) for i,sc in enumerate(re.findall(r'<script>(.*?)</script>',s,re.S)) if open(os.path.join(t,f'sc{i}.js'),'w',encoding='utf-8').write(sc) or True]"`
    (portable Mac + Windows : dossier temporaire du systeme au lieu de `/tmp`, encodage UTF-8 explicite.)
 2. **Batterie complète** (tout doit afficher 🏆) :
-   `node tests/engine_identity.js` puis `node tests/X_test.js` pour X ∈ refs, pln, multiref, solde_phase, pm130, bk18, t5_estim, pmsort, offline, lames, kpi, analyse_fixes, draft_concordance, audit_regress, props.
+   `node tests/engine_identity.js` puis `node tests/X_test.js` pour X ∈ refs, pln, multiref, solde_phase, pm130, bk18, t5_estim, pmsort, offline, lames, kpi, analyse_fixes, draft_concordance, audit_regress, props, regroup.
 3. **Simulation** : `node tests/sim200.mjs --n 8 --seed 7 --multi 0.5` → « sans anomalie ». (Un échec isolé sous forte charge machine peut être transitoire : relancer une fois avant de conclure.)
 4. **Smoke headless** : `node tests/shot.mjs --scene plan --w 1180 --h 820 --nopng --json --js "(function(){return (window.__jsErrors||[]).length})()"` → 0, idem scènes `fiche-cut` et `donnees`, + un passage portrait `--w 820 --h 1180`. (Le harnais démarre en mode entraînement — appeler `stopTraining()` avant de tester l'entrée en entraînement.)
 5. **Miroir** (Mac d'Esteban UNIQUEMENT — sauter ailleurs) : `cp index.html "/Users/EstebanR/Documents/step/code plan de découpe/index.html"`

@@ -3220,7 +3220,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L443';
+const APP_VERSION='2026.08.27-L444';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5700,7 +5700,7 @@ function _snapFicheChutes(){
     // [L286 · revue P2] clés d'identité DUPLIQUÉES (même réf scindée sur 2 machines aux mêmes défauts bords/lame) :
     // on AGRÈGE les chutesUsed par clé (somme par largeur) au lieu d'écraser au dernier groupe — sinon la
     // comparaison « groupe 1 vs instantané du groupe 2 » fabriquait une fausse dérive stock permanente.
-    const cs=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length); const agg={};
+    const cs=_l444Pal(getRefGroups()).filter(c=>c.rows.length); const agg={};
     cs.forEach(c=>{ const k=_refIdKey(c); const a=agg[k]||(agg[k]={}); Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{ a[w]=(a[w]||0)+(Number(q)||0); }); });
     const snap={}; Object.keys(agg).forEach(k=>{ snap[k]=JSON.stringify(agg[k]); });
     _ficheGenChutes=snap;
@@ -5714,7 +5714,7 @@ function _fichePlanDriftCheck(opts){
   try{
     if(typeof isFicheUntouched==='function'&&isFicheUntouched()){ hide(); return; }   // fiche vierge : l'import auto vient de tourner, pas de dérive possible
     if(!ficheLines.length){ hide(); return; }
-    const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+    const computed=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
     if(!computed.length){ hide(); return; }
     const data=getFicheLinesData();
     const engagedOf=d=>d.coupee||!!d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||d.ncHum||!!(d.ncDetail||'').trim();
@@ -6070,7 +6070,7 @@ function importPlanToFiche(opts){
     return;
   }
   try{
-    const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+    const computed=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
     if(!computed.length){
       if(!auto) showToast('⚠ Aucune ligne de commande dans le Plan.\n\nRemplis le plan d\'abord.','err');
       return;
@@ -6618,7 +6618,7 @@ function startCutFromPlan(){
     const hasRows=g.some(x=>((x.rows&&x.rows.length)||(x.rawRows&&x.rawRows.length)));
     if(!hasRows){ showToast('⚠ Saisis d\'abord la commande (au moins une laize avec quantité) avant de lancer la coupe.','err'); return; }
     // [L359 · analyse parcours 19/08 · QW2] laize > largeur utile : la fiche serait générée VIDE (importPlanToFiche auto refuse en silence) → on le dit ici, avant de basculer (zéro cul-de-sac ; lecture seule du moteur, comme importPlanToFiche)
-    try{ const _c=packRefGroupsPal(g).filter(c=>c.rows.length); if(_c.some(c=>c.oversize&&c.oversize.length)){ showToast('⛔ Une laize dépasse la largeur utile (⛔ sur le plan) — corrige avant de couper.','err'); return; } }catch(e){}
+    try{ const _c=_l444Pal(g).filter(c=>c.rows.length); if(_c.some(c=>c.oversize&&c.oversize.length)){ showToast('⛔ Une laize dépasse la largeur utile (⛔ sur le plan) — corrige avant de couper.','err'); return; } }catch(e){}
   }catch(e){}
     /* [L432 · demande Esteban] valider UNE seule reference suffit : les refs VALIDEES au Plan passent EN TETE
      de l'ordre de coupe (ordre stable entre elles) -> le chrono demarre dessus sans toucher aux fleches.
@@ -8090,6 +8090,120 @@ function _palSplitSolde(order){
   if(n<2) return order;
   return order.slice(0,-1).concat([{...last,count:n-1},{...last,count:1}]);
 }
+
+// ============================================================
+// [L444 · SPEC QCM ESTEBAN 27/08/2026] CHUTES REGROUPEES SUR LA DERNIERE BOBINE.
+// Le MOTEUR GELE n'est PAS touche : ceci est un POST-TRAITEMENT pur applique au retour
+// de packRefGroupsPal, substitue aux sites d'appel via _l444Pal. Regle (4/4 au QCM) :
+//   1. regrouper TOUJOURS (un dechet incompressible <30 mm au milieu est accepte) ;
+//   2. une chute intermediaire inevitable n'est gardee que >=200 mm ;
+//   3. configurations melangees sans limite ;
+//   4. exemple valide : bobines intermediaires remplies PILE, tout le reste sur la derniere.
+// GARDE-FOUS (le plan d'origine est rendu INTACT au moindre doute) :
+//   - multiset des bobineaux STRICTEMENT conserve (verifie a chaque calcul) ;
+//   - nombre de bobines constant ; capacite jamais depassee ;
+//   - bobines a chute stock (g.chute) FIGEES (pieces servies par le stock intouchees) ;
+//   - pic de palettes recalcule : jamais pire que max(4, pic d'origine) ;
+//   - la chute de la derniere bobine doit etre STRICTEMENT meilleure, sinon original ;
+//   - planManual jamais touche (la branche man d'importPlanToFiche ne passe pas ici).
+// ============================================================
+function _l444PalettePeak(bobines){
+  const first={},last={};
+  bobines.forEach(function(pat,i){ (pat||[]).forEach(function(p){ if(first[p.width]===undefined) first[p.width]=i; last[p.width]=i; }); });
+  let peak=0;
+  for(let i=0;i<bobines.length;i++){ let open=0; Object.keys(first).forEach(function(w){ if(first[w]<=i&&i<=last[w]) open++; }); if(open>peak) peak=open; }
+  return peak;
+}
+// Sac-a-dos borne en « slots » (meme modele que bestPattern : chaque piece coute width+blade,
+// budget useful+blade) — maximise l'occupation reelle d'UNE bobine depuis le pool {width:qty}.
+function _l444Fill(pool,useful,blade){
+  const budget=Math.floor(useful+blade+0.001); if(budget<=0) return null;
+  const pieces=[];
+  Object.keys(pool).forEach(function(w){ const width=Number(w); for(let k=0;k<pool[w];k++) pieces.push(width); });
+  if(!pieces.length) return null;
+  if(pieces.length>420) return null;                          /* borne moteur (400) + marge : au-dela on s'abstient */
+  pieces.sort(function(a,b){return b-a;});
+  const dp=new Int32Array(budget+1).fill(-1); dp[0]=-2;       /* -2 = atteignable racine, sinon index piece*1e4+budget precedent impossible -> on stocke via parent */
+  const parent=new Array(budget+1).fill(null);
+  for(let pi=0;pi<pieces.length;pi++){
+    const cost=Math.round(pieces[pi]+blade);
+    if(cost<=0||cost>budget) continue;
+    for(let b=budget;b>=cost;b--){
+      if(dp[b]===-1&&dp[b-cost]!==-1&&(parent[b-cost]===null||parent[b-cost].pi<pi)){
+        /* chaque piece au plus une fois : le parent memorise l'indice de la DERNIERE piece posee (croissant) */
+        if(dp[b-cost]!==-1){ dp[b]=b-cost; parent[b]={pi:pi,w:pieces[pi]}; }
+      }
+    }
+  }
+  let best=-1;
+  for(let b=budget;b>=0;b--){ if(dp[b]!==-1){ best=b; break; } }
+  if(best<=0) return null;
+  const take={};
+  let cur=best;
+  while(cur>0&&parent[cur]){ const w=parent[cur].w; take[w]=(take[w]||0)+1; cur=dp[cur]; }
+  return Object.keys(take).length?take:null;
+}
+function _l444RegroupRef(c){
+  if(!c||!Array.isArray(c.planGroups)||c.planGroups.length<2) return c;
+  if(c.oversize&&c.oversize.length) return c;
+  const useful=Number(c.useful)||0, blade=Number(c.blade)||0;
+  if(useful<=0) return c;
+  const seq=[];
+  c.planGroups.forEach(function(g){ const cnt=Math.max(1,parseInt(g.count)||1);
+    for(let i=0;i<cnt;i++) seq.push({pattern:(g.pattern||[]).map(function(p){return {width:p.width,qty:p.qty};}),fixed:!!g.chute,chute:g.chute}); });
+  if(seq.length<2) return c;
+  const freeIdx=[]; seq.forEach(function(b,i){ if(!b.fixed) freeIdx.push(i); });
+  if(freeIdx.length<2) return c;
+  const pool={};
+  freeIdx.forEach(function(i){ seq[i].pattern.forEach(function(p){ pool[p.width]=(pool[p.width]||0)+p.qty; }); });
+  const lastFree=freeIdx[freeIdx.length-1];
+  const newPat={};
+  for(let k=0;k<freeIdx.length-1;k++){
+    const take=_l444Fill(pool,useful,blade);
+    if(!take) return c;
+    Object.keys(take).forEach(function(w){ pool[w]-=take[w]; if(pool[w]<=0) delete pool[w]; });
+    newPat[freeIdx[k]]=take;
+  }
+  newPat[lastFree]=Object.assign({},pool);
+  const mk=function(take){ return Object.keys(take).map(Number).sort(function(a,b){return b-a;}).map(function(w){return {width:w,qty:take[w]};}); };
+  const lastPat=mk(newPat[lastFree]);
+  if(!lastPat.length) return c;                                   /* tout tenait avant la fin : nb de bobines changerait — prudence, original */
+  if(calcStats(lastPat,blade).total>useful) return c;
+  const chuteOrigLast=useful-calcStats(seq[seq.length-1].pattern,blade).total;
+  const chuteNewLast=useful-calcStats(lastPat,blade).total;
+  if(!(chuteNewLast>chuteOrigLast+0.5)) return c;                 /* pas STRICTEMENT mieux : original */
+  const newSeq=seq.map(function(b,i){ return (newPat[i]!==undefined)?mk(newPat[i]):b.pattern; });
+  for(let k=0;k<freeIdx.length-1;k++){ if(!newSeq[freeIdx[k]].length) return c; }
+  const peakOrig=_l444PalettePeak(seq.map(function(b){return b.pattern;}));
+  if(_l444PalettePeak(newSeq)>Math.max(4,peakOrig)) return c;     /* contrainte palettes : jamais pire */
+  const cntOf=function(arr){ const m={}; arr.forEach(function(p){ m[p.width]=(m[p.width]||0)+p.qty; }); return m; };
+  const before=cntOf([].concat.apply([],seq.map(function(b){return b.pattern;})));
+  const after=cntOf([].concat.apply([],newSeq));
+  const ks=Object.keys(before).concat(Object.keys(after));
+  for(let i=0;i<ks.length;i++){ if((before[ks[i]]||0)!==(after[ks[i]]||0)) return c; }   /* CONSERVATION stricte */
+  const out=[]; let run=null;
+  newSeq.forEach(function(pat,i){
+    if(seq[i].fixed){ if(run){out.push(run);run=null;} out.push({pattern:pat,count:1,chute:seq[i].chute}); return; }
+    const lbl=makeLabel(pat);
+    if(run&&run._lbl===lbl) run.count++;
+    else { if(run) out.push(run); run={pattern:pat,count:1,_lbl:lbl}; }
+  });
+  if(run) out.push(run);
+  out.forEach(function(g){ delete g._lbl; });
+  const fin=_palSplitSolde(out);
+  const bobs=_palBobines(fin);
+  if(bobs.length!==seq.length) return c;                          /* nombre de bobines constant */
+  const totalBobines=bobs.length, totalMat=totalBobines*useful;
+  const totalUsed=bobs.reduce(function(s,p){ return s+calcStats(p,blade).total; },0);
+  const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
+  return Object.assign({},c,{bobines:bobs,planGroups:fin,stats:Object.assign({},c.stats,{totalBobines:totalBobines,totalMat:totalMat,totalUsed:totalUsed,pct:pct}),_l444:true});
+}
+function _l444Regroup(computed){
+  if(!Array.isArray(computed)) return computed;
+  return computed.map(function(c){ try{ return _l444RegroupRef(c); }catch(e){ return c; } });
+}
+// L'ENVELOPPE substituee aux sites d'appel : moteur gele -> palettes -> chutes regroupees.
+function _l444Pal(groups){ const r=packRefGroupsPal(groups); try{ return _l444Regroup(r); }catch(e){ return r; } }
 // ENVELOPPE UNIQUE des sites d'appel : plan moteur → ordre/phases « palettes ».
 function packRefGroupsPal(groups){
   const computed=packRefGroups(groups);   // ← appel DIRECT du moteur (seul site restant), tout le reste de l'app passe par l'enveloppe
@@ -8118,7 +8232,7 @@ function packRefGroupsPal(groups){
 //  - commandeDetail : "REF: q×l + … | REF2: …" en multi, "q×l + …" en mono
 // Évite l'ancien biais (pack sur la 1re réf uniquement) qui sous-comptait les bobines.
 function getOrderAggregate(){
-  const groups=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  const groups=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
   const rows=[].concat(...groups.map(c=>c.rows));
   const totalLaizes=rows.reduce((s,r)=>s+r.qty,0);
   const nbBobines=groups.reduce((s,c)=>s+c.bobines.length,0);
@@ -8457,7 +8571,7 @@ function recalcPlan(){
   // On NE bloque PAS : on prévient que le calcul peut prendre quelques secondes, puis on calcule.
   let heavyBanner='';   /* [L92 → recalibré L391 · demande Esteban] bannière « commande volumineuse » retirée — seul le seuil 60 bobines mères parle (plus bas) */
   packTruncated=false;   // reset avant calcul : pack() le lèvera si la saisie est aberrante
-  const computed=packRefGroupsPal(groups);   // [L82] enveloppe palettes (moteur intact)
+  const computed=_l444Pal(groups);   // [L82] enveloppe palettes (moteur intact) — [L444] + chutes regroupees
   // [L92 · Audit #3] contrainte atelier ≤4 palettes NON tenable (chutes/rouleaux présents ou >12
   // largeurs) : on PRÉVIENT au lieu de dépasser en silence — l'opérateur peut anticiper la place au sol.
   { const _pk=Math.max(0,...computed.map(c=>Number(c._palPeak)||0));
@@ -8718,7 +8832,7 @@ function togglePlanManual(){
   enterPlanManual();
 }
 function enterPlanManual(){
-  const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  const computed=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
   if(!computed.length){ showToast('Aucun plan à modifier — saisis d\'abord la commande.','err'); return; }
   // [L289 · choix Esteban 30/07] le blocage « rouleaux saisis → pas d'édition manuelle » SAUTE : les rouleaux ♻
   // restent gérés en AUTOMATIQUE (recoupés en 1er, affichés en lecture seule dans l'éditeur), l'opérateur édite
@@ -8834,7 +8948,7 @@ function planManualCoherence(pm, refGroups){
     { const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{}; Object.entries(cu).forEach(([w,q])=>{ covered[w]=(covered[w]||0)+q; }); }   // [L97 · relecture #7] chutes PLAFONNÉES par la demande (comme le moteur) — un stock déclaré > commandé n'affiche plus un faux « surplus »
     // [L289] rouleaux ♻ gérés en AUTO même en manuel : leurs pièces (calcul moteur, déterministe — indépendant
     // des bobines mères éditées) comptent comme couverture, sinon faux « manque » permanent dès qu'un rouleau existe.
-    if((g.recuts||[]).length){ try{ const _pk=packRefGroupsPal([g])[0]; ((_pk&&_pk.recutGroups)||[]).forEach(rg=>{ const cnt=Math.max(1,parseInt(rg.count)||1); (rg.pattern||[]).forEach(p=>{ if(p.width>0&&p.qty>0) covered[p.width]=(covered[p.width]||0)+cnt*p.qty; }); }); }catch(e){} }
+    if((g.recuts||[]).length){ try{ const _pk=_l444Pal([g])[0]; ((_pk&&_pk.recutGroups)||[]).forEach(rg=>{ const cnt=Math.max(1,parseInt(rg.count)||1); (rg.pattern||[]).forEach(p=>{ if(p.width>0&&p.qty>0) covered[p.width]=(covered[p.width]||0)+cnt*p.qty; }); }); }catch(e){} }
     (r.bobines||[]).forEach(b=>{
       const cnt=Math.max(1,parseInt(b.count)||1);
       const pat=parseConf(b.conf);
@@ -8866,7 +8980,7 @@ function planManualCoherence(pm, refGroups){
     // sur-évalué, incohérent écran/fiche/PDF). On n'émet l'écart que sur la part NON couverte.
     const cu=(typeof computeChutesUsed==='function')?computeChutesUsed(g):{};
     // [L289] créditer AUSSI les rouleaux ♻ (gérés en auto) pour une réf non rattachée — même logique que la 1re boucle.
-    if((g.recuts||[]).length){ try{ const _pk=packRefGroupsPal([g])[0]; ((_pk&&_pk.recutGroups)||[]).forEach(rg=>{ const cnt=Math.max(1,parseInt(rg.count)||1); (rg.pattern||[]).forEach(p=>{ if(p.width>0&&p.qty>0) cu[p.width]=(cu[p.width]||0)+cnt*p.qty; }); }); }catch(e){} }
+    if((g.recuts||[]).length){ try{ const _pk=_l444Pal([g])[0]; ((_pk&&_pk.recutGroups)||[]).forEach(rg=>{ const cnt=Math.max(1,parseInt(rg.count)||1); (rg.pattern||[]).forEach(p=>{ if(p.width>0&&p.qty>0) cu[p.width]=(cu[p.width]||0)+cnt*p.qty; }); }); }catch(e){} }
     Object.keys(ordered).map(Number).forEach(w=>{ const c=cu[w]||0, o=ordered[w]; if(o-c>0) out.push({ref:g.ref||('Réf +'+(gi+1)), width:w, ordered:o, covered:c, diff:o-c}); });
   });
   return out;
@@ -8892,7 +9006,7 @@ function planManualStats(){
   // resteRouleauxMm dans computePlanAggregate) → le chip de l'éditeur == le % archivé (invariant L83 · Audit #40).
   try{
     if(getRefGroups().some(g=>(g.recuts||[]).length)){
-      packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length).forEach(c=>{
+      _l444Pal(getRefGroups()).filter(c=>c.rows.length).forEach(c=>{
         (c.recutGroups||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); const u=calcStats(g.pattern||[],c.blade).total; totalMat+=cnt*(Number(g.rollW)||0); totalUsed+=cnt*u; rollRest+=cnt*Math.max(0,(Number(g.rollW)||0)-u); });
       });
     }
@@ -8949,7 +9063,7 @@ function renderPlanManual(){
   // [L289 · choix Esteban 30/07] rouleaux ♻ visibles en LECTURE SEULE dans l'éditeur (gérés en auto) —
   // calcul une seule fois par rendu, et uniquement si des rouleaux sont saisis quelque part.
   let _pmAutoG=null;
-  try{ if(getRefGroups().some(g=>(g.recuts||[]).length)) _pmAutoG=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length); }catch(e){ _pmAutoG=null; }
+  try{ if(getRefGroups().some(g=>(g.recuts||[]).length)) _pmAutoG=_l444Pal(getRefGroups()).filter(c=>c.rows.length); }catch(e){ _pmAutoG=null; }
   planManual.forEach((r,ri)=>{
     if(multi){
       const mc=machineCls(r.machine);const mLbl=getMachineLabel(r.machine||'');
@@ -9360,7 +9474,7 @@ function buildPlanPrintHTML(o){
   ${packagingRecapHTML(o.mandrinGroups||groups)}</body></html>`;
 }
 function getPlanHTML(){
-  const autoGroups=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  const autoGroups=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
   // Si le plan a été modifié à la main, on imprime cette version.
   const groups=planManual
     ? planManual.map((r,ri)=>{
@@ -9403,7 +9517,7 @@ function printSavedPlan(id){
     const mother=parseNum(g.mother), edge=parseNum(g.edge!=null?g.edge:s.edgeLoss);
     return {ref:g.ref||'', longueur:g.longueur||'', film:g.film||'', veka:g.veka||'', mother, edge, useful:clampUseful(mother-edge), blade:clampBlade(parseNum(g.blade!=null?g.blade:s.blade)), machine:g.machine||'', rows:_sanStoredRows(g.rows), chutes:g.chutes||[], recuts:g.recuts||[]};   // [L241] rows stockées floorées (qty décimale legacy)
   });
-  const autoGroups=packRefGroupsPal(grpInput).filter(c=>c.rows.length);
+  const autoGroups=_l444Pal(grpInput).filter(c=>c.rows.length);
   // Plan manuel sauvegardé → on l'utilise tel quel ; sinon recalcul automatique.
   const _pmPrint=(Array.isArray(s.planManual)&&s.planManual.length)?JSON.parse(JSON.stringify(s.planManual)):null;
   if(_pmPrint) _pmSortBobinesOnce(_pmPrint);   // [L92 · Audit #18] MÊME tri qu'au chargement (doLoad) : le PDF imprimé depuis Données correspondait à un autre ordre/solde que la fiche après chargement
@@ -9560,7 +9674,7 @@ function getEtiquetteSoldeList(){
   // [L92 · Audit #21] MÊME source que le plan affiché (enveloppe palettes + chutes stock) — le
   // pack() brut ignorait le re-pack phasé [L82] et les chutes → étiquette d'une bobine inexistante.
   let lastG=null,u2=useful;
-  try{ const c0=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length)[0];
+  try{ const c0=_l444Pal(getRefGroups()).filter(c=>c.rows.length)[0];
     if(c0&&(c0.planGroups||[]).length){ lastG=c0.planGroups[c0.planGroups.length-1]; u2=c0.useful>0?c0.useful:useful; } }catch(e){}
   if(!lastG){ const groups=groupBobines(pack(expandDemand(rows),useful,blade),blade); lastG=groups[groups.length-1]; u2=useful; }
   if(!lastG) return [];
@@ -10736,7 +10850,7 @@ async function stopManqueMatiere(){
   });
 
   // 3. Envoyer la fiche avec le flag
-  const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  const computed=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
   const multi=computed.length>1;
   const rows=multi?[].concat(...computed.map(c=>c.rows)):getOrderRows();
   const useful=getUseful(),blade=getBlade();
@@ -10920,7 +11034,7 @@ function _l355PrefillClient(cli){ try{ const el=document.getElementById('planCli
 async function confirmCommande(){
   if(_shareBlockSend()) return;   // [L63 · Lot 5] destinataire d'un partage : envoi réservé à l'émetteur
   packTruncated=false;   // reset : packRefGroups ci-dessous le lèvera si saisie aberrante
-  const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  const computed=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
   const multi=computed.length>1;
   const rows=multi?[].concat(...computed.map(c=>c.rows)):getOrderRows();
   if(!rows.length){showToast('Aucune commande à confirmer.','err');return;}
@@ -11056,7 +11170,7 @@ function recalcEcartsFromFiche(opts){
   // Commande RÉF PAR RÉF : chaque référence a sa propre laize utile, sa lame
   // et ses lignes de découpe. L'optimisation du reliquat se fait isolément
   // par référence (une réf ne mélange jamais ses laizes avec une autre).
-  const computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  const computed=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
   if(!computed.length){showToast('Aucune commande à recalculer.','err');return {started:false};}
 
   // [L260 · demande Esteban] largeur > laize utile de sa réf : AVERTISSEMENT au lieu de REFUS SEC. Ces laizes
@@ -11591,7 +11705,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   try{
   opts=opts||{};
   // Multi-réfs : recompose les bobines/groups réf par réf (laize propre à chaque réf)
-  let computed=packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length);
+  let computed=_l444Pal(getRefGroups()).filter(c=>c.rows.length);
   if(planManual&&Array.isArray(planManual)&&planManual.length) computed=_pmComputedForArchive(computed);   // [L92 · Audit #19] l'archive (groups/pct/nbPlan/solde) reflète le plan MANUEL réellement suivi, pas le plan auto écarté
   const multi=computed.length>1;
   // [L70 · Audit B26] mono-réf : réutiliser le plan RÉEL (computed[0] — chutes stock
@@ -19430,7 +19544,7 @@ function applyFichePlanChange(){
 function _fichePrintSurplus(){
   const out={}, outMissing={};   // [L296] outMissing = production sous une réf absente du plan (renommée ?)
   try{
-    const computed=(typeof packRefGroupsPal==='function')?packRefGroupsPal(getRefGroups()).filter(c=>c.rows.length):[];
+    const computed=(typeof _l444Pal==='function')?_l444Pal(getRefGroups()).filter(c=>c.rows.length):[];
     // [L291 · audit] clé par nom NORMALISÉ (nrm) des deux côtés — la clé brute était plus fragile que toutes
     // les autres clés de l'app (une casse/espace différent classait TOUTE la production en faux « Coupé EN PLUS »).
     const cmd={}, _disp={};
@@ -19525,7 +19639,7 @@ function _buildFichePlanPrintHTML(){
   const numCmd=document.getElementById('planNumCmd')?.value||document.getElementById('fNumCmd')?.value||'';
   return buildPlanPrintHTML({
     groups,
-    mandrinGroups:(typeof packRefGroupsPal==='function')?packRefGroupsPal(refG).filter(c=>c.rows.length):[],   // mandrins depuis la saisie
+    mandrinGroups:(typeof _l444Pal==='function')?_l444Pal(refG).filter(c=>c.rows.length):[],   // mandrins depuis la saisie
     mn:getMachineLabel((typeof _planHeadMachine==='function')?_planHeadMachine():(ficheMachine||currentMachine)),
     client:document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'—',
     refLabelFallback:document.getElementById('fRef')?.value||document.getElementById('planRef')?.value||'—',

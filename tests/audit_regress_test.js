@@ -1353,6 +1353,14 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L444 : chutes regroupees sur la derniere bobine (spec QCM 27/08) ──');
+has(/function _l444Regroup\(/,'L444 : post-traitement de regroupement present');
+has(/function _l444Pal\(/,'L444 : enveloppe substituee aux sites d appel');
+has(/Le MOTEUR GELE n'est PAS touche/,'L444 : les 11 fonctions gelees restent intactes (voir engine_identity)');
+has(/multiset des bobineaux STRICTEMENT conserve/,'L444 : conservation verifiee a chaque calcul');
+has(/pic de palettes recalcule : jamais pire que max\(4, pic d'origine\)/,'L444 : contrainte palettes preservee');
+absent(/const computed=packRefGroupsPal\(getRefGroups\(\)\)/,'L444 : plus aucun site d appel direct hors enveloppe');
+
 console.log('── L443 : mail d erreur auto — photos jointes + bruits filtres ──');
 has(/LES PHOTOS DES PAGES ARRIVENT AUSSI SUR LE MAIL AUTO/,'L443 : le mail automatique joint les ecrans Plan et Fiche');
 has(/ResizeObserver loop\/i\.test\(_m43\)/,'L443 : l avertissement benin ResizeObserver ne part plus en mail');
