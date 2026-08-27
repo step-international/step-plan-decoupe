@@ -100,5 +100,24 @@ prop('R9 cas Esteban (2080, 6 laizes) : intermediaires pleines + solde 1680 en f
   if(2080-t[2]!==1680) return 'solde attendu 1680, obtenu '+(2080-t[2]);
   return '';
 });
+// R10 — commande REELLE PRIMA pr767511 (27/08) : le re-pack palettes coutait une bobine mere entiere
+prop('R10 cas PRIMA (2080, 8 laizes, ~1630 pieces) : 31 bobines, chute unique 1300 en FIN, pic <=4',1,()=>null,()=>{
+  const groups=[{ref:'P',useful:2080,blade:0,longueur:600,mother:0,edge:0,film:'',veka:'',machine:'maveg',
+    rows:[{width:20,qty:506},{width:30,qty:406},{width:40,qty:402},{width:50,qty:160},{width:60,qty:60},{width:70,qty:60},{width:80,qty:50},{width:100,qty:50}],chutes:[],recuts:[]}];
+  const c=_l444Pal(groups)[0]; const b=c.bobines||[];
+  if(b.length!==31) return '31 bobines attendues, '+b.length;
+  const chutes=b.map((p,i)=>[i,2080-calcStats(p,0).total]).filter(x=>x[1]>=30);
+  if(chutes.length!==1) return 'une seule chute attendue, '+chutes.length;
+  if(chutes[0][0]!==30) return 'chute pas en DERNIERE position (bobine '+(chutes[0][0]+1)+')';
+  if(Math.round(chutes[0][1])!==1300) return 'chute 1300 attendue, '+Math.round(chutes[0][1]);
+  if(_l444PalettePeak(b)>4) return 'pic palettes > 4';
+  return '';
+});
+// R11 — le brut n'est JAMAIS choisi si son ordre naturel casse les 4 palettes
+prop('R11 le choix brut respecte toujours PALETTES_MAX',400,genGroups,(groups)=>{
+  const out=_l444Pal(JSON.parse(JSON.stringify(groups)));
+  for(const c of out){ if(c._l446Brut&&_seqPeak(c.planGroups||[])>PALETTES_MAX) return 'brut choisi avec pic > 4'; }
+  return '';
+});
 console.log(fail?('\n💥 '+fail+' propriete(s) VIOLEE(S)'):'\n🏆 REGROUPEMENT VALIDÉ : conservation · capacité · nb constant · chute finale jamais réduite · palettes · cohérence · déterminisme · idempotence · cas Esteban');
 process.exit(fail?1:0);

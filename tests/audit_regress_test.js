@@ -1353,6 +1353,13 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L446 : matiere d abord (diagnostic PRIMA/VEKA) + m2 Qte en trop ──');
+has(/_seqMinPalettes \(gelee\) peut rendre un ordre PIRE que/,'L446 : le re-pack palettes injustifie ne coute plus une bobine mere');
+has(/_l446Brut:true/,'L446 : le plan brut est choisi quand il fait moins de bobines a pic <= 4');
+has(/DECOMPOSITION BINAIRE des quantites/,'L446 : le regroupement marche sur les grosses commandes (plus de borne 420 pieces)');
+has(/GRANDES largeurs d'abord : le DP peuple ses etats/,'L446 : les familles de laizes restent groupees (pic palettes stable)');
+has(/« Qté en trop » SEULE n'est PAS de la matière/,'L446 : les m2 Qte en trop ne gonflent plus les tuiles matiere NC');
+
 console.log('── L445 : retouches Esteban 27/08 soir ──');
 has(/les chips « n references \/ n clients » RESTENT sur la ligne des tuiles/,'L445 : chip references sur la ligne des stats');
 has(/une ligne de plus sans remonter au bouton du haut/,'L445 : bouton ＋ sur les lignes stock\/chute');

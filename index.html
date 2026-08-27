@@ -3220,7 +3220,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.27-L445';
+const APP_VERSION='2026.08.27-L446';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8120,29 +8120,28 @@ function _l444PalettePeak(bobines){
 // budget useful+blade) — maximise l'occupation reelle d'UNE bobine depuis le pool {width:qty}.
 function _l444Fill(pool,useful,blade){
   const budget=Math.floor(useful+blade+0.001); if(budget<=0) return null;
-  const pieces=[];
-  Object.keys(pool).forEach(function(w){ const width=Number(w); for(let k=0;k<pool[w];k++) pieces.push(width); });
-  if(!pieces.length) return null;
-  if(pieces.length>420) return null;                          /* borne moteur (400) + marge : au-dela on s'abstient */
-  pieces.sort(function(a,b){return b-a;});
-  const dp=new Int32Array(budget+1).fill(-1); dp[0]=-2;       /* -2 = atteignable racine, sinon index piece*1e4+budget precedent impossible -> on stocke via parent */
-  const parent=new Array(budget+1).fill(null);
-  for(let pi=0;pi<pieces.length;pi++){
-    const cost=Math.round(pieces[pi]+blade);
-    if(cost<=0||cost>budget) continue;
+  /* [L446] DECOMPOSITION BINAIRE des quantites (meme modele que bestPattern) : ~log2(q) objets 0/1 par
+     largeur au lieu d'un objet par PIECE — la 1re version plafonnait a 420 pieces et RENONCAIT sur les
+     commandes reelles de l'atelier (PRIMA = ~1630 pieces), qui gardaient leurs chutes du milieu. */
+  const objs=[];
+  Object.keys(pool).forEach(function(w){ let q=pool[w]; const width=Number(w); let k=1;
+    while(q>0){ const nn=Math.min(k,q); objs.push({width:width,n:nn,cost:Math.round((width+blade)*nn)}); q-=nn; k*=2; } });
+  if(!objs.length) return null;
+  objs.sort(function(a,b){ return b.width-a.width; });   /* [L446] GRANDES largeurs d'abord : le DP peuple ses etats par les grandes laizes -> chaque bobine reste dans sa famille (comme le moteur), le pic de palettes ne monte pas */
+  const dp=new Int32Array(budget+1).fill(-1); dp[0]=0;
+  const parent=new Int32Array(budget+1).fill(-1);
+  const from=new Int32Array(budget+1).fill(-1);
+  for(let oi=0;oi<objs.length;oi++){
+    const cost=objs[oi].cost; if(cost<=0||cost>budget) continue;
     for(let b=budget;b>=cost;b--){
-      if(dp[b]===-1&&dp[b-cost]!==-1&&(parent[b-cost]===null||parent[b-cost].pi<pi)){
-        /* chaque piece au plus une fois : le parent memorise l'indice de la DERNIERE piece posee (croissant) */
-        if(dp[b-cost]!==-1){ dp[b]=b-cost; parent[b]={pi:pi,w:pieces[pi]}; }
-      }
+      if(dp[b]===-1&&dp[b-cost]!==-1){ dp[b]=1; parent[b]=oi; from[b]=b-cost; }
     }
   }
-  let best=-1;
-  for(let b=budget;b>=0;b--){ if(dp[b]!==-1){ best=b; break; } }
+  let best=-1; for(let b=budget;b>0;b--){ if(dp[b]!==-1){ best=b; break; } }
   if(best<=0) return null;
   const take={};
   let cur=best;
-  while(cur>0&&parent[cur]){ const w=parent[cur].w; take[w]=(take[w]||0)+1; cur=dp[cur]; }
+  while(cur>0&&parent[cur]>=0){ const o=objs[parent[cur]]; take[o.width]=(take[o.width]||0)+o.n; cur=from[cur]; }
   return Object.keys(take).length?take:null;
 }
 function _l444RegroupRef(c){
@@ -8205,7 +8204,33 @@ function _l444Regroup(computed){
   return computed.map(function(c){ try{ return _l444RegroupRef(c); }catch(e){ return c; } });
 }
 // L'ENVELOPPE substituee aux sites d'appel : moteur gele -> palettes -> chutes regroupees.
-function _l444Pal(groups){ const r=packRefGroupsPal(groups); try{ return _l444Regroup(r); }catch(e){ return r; } }
+// [L446 · diagnostic PRIMA pr767511, 27/08] _seqMinPalettes (gelee) peut rendre un ordre PIRE que
+// l'ordre naturel (pic 6 alors que l'ordre par defaut du brut fait 4) -> packRefGroupsPal croyait la
+// contrainte violee et RE-PACKAIT EN PHASES : +1 bobine mere entiere et +2080 mm de chute pour rien
+// (32 bobines / 3380 mm au lieu de 31 / 1300 sur la commande reelle). Ici : si le re-pack a rendu PLUS
+// de bobines que le brut ET que le pic NATUREL du brut respecte deja PALETTES_MAX (mesure par _seqPeak,
+// la fonction OFFICIELLE du moteur), on garde le brut — la matiere prime, et la contrainte des 4
+// palettes reste respectee. Aucune fonction gelee n'est modifiee.
+function _l444Pal(groups){
+  const r=packRefGroupsPal(groups);
+  let out=r;
+  try{
+    const brut=packRefGroups(groups);
+    out=r.map(function(c,i){
+      const b=brut[i];
+      if(!b||!c||!Array.isArray(b.bobines)||!Array.isArray(c.bobines)) return c;
+      if(b.bobines.length<c.bobines.length){
+        const peakNat=_seqPeak(b.planGroups||[]);
+        if(peakNat<=PALETTES_MAX){
+          const _o=_palSplitSolde(b.planGroups);
+          return Object.assign({},b,{planGroups:_o,bobines:_palBobines(_o),_palPeak:peakNat,_l446Brut:true});
+        }
+      }
+      return c;
+    });
+  }catch(e){ out=r; }
+  try{ return _l444Regroup(out); }catch(e){ return out; }
+}
 // ENVELOPPE UNIQUE des sites d'appel : plan moteur → ordre/phases « palettes ».
 function packRefGroupsPal(groups){
   const computed=packRefGroups(groups);   // ← appel DIRECT du moteur (seul site restant), tout le reste de l'app passe par l'enveloppe
@@ -17760,6 +17785,11 @@ const NC_LABELS={larg:'Largeur',qty:'Qté en trop',casse:'Casse',ang:'Angle',hum
 // « + Acceptable » = part avec la commande → 0. Détail sans dimension chiffrée → 0 (pas de fausse donnée).
 function ncLoss(f,fd){ try{
   if(!fd||fd.actAccept) return {mm:0,m2:0};
+  /* [L446 · finding inventaire 26/08, demande Esteban 27/08] « Qté en trop » SEULE n'est PAS de la matière
+     NC : les bobineaux coupés EN PLUS sont du produit CONFORME qui part au stock. Les compter dans les
+     tuiles « m² en chutes » et l'histogramme gonflait la matière NC à tort. Si un VRAI défaut (largeur /
+     casse / angle / humain) est coché en plus, la perte reste comptée normalement. */
+  if(fd.ncQty&&!fd.ncLarg&&!fd.ncCasse&&!fd.ncAng&&!fd.ncHum) return {mm:0,m2:0};
   const det=String(fd.ncDetail||'');
   if(Array.isArray(fd.ncLots)&&fd.ncLots.length){   /* [L408] multi-lots prioritaire */
     let lg8=0; try{ if(Array.isArray(f.refGroups)&&f.refGroups.length){ const g8=f.refGroups.find(x=>(x.ref||'')===(fd.ref||''))||f.refGroups[0]; lg8=parseNum(g8&&g8.longueur)||0; } }catch(e){}
