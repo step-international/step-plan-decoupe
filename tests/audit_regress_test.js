@@ -1353,6 +1353,14 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L454 : refs client texte libre + police lisible ──');
+has(/function _l454CatalogRefs\(client\)/,'L454 : resolveur catalogue tolerant (client texte libre)');
+has(/_l454CatalogRefs\(client\);   \/\* \[L454\] tolere le client texte libre \*\//,'L454 : addRefBlock et onClientChange passent par le resolveur');
+has(/n==='legrand france'\|\|n\.indexOf\('legrand france'\)===0/,'L454 : predicat Legrand France tolere le suffixe texte libre');
+has(/font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:400/,'L454 : police Atkinson Hyperlegible embarquee (400)');
+has(/--f-body:'Atkinson Hyperlegible','Barlow'/,'L454 : corps de texte bascule sur Atkinson (ecran seulement)');
+has(/--f-head:'AH Chiffres','Barlow Condensed'/,'L454 : chiffres Atkinson dans les titres condenses');
+
 console.log('── L453 : filtres Analyse retires + Recharger sans perte ──');
 has(/filtres OPERATEUR et MOIS retires/,'L453 : filtres Operateur et Mois retires de l Analyse');
 has(/analyseFilter\.op='ALL'; analyseFilter\.month='ALL';/,'L453 : etat des filtres retires neutralise');
