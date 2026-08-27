@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L438 : chaque changement sur UNE ligne ──');
+has(/TOUT SUR UNE LIGNE : ☐ titre · champ · bobine · ✓ Validé/,'L438 : case + champs + Valide sur la meme rangee');
+has(/#changementsZone \.field label\{display:none\}/,'L438 : micro-libelles retires (placeholders suffisent)');
+
 console.log('── L437 : bloc Changements minimaliste · arret gris · case Outils effacee ──');
 has(/MINIMALISTE : le bloc prend deux fois moins de place/,'L437 : bloc Changements condense');
 has(/#changementsZone \.text-muted\{display:none\}/,'L437 : les phrases d aide retirees du bloc');
