@@ -1353,6 +1353,14 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L461 : Analyse restructuree (maquette validee, phase 1) ──');
+has(/PLN_OVER_H=8;/,'L461 : planning aligne 8 h\/jour (QCM Esteban, horaires 8h-16h)');
+absent(/zonePilotage/,'L461 : bloc « Ou agir » retire de l Analyse');
+absent(/\{buildDebitToolbox\(\)\}/,'L461 : bloc « Combien de temps prendra une commande » retire du rendu (la fonction reste, plus aucun appel au rendu)');
+has(/_anaFold\('kpi'/,'L461 : KPI mensuels replies en bas (preuves ISO gardees)');
+has(/_anaFold\('tend'/,'L461 : Tendances 12 mois repliees en bas');
+has(/analyseFilter\.client='ALL'; \}catch/,'L461 : filtre client neutralise (chips machine seules)');
+
 console.log('── L460 : correctifs audit du jour (19 findings) ──');
 has(/PREFIXE \+ limite de mot/,'L460 : resolveur client durci (prefixe, plus de containment bidirectionnel)');
 has(/meme durcissement prefixe que _l454CatalogRefs/,'L460 : jumeau emballages _l410PkgResolve durci pareil');
@@ -1398,7 +1406,7 @@ has(/POLICE DE LA MAQUETTE/,'L456 : historique du choix de police documente (3 i
 absent(/@font-face/,'L456 : plus AUCUNE @font-face embarquee (pile systeme pure, -186 Ko)');
 
 console.log('── L453 : filtres Analyse retires + Recharger sans perte ──');
-has(/filtres OPERATEUR et MOIS retires/,'L453 : filtres Operateur et Mois retires de l Analyse');
+has(/filtres retires \(op, mois, CLIENT\)/,'L453→L461 : filtres Operateur, Mois puis Client retires de l Analyse');
 has(/analyseFilter\.op='ALL'; analyseFilter\.month='ALL';/,'L453 : etat des filtres retires neutralise');
 has(/FLUSH IMMEDIAT au tap/,'L453 : Recharger sauve tout A L INSTANT du tap (perte zero)');
 

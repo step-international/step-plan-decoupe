@@ -3249,7 +3249,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.28-L460';
+const APP_VERSION='2026.08.28-L461';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -12876,7 +12876,7 @@ let plnArmedSid=null;            // carte « armée » (tap-pour-poser)
 let _plnDrag=null;               // état du glisser en cours
 let _plnLastDrop=0;              // anti-clic fantôme après un drop
 let _plnEstCache={};             // cache durée estimée par plan (vidé à chaque rendu)
-const PLN_WARN_H=6, PLN_OVER_H=7.5;   // seuils charge jour×machine (heures) — faciles à régler
+const PLN_WARN_H=6, PLN_OVER_H=8;   // seuils charge jour×machine (heures) — [L461 · QCM Esteban 28/08] 7,5→8 : horaires reels 8h-16h lun-ven (capacite 3×8×5 = 120 h/sem)
 const PLN_JOURS=['lun','mar','mer','jeu','ven'];
 const PLN_MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 function plnCanEdit(){ return (typeof canManageData==='function')&&canManageData(); }
@@ -16677,7 +16677,7 @@ function analyseFilterBar(allTemps){
   const pill=(dim,val,txt,color,active)=>`<button onclick="setAnalyseFilter('${dim}','${val}')" style="border:1.5px solid ${active&&color?color:'var(--border2)'};background:${active?'rgba(255,255,255,.06)':'#1a1a18'};color:${active&&color?color:(active?'var(--text)':'var(--muted)')};font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:20px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">${color?`<span style="width:9px;height:9px;border-radius:50%;background:${color}"></span>`:''}${txt}</button>`;
   const grp=(lbl,html)=>`<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">${lbl}</span><div style="display:flex;gap:6px;flex-wrap:wrap">${html}</div></div>`;
   const monthLbl=m=>{const a=m.split('-');return (_MOIS_FR[parseInt(a[1],10)-1]||'?')+' '+a[0];};
-  try{ analyseFilter.op='ALL'; analyseFilter.month='ALL'; }catch(e){}   /* [L453] filtres retires : etat neutralise (un vieux filtre memorise ne fausse plus rien) */
+  try{ analyseFilter.op='ALL'; analyseFilter.month='ALL'; analyseFilter.client='ALL'; }catch(e){}   /* [L453 → L461 QCM Esteban] filtres retires (op, mois, CLIENT) : etat neutralise */
   // [L249 · R4a] dimension CLIENT (union temps + fiches — un client sans chrono reste filtrable côté NC)
   const clients=[...new Set([].concat(
     allTemps.map(t=>String(t.client||'').trim()),
@@ -16685,15 +16685,11 @@ function analyseFilterBar(allTemps){
   ).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
   const clientOpts='<option value="ALL">Tous les clients</option>'+clients.map(c=>`<option value="${esc(c)}"${analyseFilter.client===c?' selected':''}>${esc(c)}</option>`).join('');
   const selSt='background:#1a1a18;border:1.5px solid var(--border2);color:var(--text);font-size:13px;font-weight:700;padding:7px 10px;border-radius:9px;max-width:210px';
-  return `<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">
-    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
-      ${grp('🎛 Machine', pill('mach','ALL','Toutes','',analyseFilter.mach==='ALL')+machs.map(m=>pill('mach',m,m,C[m],analyseFilter.mach===m)).join(''))}
-      <!-- [L453 · demande Esteban 28/08] filtres OPERATEUR et MOIS retires (« c'est inutile ») — machine et client restent ; analyseFilter.op/month sont forces a ALL au rendu, aucune logique aval touchee -->
-      ${clients.length?grp('Client', `<select onchange="setAnalyseFilter('client',this.value)" style="${selSt}">${clientOpts}</select>`):''}
-      ${_anaFiltered()?`<button onclick="resetAnalyseFilter()" style="border:1.5px solid #6b5416;background:rgba(245,158,11,.08);color:#fbbf24;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;min-height:38px">✕ Réinitialiser</button>`:''}
-    </div>
-    <div style="font-size:12px;color:var(--muted);margin-top:8px">S'applique aux graphiques de productivité ET aux blocs NC (fiches). Débit médian, KPI mensuels, Tendances et Pilotage restent « tout atelier » (bandeau jaune quand un filtre est actif).</div>
-  </div>`;
+  /* [L461 · maquette validee + QCM Esteban 28/08] la grande barre disparait : seules les chips MACHINE
+     restent, en rangee discrete juste au-dessus des courbes (le select CLIENT est retire, comme op/mois). */
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      ${pill('mach','ALL','Toutes','',analyseFilter.mach==='ALL')+machs.map(m=>pill('mach',m,m,C[m],analyseFilter.mach===m)).join('')}
+    </div>`;
 }
 // [L250 · R5] Blocs Analyse repliables avec ÉTAT RETENU (localStorage, modèle stockSecOpen) : les blocs
 // « expliquer » se replient, le bloc « agir » (Pilotage) reste toujours ouvert en tête. Les titres sont des
@@ -16745,13 +16741,13 @@ function renderAnalyse(partial){
   _acSetHTML(ac,`
   <div style="display:flex;flex-direction:column;gap:20px;padding-bottom:20px">
     ${partialDataBanner()}
-    <div id="zonePilotage" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildPilotageBlock()}</div>
+    <!-- [L461 · maquette validee] bloc « Ou agir cette semaine » (Pilotage) RETIRE de l'Analyse -->
     <div id="zoneFbar">${_fbar}</div>
     ${_anaFold('prod','📈 Productivité — chaque opérateur progresse-t-il ? Quelle machine décroche ?','<div id="zoneCharts" style="display:flex;flex-direction:column;gap:20px">'+chartsHTML+'</div>',true)}
     ${_anaFold('qual','🥧 Qualité — quel défaut revient ? Qui accompagner ? Quelle machine régler ?','<div id="zoneFa" style="display:flex;flex-direction:column;gap:20px">'+faHTML+'</div>',true)}
-    <div id="zoneDebit" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildDebitToolbox()}</div>
-    <div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildKpiMoisBlock()}</div>
-    <div id="zoneTendances" style="display:flex;flex-direction:column;gap:8px">${scopeNote}${buildTendancesBlock()}</div>
+    <!-- [L461 · maquette validee] « Combien de temps prendra une commande ? » (Debit) RETIRE (« inutile ») -->
+    ${_anaFold('kpi','📋 KPI mensuels — le mois tient-il ses objectifs ? (ISO · CSV · impression)','<div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">'+scopeNote+buildKpiMoisBlock()+'</div>',false)}
+    ${_anaFold('tend','📉 Tendances 12 mois — la trajectoire est-elle bonne ?','<div id="zoneTendances" style="display:flex;flex-direction:column;gap:8px">'+scopeNote+buildTendancesBlock()+'</div>',false)}
     ${(typeof canViewAudit==='function'&&canViewAudit())?`<div style="margin-top:14px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('audit')">🔍 Ouvrir la piste d'audit ISO</button></div>`:''}
   </div>`);
   // [L253 · revue sceptique ×2 MAJEUR] _acSetHTML vient de RESTAURER la valeur de kpiMoisSel (ex. « Mai —
