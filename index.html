@@ -1630,7 +1630,7 @@ body.atelier .stat-tile b{font-size:36px}
   /* — 💬 signalement : en bas à GAUCHE (sous le rail) — il recouvrait le coin de ✓ CONFIRMER / RESTE (constat design 5) — */
   body:has(#page1.active) #reportBubble{left:16px;right:auto;bottom:16px}
   #ficheRail{max-height:calc(100vh - 152px)!important}   /* [fix audit] le rail s'arrête 80px au-dessus du bas : la bulle 💬 (56px) ne recouvre jamais son contenu, même déplié/défilant */
-  body.atelier .fh-pill{font-size:18px}body.atelier .fh-pill .fh-l{font-size:14px}body.atelier .fh-arrow{font-size:16px}   /* [fix audit] échelle atelier des pastilles */
+  body.atelier .fh-pill{font-size:14px;padding:4px 8px}body.atelier .fh-pill .fh-l{font-size:11px}body.atelier .fh-arrow{font-size:13px}   /* [fix audit → L471 photo tablette] pastilles compactes : la rangee (client court + refs + machine + OP) tient sur UNE ligne */
   /* — barre : IMPRIMER / CONFIRMER 24px, titre solde 20px, coupée grisée (constats design 11, 14, 15) — */
   #barPrintBtn{font-size:24px!important}
   #sendPlanBtn{font-size:15px!important;min-height:42px}   /* [L386→L390 · demande Esteban ×3] COMMENCER À COUPER discret — la place au plan */
@@ -3247,7 +3247,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L470';
+const APP_VERSION='2026.08.29-L471';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16940,6 +16940,7 @@ function renderAnalyse(partial){
     ${partialDataBanner()}
     <!-- [L461 · maquette validee] bloc « Ou agir cette semaine » (Pilotage) RETIRE de l'Analyse -->
     ${_l463ObjectifBlock(_liveKpi63)}
+    ${(typeof canManageData==='function'&&canManageData())?`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="exportDashboardCsv()" title="KPI 24 mois + débit + pilotage">⬇ CSV du mois (KPI)</button><button class="btn btn-ghost btn-sm" onclick="exportFiches()" title="Une ligne par fiche validée : client, réf, machine, m², perte…">⬇ CSV par commande</button></div>`:''}<!-- [L471 · demande Esteban 29/08 « il n a pas fait csv export »] exports VISIBLES en haut (admin/pilotage) -->
     ${_l463Prod6m(_liveKpi63)}
     <!-- [L469 · demande Esteban] rangee cartes machines RETIREE (PAR MACHINE vit dans les KPI mensuels) -->
     ${_l463PerteClients(_liveKpi63)}
@@ -19083,17 +19084,36 @@ async function permanentDelete(collection,id){
   renderCorbeille();
 }
 
+/* [L471] m² d'une fiche — MEME convention que buildMonthlyKpi (mere/1000 x ml x bobines, multi-ref par nom) */
+function _l471FicheM2(f){ try{
+  const dets=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+  let b=Number(f.totalBobines)||0;
+  if(f.manqueMatiere) b=Math.min(b,dets.filter(fd=>fd&&fd.coupee===true).length);
+  let m2=0;
+  if(Array.isArray(f.refGroups)&&f.refGroups.length){
+    const seen={};
+    f.refGroups.forEach(gr=>{ const k=nrm(gr.ref); if(seen[k]) return; seen[k]=1;
+      const nb=f.manqueMatiere?dets.filter(fd=>fd&&!fd.recut&&fd.coupee===true&&nrm(fd.ref)===k).length
+                              :(dets.length?dets.filter(fd=>fd&&!fd.recut&&nrm(fd.ref)===k).length:0);
+      const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
+      if(mo>0&&lg>0&&nb>0) m2+=mo/1000*lg*nb; });
+  } else {
+    const mo=parseNum(f.mother)||0, lg=parseNum(f.longueur)||0;
+    if(mo>0&&lg>0&&b>0) m2=mo/1000*lg*b;
+  }
+  return Math.round(m2);
+}catch(e){ return ''; } }
 async function exportFiches(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
   const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length){showToast('Aucune donnée.','err');return;}
-  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;Perte %;Temps;Statut validation;Validée par;Validée le';   // [L83 · Audit #20] statut ISO en fin de ligne
+  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;m²;Perte %;Temps;Statut validation;Validée par;Validée le';   // [L83 · Audit #20] statut ISO en fin de ligne
   const rows=fiches.map(f=>[
     f.name,new Date(f.date).toLocaleDateString('fr-FR'),f.ini,f.ini2||'',f.op2Bob||'',f.client,f.ref,f.machine,f.machine2||'',
     f.mother,f.useful,f.blade,f.longueur,f.lame,(f.lameChg?(f.lameNew||''):''),(f.lameChg?(f.lameChgBob||''):''),f.numJour,
     f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
     (f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'),
-    f.totalBobines,f.pct,f.tempsStr,
+    f.totalBobines,_l471FicheM2(f),f.pct,f.tempsStr,
     (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'')
   ].map(csvCell).join(';')).join('\n');
   const b=new Blob(['\ufeff'+csvMetaLine('Fiches de découpe',fiches.length)+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});   // [L251 · R6] périmètre DANS le fichier
@@ -21528,7 +21548,8 @@ function renderFicheHeadPills(){ try{
   // [L340 · fix audit design · §2.13-B] rangée MAIGRE : identité (client · réf · machine · opérateur) + alertes ;
   // mère · bords · lame · jour ne sont plus affichés (→ dépliage / fiche imprimée) — la lame n'apparaît que MANQUANTE.
   let h='';
-  h+=pill(esc(cli||'CLIENT ?'),cli?'':'fh-miss');
+  let cliCourt=cli; try{ const cut=cliCourt.search(/\s+pour\s+le\s+/i); if(cut>2) cliCourt=cliCourt.slice(0,cut); }catch(e){}   /* [L471 · photo tablette Esteban] la date + n° de commande sortent de la pastille (tout est dans l'en-tete deplie) : « Legrand France » suffit */
+  h+=pill(esc(cliCourt||'CLIENT ?'),cli?'':'fh-miss');
   if(ref) h+=pill(esc(ref));
   if(mLbl) h+=pill(mLbl,'fh-m fh-m-'+m);
   try{ if(window._l377MachinePrep&&window._l377MachinePrep!==mLbl) h+=pill('prép. '+window._l377MachinePrep,'fh-prep'); }catch(e){}   // [L377 · B2] trace « préparé X → coupé Y » visible

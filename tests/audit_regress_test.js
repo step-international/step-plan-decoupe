@@ -1353,6 +1353,13 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L471 : en-tete fiche compacte + CSV visibles ──');
+has(/cliCourt=cliCourt\.slice\(0,cut\)/,'L471 : pastille client COURTE (sans « pour le ... n° »)');
+has(/pastilles compactes : la rangee/,'L471 : pastilles atelier 14px, une seule ligne tablette');
+has(/function _l471FicheM2/,'L471 : m² par fiche dans l export commande');
+has(/;Commande;Total bobines;m²;Perte %;Temps;/,'L471 : colonne m² dans le CSV fiches');
+has(/⬇ CSV par commande/,'L471 : exports CSV visibles en haut de l Analyse (admin\/pilotage)');
+
 console.log('── L470 : module Stock supprime ──');
 absent(/id="tabStock"/,'L470 : bouton onglet Stock retire du DOM');
 absent(/id="tabContentStock"/,'L470 : panneau Stock retire du DOM');
