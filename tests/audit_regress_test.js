@@ -1353,6 +1353,15 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L463 : Analyse maquette complete ──');
+has(/function _l463ObjectifBlock/,'L463 : bloc objectif m² du mois (jauge + cible partagee)');
+has(/function _l463Prod6m/,'L463 : courbe production 6 mois (m², trous assumes design L247)');
+has(/function _l463Machines/,'L463 : cartes machines bobines-perte-NC (sans m2\/h ni temps median — demande 29\/08)');
+has(/function _l463OpChart/,'L463 : courbe temps\/bobine par operateur x laize INTERACTIVE');
+has(/function _l463PerteClients/,'L463 : % perte 6 mois + top clients m² en une carte');
+has(/m2:Math\.round\(m2Total\)/,'L463 : m² mensuel dans buildMonthlyKpi (convention mere x ml x bobines)');
+has(/config'\)\.doc\('analyse'\)\.set/,'L463 : cible partagee via config\/analyse (repli localStorage + toast regle)');
+
 console.log('── L462 : bugs fiche du 29/08 ──');
 has(/Decocher la bobine efface son test 2e/,'L462 : decocher une bobine efface devi\/droit (ordre de coupe de-fige)');
 has(/non validée par l\\'opérateur — va dans PLAN/,'L462 : pop-up validation ref au reordonnancement');
