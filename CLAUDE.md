@@ -3,7 +3,7 @@
 ## Contexte (à lire avant toute modification)
 - L'application est **UN seul fichier** : `index.html` (~23 000 lignes, JS vanilla + Firebase compat, une lib html2canvas minifiée embarquée en tête). Elle est servie par **GitHub Pages** depuis ce repo, branche `main`.
 - **Un push sur `main` = mise en production immédiate** (~2 min). Les 3 tablettes de l'atelier voient alors une bannière « Recharger ».
-- Atelier ISO 9001 : 3 machines (FEBA, MAVEG, CEVENINI), 3 tablettes iPad, comptes machine `feba@/maveg@/cevenini@step-international.com`. Administrateur : **Esteban**.
+- Atelier ISO 9001 : 3 machines (FEBA, MAVEG, CEVENINI), 3 tablettes Galaxy Tab A9+ (paysage 1280×800), comptes machine `feba@/maveg@/cevenini@step-international.com`. Administrateur : **Esteban**.
 - L'utilisateur de cette session peut être **NON TECHNIQUE** (la mère d'Esteban assure les modifications simples : clients, références, petits correctifs). Dans ce cas : parle simplement, sans jargon, ne montre pas de code, fais tout toi-même, vérifie tout, et dis clairement quand c'est en ligne.
 
 ## Règles absolues — une violation = NE PAS POUSSER

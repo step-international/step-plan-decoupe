@@ -1042,7 +1042,6 @@ body.atelier .fl-current [id^="flConf_"]{font-size:26px !important}
    ============================================================ */
 #page1.active{display:flex;flex-direction:column}
 #ficheRail,#ficheMain{display:contents}
-#welcomeHelpBtn{display:none!important}   /* [L386 · demande Esteban 21/08] « ? Revoir l'accueil » retiré (accueil + apprenti + entraînement jugés inutiles) */
 .order-row [data-type="cli"]{display:none!important}/* [L407 · multi-clients v2 · étape a] la colonne client des lignes est pilotée par les BLOCS clients — plus de saisie directe */
 #chutesRappelBanner{order:1}#ficheChronoSec{order:2}#fMachineMono{order:3}#fMachineMulti{order:4}
 #ficheHeadSec{order:5}#shareBlock{order:6}#ficheChgSec{order:7}#ficheRight{order:8}
@@ -1884,7 +1883,6 @@ input::placeholder,textarea::placeholder{color:var(--text2);opacity:.8}   /* 2,9
 .fc-cmd-liv{font-size:13px}
 #verTag{font-size:13px!important}#roleTag{font-size:13px}.hint-cut::after{font-size:13px}#planLeft .field>label span{font-size:13px!important}
 #nav button,.btn,.machine-btn-fiche,.fh-pills{transition-property:background-color,border-color,color,box-shadow,transform,opacity}   /* plus de transition:all (animait padding/hauteur) */
-#welcomeHelpBtn{position:relative}#welcomeHelpBtn::before{content:"";position:absolute;inset:-11px}   /* cible 48×48 sans bouger la nav */
 .fl-chute,#sendPlanBtn::after,.fl-pos,.fh-pill,.chrono-status{font-variant-numeric:tabular-nums}
 html.theme-light #sendPlanWrap{box-shadow:0 -10px 22px rgba(255,255,255,.6)}
 html.theme-light #sendPlanBtn.not-ready{box-shadow:0 6px 0 rgba(255,255,255,.92),inset 0 1px 0 rgba(0,0,0,.05)}
@@ -2157,7 +2155,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
    [L368 · DEMANDE ESTEBAN 19/08] nav : version et bouton « ? » RETIRÉS (données inutiles pendant la coupe) — la version et
    « Revoir l'accueil » restent accessibles : pied de Données (#appFooter) et pied des tiroirs ⚙ OUTILS (zéro fonction perdue).
    ============================================================ */
-#verTag,#welcomeHelpBtn{display:none!important}
+#verTag{display:none!important}
 .app-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:18px 0 6px;font-size:13px;color:var(--text3)}
 .app-footer .btn,.outils-foot .btn{min-height:44px;font-size:13px;color:var(--text2)}
 .outils-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:13px;color:var(--text3)}
@@ -2285,7 +2283,6 @@ html.theme-light .fp-num small{color:#8a8a84}
   <button id="tabBtn2" role="tab" aria-selected="false" aria-controls="page2" onclick="showPage(2)">📊 Données</button>
   <div style="display:flex;align-items:center;padding:0 8px;gap:4px;flex-shrink:0">
     <span id="verTag" style="font-size:10px;color:#8f8f8a;white-space:nowrap" title="Version de l'application"></span>
-    <button id="welcomeHelpBtn" onclick="if(typeof chronoRunning!=='undefined'&&chronoRunning){showToast('⏱ Découpe en cours — l\u2019accueil s\u2019ouvrira hors coupe.','err');}else{try{localStorage.removeItem('step_welcome_v1');}catch(e){};maybeWelcome(true);}" title="Revoir l'accueil" aria-label="Revoir l'accueil" style="background:none;border:1px solid var(--border);border-radius:99px;width:26px;height:26px;color:var(--muted);font-size:13px;font-weight:800;cursor:pointer;padding:0">?</button><!-- [L322 · LOT 20 · §2.19-4] réaffichage à la demande -->
     <span id="roleTag"></span>
     <button id="themeBtn" onclick="toggleTheme()" title="Basculer mode clair / mode sombre" aria-label="Basculer mode clair / mode sombre">☀️</button><!-- [L155 · demande Esteban] thème clair/sombre -->
     <button id="atelierBtn" onclick="toggleAtelier()" title="Mode atelier : gros boutons et police agrandie">🔍 Atelier</button>
@@ -2936,7 +2933,7 @@ html.theme-light .fp-num small{color:#8a8a84}
     <div id="fichesEmpty" class="text-muted hidden" style="padding:8px 0">Aucune fiche enregistrée.</div>
   </div>
 
-  <!-- ONGLET PLANNING [L111 · ÉTAPE 1 squelette] -->
+  <!-- ONGLET PLANNING [L111 squelette → L112 étape 2 livrée ; commentaire recalé L484] -->
   <div id="tabContentPlanning" class="hidden">
     <div id="planningContent"></div>
   </div>
@@ -3281,7 +3278,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L483';
+const APP_VERSION='2026.08.29-L484';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -15500,34 +15497,6 @@ async function lameAffuter(machine,lameNum){
     return true;
   }catch(e){ showToast('Erreur affûtage : '+e.message,'err'); return false; }
 }
-// Lot D — affûtage d'une lame HORS MACHINE (réserve) : on ne trace QUE le départ
-// à l'affûtage (pas de réinstallation, la lame n'est sur aucune machine). Quand
-// elle reviendra et sera posée, le flux de pose normal créera la trace d'install.
-async function lameAffuterHorsMachine(lameNum){
-  const num=String(lameNum||'').trim();
-  if(!num){ showToast('N° de lame obligatoire.','err'); return false; }
-  if(!db||!currentUser){ showToast('Connexion requise.','err'); return false; }
-  const now=isoNow(); const who=currentUser?currentUser.ini:'?';
-  const trace={ type:'lame', categorie:'affutage', machine:'', lameNum:num,
-    dateInstall:now, date:now,
-    description:'Lame '+num+' partie à l\'affûtage (hors machine)', responsable:who,
-    createdAt:now, createdBy:who, deleted:false };
-  try{
-    const ref=db.collection('maintenance').doc(); await boundedWrite(ref.set(trace),10000);   // [L83 · Audit #37] borné
-    trace.id=ref.id; maintenanceCache.unshift(trace);
-    await logAudit('create','maintenance',ref.id,`Affûtage lame ${num} (hors machine)`);
-    return true;
-  }catch(e){ showToast('Erreur affûtage : '+e.message,'err'); return false; }
-}
-async function submitAffutageHorsMachine(){
-  if(!canAccessMaintenance()){ showToast('Connexion requise.','err'); return; }
-  const inp=document.getElementById('affutHorsNum');
-  const num=(inp?.value||'').trim();
-  if(!num){ showToast('Saisis un n° de lame.','err'); return; }
-  if(!(await confirmDlg(`Marquer la lame ${num} (hors machine) comme partie à l'affûtage ?`,{ok:'Confirmer'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
-  const ok=await lameAffuterHorsMachine(num);
-  if(ok){ if(inp) inp.value=''; showToast('✓ Lame '+num+' envoyée à l\'affûtage','ok'); renderMaintenance(); }
-}
 async function lameDetectOnFiche(machineKey,lameNum){
   const num=String(lameNum||'').trim();
   if(!num||!machineKey||!LAME_MACHINES.includes(machineKey)) return;
@@ -15776,7 +15745,6 @@ function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${
 <!-- [L447 · demande Esteban] chapeau Lame retire (l'info vit deja sur chaque carte machine « max 15 j ») -->
   <div id="lameEtat"></div>
   <div id="lameSections"></div><!-- [L233 · refonte Lames A3] 3 sections par statut × machine : À affûter / Stockées / En cours d'affûtage -->
-  <!-- [L240] bouton seed RETIRÉ (inventaire injecté et validé par Esteban le 23/07 — lameSeedInventaire reste en code, réactivable) -->
   <div id="lameStatsBlock" style="margin-top:18px"></div><!-- [L233 · A3] stats lames RAPATRIÉES d'Analyse (leur place est ici) -->
   <details id="maintHistBox" style="margin-top:18px;background:var(--section);border:1px solid var(--border2);border-radius:10px" ontoggle="const s=this.querySelector('.mh-lbl'); if(s) s.textContent=this.open?'Masquer l\\'historique des lames':'Afficher l\\'historique des lames';">
     <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:11px 13px;font-size:13px;font-weight:700;color:var(--muted);min-height:46px"><span class="dbx-chev">▸</span> 📜 <b class="mh-lbl" style="color:var(--blue);font-weight:800">Afficher l'historique des lames</b></summary>
@@ -15874,48 +15842,6 @@ async function lameRetourStock(machine,num,comment){
 async function lameSeedStock(machine,num,dateIso){   // helper seed inventaire (console admin)
   return _lameEvent('stock',machine,num,'Seed inventaire — lame '+num+' '+getMachineLabel(machine)+' en stock',dateIso);
 }
-// [L234 · refonte Lames A4] SEED de l'inventaire RÉEL fourni par Esteban le 23/07/2026 — IDEMPOTENT :
-// pour chaque lame, on n'écrit un événement QUE si son état dérivé actuel diffère de l'état cible
-// (re-cliquer ne crée jamais de doublon). Bouton admin dans l'onglet Lame, à usage unique.
-const _LAME_INVENTAIRE_2607={
-  stockees:{cevenini:['20','23','25','26','27','28','29'],maveg:['1','3','5','6','7'],feba:['34','35','36']},
-  enAffutage:{cevenini:['21','22'],maveg:['2','4','9','10'],feba:[]},
-  aAffuter:{cevenini:[],maveg:['14'],feba:['32','33']}
-};
-async function lameSeedInventaire(btn){
-  if(!canManageData()){ showToast('🔒 Réservé pilotage/admin.','err'); return; }
-  const inv=_LAME_INVENTAIRE_2607;
-  const etat=lameClasseurEtat(maintenanceCache).parMachine;
-  const inState=(m,num,st)=>etat[m]&&etat[m][st]&&etat[m][st].some(x=>nrm(x.num)===nrm(num));
-  const plan=[], ignorees=[];
-  // [L237 · revue CRITIQUE #1 + MAJ #3/#10/#11] : plus AUCUNE installation antidatée (une machine sans pose
-  // active « montait » la lame par erreur, et le seed ne convergeait jamais) → l'état « à affûter » s'écrit
-  // via la catégorie EXPLICITE demonte. Et une lame actuellement MONTÉE n'est JAMAIS touchée par le seed
-  // (sinon l'encart « État des lames » et les sections se contredisaient) : elle est listée « ignorée ».
-  ['cevenini','maveg','feba'].forEach(m=>{
-    const seed1=(n,st,cat,lbl)=>{
-      if(inState(m,n,'montees')){ ignorees.push(getMachineLabel(m)+' lame '+n+' (actuellement MONTÉE — démonte-la d\'abord via une pose)'); return; }
-      if(!inState(m,n,st)) plan.push({m,n,cat,lbl});
-    };
-    (inv.stockees[m]||[]).forEach(n=>seed1(n,'stockees','stock','stock'));
-    (inv.enAffutage[m]||[]).forEach(n=>seed1(n,'enAffutage','affutage','en affûtage'));
-    (inv.aAffuter[m]||[]).forEach(n=>seed1(n,'aAffuter','demonte','à affûter'));
-  });
-  if(!plan.length){ showToast('✓ Inventaire déjà à jour — rien à écrire.'+(ignorees.length?' ('+ignorees.length+' ignorée(s) car montée(s))':''),'ok'); return; }
-  if(!(await confirmDlg('Injecter l\'inventaire réel des lames ?\n\n'+plan.length+' événement(s) à écrire :\n'+plan.map(p=>'· '+getMachineLabel(p.m)+' lame '+p.n+' → '+p.lbl).join('\n')+(ignorees.length?'\n\n⚠ Ignorées (montées) :\n'+ignorees.map(x=>'· '+x).join('\n'):'')+'\n\nIdempotent : re-cliquer n\'écrira pas de doublon.',{ok:'Injecter'}))) return;
-  if(btn) btn.disabled=true;
-  let okN=0,koN=0;
-  try{
-    for(const p of plan){
-      try{
-        await _lameEvent(p.cat,p.m,p.n,'Seed inventaire 23/07/2026 — lame '+p.n+' '+getMachineLabel(p.m)+' : '+p.lbl);
-        okN++;
-      }catch(e){ koN++; console.warn('seed lame',p,e); }
-    }
-  }finally{ if(btn) btn.disabled=false; }
-  showToast('✓ Inventaire injecté : '+okN+' événement(s)'+(koN?' · ⚠ '+koN+' échec(s)':''),koN?'err':'ok');
-  renderMaintenance();
-}
 // [L238 · demande Esteban] RETIRER UNE LAME DU SUIVI (fantômes legacy, ex. « 22/35 maveg » d'anciennes traces) :
 // archive TOUTES ses traces maintenance (soft-delete → corbeille, récupérables 45 j, jamais de perte ISO).
 // La même lame sur une AUTRE machine n'est pas touchée (clé machine|num).
@@ -15953,7 +15879,7 @@ async function lameAffuterSeule(machine,lameNum){
 // [L233 · refonte Lames A3] 3 SECTIONS PAR STATUT, chacune subdivisée PAR MACHINE (couleurs machine) :
 // 🟠 À affûter (→ Envoyer à l'affûtage) · 📦 Stockées (→ Monter sur la machine) · 🛠 En cours d'affûtage
 // (→ Réceptionner). Consomme le modèle parMachine (clé machine|num, L232). Remplace le « classeur » à
-// cases + l'input « hors machine » (submitAffutage/lameAffuterHorsMachine conservés en code, sans UI).
+// cases + l'input « hors machine » (purge L484 : lameAffuterHorsMachine/submitAffutageHorsMachine retires ; submitAffutage reste en code, sans UI).
 function renderAffutageList(){
   const el=document.getElementById('lameSections'); if(!el) return;
   const {parMachine}=lameClasseurEtat(maintenanceCache);
@@ -20389,8 +20315,7 @@ function fillBobineSelect(id){
 //    une fiche envoyée ;
 //  · brouillons manuels/fromSend d'une commande déjà envoyée (jamais les soldes à
 //    fromFicheId : un solde pas encore coupé est intouchable, ni les partagés/autosaves).
-// L'exécution réelle (soft-delete + logAudit par élément) n'existe volontairement PAS
-// encore : elle attend la validation d'Esteban sur cet aperçu (règle Phase 4D).
+// L'exécution réelle existe depuis L110 : hygieneApply() (manuelle, console) et hygieneAutoSweep() (auto au boot/envoi). [recalé L484]
 // ============================================================
 function hygieneDryRun(){
   const ctx=_plnSentKeys();   // [L118] détection unifiée (fiche non refusée + postérieure au plan) ; RESTE exclu
@@ -20410,7 +20335,7 @@ function hygieneDryRun(){
   console.log(drafts.length+' brouillon(s) manuels/« non envoyé » d\'une commande déjà envoyée :');
   drafts.forEach(d=>console.log('  · draft '+d.id+' — '+(d.label||'(sans label)')+' — '+(d.savedAt||'')));
   if(soldesExclus) console.log('('+soldesExclus+' brouillon(s) de SOLDE exclus — à examiner à la main : un solde peut être encore à couper)');
-  console.log('Pour exécuter (PLANS uniquement) : bouton « 🧹 Nettoyer les plans déjà coupés » dans Données > Plans, ou hygieneApply() ici. Les brouillons se gèrent à la main (Données > Brouillons).');
+  console.log('Pour exécuter (PLANS uniquement) : hygieneApply() en console — le balayage auto (hygieneAutoSweep) tourne aussi au boot et à l\'envoi. Les brouillons se gèrent à la main (Données > Brouillons).');   /* [L484] l ancien bouton « 🧹 Nettoyer » (supprimé L389) n est plus cité */
   return {plans:plans.map(s=>s._id),drafts:drafts.map(d=>d.id),soldesExclus};
 }
 // [L110 · hygiène 4D — EXÉCUTION validée par Esteban le 10/07 (« on supprime les 14 », filet 45 j gardé)]
@@ -21066,32 +20991,7 @@ function _nextUncutLine(){ return ficheLines.find(({id})=>{const el=document.get
 // fermeture 1 tap, réaffichable via le « ? » de l'en-tête. Aucune écriture réseau.
 function maybeWelcome(force){
   try{
-    return;   // [L386 · demande Esteban 21/08] accueil 3 cartes RETIRÉ (avec ses entrées mode apprenti + entraînement, jugés « inutiles ») — code conservé (harnais de test)
-    if(!force){ try{ if(localStorage.getItem('step_welcome_v1')) return; }catch(e){ return; } }
-    if(typeof chronoRunning!=='undefined'&&chronoRunning) return;
-    if(document.getElementById('welcomeOverlay')) return;
-    const o=document.createElement('div');
-    o.id='welcomeOverlay';
-    o.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(10,10,9,.94);display:flex;align-items:center;justify-content:center;padding:24px';
-    const card=function(ic,t,sub,hot){ return '<div style="flex:1;border:2px solid '+(hot?'var(--action)':'var(--border2)')+';border-radius:9px;background:'+(hot?'#1f1804':'#161615')+';padding:10px"><div style="font-size:24px">'+ic+'</div><b style="display:block;margin:5px 0 3px;font-family:var(--f-head);color:'+(hot?'#ffd45e':'var(--text)')+'">'+t+'</b><span style="font-size:12px;color:var(--muted)">'+sub+'</span></div>'; };
-    o.innerHTML='<div style="max-width:620px;width:100%;border:2px solid var(--border2);border-radius:12px;background:var(--card);padding:20px">'
-      +'<div style="font-weight:800;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-bottom:12px;font-family:var(--f-head)">3 ÉCRANS, C\'EST TOUT</div>'
-      +'<div style="display:flex;gap:8px;margin-bottom:14px">'
-      +card('✂','PLAN','je saisis la commande',false)
-      +card('📋','FICHE','je coupe, ici',true)
-      +card('📊','DONNÉES','je retrouve mes fiches',false)
-      +'</div>'
-      +'<div style="font-size:14px;color:var(--muted);margin-bottom:14px">Cherche toujours <b style="color:#ffd45e">le bouton JAUNE</b> : c\'est le geste à faire.</div>'
-      +'<button id="welcomeOk" class="btn" style="width:100%;min-height:56px;background:linear-gradient(#ffc21a,#f5b301);border:1px solid #b8860b;color:#141310;font-weight:800">J\'ai compris →</button>'
-      +'<button id="welcomeAppr" class="btn btn-ghost btn-sm" style="width:100%;min-height:48px;margin-top:8px">🎓 Réactiver le mode apprenti (indices)</button>'
-      +'<button id="welcomeTrain" class="btn btn-ghost btn-sm" style="width:100%;min-height:48px;margin-top:6px">🎓 Mode entrainement (rien n est envoye)</button></div>';
-    document.body.appendChild(o);
-    const ok=o.querySelector('#welcomeOk');
-    if(ok) ok.onclick=function(){ try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); };
-    const ap=o.querySelector('#welcomeAppr');
-    if(ap) ap.onclick=function(){ apprentiRearm(); try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); try{ hintCoupeeApply(); }catch(e){} };
-    const tr=o.querySelector('#welcomeTrain');
-    if(tr) tr.onclick=function(){ try{ localStorage.setItem('step_welcome_v1','1'); }catch(e){} o.remove(); startTraining(); };
+    return;   // [L386 · demande Esteban 21/08] accueil 3 cartes RETIRÉ (avec ses entrées mode apprenti + entraînement, jugés « inutiles ») — corps purgé L484 (coquille appelable conservée : appel au boot l.~6060, marqueurs du gardien)
   }catch(e){}
 }
 // [L322 · LOT 20 · §2.19-5] INDICE AUTO-EFFAÇABLE sur le ✂ : les 3 PREMIÈRES bobines de la vie de
@@ -21163,7 +21063,6 @@ function openMonTableau(ini){
 function _apprentiKey(){ const ini=(document.getElementById('fInitiales')?.value||'').trim()||'¤'; return 'step_appr_'+ini; }
 function _apprentiOn(){ try{ const k=_apprentiKey(); const v=localStorage.getItem(k); if(v===null){ localStorage.setItem(k,'5'); return true; } return (parseInt(v,10)||0)>0; }catch(e){ return false; } }
 function _apprentiTick(nc){ if(trainingGuard()) return; try{ const k=_apprentiKey(); const v=parseInt(localStorage.getItem(k)||'0',10)||0; if(v>0&&!nc) localStorage.setItem(k,String(v-1)); }catch(e){} }
-function apprentiRearm(){ try{ localStorage.setItem(_apprentiKey(),'5'); }catch(e){} try{ showToast('🎓 Mode apprenti réactivé — indices affichés pendant tes 5 prochaines fiches sans NC.'); }catch(e){} }
 // [L324 · LOT 12 · §2.5/G1] GAMIFICATION — SÉRIE SANS NC par initiales. RÈGLE D'OR : qualité/constance,
 // JAMAIS la vitesse. localStorage seul (rien en base, données non probantes). Désactivable par poste :
 // localStorage step_gamif_off = '1' → chip masquée, compteurs gelés. Intensité : ×5 liseré · ×10 🔥 · ×25 ⭐.

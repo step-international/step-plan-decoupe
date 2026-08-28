@@ -300,7 +300,7 @@ has(/appVersion:\(typeof APP_VERSION!=='undefined'\?APP_VERSION:''\)/,'L272 #12 
 has(/if\(_pendingLocalPhotos && Object\.keys\(_pendingLocalPhotos\)\.length\) flushPendingLocalPhotos\(\); \}catch\(e\)\{\} \}, 45000\)/,'L272 #13 : file photos re-téléversée périodiquement (45 s), pas seulement à la reconnexion');
 has(/const lastInstall=evts\.find\(r=>r\.categorie==='installation'\)/,'L272 #15 : lameActiveForMachine respecte un démontage postérieur (une seule vérité lame, encart = classeur)');
 has(/new Date\(pose\)\.toLocaleDateString\('fr-FR'\)/,'L272 #17 : date de pose en heure LOCALE dans l\'audit (plus de recul d\'un jour la nuit)');
-has(/function _laizeSortExcluded\(ref\)\{ return false; \}/,'L272 : exception de tri KX1046/47 PÉRIMÉE retirée (ces réfs re-suivent grosses-laizes-d\'abord)');
+has(/function _laizeSortExcluded\(ref\)\{ return false; \}/,'L272 : exception de tri KX1046/47 PÉRIMÉE retirée (fonction inerte CONSERVEE — elle vit dans packRefGroupsPal, fonction du moteur GELE : purge impossible sans casser l identite byte-a-byte, tentee et revertie en L484)');
 has(/CATALOGUE des définitions « chute \/ perte \/ solde »/,'L272 : définitions chute/perte/solde cataloguées (décision ISO documentée pour Esteban)');
 console.log('── L272 · fixes de la revue adversariale (3) ──');
 has(/function _activeLameIn\(cache,machine\)/,'revue : logique « lame active » factorisée dans _activeLameIn (partagée encart + alertes + classeur)');
@@ -649,14 +649,14 @@ has(/btn\.disabled=false; btn\.style\.opacity=\(n===0\)/,'L321 : « pas prêt »
 
 console.log('── L322 : REDESIGN LOT 20 — accueil 3 cartes + indice débutant (§2.19-4/5) ──');
 has(/function maybeWelcome/,'L322 : accueil une seule fois (step_welcome_v1), JAMAIS si chronoRunning, réaffichable via ?');
-has(/id="welcomeHelpBtn"/,'L322 : « ? » discret dans l en-tête');
+absent(/welcomeHelpBtn/,'L322→L484 : bouton « ? » et son CSS PURGES (accueil retire L386)');
 has(/step_hint_cut_/,'L322 : indice « 1 tap = coupée + test OK » sur les 3 premières bobines de la VIE de l opérateur (par initiales)');
 has(/hintCoupeeCount/,'L322 : compté UNIQUEMENT sur coupe réussie (pas les refus)');
 
 console.log('── L323 : REDESIGN LOT 22 — mode APPRENTI (§2.19-6, interprétation minimale) ──');
 has(/step_appr_/,'L323 : apprenti par initiales, ON par défaut pour des initiales inconnues (compteur 5)');
 has(/_apprentiTick\(ncCount\)/,'L323 : extinction auto — décrément à chaque envoi validé SANS NC');
-has(/apprentiRearm/,'L323 : réactivable par l opérateur (accueil 🎓), jamais imposé');
+absent(/apprentiRearm/,'L323→L484 : apprentiRearm PURGEE (seul appelant etait le corps mort de l accueil) — le mode apprenti reste vivant via _apprentiOn/_apprentiTick');
 absent(/step_appr.*firestore|collection\('step_appr/,'L323 : localStorage SEUL — jamais en base');
 
 console.log('── L324 : REDESIGN LOT 12 — gamification G1 série sans NC (§2.5) ──');
@@ -984,7 +984,7 @@ has(/if\(d\.fromSend\)\{ const _pF=/,'L367 : filet non envoyé consommé dès qu
 has(/mb\.classList\.toggle\('sel',!!\(\(typeof _machinePostName==='function'\)\?_machinePostName\(\):''\)\)/,'L367 : Reset des filtres Plans = retour à « ma machine »');
 
 console.log('── L368 : nav épurée (demande Esteban 19/08) ──');
-has(/#verTag,#welcomeHelpBtn\{display:none!important\}/,'L368 : version et bouton ? retirés de la nav');
+has(/#verTag\{display:none!important\}/,'L368→L484 : version retiree de la nav (le bouton ? n existe plus)');
 has(/id="appFooter" class="app-footer"><span class="app-ver"><\/span>/,'L368 : version + « Revoir l accueil » en pied de Données (rien de perdu)');
 has(/document\.querySelectorAll\('\.app-ver'\)\.forEach\(function\(e\)\{ e\.textContent='v'\+APP_VERSION; \}\)/,'L368 : version posée dans les pieds (Données + ⚙ OUTILS)');
 has(/\.modal>div:not\(\.outils-foot\)>button\.btn/,'L368 : le pied des tiroirs OUTILS ne compte pas dans le badge');
@@ -1148,7 +1148,7 @@ has(/#planCards \.card-config\{font-size:20px;line-height:1\.1\}/,'L385 (recalib
 
 console.log('── L386 : gros lot de retours prod Esteban (21/08) ──');
 has(/\[L342 → retiré L386 · demande Esteban 21\/08\] cartes compactes une-rangée SUPPRIMÉES/,'L386 : fiches découpe — retour au format complet historique');
-has(/#welcomeHelpBtn\{display:none!important\}/,'L386 : « ? Revoir l accueil » retiré (accueil+apprenti+entraînement)');
+absent(/Revoir l accueil/,'L386→L484 : « ? Revoir l accueil » retire puis PURGE');
 has(/accueil 3 cartes RETIRÉ \(avec ses entrées mode apprenti/,'L386 : maybeWelcome désarmé');
 has(/✕ pour supprimer \(puis 📷＋ juste à côté/,'L386 : ✕ de suppression sur les photos étiquettes');
 has(/blur = APPLIQUER : la config modifiée lance ELLE-MÊME le recalcul/,'L386 : appliquer une config modifiée relance le recalcul (1 seul geste)');
@@ -1369,6 +1369,13 @@ console.log('── L479 : PDF fiche validee aux regles actees (exemple valide p
 has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la place du % dans le PDF fiche');
 has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
 has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
+
+console.log('── L484 : purge du code mort (backlog #24-#32) ──');
+absent(/lameSeedInventaire|_LAME_INVENTAIRE_2607/,'L484 : seed inventaire lames purge (injecte et valide le 23/07)');
+absent(/lameAffuterHorsMachine\(|submitAffutageHorsMachine\(/,'L484 : affutage hors machine purge (sans UI depuis L233)');
+has(/corps purgé L484/,'L484 : corps mort de l accueil retire, coquille appelable conservee');
+has(/hygieneApply\(\) en console/,'L484 : message d hygiene ne cite plus le bouton supprime en L389');
+has(/L112 étape 2 livrée/,'L484 : commentaire Planning recale (plus « squelette »)');
 
 console.log('── L483 : export piste d audit COMPLET (backlog #36 ISO) ──');
 has(/async function exportAuditComplet/,'L483 : fonction export complet paginee');
