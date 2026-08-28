@@ -1382,7 +1382,7 @@ has(/cliCourt=cliCourt\.slice\(0,cut\)/,'L471 : pastille client COURTE (sans « 
 has(/pastilles compactes : la rangee/,'L471 : pastilles atelier 14px, une seule ligne tablette');
 has(/function _l471FicheM2/,'L471 : m² par fiche dans l export commande');
 has(/;Commande;Total bobines;m²;Perte %;Temps;/,'L471 : colonne m² dans le CSV fiches');
-has(/⬇ CSV par commande/,'L471 : exports CSV visibles en haut de l Analyse (admin\/pilotage)');
+has(/exports deplaces TOUT EN BAS/,'L471→L476 : exports CSV tout en bas de l Analyse (rares d utilisation)');
 
 console.log('── L470 : module Stock supprime ──');
 absent(/id="tabStock"/,'L470 : bouton onglet Stock retire du DOM');
