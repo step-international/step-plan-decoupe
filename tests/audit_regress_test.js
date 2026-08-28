@@ -163,7 +163,7 @@ has(/min-width:560px;display:block/,'R5 : graphes non-rétrécissants (défileme
 has(/function _anaFold\(/,'R5 : blocs repliables avec état retenu (localStorage step_ana_fold)');
 has(/step_ana_fold/,'R5 : clé de persistance des blocs');
 has(/if\(!e\.target\.closest\('svg'\)\) _atipHide\(\)/,'R5 : tooltip refermable au tap hors graphe');
-has(/Quelle machine décroche \?/,'R5 : titres reformulés en QUESTIONS dirigeant');
+has(/Productivité — chaque opérateur progresse-t-il \?/,'R5 (recalibre L469) : titres en QUESTIONS dirigeant — « Quelle machine decroche » retiree sur demande Esteban');
 has(/min-width:430px;border-collapse:collapse/,'R5 : table Pilotage défile proprement sur petit écran');
 
 console.log('── L251 chantier ANALYSE — lot R6 ──');
