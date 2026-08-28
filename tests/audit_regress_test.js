@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L472 : compaction tablette (voir le CUMUL sans defiler) ──');
+has(/L472 · dictee Esteban 29\/08 · tablette/,'L472 : bloc de compaction paysage present');
+has(/min-height:54px!important;font-size:17px!important/,'L472 : bouton COUPEE reduit');
+
 console.log('── L471 : en-tete fiche compacte + CSV visibles ──');
 has(/cliCourt=cliCourt\.slice\(0,cut\)/,'L471 : pastille client COURTE (sans « pour le ... n° »)');
 has(/pastilles compactes : la rangee/,'L471 : pastilles atelier 14px, une seule ligne tablette');
