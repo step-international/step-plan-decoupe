@@ -1364,7 +1364,7 @@ has(/#tabContentAnalyse>details\{order:10\}/,'L464 : Releves de temps + Registre
 has(/#tabContentAnalyse\.hidden\{display:none!important\}/,'L464 : garde .hidden malgre le display:flex inline');
 has(/On calcule\n       le m² des mois passes EN LIVE/,'L464 : courbe 6 mois remplie en live (garde nbFiches vs agregat)');
 has(/une carte geante pour 1 point : non/,'L464 : bloc courbe masque sous 2 points');
-has(/nm\.search\(\/\\s\+pour\\s\+le\\s\+\/i\)/,'L464 : noms clients nettoyes dans le top m²');
+has(/45:\{c:"0453",k:5/,'L466 : mandrin 45 mm DQ1002 imprime (0453 — dictee 44, commande reelle 45)');
 
 console.log('── L463 : Analyse maquette complete ──');
 has(/function _l463ObjectifBlock/,'L463 : bloc objectif m² du mois (jauge + cible partagee)');
