@@ -1374,9 +1374,17 @@ console.log('── L487 : referentiel reserve Esteban+Dominique, multi-metrage 
 has(/function _l486CanEdit/,'L487 : garde dediee (admin + DC), plus canManageData trop large');
 has(/currentUser\.ini==='DC'/,'L487 : Dominique a acces a la partie client');
 has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé à Esteban et Dominique/,'L487 : refus explicite pour les autres comptes');
-has(/x\.ref===ref&&\(x\.longueur\|\|0\)===lo/,'L487 : meme reference a plusieurs metrages, sans doublon exact');
+has(/x\.ref===L\.ref&&\(x\.longueur\|\|0\)===lo&&\(x\.largeur\|\|0\)===L\.la/,'L487→L488 : meme reference a plusieurs metrages, sans doublon exact');
 has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
 has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
+console.log('── L488 : references en liste deroulante + plusieurs lignes ──');
+has(/id="l488Refs"/,'L488 : datalist de TOUTES les references deja connues');
+has(/function _l488AddRow/,'L488 : bouton ➕ ajoute une ligne de reference');
+has(/function _l488DelRow/,'L488 : ✕ retire une ligne (jamais zero ligne)');
+has(/function _l488RefPicked/,'L488 : reference connue choisie -> laize et metrage pre-remplis');
+has(/querySelectorAll\('\.l488-row'\)/,'L488 : le geste unique traite TOUTES les lignes remplies');
+has(/function _l488RefreshClientUI/,'L488 : la liste du Plan se reconstruit apres un ajout (bug terrain Esteban)');
+has(/y compris un client texte libre/,'L488 : la selection en cours de l operateur est preservee au rafraichissement');
 absent(/Publier à tous les postes/,'L487 : le bouton « Publier » separe a disparu (tout est simultane)');
 has(/if\(!ok\)\{ if\(nouveau\) delete CLIENT_DATA\[nom\]/,'L487 : publication refusee = modification locale ANNULEE (pas de poste desynchronise)');
 has(/function _l487Picked/,'L487 : la liste deroulante distingue deux entrees de MEME reference');

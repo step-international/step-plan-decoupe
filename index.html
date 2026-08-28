@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L487';
+const APP_VERSION='2026.08.29-L488';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4898,7 +4898,7 @@ function _l486Apply(d,src){
   var n=0;
   try{ if(_l486Valid(d&&d.clientData)){ CLIENT_DATA=d.clientData; n++; } }catch(_){ }
   try{ if(_l486Valid(d&&d.pkgClients)){ PKG_CLIENTS=d.pkgClients; n++; } }catch(_){ }
-  if(n){ _l486Loaded=true; try{ if(typeof _l370RecentClients==='function') _l370RecentClients(); }catch(_){ }
+  if(n){ _l486Loaded=true; try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488] la liste du Plan suit le referentiel */
     try{ console.log('[L486] clients/emballages charges depuis '+src+' — '+Object.keys(CLIENT_DATA).length+' clients, '+Object.keys(PKG_CLIENTS).length+' regles'); }catch(_){ } }
   return n;
 }
@@ -6646,6 +6646,24 @@ function onParamChange(){
 // ============================================================
 // CLIENT / REF
 // ============================================================
+/* [L488 · bug terrain Esteban] Un client ajoute dans Donnees > Clients n apparaissait PAS dans la liste
+   du Plan : initClientDropdown() ne tourne qu au demarrage. On la rejoue apres chaque ajout et apres
+   chaque chargement Firestore, en PRESERVANT la selection en cours (y compris un client texte libre
+   absent du catalogue — sinon on effacerait la saisie de l operateur en plein plan). */
+function _l488RefreshClientUI(){
+  try{
+    const sel=document.getElementById('planClient'); const prev=sel?sel.value:'';
+    if(sel){
+      initClientDropdown();
+      if(prev){
+        sel.value=prev;
+        if(sel.value!==prev){ const o=document.createElement('option'); o.value=prev; o.textContent=prev+' (hors liste)'; sel.appendChild(o); sel.value=prev; }
+      }
+    }
+    if(typeof _l370RecentClients==='function') _l370RecentClients();
+    if(typeof renderCliPanel==='function') renderCliPanel();   /* blocs multi-clients : ils reconstruisent leurs propres listes */
+  }catch(_){ }
+}
 function initClientDropdown(){
   const sel=document.getElementById('planClient');
   sel.innerHTML='<option value="">— Client —</option>'+
@@ -18302,7 +18320,15 @@ function renderClients(){
   if(!_l486CanEdit()){ c.innerHTML='<div style="padding:20px;color:var(--muted)">Accès réservé à Esteban et Dominique.</div>'; return; }
   const noms=Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); });
   const nRefs=noms.reduce(function(s2,n){ return s2+((CLIENT_DATA[n]||[]).length); },0);
-  const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
+  /* [L488] catalogue de TOUTES les references connues, tous clients confondus : la meme reference
+     revient souvent d un client a l autre — on la choisit dans la liste au lieu de la retaper
+     (et ses dimensions se remplissent toutes seules). */
+  _l488RefDims={};
+  noms.forEach(function(n){ (CLIENT_DATA[n]||[]).forEach(function(r){
+    const k=String(r.ref||'').trim(); if(!k) return;
+    if(!_l488RefDims[k]) _l488RefDims[k]={largeur:r.largeur||0,longueur:r.longueur||0};
+  }); });
+  const refsAll=Object.keys(_l488RefDims).sort(function(a,b){ return a.localeCompare(b,'fr'); });
   const rows=noms.map(function(n,ni){
     const refs=(CLIENT_DATA[n]||[]).map(function(r,i){
       return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px">'
@@ -18316,51 +18342,97 @@ function renderClients(){
       +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
       +'<div style="margin-top:6px">'+refs+'</div></details>';
   }).join('');
-  const dl='<datalist id="l487Clis">'+noms.map(function(n){ return '<option value="'+_l486Esc(n)+'"></option>'; }).join('')+'</datalist>';
-  c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'+dl
+  const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
+  c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'
+    +'<datalist id="l487Clis">'+noms.map(function(n){ return '<option value="'+_l486Esc(n)+'"></option>'; }).join('')+'</datalist>'
+    +'<datalist id="l488Refs">'+refsAll.map(function(r){ const d=_l488RefDims[r]; return '<option value="'+_l486Esc(r)+'">'+d.largeur+' mm'+(d.longueur?' × '+d.longueur+' ml':'')+'</option>'; }).join('')+'</datalist>'
     +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">'
-      +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Ajouter un client et sa référence</div>'
-      +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu — tape les premières lettres, la liste te le propose. Tout part sur les 3 tablettes en une fois.</div>'
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-        +'<input id="l487Cli" list="l487Clis" placeholder="Client" style="'+inp+';flex:1;min-width:150px">'
-        +'<input id="l487Ref" placeholder="Référence (ex. 41319832 - TacFlex® DQ1009)" style="'+inp+';flex:2;min-width:210px">'
-        +'<input id="l487La" type="number" placeholder="laize mm" style="'+inp+';width:110px">'
-        +'<input id="l487Ml" placeholder="mètre linéaire — 500 ou 100 / 250 / 500" title="Plusieurs métrages pour la MÊME référence : sépare-les par / ou par une virgule" style="'+inp+';width:230px">'
+      +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Ajouter un client et ses références</div>'
+      +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu, et autant de références que tu veux (bouton +). Tout part sur les 3 tablettes en une fois.</div>'
+      +'<input id="l487Cli" list="l487Clis" placeholder="Client" style="'+inp+';width:100%;max-width:340px">'
+      +'<div id="l488Lignes" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'
+        +'<button class="btn btn-sm" onclick="_l488AddRow()" title="Ajouter une autre référence pour ce client">➕ Une autre référence</button>'
         +'<button class="btn btn-blue" style="min-height:40px" onclick="_l487Valider(this)">✔ Valider et publier</button>'
       +'</div>'
-      +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · source : '+(_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app')+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+refsAll.length+' référence(s) distincte(s) · source : '+(_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app')+'</div>'
     +'</div>'
     +rows
     +'<div style="font-size:11.5px;color:var(--muted);padding:0 4px">Les règles d’emballage (palette, cerclage, spécificités) se modifient encore dans le code — dis-moi si tu veux les éditer ici aussi.</div>'
   +'</div>';
+  _l488Seq=0; _l488AddRow();   /* une ligne de reference prete a remplir */
 }
-/* Le geste unique : cree le client s il est nouveau, ajoute la/les references, publie. Tout ou rien
-   cote message : si la publication echoue, on le DIT et on annule la modification locale pour ne pas
-   laisser un poste desynchronise des deux autres. */
+/* [L488] Lignes de reference du formulaire : autant qu on veut, chacune avec sa laize et son ou
+   ses metres lineaires. La reference se choisit dans la liste des references DEJA connues
+   (datalist l488Refs) — on peut toujours en taper une nouvelle. */
+var _l488Seq=0, _l488RefDims={};
+function _l488AddRow(){
+  const box=document.getElementById('l488Lignes'); if(!box) return;
+  const i=++_l488Seq;
+  const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
+  const d=document.createElement('div');
+  d.className='l488-row'; d.dataset.i=i;
+  d.style.cssText='display:flex;gap:8px;flex-wrap:wrap;align-items:center';
+  d.innerHTML='<input id="l488r_'+i+'" list="l488Refs" oninput="_l488RefPicked('+i+')" placeholder="Référence — choisis dans la liste ou tape la nouvelle" style="'+inp+';flex:2;min-width:230px">'
+    +'<input id="l488l_'+i+'" type="number" placeholder="laize mm" style="'+inp+';width:110px">'
+    +'<input id="l488m_'+i+'" placeholder="mètre linéaire — 500 ou 100 / 250 / 500" title="Plusieurs métrages pour la MÊME référence : sépare-les par / ou par une virgule" style="'+inp+';width:230px">'
+    +'<button class="btn btn-sm" style="min-height:34px;padding:2px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" onclick="_l488DelRow('+i+')" title="Retirer cette ligne">✕</button>';
+  box.appendChild(d);
+  try{ document.getElementById('l488r_'+i).focus(); }catch(_){ }
+}
+function _l488DelRow(i){
+  const box=document.getElementById('l488Lignes'); if(!box) return;
+  const r=box.querySelector('.l488-row[data-i="'+i+'"]'); if(!r) return;
+  if(box.querySelectorAll('.l488-row').length<=1){ ['l488r_','l488l_','l488m_'].forEach(function(p){ const e=document.getElementById(p+i); if(e) e.value=''; }); return; }   /* jamais zero ligne */
+  r.remove();
+}
+/* Reference connue choisie : ses dimensions se remplissent seules (modifiables). */
+function _l488RefPicked(i){
+  try{
+    const v=String((document.getElementById('l488r_'+i)||{}).value||'').trim(); const d=_l488RefDims[v]; if(!d) return;
+    const la=document.getElementById('l488l_'+i), ml=document.getElementById('l488m_'+i);
+    if(la&&!la.value&&d.largeur) la.value=d.largeur;
+    if(ml&&!ml.value&&d.longueur) ml.value=d.longueur;
+  }catch(_){ }
+}
+/* Le geste unique : cree le client s il est nouveau, ajoute TOUTES les lignes remplies, publie.
+   Si la publication echoue, la modification locale est annulee — jamais de poste desynchronise. */
 async function _l487Valider(btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
-  const g=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; };
-  const nom=g('l487Cli'), ref=g('l487Ref'), la=parseInt(g('l487La'),10)||0, mlTxt=g('l487Ml');
+  const gv=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; };
+  const nom=gv('l487Cli');
   if(!nom){ showToast('Saisis le nom du client.','err'); return; }
-  if(!ref){ showToast('Saisis la référence — un client sans référence ne sert à rien au Plan.','err'); return; }
-  if(!(la>0)){ showToast('Saisis la laize de la bobine mère, en mm.','err'); return; }
-  const mls=mlTxt.split(/[\/;,]+/).map(function(x){ return parseInt(String(x).trim(),10)||0; }).filter(function(x){ return x>0; });
+  const box=document.getElementById('l488Lignes');
+  const lignes=[];
+  Array.prototype.forEach.call(box?box.querySelectorAll('.l488-row'):[],function(row){
+    const i=row.dataset.i, ref=gv('l488r_'+i), la=parseInt(gv('l488l_'+i),10)||0, mlTxt=gv('l488m_'+i);
+    if(!ref&&!la&&!mlTxt) return;   /* ligne vide : ignoree sans reproche */
+    lignes.push({ref:ref,la:la,ml:mlTxt});
+  });
+  if(!lignes.length){ showToast('Saisis au moins une référence — un client sans référence ne sert à rien au Plan.','err'); return; }
+  for(const L of lignes){
+    if(!L.ref){ showToast('Une ligne a une laize mais pas de référence.','err'); return; }
+    if(!(L.la>0)){ showToast('Laize manquante pour « '+L.ref+' » (en mm).','err'); return; }
+  }
   const nouveau=!CLIENT_DATA[nom];
   const arr=(CLIENT_DATA[nom]=CLIENT_DATA[nom]||[]);
-  const avant=arr.slice();   /* copie de securite pour annuler si la publication echoue */
+  const avant=arr.slice();
   const add=[],deja=[];
-  (mls.length?mls:[0]).forEach(function(lo){
-    if(arr.some(function(x){ return x.ref===ref&&(x.longueur||0)===lo&&(x.largeur||0)===la; })){ deja.push(lo||'—'); return; }
-    arr.push(lo>0?{ref:ref,largeur:la,longueur:lo}:{ref:ref,largeur:la}); add.push(lo||'—');
+  lignes.forEach(function(L){
+    const mls=L.ml.split(/[\/;,]+/).map(function(x){ return parseInt(String(x).trim(),10)||0; }).filter(function(x){ return x>0; });
+    (mls.length?mls:[0]).forEach(function(lo){
+      if(arr.some(function(x){ return x.ref===L.ref&&(x.longueur||0)===lo&&(x.largeur||0)===L.la; })){ deja.push(L.ref+' '+(lo||'—')+' ml'); return; }
+      arr.push(lo>0?{ref:L.ref,largeur:L.la,longueur:lo}:{ref:L.ref,largeur:L.la}); add.push(L.ref+' '+(lo||'—')+' ml');
+    });
   });
-  if(!add.length){ if(nouveau) delete CLIENT_DATA[nom]; showToast('Déjà présent : '+ref+' en '+deja.join(' / ')+' ml.','err'); return; }
+  if(!add.length){ if(nouveau) delete CLIENT_DATA[nom]; showToast('Déjà présent : '+deja.join(' · ')+'.','err'); return; }
   if(btn){ btn.disabled=true; btn.textContent='⏳ Publication…'; }
   const ok=await _l486Publish(null,true);
   if(btn){ btn.disabled=false; btn.textContent='✔ Valider et publier'; }
-  if(!ok){ if(nouveau) delete CLIENT_DATA[nom]; else CLIENT_DATA[nom]=avant; renderClients(); return; }   /* le toast d erreur vient de _l486Publish */
-  ['l487Ref','l487La','l487Ml'].forEach(function(id){ const e=document.getElementById(id); if(e) e.value=''; });
+  if(!ok){ if(nouveau) delete CLIENT_DATA[nom]; else CLIENT_DATA[nom]=avant; renderClients(); return; }
+  try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488 · bug terrain] le nouveau client apparait AUSSITOT dans la liste du Plan */
   renderClients();
-  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) ('+add.join(' / ')+' ml) publiée(s) sur les 3 tablettes.'+(deja.length?' · '+deja.join(' / ')+' ml déjà présent(s)':''),'ok');
+  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) publiée(s) sur les 3 tablettes : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):''),'ok');
 }
 function _l486Nom(ni){ return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni]; }   /* meme tri que le rendu */
 async function _l486DelRef(ni,idx,btn){
@@ -18374,6 +18446,7 @@ async function _l486DelRef(ni,idx,btn){
   const ok=await _l486Publish(null,true);
   if(btn) btn.disabled=false;
   if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
+  try{ _l488RefreshClientUI(); }catch(_){ }
   renderClients(); showToast('✔ Référence retirée et publiée.','ok');
 }
 async function renderAudit(){
