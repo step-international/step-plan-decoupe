@@ -3278,7 +3278,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L484';
+const APP_VERSION='2026.08.29-L485';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8489,13 +8489,28 @@ function computePlanAggregate(computed){
     _mlN+=pm*ml; _mlD+=c.stats.totalMat*ml;
   });
   const pertePctMl=(_mlOk&&_mlD>0)?(_mlN/_mlD*100):pertePct;
+  /* [L485 · fix audit L482] CHUTE GARDÉE en m², calculée À LA SOURCE et par RÉF — mêmes étapes que
+     chuteStockMm ci-dessus (solde de la dernière bobine de CHAQUE réf + tous les restes de FIN DE PHASE,
+     rouleaux ♻ recoupés EXCLUS : leur résidu est une perte, doctrine moteur). La lecture a posteriori de
+     f.groups[dernier].waste ne pouvait pas être juste : un seul solde pour toute la fiche, longueur de la
+     PREMIÈRE réf, et le drapeau _phaseEnd n'est pas persisté. null si un métrage manque (jamais un faux 0). */
+  let _chM2=0,_chOk=computed.length>0;
+  computed.forEach(c=>{
+    const ml=parseFloat(String(c.longueur==null?'':c.longueur).replace(',','.'));   /* parsing AUTONOME (bac à sable P11, cf. pertePctMl) */
+    if(!(ml>0)){ _chOk=false; return; }
+    const pg=c.planGroups||[]; if(!pg.length) return;   /* réf tout en ♻ : aucune chute gardée (résidu de résidu = perte) */
+    let cs=Math.max(0,c.useful-calcStats(pg[pg.length-1].pattern,c.blade).total);
+    pg.forEach(g=>{ if(g._phaseEnd) cs+=Math.max(0,c.useful-calcStats(g.pattern,c.blade).total); });
+    _chM2+=cs/1000*ml;
+  });
+  const chuteM2=_chOk?Math.round(_chM2*10)/10:null;
   // 5) Chutes stock prélevées (bobineaux) + compteur rouleaux recoupés.
   const chutesUsedAll={};
   computed.forEach(c=>Object.entries(c.chutesUsed||{}).forEach(([w,q])=>{chutesUsedAll[w]=(chutesUsedAll[w]||0)+q;}));
   const chutesPieces=Object.keys(chutesUsedAll).reduce((s,w)=>s+chutesUsedAll[w],0);
   const recutCountAll=computed.reduce((s,c)=>s+((c.recutBobines||[]).length),0);
   return {totalBobines,totalMat,totalUsed,pct,chuteStockMm,perteMm,resteRouleauxMm,
-          perteMereMm,pertePct,pertePctMl,chutesUsedAll,chutesPieces,recutCountAll};
+          perteMereMm,pertePct,pertePctMl,chuteM2,chutesUsedAll,chutesPieces,recutCountAll};
 }
 // Mère STANDARD d'une référence d'après CLIENT_DATA (toutes clients confondus),
 // par n° de référence en tête de chaîne. 0 si inconnue. Sert à alerter quand la
@@ -12047,7 +12062,8 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     numCmd,dateLiv,dateLivIso,deleted:false,cartonByWidth:{...cartonByWidth},
     palette,typeCond,etiquetage,cerclage,notesEmballage:notesEmb,
     groups:groupsForRecord,
-    useful:multi?computed.map(c=>fmt(c.useful)).join(' / '):fmt(useful),blade:fmt(blade),pct:pct.toFixed(1),pctMl:_agg80.pertePctMl.toFixed(2),tempsStr,totalBobines:bobines.length,
+    useful:multi?computed.map(c=>fmt(c.useful)).join(' / '):fmt(useful),blade:fmt(blade),pct:pct.toFixed(1),pctMl:_agg80.pertePctMl.toFixed(2),chuteM2:_agg80.chuteM2,   /* [L485] chute gardee m² calculee a la source (par ref, fins de phase incluses, ♻ exclus) */
+    tempsStr,totalBobines:bobines.length,
     ficheDetail:ficheDetailTagged,
     nbPlan,nbFiche,hasEcart,ecartMsg,modifie:!!opts.modifié,
     commandeFiles:(migrateCommandePhoto(),commandeFiles.slice()),
@@ -14047,9 +14063,21 @@ function buildMonthlyKpi(ym,fiches,temps){
     }catch(_){ }
     try{ const _d63=m2Total-_m2f0; if(_d63>0){ (cliM2[c]=cliM2[c]||0); cliM2[c]+=_d63; if(!isNaN(p63)) perteM2+=_edg80+Math.max(0,_d63-_edg80)*p63/100; } }catch(_){ }   /* [L463 top clients · L479 : p63 (pas p) — manque-matière : _d63 est déjà restreint aux bobines COUPÉES (_keep63), le % plan s'y applique ; p=NaN ne doit trouer que la moyenne, pas la somme · L480 · fix audit] perte m² = BORDS m² (toujours rognes — regle actee « bords inclus », meme doctrine que computePerteChute) + m² UTILES × % plan. Le % archive (pertePct) est en base UTILE (mere−bords) : l'ancien « m² mere × % » excluait les bords ET melangeait les bases (p63=0 valide compte desormais les bords seuls). */
     const gs=f.groups||[]; if(gs.length) soldeMm+=parseNum(gs[gs.length-1].waste)||0;   // [L98 · #13] chute RÉUTILISABLE (solde conservé)
-    try{ if(gs.length){ const _w82=parseNum(gs[gs.length-1].waste)||0; let _lg82=parseNum(f.longueur)||0;
-      if(!(_lg82>0)&&Array.isArray(f.refGroups)&&f.refGroups.length) _lg82=parseNum(f.refGroups[f.refGroups.length-1].longueur)||0;   /* multi-réf sans f.longueur : le solde est épinglé en dernier → longueur de la dernière réf */
-      if(_w82>0&&_lg82>0) chuteM2+=_w82/1000*_lg82; } }catch(_){ }   /* [L482] chute gardée m² = solde de la dernière bobine (même lecture que la fiche PDF L479 : groups[last].waste) × longueur */
+    /* [L485 · fix audit L482] CHUTE GARDÉE : on lit le champ CALCULÉ À LA SOURCE (f.chuteM2, persisté depuis
+       L485 par computePlanAggregate : un solde par RÉF + fins de phase, ♻ exclus). Repli pour les fiches
+       ARCHIVÉES AVANT L485 : relecture de f.groups, mais UNIQUEMENT quand elle est prouvablement juste —
+       mono-réf, hors manque-matière, dernier groupe non ♻. Une fiche multi-réf ancienne est OMISE (sous-compte
+       assumé et documenté) plutôt que valorisée avec la longueur de la mauvaise réf. */
+    try{
+      if(typeof f.chuteM2==='number'&&f.chuteM2>0) chuteM2+=f.chuteM2;
+      else if(f.chuteM2==null&&!f.manqueMatiere&&gs.length&&!(Array.isArray(f.refGroups)&&f.refGroups.length>1)){
+        const _lbl85=String(gs[gs.length-1].label||'');
+        if(_lbl85.indexOf('♻')<0){   /* résidu de rouleau recoupé = PERTE (doctrine moteur), jamais une chute */
+          const _w82=parseNum(gs[gs.length-1].waste)||0, _lg82=parseNum(f.longueur)||0;
+          if(_w82>0&&_lg82>0) chuteM2+=_w82/1000*_lg82;
+        }
+      }
+    }catch(_){ }
     chutesPieces+=Object.values(f.chutesStock||{}).reduce((a2,b2)=>a2+(Number(b2)||0),0);   // [L98 · #13] bobineaux pris en stock
     // [L247 · R3] qualité par bobine (NC par type, ouvertes, délai de traitement fiche→clôture en jours)
     const _fin=_pDate(f.date);
@@ -14061,7 +14089,7 @@ function buildMonthlyKpi(ym,fiches,temps){
       if(f.manqueMatiere && fd.coupee!==true) return;
       qCtrl++;
       try{ if(fd.actDechet===true&&typeof ncLoss==='function'){ const _nl=ncLoss(f,fd); if(_nl&&_nl.m2>0) dechetM2+=_nl.m2; } }catch(_){ }   /* [L477] DECHET en m² · [L479 · audit] SEULS les bobineaux 🗑 Déchet comptent : une NC partie en ✂ Chutes = matière STOCKÉE (CHUTE, règle actée), pas un déchet — aligné sur le registre NC (sD, l.18332) et computePerteChute */
-      try{ if(fd.actChutes===true&&typeof ncLoss==='function'){ const _nl2=ncLoss(f,fd); if(_nl2&&_nl2.m2>0) chuteM2+=_nl2.m2; } }catch(_){ }   /* [L482] la NC partie en ✂ Chutes rejoint la CHUTE GARDEE du mois (matière stockée réutilisable, règle actée) */
+      try{ if(fd.actChutes===true&&!fd.recut&&typeof ncLoss==='function'){ const _nl2=ncLoss(f,fd); if(_nl2&&_nl2.m2>0) chuteM2+=_nl2.m2; } }catch(_){ }   /* [L485 · fix audit] !fd.recut : meme perimetre que _keep63 (m2Total) — sans lui la chute sortait des m² coupes du mois. La branche DECHET juste au-dessus garde volontairement son perimetre L479 (chiffre deja valide par Esteban). */   /* [L482] la NC partie en ✂ Chutes rejoint la CHUTE GARDEE du mois (matière stockée réutilisable, règle actée) */
       let _is=false;
       if(fd.ncLarg){qLarg++;_is=true;}
       if(fd.ncQty){qQty++;_is=true;}
@@ -16884,9 +16912,10 @@ function _l463PerteClients(liveKpi){
     let max=0; pts.forEach(function(p){ SER.forEach(function(s){ if(p[s.f]!=null&&p[s.f]>max) max=p[s.f]; }); }); max=max*1.18||1;
     const W=720,H=214,TOP=18,B=176,slot=W/months.length,bw=24,gap=5,g3=bw*3+gap*2;
     const y=function(v){ return TOP+(B-TOP)*(1-v/max); };
-    const fmtC=function(v){ return v>=1000?((v/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+'k'):String(Math.round(v)); };   /* chiffre compact SUR la barre — valeur exacte dans la bulle */
+    const fmtC=function(v){ if(v>=1000) return (v/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+'k'; if(v>0&&v<1) return v.toLocaleString('fr-FR',{maximumFractionDigits:1}); return String(Math.round(v)); };   /* [L485 · fix audit] 0,4 m² ne s affiche plus « 0 » — c est exactement le faux zero que la carte s interdit */   /* chiffre compact SUR la barre — valeur exacte dans la bulle */
     const fmtG=function(v){ return v>=1000?((v/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+' k m²'):(Math.round(v)+' m²'); };
-    let grid='';[0.33,0.66,1].forEach(function(fr){ const vv=max*fr/1.18, Y=y(vv); grid+='<line x1="14" y1="'+Y.toFixed(1)+'" x2="'+(W-14)+'" y2="'+Y.toFixed(1)+'" stroke="#20211C" stroke-width="1"/><text x="'+(W-16)+'" y="'+(Y-3).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#77786f">'+fmtG(vv)+'</text>'; });
+    let grid='',_seenG={};[0.33,0.66,1].forEach(function(fr){ const vv=max*fr/1.18, Y=y(vv), lbl=fmtG(vv); if(_seenG[lbl]) return; _seenG[lbl]=1;   /* [L485 · fix audit] plus 3 graduations toutes etiquetees « 0 m² » quand le mois est vide */
+      grid+='<line x1="14" y1="'+Y.toFixed(1)+'" x2="'+(W-14)+'" y2="'+Y.toFixed(1)+'" stroke="#20211C" stroke-width="1"/><text x="'+(W-16)+'" y="'+(Y-3).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#77786f">'+lbl+'</text>'; });
     let bars='',labels='';
     pts.forEach(function(p,i){
       const cx=slot*i+slot/2;
@@ -18279,28 +18308,40 @@ function exportAudit(){
    startAfter) jusqu'au bout de la collection — le plafond AUDIT_LOAD_LIMIT ne concerne que l'ECRAN.
    Filtres IGNORES volontairement : un export ISO doit etre exhaustif, l'entete le dit. */
 async function exportAuditComplet(btn){
-  if(!db) return;
+  /* [L485 · fix audit L483] livrable ISO : il doit etre COMPLET ou se declarer incomplet — jamais entre les deux. */
+  if(!db){ showToast('Base indisponible — reconnecte le reseau puis recharge la page.','err'); return; }
+  if(window._auditExporting){ showToast('Export deja en cours…','err'); return; }
+  window._auditExporting=true;   /* verrou hors DOM : re-rendre l onglet ne redonne plus un bouton actif */
   const old=btn?btn.textContent:'';
+  const PAGE=1000, MAXPAGES=60;   /* borne dure (60 000 entrees) alignee sur les autres paginations du fichier */
   try{
     if(btn){ btn.disabled=true; btn.textContent='⏳ 0'; }
-    const all=[]; let last=null;
+    const t0=isoNow();   /* l instantane est arrete a la PREMIERE page, pas a la fin de la boucle */
+    const all=[]; let last=null, fromCache=false, tronque=false, page=0;
     for(;;){
-      let q=db.collection('audit').orderBy('ts','desc').limit(1000);
+      if(page++>=MAXPAGES){ tronque=true; break; }
+      let q=db.collection('audit').orderBy('ts','desc').limit(PAGE);
       if(last) q=q.startAfter(last);
       const snap=await q.get();
+      if(snap.metadata&&snap.metadata.fromCache) fromCache=true;   /* hors-ligne : Firestore sert le cache SANS erreur → l export serait tronque en silence */
       if(snap.empty) break;
-      snap.docs.forEach(d=>all.push(Object.assign({_id:d.id},d.data())));
+      snap.docs.forEach(d=>{ const x=d.data()||{}; all.push({at:x.at,ts:x.ts,user:x.user,userIni:x.userIni,role:x.role,action:x.action,client:x.client,ref:x.ref,dateCmd:x.dateCmd,collection:x.collection,docId:x.docId,details:x.details}); });   /* projection : seuls les 11 champs du CSV sont retenus */
       last=snap.docs[snap.docs.length-1];
       if(btn) btn.textContent='⏳ '+all.length;
-      if(snap.docs.length<1000) break;
+      if(snap.docs.length<PAGE) break;
     }
     if(!all.length){ showToast('Piste d\'audit vide.','err'); return; }
-    const entete='# Piste d\'audit STEP · export COMPLET : '+all.length+' entrée(s) — toute la piste, filtres écran ignorés · généré le '+isoNow()+'\n';
-    const b=new Blob([entete+buildAuditCsv(all)],{type:'text/csv;charset=utf-8'});
-    downloadBlob(b,'piste_audit_COMPLET_'+todayISO()+'.csv');
-    showToast('✔ Export complet : '+all.length+' entrée(s).','ok');
+    const partiel=fromCache||tronque;
+    const entete='# Piste d\'audit STEP · '+(partiel?'⚠ EXPORT INCOMPLET':'export COMPLET')+' : '+all.length+' entrée(s)'
+      +(fromCache?' · ⚠ SERVI DEPUIS LE CACHE HORS-LIGNE — des entrées peuvent manquer, refaire l\'export en ligne':'')
+      +(tronque?' · ⚠ PLAFOND '+(PAGE*MAXPAGES)+' ATTEINT — la piste est plus longue que ce fichier':'')
+      +' · filtres écran ignorés · instantané arrêté au '+t0+'\n';
+    const csv=buildAuditCsv(all).replace(/^\uFEFF/,'');   /* le BOM doit rester a l offset 0 du FICHIER, pas au milieu (sinon Excel decode tout en Windows-1252) */
+    const b=new Blob(['\uFEFF'+entete+csv],{type:'text/csv;charset=utf-8'});
+    downloadBlob(b,'piste_audit_'+(partiel?'INCOMPLET_':'COMPLET_')+todayISO()+'.csv');
+    showToast((partiel?'⚠ Export INCOMPLET : ':'✔ Export complet : ')+all.length+' entrée(s).',partiel?'err':'ok');
   }catch(e){ showToast('Export complet impossible : '+((e&&e.message)||e),'err'); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent=old||'⬇ CSV complet (ISO)'; } }
+  finally{ window._auditExporting=false; if(btn){ btn.disabled=false; btn.textContent=old||'⬇ CSV complet (ISO)'; } }
 }
 async function auditRefresh(btn){
   if(!db) return;
@@ -18593,10 +18634,15 @@ function buildFichePrintHTML(d){
         dechetM2=Math.round(dechetM2*10)/10;
         /* [L479 · fix semantique] chutesStock = chutes PRELEVEES du stock (bandeau orange dedie) —
            la chute GARDEE = le SOLDE conserve de la derniere bobine (groups[last].waste). */
-        const lg9=parseNum(f.longueur)||0;
+/* [L485 · fix audit] le solde lu est celui de la DERNIERE ref (groups[last]) : sa longueur est celle de
+           refGroups[last], pas f.longueur qui vaut « 1500 / 2000 » en multi-ref (parseNum n en lisait que 1500). */
+        let lg9=0; try{ const _rg9=Array.isArray(f.refGroups)?f.refGroups:null; if(_rg9&&_rg9.length) lg9=parseNum(_rg9[_rg9.length-1].longueur)||0; }catch(_){ }
+        if(!(lg9>0)) lg9=parseNum(f.longueur)||0;
         let chutesLbl='aucune';
         try{ const gs9=Array.isArray(f.groups)?f.groups:[]; const w9=gs9.length?(parseNum(gs9[gs9.length-1].waste)||0):0;
-             if(w9>0) chutesLbl='1 bobineau '+fmt(w9)+' mm'+(lg9?' × '+fmt(lg9)+' m':''); }catch(_){ }
+             const _rec9=String(gs9.length?(gs9[gs9.length-1].label||''):'').indexOf('♻')>=0;   /* residu de rouleau recoupe = PERTE, pas une chute */
+             if(w9>0&&!_rec9) chutesLbl='1 bobineau '+fmt(w9)+' mm'+(lg9?' × '+fmt(lg9)+' m':'')
+               +((typeof f.chuteM2==='number'&&f.chuteM2>0)?(' ('+f.chuteM2.toLocaleString('fr-FR')+' m²)'):''); }catch(_){ }
         return `<div class="sub" style="margin-top:4px">🗑 Perte : <b style="color:var(--red)">${perteM2.toLocaleString('fr-FR')} m²</b> · Déchet (NC) : <b style="color:var(--red)">${dechetM2.toLocaleString('fr-FR')} m²</b> · ✂ Chutes gardées : <b style="color:#f59e0b">${chutesLbl}</b></div>`;
       }catch(e){ return ''; }})()}<!-- [L479] vocabulaire ACTE : Perte / Dechet (NC) / Chutes gardees en « N bobineaux × largeur × longueur » -->
       ${(()=>{const cs=f.chutesStock||{};const ks=Object.keys(cs);if(!ks.length)return '';const lbl=ks.map(w=>cs[w]+'×'+fmt(Number(w))).join(' + ');return `<div style="margin-top:8px;border:2px solid #f59e0b;background:#fff7e6;border-radius:8px;padding:9px 12px;color:#7a5200;font-size:13px;font-weight:600">✂ Chutes en stock utilisées : <b style="color:#b45309">${lbl} mm</b> — bobineaux prélevés du stock, non découpés sur bobine mère.</div>`;})()}

@@ -1370,6 +1370,14 @@ has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la
 has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
 has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
 
+console.log('── L485 : fix audit adversarial L482/L483 (chute a la source) ──');
+has(/CHUTE GARDÉE en m², calculée À LA SOURCE et par RÉF/,'L485 : chuteM2 calcule par computePlanAggregate (1 solde par ref + fins de phase, ♻ exclus)');
+has(/chuteM2:_agg80\.chuteM2/,'L485 : chute gardee persistee sur la fiche a l archivage');
+has(/typeof f\.chuteM2==='number'&&f\.chuteM2>0/,'L485 : le KPI mensuel lit le champ persiste avant tout repli');
+has(/fd\.actChutes===true&&!fd\.recut/,'L485 : NC en chutes sur rouleau ♻ exclue (hors m² coupes)');
+has(/refGroups\[last\], pas f\.longueur|_rg9\[_rg9\.length-1\]\.longueur/,'L485 : PDF fiche — longueur de la BONNE ref pour le solde');
+has(/v>0&&v<1\) return v\.toLocaleString/,'L485 : une barre a 0,4 m² n affiche plus « 0 »');
+
 console.log('── L484 : purge du code mort (backlog #24-#32) ──');
 absent(/lameSeedInventaire|_LAME_INVENTAIRE_2607/,'L484 : seed inventaire lames purge (injecte et valide le 23/07)');
 absent(/lameAffuterHorsMachine\(|submitAffutageHorsMachine\(/,'L484 : affutage hors machine purge (sans UI depuis L233)');
@@ -1380,14 +1388,17 @@ has(/L112 étape 2 livrée/,'L484 : commentaire Planning recale (plus « squelet
 console.log('── L483 : export piste d audit COMPLET (backlog #36 ISO) ──');
 has(/async function exportAuditComplet/,'L483 : fonction export complet paginee');
 has(/startAfter\(last\)/,'L483 : pagination serveur startAfter (plafond ecran non applique)');
-has(/piste_audit_COMPLET_/,'L483 : nom de fichier COMPLET distinct du partiel');
+has(/snap\.metadata&&snap\.metadata\.fromCache/,'L485 : export servi par le cache hors-ligne DETECTE et annonce');
+has(/MAXPAGES=60/,'L485 : borne dure de pagination (plus de boucle sans limite)');
+has(/window\._auditExporting/,'L485 : verrou de re-entrance hors DOM');
+has(/piste_audit_'\+\(partiel\?'INCOMPLET_':'COMPLET_'\)/,'L483→L485 : le nom du fichier DIT si l export est incomplet');
 has(/exportAuditComplet\(this\)/,'L483 : bouton CSV complet (ISO) dans la piste d audit');
 
 console.log('── L482 : diagramme matiere mensuel ISO (perte / dechet / chutes separes) ──');
 has(/chuteM2=0;/,'L482 : accumulateur chuteM2 dans buildMonthlyKpi');
 has(/chuteM2:Math\.round\(chuteM2\*10\)\/10/,'L482 : chuteM2 dans le retour du KPI mensuel (voyage dans les agregats figes)');
-has(/fd\.actChutes===true&&typeof ncLoss/,'L482 : NC partie en ✂ Chutes comptee en CHUTE gardee (matiere stockee)');
-has(/groups\[last\]\.waste\) × longueur|meme lecture que la fiche PDF L479/,'L482 : chute gardee m² = solde derniere bobine × longueur (coherence PDF)');
+has(/fd\.actChutes===true&&!fd\.recut&&typeof ncLoss/,'L482→L485 : NC partie en ✂ Chutes comptee en CHUTE gardee (hors rouleaux ♻)');
+has(/un solde par RÉF \+ fins de phase, ♻ exclus/,'L482→L485 : chute gardee calculee a la source (la lecture de groups\[last\] etait fausse en multi-ref)');
 has(/{f:'perte',lbl:'Perte',c:'#f87171'}/,'L482 : serie Perte du diagramme');
 has(/{f:'chute',lbl:'Chutes gardées',c:'#5eead4'}/,'L482 : serie Chutes gardees du diagramme');
 has(/✂ chutes gardées<\/span>/,'L482 : chutes gardees du mois dans la ligne de tete');
