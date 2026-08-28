@@ -3274,7 +3274,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L476';
+const APP_VERSION='2026.08.29-L477';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -13956,7 +13956,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   const MACH=MACHINE_LABELS;
   const mach={};MACH.forEach(m=>mach[m]={bobines:0,wpNum:0,wpDen:0,dur:0,laizes:0});
   let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0,soldeMm=0,chutesPieces=0;   // [L83 · Audit #44][L98 · #13]
-  let m2Total=0; const cliM2={};   /* [L463 · maquette Analyse] m² coupes du mois : Σ mere/1000 × ml × bobines coupees (convention stock l.17355) — mois figes anciens sans ce champ = trou, jamais un faux 0 (design L247) */
+  let m2Total=0; const cliM2={}; let perteM2=0, dechetM2=0;   /* [L477 · regles actees Esteban 29/08] PERTE = totale − client − chutes gardees (m² via % plan) ; DECHET = bobineaux NC jetes ENTIERS (ncLoss, m²) — jamais de %, que des m² */   /* [L463 · maquette Analyse] m² coupes du mois : Σ mere/1000 × ml × bobines coupees (convention stock l.17355) — mois figes anciens sans ce champ = trou, jamais un faux 0 (design L247) */
   // [L247 · R3] QUALITÉ + PONCTUALITÉ + ÉCARTS — nouveaux champs DANS l'agrégat (collection 'agregats'
   // inchangée, rules isManage sans whitelist → zéro impact règles). Mois FIGÉS avant cette version :
   // champs absents → l'écran affiche « — » (JAMAIS 0) ; complétés uniquement via « ♻ Recalculer ».
@@ -14019,7 +14019,7 @@ function buildMonthlyKpi(ym,fiches,temps){
         if(mo>0&&lg>0&&b>0) m2Total+=mo/1000*lg*b;
       }
     }catch(_){ }
-    try{ const _d63=m2Total-_m2f0; if(_d63>0){ (cliM2[c]=cliM2[c]||0); cliM2[c]+=_d63; } }catch(_){ }   /* [L463] top clients en m² */
+    try{ const _d63=m2Total-_m2f0; if(_d63>0){ (cliM2[c]=cliM2[c]||0); cliM2[c]+=_d63; if(!isNaN(p)&&p>0) perteM2+=_d63*p/100; } }catch(_){ }   /* [L463 top clients · L477 perte m² = m² fiche × % plan (bords+lames+chutes non gardees, soldes exclus — meme perimetre que pct) */
     const gs=f.groups||[]; if(gs.length) soldeMm+=parseNum(gs[gs.length-1].waste)||0;   // [L98 · #13] chute RÉUTILISABLE (solde conservé)
     chutesPieces+=Object.values(f.chutesStock||{}).reduce((a2,b2)=>a2+(Number(b2)||0),0);   // [L98 · #13] bobineaux pris en stock
     // [L247 · R3] qualité par bobine (NC par type, ouvertes, délai de traitement fiche→clôture en jours)
@@ -14031,6 +14031,7 @@ function buildMonthlyKpi(ym,fiches,temps){
       // 1/20 au lieu de 1/5) et rendait « contrôlées » > « bobines » dans la même ligne. Aligné sur R2.
       if(f.manqueMatiere && fd.coupee!==true) return;
       qCtrl++;
+      try{ if(typeof ncLoss==='function'){ const _nl=ncLoss(f,fd); if(_nl&&_nl.m2>0) dechetM2+=_nl.m2; } }catch(_){ }   /* [L477] DECHET en m² */
       let _is=false;
       if(fd.ncLarg){qLarg++;_is=true;}
       if(fd.ncQty){qQty++;_is=true;}
@@ -14066,7 +14067,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
   const topClientsM2=Object.entries(cliM2).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:Math.round(e[1])}));
-  return {mois:ym,nbFiches:F.length,totalBobines,m2:Math.round(m2Total),topClientsM2,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13] · [L463] m2
+  return {mois:ym,nbFiches:F.length,totalBobines,m2:Math.round(m2Total),perteM2:Math.round(perteM2),dechetM2:Math.round(dechetM2*10)/10,topClientsM2,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13] · [L463] m2
     qual:{ctrl:qCtrl,nc:qNc,larg:qLarg,qty:qQty,casse:qCasse,ang:qAng,hum:qHum,ouv:qOuv,delaiMoy:qDelaiN?+(qDelaiSum/qDelaiN).toFixed(1):null},   // [L247 · R3]
     liv:{tot:livTot,ok:livOk},ecartsN};   // [L247 · R3]
 }
@@ -16894,7 +16895,13 @@ function _l463Machines(k){
 function _l463PerteClients(liveKpi){
   const cur=currentMonthYM(), months=prevMonthsYM(6).reverse(), byM={};
   try{ agregatsCache.forEach(function(a){ if(a&&a.mois) byM[a.mois]=a; }); }catch(e){}
-  const pts=months.map(function(ym){ const k=(ym===cur)?liveKpi:byM[ym]; const v=(k&&k.pertePct!=null&&!isNaN(parseFloat(k.pertePct)))?parseFloat(k.pertePct):null; return {ym:ym,v:v}; });
+  /* [L477 · regles actees] courbe en M² de perte (plus de %) — agregat fige d abord, live gate historique complet */
+  const pts=months.map(function(ym){
+    const k=(ym===cur)?liveKpi:byM[ym];
+    let v=(k&&typeof k.perteM2==='number'&&k.perteM2>0)?k.perteM2:null;
+    if(v==null&&ym!==cur){ try{ const lk=buildMonthlyKpi(ym,fichesCache,tempsCache); if(lk&&lk.perteM2>0&&((k&&k.nbFiches>0)?lk.nbFiches===k.nbFiches:(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded))) v=lk.perteM2; }catch(e){} }
+    return {ym:ym,v:v};
+  });
   const has=pts.filter(function(p){return p.v!=null;});
   let left='';
   if(has.length>=2){
@@ -16902,15 +16909,22 @@ function _l463PerteClients(liveKpi){
     const x=function(i){ return L+i*(W-L-12)/(months.length-1); }, y=function(v){ return 12+(B-12)*(1-v/max); };
     let path='',prev=null,dots='';
     pts.forEach(function(p,i){ if(p.v==null){ prev=null; return; } const X=x(i),Y=y(p.v); path+=(prev==null?'M':'L')+X.toFixed(1)+','+Y.toFixed(1); prev=1;
-      dots+='<circle cx="'+X+'" cy="'+Y+'" r="'+(p.ym===cur?4.5:3)+'" fill="'+(p.ym===cur?'#2fb85f':'#141410')+'" stroke="#2fb85f" stroke-width="2"><title>'+monthLabelFr(p.ym)+' : '+String(p.v).replace('.',',')+' %</title></circle>'; });
+      dots+='<circle cx="'+X+'" cy="'+Y+'" r="'+(p.ym===cur?4.5:3)+'" fill="'+(p.ym===cur?'#2fb85f':'#141410')+'" stroke="#2fb85f" stroke-width="2"><title>'+monthLabelFr(p.ym)+' : '+p.v.toLocaleString('fr-FR')+' m²</title></circle>'; });
     let lab=''; months.forEach(function(ym,i){ lab+='<text x="'+x(i)+'" y="'+(H-4)+'" text-anchor="middle" font-size="9.5" fill="#77786f">'+_l474MoisAbr(ym)+'</text>'; });
-    left='<div><div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">% perte matière — 6 mois</div>'
+    left='<div><div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Perte matière — 6 mois (m²)</div>'
       +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;margin-top:4px"><path d="'+path+'" fill="none" stroke="#2fb85f" stroke-width="2.2" stroke-linecap="round"/>'+dots+lab+'</svg></div>';
   }
-  /* [L465 · retour Esteban] top clients RETIRE (deja dans KPI mensuels > TOP VOLUMES). m² de perte reels en tete. */
-  if(!left) return '';
+  /* [L465 → L477 regles actees] PERTE et DECHET en m² SANS % (Q7 : « pas de %, que des m² ») —
+     deux familles SEPAREES (le dechet NC n est ni une perte ni une chute). */
   let head='';
-  try{ if(liveKpi&&liveKpi.m2>0&&liveKpi.pertePct>0){ const pm2=Math.round(liveKpi.m2*liveKpi.pertePct/100); head='<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 4px"><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">≈ '+pm2.toLocaleString('fr-FR')+' m²</span><span style="color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums">de perte ce mois · '+String(liveKpi.pertePct).replace('.',',')+' %</span></div>'; } }catch(e){}
+  try{ if(liveKpi){
+    const pm2=(liveKpi.perteM2>0)?liveKpi.perteM2:0, dm2=(liveKpi.dechetM2>0)?liveKpi.dechetM2:0;
+    head='<div style="display:flex;align-items:baseline;gap:22px;flex-wrap:wrap;margin:2px 0 6px">'
+      +'<span><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">'+pm2.toLocaleString('fr-FR')+' m²</span> <span style="color:var(--muted);font-weight:700">de perte ce mois</span></span>'
+      +'<span><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;color:'+(dm2>0?'#fca5a5':'var(--text)')+'">'+dm2.toLocaleString('fr-FR')+' m²</span> <span style="color:var(--muted);font-weight:700">de déchet (NC)</span></span>'
+      +'</div>';
+  } }catch(e){}
+  if(!left&&!head) return '';
   return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px">'+head+left+'</div>';
 }
 function _l463OpChart(valid){

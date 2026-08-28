@@ -1353,6 +1353,12 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L477 : regles pertes/dechets/chutes ACTEES (mail Esteban 29/08) ──');
+has(/PERTE = totale − client − chutes gardees/,'L477 : perteM2 + dechetM2 dans buildMonthlyKpi');
+has(/DECHET en m² \*\//,'L477 : dechet = ncLoss par bobineau NC');
+has(/de déchet \(NC\)/,'L477 : carte matiere Perte + Dechet en m² SANS %');
+has(/Perte matière — 6 mois \(m²\)/,'L477 : courbe perte en m² (plus de %)');
+
 console.log('── L475 : chrono discret + HUD regroupe ──');
 has(/#ficheRail #chronoStatus\{display:none\}/,'L475 : texte long du chrono masque en paysage');
 has(/\.fp-num\{font-size:20px\}/,'L475 : compteur COUPEES reduit');
@@ -1370,7 +1376,7 @@ has(/sans agregat, un point live exige l HISTORIQUE COMPLET/,'L474#10 : backfill
 has(/repli LIMITE au sens transparent→imprime/i,'L474#11 : repli mandrin restreint aux laizes dictees');
 absent(/aucune place sous 7h30/,'L474#13 : plus de 7h30 en dur dans les toasts planning');
 has(/le % AFFICHE peut depasser 100/,'L474#16 : pourcentage objectif reel');
-has(/de perte ce mois · /,'L474#17 : gros chiffre de perte libelle');
+has(/de perte ce mois<\/span>/,'L474#17→L477 : gros chiffre de perte libelle (m² sans %)');
 has(/function _l474MoisAbr/,'L474#19 : mois abreges normalises');
 
 console.log('── L472 : compaction tablette (voir le CUMUL sans defiler) ──');
