@@ -3250,7 +3250,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L464';
+const APP_VERSION='2026.08.29-L465';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16757,7 +16757,10 @@ function _l463ObjectifBlock(k){
     +'<span style="color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums">/ '+cible.toLocaleString('fr-FR')+' m²</span>'
     +'<span style="margin-left:auto;font-size:24px;font-weight:800;color:var(--orange);font-variant-numeric:tabular-nums">'+pct+' %</span></div>'
     +'<div style="height:12px;background:#1a1a18;border:1px solid var(--border2);border-radius:99px;overflow:hidden;margin-top:8px"><i style="display:block;height:100%;width:'+pct+'%;border-radius:99px;background:linear-gradient(90deg,#b97a12,#f5a623)"></i></div>'
-    +'<div style="font-size:12px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums">'+(k?k.nbFiches:0)+' fiches · reste '+rest+' j ouvrés'+(ryt>0?' · '+ryt.toLocaleString('fr-FR')+' m²/j requis':'')+'</div></div>';
+    +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;margin-top:8px;font-variant-numeric:tabular-nums">'
+    +(function(){ try{ const d=new Date(); let done=0; for(let j=1;j<=d.getDate();j++){ const w=new Date(d.getFullYear(),d.getMonth(),j).getDay(); if(w>=1&&w<=5) done++; } const tot=done+rest-(function(){const w=d.getDay();return (w>=1&&w<=5)?1:0;})(); if(m2>0&&done>0&&tot>done){ const prev=Math.round(m2/done*tot); return '<span>📈 à ce rythme : <b>~'+prev.toLocaleString('fr-FR')+' m²</b> fin de mois</span>'; } }catch(e){} return ''; })()
+    +(function(){ try{ const d=new Date(); const ym1=(d.getFullYear()-1)+'-'+String(d.getMonth()+1).padStart(2,'0'); const k1=buildMonthlyKpi(ym1,fichesCache,tempsCache); if(k1&&k1.m2>0&&m2>0){ const dd=Math.round((m2-k1.m2)/k1.m2*100); return '<span>vs '+monthLabelFr(ym1).toLowerCase()+' : <b style="color:'+(dd>=0?'#4ade80':'#fca5a5')+'">'+(dd>=0?'+':'')+dd+' %</b></span>'; } }catch(e){} return ''; })()
+    +'<span style="margin-left:auto;color:var(--muted)">'+(k?k.nbFiches:0)+' fiches · reste '+rest+' j ouvrés'+(ryt>0?' · '+ryt.toLocaleString('fr-FR')+' m²/j requis':'')+'</span></div></div>';
 }
 function _l463Prod6m(liveKpi){
   const cur=currentMonthYM(), months=prevMonthsYM(6).reverse(), byM={};
@@ -16808,10 +16811,10 @@ function _l463Machines(k){
   const cards=['FEBA','MAVEG','CEVENINI'].map(function(m){
     const d=k.machines[m]||{}; const bob=d.bobines||0;
     const perte=(d.pertePct!=null&&!isNaN(d.pertePct))?d.pertePct:((d.wpDen>0)?+(d.wpNum/d.wpDen).toFixed(1):null);
-    const row=function(l,v){ return '<div style="display:flex;justify-content:space-between;gap:6px;font-size:11.5px;color:var(--muted);margin-top:5px"><span>'+l+'</span><b style="color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums">'+v+'</b></div>'; };
-    return '<div style="flex:1;min-width:0;background:var(--card);border:1px solid var(--border2);border-left:3px solid '+C[m]+';border-radius:12px;padding:11px 13px">'
-      +'<div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:'+C[m]+'">⚙ '+m+'</div>'
-      +'<div style="font-size:19px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums">'+bob.toLocaleString('fr-FR')+' <span style="font-size:10.5px;font-weight:600;color:var(--muted)">bobines</span></div>'
+    const row=function(l,v){ return '<div style="display:flex;justify-content:space-between;gap:6px;font-size:10.5px;color:var(--muted);margin-top:3px"><span>'+l+'</span><b style="color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums">'+v+'</b></div>'; };
+    return '<div style="flex:1;min-width:0;background:var(--card);border:1px solid var(--border2);border-left:3px solid '+C[m]+';border-radius:10px;padding:7px 11px">'
+      +'<div style="font-size:10px;font-weight:800;letter-spacing:.07em;color:'+C[m]+'">⚙ '+m+'</div>'
+      +'<div style="font-size:15px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums">'+bob.toLocaleString('fr-FR')+' <span style="font-size:10px;font-weight:600;color:var(--muted)">bobines</span></div>'
       +row('perte',(perte!=null?String(perte).replace('.',',')+' %':'—'))
       +row('NC',(nc[m]||0)+' bobine'+((nc[m]||0)>1?'s':''))
       +'</div>';
@@ -16834,15 +16837,11 @@ function _l463PerteClients(liveKpi){
     left='<div><div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">% perte matière — 6 mois</div>'
       +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;margin-top:4px"><path d="'+path+'" fill="none" stroke="#2fb85f" stroke-width="2.2" stroke-linecap="round"/>'+dots+lab+'</svg></div>';
   }
-  let right='';
-  const tc=(liveKpi&&liveKpi.topClientsM2&&liveKpi.topClientsM2.length)?liveKpi.topClientsM2:null;
-  if(tc){
-    const mx=tc[0].v||1;
-    right='<div><div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Top clients du mois (m²)</div>'
-      +tc.map(function(e){ let nm=e.k; try{ const cut=nm.search(/\s+pour\s+le\s+/i); if(cut>2) nm=nm.slice(0,cut); }catch(_){ } return '<div style="padding:4px 0"><div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nm)+'</span><b style="font-variant-numeric:tabular-nums;color:var(--muted)">'+e.v.toLocaleString('fr-FR')+'</b></div><div style="height:4px;border-radius:99px;background:#f5a623;opacity:.7;width:'+Math.max(4,Math.round(e.v/mx*100))+'%"></div></div>'; }).join('')+'</div>';
-  }
-  if(!left&&!right) return '';
-  return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px;display:grid;grid-template-columns:'+(left&&right?'1.05fr 1fr':'1fr')+';gap:22px">'+left+right+'</div>';
+  /* [L465 · retour Esteban] top clients RETIRE (deja dans KPI mensuels > TOP VOLUMES). m² de perte reels en tete. */
+  if(!left) return '';
+  let head='';
+  try{ if(liveKpi&&liveKpi.m2>0&&liveKpi.pertePct>0){ const pm2=Math.round(liveKpi.m2*liveKpi.pertePct/100); head='<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 4px"><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">≈ '+pm2.toLocaleString('fr-FR')+' m²</span><span style="color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums">ce mois · '+String(liveKpi.pertePct).replace('.',',')+' %</span></div>'; } }catch(e){}
+  return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px">'+head+left+'</div>';
 }
 function _l463OpChart(valid){
   // temps par BOBINE (duree/nbBobines) selon la LAIZE de la ref (t.largeur) — mediane par tranche de 100 mm, par operateur.
@@ -16904,7 +16903,7 @@ function renderAnalyse(partial){
   const valid=fTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
   const _filtered=_anaFiltered();
   let _liveKpi63=null; try{ _liveKpi63=buildMonthlyKpi(currentMonthYM(),fichesCache,tempsCache); }catch(e){}   /* [L463] KPI live du mois pour objectif + courbe + machines */
-  const chartsHTML=_l463OpChart(valid)||_anaChartsHTML(valid,_filtered);   /* [L463] courbe operateurs x laize INTERACTIVE en tete ; repli sur l'ancien rendu si pas assez de donnees */
+  const chartsHTML=_anaChartsHTML(valid,_filtered);   /* [L463 → L465 retour Esteban] les graphiques HISTORIQUES reviennent tels quels (« pareil que ce qu'on avait avant ») — _l463OpChart reste en code, plus appele */
   const faHTML=buildFicheAnalytics();
   // [L249 · R4a] RENDU PARTIEL PAR ZONES : un clic de filtre ne reconstruit que la barre, les graphiques
   // et les blocs NC. Débit (saisies estimateur), KPI mensuels, Tendances et Pilotage ne bougent PAS —
@@ -16928,11 +16927,11 @@ function renderAnalyse(partial){
     ${_l463Prod6m(_liveKpi63)}
     ${_l463Machines(_liveKpi63)}
     ${_l463PerteClients(_liveKpi63)}
+    ${_anaFold('kpi','📋 KPI mensuels — le mois tient-il ses objectifs ? (ISO · CSV · impression)','<div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">'+scopeNote+buildKpiMoisBlock()+'</div>',false)}
     <div id="zoneFbar">${_fbar}</div>
     ${_anaFold('prod','📈 Productivité — chaque opérateur progresse-t-il ? Quelle machine décroche ?','<div id="zoneCharts" style="display:flex;flex-direction:column;gap:20px">'+chartsHTML+'</div>',true)}
     ${_anaFold('qual','🥧 Qualité — quel défaut revient ? Qui accompagner ? Quelle machine régler ?','<div id="zoneFa" style="display:flex;flex-direction:column;gap:20px">'+faHTML+'</div>',true)}
     <!-- [L461 · maquette validee] « Combien de temps prendra une commande ? » (Debit) RETIRE (« inutile ») -->
-    ${_anaFold('kpi','📋 KPI mensuels — le mois tient-il ses objectifs ? (ISO · CSV · impression)','<div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">'+scopeNote+buildKpiMoisBlock()+'</div>',false)}
     ${_anaFold('tend','📉 Tendances 12 mois — la trajectoire est-elle bonne ?','<div id="zoneTendances" style="display:flex;flex-direction:column;gap:8px">'+scopeNote+buildTendancesBlock()+'</div>',false)}
     ${(typeof canViewAudit==='function'&&canViewAudit())?`<div style="margin-top:14px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="switchTab('audit')">🔍 Ouvrir la piste d'audit ISO</button></div>`:''}
   </div>`);

@@ -1353,6 +1353,12 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L465 : cadrage final Analyse (retours + QCM) ──');
+has(/les graphiques HISTORIQUES reviennent tels quels/,'L465 : courbe op x laize revertee — anciens graphiques');
+has(/top clients RETIRE \(deja dans KPI mensuels/,'L465 : top clients retire (doublon KPI)');
+has(/à ce rythme : <b>~/,'L465 : prevision fin de mois dans le hero');
+has(/vs '\+monthLabelFr\(ym1\)/,'L465 : comparaison N-1 dans le hero');
+
 console.log('── L464 : retours Esteban sur L463 ──');
 has(/#tabContentAnalyse>details\{order:10\}/,'L464 : Releves de temps + Registre NC EN BAS de l Analyse (ordre flex)');
 has(/#tabContentAnalyse\.hidden\{display:none!important\}/,'L464 : garde .hidden malgre le display:flex inline');
