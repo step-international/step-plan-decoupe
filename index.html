@@ -3281,7 +3281,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L481';
+const APP_VERSION='2026.08.29-L482';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -13984,7 +13984,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   const MACH=MACHINE_LABELS;
   const mach={};MACH.forEach(m=>mach[m]={bobines:0,wpNum:0,wpDen:0,dur:0,laizes:0});
   let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0,soldeMm=0,chutesPieces=0;   // [L83 · Audit #44][L98 · #13]
-  let m2Total=0; const cliM2={}; let perteM2=0, dechetM2=0;   /* [L477 · regles actees Esteban 29/08] PERTE = totale − client − chutes gardees (m² via % plan) ; DECHET = bobineaux NC jetes ENTIERS (ncLoss, m²) — jamais de %, que des m² */   /* [L463 · maquette Analyse] m² coupes du mois : Σ mere/1000 × ml × bobines coupees (convention stock l.17355) — mois figes anciens sans ce champ = trou, jamais un faux 0 (design L247) */
+  let m2Total=0; const cliM2={}; let perteM2=0, dechetM2=0, chuteM2=0;   /* [L482 · diagramme matiere] CHUTE GARDEE du mois en m² (solde conserve + NC mises en ✂ Chutes) — 3e famille actee, disjointe de perte (pertePct EXCLUT la chute stock, computePlanAggregate etape 2) et de dechet (actDechet seul) */   /* [L477 · regles actees Esteban 29/08] PERTE = totale − client − chutes gardees (m² via % plan) ; DECHET = bobineaux NC jetes ENTIERS (ncLoss, m²) — jamais de %, que des m² */   /* [L463 · maquette Analyse] m² coupes du mois : Σ mere/1000 × ml × bobines coupees (convention stock l.17355) — mois figes anciens sans ce champ = trou, jamais un faux 0 (design L247) */
   // [L247 · R3] QUALITÉ + PONCTUALITÉ + ÉCARTS — nouveaux champs DANS l'agrégat (collection 'agregats'
   // inchangée, rules isManage sans whitelist → zéro impact règles). Mois FIGÉS avant cette version :
   // champs absents → l'écran affiche « — » (JAMAIS 0) ; complétés uniquement via « ♻ Recalculer ».
@@ -14050,6 +14050,9 @@ function buildMonthlyKpi(ym,fiches,temps){
     }catch(_){ }
     try{ const _d63=m2Total-_m2f0; if(_d63>0){ (cliM2[c]=cliM2[c]||0); cliM2[c]+=_d63; if(!isNaN(p63)) perteM2+=_edg80+Math.max(0,_d63-_edg80)*p63/100; } }catch(_){ }   /* [L463 top clients · L479 : p63 (pas p) — manque-matière : _d63 est déjà restreint aux bobines COUPÉES (_keep63), le % plan s'y applique ; p=NaN ne doit trouer que la moyenne, pas la somme · L480 · fix audit] perte m² = BORDS m² (toujours rognes — regle actee « bords inclus », meme doctrine que computePerteChute) + m² UTILES × % plan. Le % archive (pertePct) est en base UTILE (mere−bords) : l'ancien « m² mere × % » excluait les bords ET melangeait les bases (p63=0 valide compte desormais les bords seuls). */
     const gs=f.groups||[]; if(gs.length) soldeMm+=parseNum(gs[gs.length-1].waste)||0;   // [L98 · #13] chute RÉUTILISABLE (solde conservé)
+    try{ if(gs.length){ const _w82=parseNum(gs[gs.length-1].waste)||0; let _lg82=parseNum(f.longueur)||0;
+      if(!(_lg82>0)&&Array.isArray(f.refGroups)&&f.refGroups.length) _lg82=parseNum(f.refGroups[f.refGroups.length-1].longueur)||0;   /* multi-réf sans f.longueur : le solde est épinglé en dernier → longueur de la dernière réf */
+      if(_w82>0&&_lg82>0) chuteM2+=_w82/1000*_lg82; } }catch(_){ }   /* [L482] chute gardée m² = solde de la dernière bobine (même lecture que la fiche PDF L479 : groups[last].waste) × longueur */
     chutesPieces+=Object.values(f.chutesStock||{}).reduce((a2,b2)=>a2+(Number(b2)||0),0);   // [L98 · #13] bobineaux pris en stock
     // [L247 · R3] qualité par bobine (NC par type, ouvertes, délai de traitement fiche→clôture en jours)
     const _fin=_pDate(f.date);
@@ -14061,6 +14064,7 @@ function buildMonthlyKpi(ym,fiches,temps){
       if(f.manqueMatiere && fd.coupee!==true) return;
       qCtrl++;
       try{ if(fd.actDechet===true&&typeof ncLoss==='function'){ const _nl=ncLoss(f,fd); if(_nl&&_nl.m2>0) dechetM2+=_nl.m2; } }catch(_){ }   /* [L477] DECHET en m² · [L479 · audit] SEULS les bobineaux 🗑 Déchet comptent : une NC partie en ✂ Chutes = matière STOCKÉE (CHUTE, règle actée), pas un déchet — aligné sur le registre NC (sD, l.18332) et computePerteChute */
+      try{ if(fd.actChutes===true&&typeof ncLoss==='function'){ const _nl2=ncLoss(f,fd); if(_nl2&&_nl2.m2>0) chuteM2+=_nl2.m2; } }catch(_){ }   /* [L482] la NC partie en ✂ Chutes rejoint la CHUTE GARDEE du mois (matière stockée réutilisable, règle actée) */
       let _is=false;
       if(fd.ncLarg){qLarg++;_is=true;}
       if(fd.ncQty){qQty++;_is=true;}
@@ -14096,7 +14100,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0};});
   const topClientsM2=Object.entries(cliM2).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:Math.round(e[1])}));
-  return {mois:ym,nbFiches:F.length,totalBobines,m2:Math.round(m2Total),perteM2:Math.round(perteM2),dechetM2:Math.round(dechetM2*10)/10,topClientsM2,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13] · [L463] m2
+  return {mois:ym,nbFiches:F.length,totalBobines,m2:Math.round(m2Total),perteM2:Math.round(perteM2),dechetM2:Math.round(dechetM2*10)/10,chuteM2:Math.round(chuteM2*10)/10,topClientsM2,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13] · [L463] m2
     qual:{ctrl:qCtrl,nc:qNc,larg:qLarg,qty:qQty,casse:qCasse,ang:qAng,hum:qHum,ouv:qOuv,delaiMoy:qDelaiN?+(qDelaiSum/qDelaiN).toFixed(1):null},   // [L247 · R3]
     liv:{tot:livTot,ok:livOk},ecartsN};   // [L247 · R3]
 }
@@ -14205,7 +14209,7 @@ async function exportDashboardCsv(){
     const fLbl=_anaFiltered()?('filtre Analyse ACTIF : '+[analyseFilter.mach!=='ALL'?'machine '+analyseFilter.mach:'',analyseFilter.op!=='ALL'?'op '+analyseFilter.op:'',analyseFilter.month!=='ALL'?'mois '+analyseFilter.month:'',analyseFilter.client!=='ALL'?'client '+analyseFilter.client:''].filter(Boolean).join(' · ')+' (KPI/débit/pilotage ci-dessous = TOUT atelier, non filtrés)'):'aucun filtre actif';
     // ── Section 1 : KPI mensuels (agrégats figés + mois courant) ──
     rows.push('# --- KPI MENSUELS (mois figés + mois en cours) ---');
-    rows.push(['Mois','Statut','Fiches','Bobines','Perte %','Rendement %','m² coupés','Perte m²','Déchet m²','Temps (h)','Bob. NC','Bob. contrôlées','NC %','NC ouvertes','Délai NC (j)','Liv. à temps','Fiches datées','À temps %','Fiches en écart','Chute réut. (m)','Bobineaux stock','FEBA bob','FEBA perte %','FEBA s/laize','MAVEG bob','MAVEG perte %','MAVEG s/laize','CEVENINI bob','CEVENINI perte %','CEVENINI s/laize'].join(';'));
+    rows.push(['Mois','Statut','Fiches','Bobines','Perte %','Rendement %','m² coupés','Perte m²','Déchet m²','Chutes gardées m²','Temps (h)','Bob. NC','Bob. contrôlées','NC %','NC ouvertes','Délai NC (j)','Liv. à temps','Fiches datées','À temps %','Fiches en écart','Chute réut. (m)','Bobineaux stock','FEBA bob','FEBA perte %','FEBA s/laize','MAVEG bob','MAVEG perte %','MAVEG s/laize','CEVENINI bob','CEVENINI perte %','CEVENINI s/laize'].join(';'));
     const list=agregatsCache.slice().sort((a,b)=>a.mois<b.mois?-1:1);
     let liveKpi=null; try{ liveKpi=buildMonthlyKpi(cur,fichesCache,tempsCache); }catch(e){}
     const all=list.filter(a=>a.mois!==cur).concat(liveKpi?[liveKpi]:[]);
@@ -14213,7 +14217,7 @@ async function exportDashboardCsv(){
       const M=k.machines||{}, q=k.qual||null, lv=k.liv||null;
       const mrow=n=>{const d=M[n]||{};return [d.bobines||0,d.pertePct!=null?d.pertePct:'',d.secLaize||0];};
       rows.push([k.mois,(k.mois===cur?'EN COURS (live)':'figé'),k.nbFiches||0,k.totalBobines||0,k.pertePct!=null?k.pertePct:'',k.pertePct!=null?Math.round((100-k.pertePct)*10)/10:'',
-        (typeof k.m2==='number')?k.m2:'n/d',(typeof k.perteM2==='number')?k.perteM2:'n/d',(typeof k.dechetM2==='number')?k.dechetM2:'n/d',   /* [L480 · fix audit] m² à l'écran (règles actées) = m² dans le CSV — mois figés anciens sans ces champs → n/d (note existante l.14204) */
+        (typeof k.m2==='number')?k.m2:'n/d',(typeof k.perteM2==='number')?k.perteM2:'n/d',(typeof k.dechetM2==='number')?k.dechetM2:'n/d',(typeof k.chuteM2==='number')?k.chuteM2:'n/d',   /* [L480 · fix audit] m² à l'écran (règles actées) = m² dans le CSV — mois figés anciens sans ces champs → n/d (note existante l.14204) · [L482] + chutes gardées m² (même famille que le diagramme) */
         Math.round((k.tempsSec||0)/360)/10,
         q?q.nc:'n/d',q?q.ctrl:'n/d',(q&&q.ctrl)?Math.round(q.nc/q.ctrl*1000)/10:'n/d',q?q.ouv:'n/d',(q&&q.delaiMoy!=null)?q.delaiMoy:'n/d',
         lv?lv.ok:'n/d',lv?lv.tot:'n/d',(lv&&lv.tot)?Math.round(lv.ok/lv.tot*1000)/10:'n/d',
@@ -16930,40 +16934,64 @@ function _l463Machines(k){
   return '<div style="display:flex;gap:10px">'+cards+'</div>';
 }
 function _l463PerteClients(liveKpi){
+  /* [L482 · demande Esteban 28/08 « quelque chose d'ISO : les chiffres par mois, chutes et déchets séparés »]
+     La courbe perte seule devient un DIAGRAMME MENSUEL à barres groupées : PERTE / DÉCHET (NC) / CHUTES GARDÉES
+     en m², chiffre visible sur chaque barre, échelle, bulles au survol — mêmes gardes que la courbe production
+     (agrégat figé d'abord, calcul live seulement si le cache couvre le mois : L464/L474, jamais un chiffre menteur). */
   const cur=currentMonthYM(), months=prevMonthsYM(6).reverse(), byM={};
   try{ agregatsCache.forEach(function(a){ if(a&&a.mois) byM[a.mois]=a; }); }catch(e){}
-  /* [L477 · regles actees] courbe en M² de perte (plus de %) — agregat fige d abord, live gate historique complet */
   const pts=months.map(function(ym){
     const k=(ym===cur)?liveKpi:byM[ym];
-    let v=(k&&typeof k.perteM2==='number'&&k.perteM2>0)?k.perteM2:null;
-    if(v==null&&ym!==cur){ try{ const lk=buildMonthlyKpi(ym,fichesCache,tempsCache); if(lk&&lk.perteM2>0&&((k&&k.nbFiches>0)?lk.nbFiches===k.nbFiches:(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded))) v=lk.perteM2; }catch(e){} }
-    return {ym:ym,v:v};
+    let lk=null,lkOk=null;
+    const live=function(){ if(lkOk===null){ try{ lk=buildMonthlyKpi(ym,fichesCache,tempsCache); lkOk=!!(lk&&((k&&k.nbFiches>0)?lk.nbFiches===k.nbFiches:(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded))); }catch(e){ lkOk=false; } } return lkOk?lk:null; };   /* 1 seul calcul live par mois, partagé par les 3 familles */
+    const val=function(field){
+      let v=(k&&typeof k[field]==='number'&&k[field]>=0)?k[field]:null;   /* agrégat figé : un 0 archivé est un vrai 0 ; champ ABSENT (mois pré-L477/L482) = inconnu */
+      if(v==null&&ym!==cur){ const l2=live(); if(l2&&typeof l2[field]==='number'&&l2[field]>=0) v=l2[field]; }
+      return v;
+    };
+    return {ym:ym,perte:val('perteM2'),dechet:val('dechetM2'),chute:val('chuteM2')};
   });
-  const has=pts.filter(function(p){return p.v!=null;});
-  let left='';
-  if(has.length>=2){
-    const max=Math.max(1,Math.max.apply(null,has.map(function(p){return p.v;}))*1.25), W=340,H=150,L=30,B=118;
-    const x=function(i){ return L+i*(W-L-12)/(months.length-1); }, y=function(v){ return 12+(B-12)*(1-v/max); };
-    let path='',prev=null,dots='';
-    pts.forEach(function(p,i){ if(p.v==null){ prev=null; return; } const X=x(i),Y=y(p.v); path+=(prev==null?'M':'L')+X.toFixed(1)+','+Y.toFixed(1); prev=1;
-      dots+='<circle cx="'+X+'" cy="'+Y+'" r="'+(p.ym===cur?4.5:3)+'" fill="'+(p.ym===cur?'#2fb85f':'#141410')+'" stroke="#2fb85f" stroke-width="2"><title>'+monthLabelFr(p.ym)+' : '+p.v.toLocaleString('fr-FR')+' m²</title></circle>'; });
-    let lab=''; months.forEach(function(ym,i){ lab+='<text x="'+x(i)+'" y="'+(H-4)+'" text-anchor="middle" font-size="9.5" fill="#77786f">'+_l474MoisAbr(ym)+'</text>'; });
-    left='<div><div style="font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px">Perte — 6 mois (m²)</div>'
-      +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-width:560px;max-height:150px;height:auto;margin-top:2px"><path d="'+path+'" fill="none" stroke="#2fb85f" stroke-width="2.2" stroke-linecap="round"/>'+dots+lab+'</svg></div>';   /* [L480] la courbe ne s etire plus en geant (max 560x150) */
+  const SER=[{f:'perte',lbl:'Perte',c:'#f87171'},{f:'dechet',lbl:'Déchet (NC)',c:'#fb923c'},{f:'chute',lbl:'Chutes gardées',c:'#5eead4'}];
+  const has=pts.filter(function(p){ return p.perte!=null||p.dechet!=null||p.chute!=null; });
+  let chart='';
+  if(has.length){
+    let max=0; pts.forEach(function(p){ SER.forEach(function(s){ if(p[s.f]!=null&&p[s.f]>max) max=p[s.f]; }); }); max=max*1.18||1;
+    const W=720,H=214,TOP=18,B=176,slot=W/months.length,bw=24,gap=5,g3=bw*3+gap*2;
+    const y=function(v){ return TOP+(B-TOP)*(1-v/max); };
+    const fmtC=function(v){ return v>=1000?((v/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+'k'):String(Math.round(v)); };   /* chiffre compact SUR la barre — valeur exacte dans la bulle */
+    const fmtG=function(v){ return v>=1000?((v/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+' k m²'):(Math.round(v)+' m²'); };
+    let grid='';[0.33,0.66,1].forEach(function(fr){ const vv=max*fr/1.18, Y=y(vv); grid+='<line x1="14" y1="'+Y.toFixed(1)+'" x2="'+(W-14)+'" y2="'+Y.toFixed(1)+'" stroke="#20211C" stroke-width="1"/><text x="'+(W-16)+'" y="'+(Y-3).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#77786f">'+fmtG(vv)+'</text>'; });
+    let bars='',labels='';
+    pts.forEach(function(p,i){
+      const cx=slot*i+slot/2;
+      labels+='<text x="'+cx.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" font-weight="'+(p.ym===cur?'800':'400')+'" fill="'+(p.ym===cur?'#EAEBE5':'#77786f')+'">'+_l474MoisAbr(p.ym)+'</text>';
+      if(p.perte==null&&p.dechet==null&&p.chute==null){ labels+='<text x="'+cx.toFixed(1)+'" y="'+((TOP+B)/2).toFixed(1)+'" text-anchor="middle" font-size="10" fill="#4a4b45">—</text>'; return; }   /* mois non couvert : « — », JAMAIS un faux 0 */
+      SER.forEach(function(s,si){
+        const v=p[s.f]; if(v==null) return;
+        const X=cx-g3/2+si*(bw+gap), hgt=Math.max(v>0?2:0,B-y(v));
+        const tip=('<div style=&quot;color:#8b8d83;font-size:10.5px&quot;>'+monthLabelFr(p.ym)+' — '+s.lbl+'</div><b style=&quot;font-size:14px&quot;>'+(Math.round(v*10)/10).toLocaleString('fr-FR')+' m²</b>').replace(/'/g,'’');
+        bars+='<rect x="'+X.toFixed(1)+'" y="'+(B-hgt).toFixed(1)+'" width="'+bw+'" height="'+hgt.toFixed(1)+'" rx="2.5" fill="'+s.c+'" fill-opacity="'+(p.ym===cur?'1':'.62')+'" style="cursor:pointer" onmouseenter="_l468Tip(event,\''+tip+'\')" onmousemove="_l468Tip(event,\''+tip+'\')" onmouseleave="_l468TipHide()" onclick="_l468Tip(event,\''+tip+'\')"/>';
+        bars+='<text x="'+(X+bw/2).toFixed(1)+'" y="'+(B-hgt-4).toFixed(1)+'" text-anchor="middle" font-size="9.5" font-weight="800" fill="'+(p.ym===cur?'#EAEBE5':'#9c9d93')+'">'+fmtC(v)+'</text>';   /* [L468 doctrine] le chiffre TOUJOURS visible */
+      });
+    });
+    const leg=SER.map(function(s){ return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:var(--muted)"><span style="width:9px;height:9px;border-radius:2.5px;background:'+s.c+';display:inline-block"></span>'+s.lbl+'</span>'; }).join(' ');
+    chart='<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px"><div style="font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);flex:1">Matière — par mois (m²)</div>'+leg+'</div>'
+      +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:250px;height:auto;margin-top:2px">'+grid+bars+labels+'</svg>';
   }
-  /* [L465 → L477 regles actees] PERTE et DECHET en m² SANS % (Q7 : « pas de %, que des m² ») —
-     deux familles SEPAREES (le dechet NC n est ni une perte ni une chute). */
+  /* [L465 → L477 regles actees] PERTE / DÉCHET / CHUTES en m² SANS % (Q7 : « pas de %, que des m² ») —
+     trois familles SÉPARÉES et disjointes (le déchet NC n'est ni une perte ni une chute). */
   let head='';
   try{ if(liveKpi){
-    const pm2=(liveKpi.perteM2>0)?liveKpi.perteM2:0, dm2=(liveKpi.dechetM2>0)?liveKpi.dechetM2:0;
+    const pm2=(liveKpi.perteM2>0)?liveKpi.perteM2:0, dm2=(liveKpi.dechetM2>0)?liveKpi.dechetM2:0, cm2=(liveKpi.chuteM2>0)?liveKpi.chuteM2:0;
     head='<div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin:0 0 2px;font-size:13px">'
       +'<span class="ana-card-title" style="margin:0">🗑 Matière ce mois</span>'
       +'<span style="font-variant-numeric:tabular-nums"><b style="font-size:16px">'+pm2.toLocaleString('fr-FR')+' m²</b> <span style="color:var(--muted)">perte</span></span>'
       +'<span style="font-variant-numeric:tabular-nums"><b style="font-size:16px;color:'+(dm2>0?'#fca5a5':'var(--text)')+'">'+dm2.toLocaleString('fr-FR')+' m²</b> <span style="color:var(--muted)">déchet (NC)</span></span>'
-      +'</div>';   /* [L480 · retour Esteban « horrible »] une seule ligne discrete, plus de gros chiffres */
+      +'<span style="font-variant-numeric:tabular-nums"><b style="font-size:16px;color:'+(cm2>0?'#5eead4':'var(--text)')+'">'+cm2.toLocaleString('fr-FR')+' m²</b> <span style="color:var(--muted)">✂ chutes gardées</span></span>'
+      +'</div>';   /* [L480 · retour Esteban « horrible »] une seule ligne discrete, plus de gros chiffres · [L482] + chutes gardées : la taxonomie complète d'un coup d'œil */
   } }catch(e){}
-  if(!left&&!head) return '';
-  return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px">'+head+left+'</div>';
+  if(!chart&&!head) return '';
+  return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px">'+head+chart+'</div>';
 }
 function _l463OpChart(valid){
   // temps par BOBINE (duree/nbBobines) selon la LAIZE de la ref (t.largeur) — mediane par tranche de 100 mm, par operateur.

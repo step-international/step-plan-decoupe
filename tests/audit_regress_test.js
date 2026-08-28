@@ -1370,11 +1370,22 @@ has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la
 has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
 has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
 
+console.log('── L482 : diagramme matiere mensuel ISO (perte / dechet / chutes separes) ──');
+has(/chuteM2=0;/,'L482 : accumulateur chuteM2 dans buildMonthlyKpi');
+has(/chuteM2:Math\.round\(chuteM2\*10\)\/10/,'L482 : chuteM2 dans le retour du KPI mensuel (voyage dans les agregats figes)');
+has(/fd\.actChutes===true&&typeof ncLoss/,'L482 : NC partie en ✂ Chutes comptee en CHUTE gardee (matiere stockee)');
+has(/groups\[last\]\.waste\) × longueur|meme lecture que la fiche PDF L479/,'L482 : chute gardee m² = solde derniere bobine × longueur (coherence PDF)');
+has(/{f:'perte',lbl:'Perte',c:'#f87171'}/,'L482 : serie Perte du diagramme');
+has(/{f:'chute',lbl:'Chutes gardées',c:'#5eead4'}/,'L482 : serie Chutes gardees du diagramme');
+has(/✂ chutes gardées<\/span>/,'L482 : chutes gardees du mois dans la ligne de tete');
+has(/'Chutes gardées m²'/,'L482 : colonne Chutes gardees m² dans le CSV mensuel');
+has(/JAMAIS un faux 0/,'L482 : mois non couvert affiche « — », jamais un faux zero');
+
 console.log('── L477 : regles pertes/dechets/chutes ACTEES (mail Esteban 29/08) ──');
 has(/PERTE = totale − client − chutes gardees/,'L477 : perteM2 + dechetM2 dans buildMonthlyKpi');
 has(/fd\.actDechet===true&&typeof ncLoss/,'L477→L479 : dechet = ncLoss des SEULS bobineaux 🗑 Dechet (NC en chutes = matiere stockee)');
 has(/déchet \(NC\)<\/span>/,'L477→L480 : carte matiere Perte + Dechet en m² SANS % (ligne compacte)');
-has(/Perte — 6 mois \(m²\)/,'L477→L480 : courbe perte en m² bornee (plus de %)');
+has(/Matière — par mois \(m²\)/,'L477→L480→L482 : la courbe perte seule est devenue le diagramme mensuel (supersede L482)');
 
 console.log('── L475 : chrono discret + HUD regroupe ──');
 has(/#ficheRail #chronoStatus\{display:none\}/,'L475 : texte long du chrono masque en paysage');
