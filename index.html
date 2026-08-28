@@ -1930,7 +1930,6 @@ html.theme-light .hint-cut::after{box-shadow:0 2px 8px rgba(255,255,255,.5)}
    qu'elle est prise ; (2) onglet Stock retiré de Données (masqué, contenu conservé) ; (3) bulle 💬 signalement bleue, plus
    grosse, toujours pleinement visible.
    ============================================================ */
-#tabStock,#tabContentStock{display:none!important}
 #reportBubble{width:60px!important;height:60px!important;opacity:1!important;background:#1e3a5f!important;border:2px solid var(--feba)!important;color:#fff!important;font-size:26px;box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 0 4px rgba(79,157,242,.18)}
 #reportBubble:hover{background:#254878!important}
 #etiqPhotoZone img{width:48px!important;height:48px!important;border:2px solid var(--green)!important;border-radius:9px!important;box-shadow:0 0 0 2px rgba(69,201,123,.25)}
@@ -2850,13 +2849,11 @@ html.theme-light .fp-num small{color:#8a8a84}
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
     <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] admin/pilotage -->
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
-    <button class="tab-btn" id="tabStock" onclick="switchTab('stock')" style="display:none">📦 Stock</button>
     <!-- [L65] « Piste d'audit » retiré de l'écran (journal toujours ÉCRIT dans Firestore — ISO). -->
   </div>
   <!-- [L222 · ergo #2] « 📥 Charger l'historique complet » déplacé dans la rangée d'actions de l'onglet Sauvegardes (ligne unique, zone moins dispersée — demande Esteban) -->
 
   <!-- ONGLET STOCK (ER uniquement) -->
-  <div id="tabContentStock" class="hidden"></div>
 
   <!-- ONGLET PISTE D'AUDIT (admin uniquement) -->
   <div id="tabContentAudit" class="hidden"></div>
@@ -3250,7 +3247,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L469';
+const APP_VERSION='2026.08.29-L470';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3870,7 +3867,7 @@ async function loadFirestoreData(){
 async function backfillDeleted(){
   if(!db) return;
   try{
-    const cols=['saves','temps','fiches','stockArticles','stockMouvements','maintenance'];
+    const cols=['saves','temps','fiches','maintenance'];   /* [L470] stock supprime */
     const PAGE=1000;
     let total=0, complete=true;
     for(const col of cols){
@@ -3916,15 +3913,13 @@ async function loadCorbeille(silent){
       db.collection('saves').where('deleted','==',true).limit(500).get(),
       db.collection('temps').where('deleted','==',true).limit(500).get(),
       db.collection('fiches').where('deleted','==',true).limit(500).get(),
-      db.collection('maintenance').where('deleted','==',true).limit(500).get(),
-      db.collection('stockArticles').where('deleted','==',true).limit(500).get()
-    ]);
+      db.collection('maintenance').where('deleted','==',true).limit(500).get()
+    ]);   /* [L470 · demande Esteban confirmee x3] module Stock SUPPRIME : la corbeille ne scanne plus stockArticles */
     corbeilleCache=[
       ...r[0].docs.map(d=>Object.assign({_id:d.id,_col:'saves'},d.data())),
       ...r[1].docs.map(d=>Object.assign({_id:d.id,_col:'temps'},d.data())),
       ...r[2].docs.map(d=>Object.assign({_id:d.id,_col:'fiches'},d.data())),
-      ...r[3].docs.map(d=>Object.assign({_id:d.id,_col:'maintenance'},d.data())),
-      ...r[4].docs.map(d=>Object.assign({_id:d.id,_col:'stockArticles'},d.data()))
+      ...r[3].docs.map(d=>Object.assign({_id:d.id,_col:'maintenance'},d.data()))
     ];
     await purgeExpiredItems();
     if(!silent) renderCorbeille();
@@ -4261,7 +4256,6 @@ function applyRole(){
   try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){}   // [L340 · fix audit] les initiales posées au login (sans événement) remontent sur la rangée de pastilles
   { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
   { const _tp=document.getElementById('tabPlanning'); if(_tp) _tp.style.display=''; }   // [L112 · ÉTAPE 2] Planning visible par tous (atelier = lecture seule)
-  document.getElementById('tabStock').style.display=canViewStock()?'':'none';
   { const _ta=document.getElementById('tabAudit'); if(_ta) _ta.style.display=canViewAudit()?'':'none'; }   // [L65] onglet retiré du HTML — garde de survie si réintroduit
   document.getElementById('tabMaintenance').style.display=canAccessMaintenance()?'':'none';
   const vEl=document.getElementById('verTag'); if(vEl) vEl.textContent='v'+APP_VERSION;
@@ -4269,7 +4263,7 @@ function applyRole(){
   // Si l'onglet actif n'est plus autorisé, rebascule sur Plans
   const active=document.querySelector('.tab-btn.active');
   if(active){
-    if((active.id==='tabFiches'&&currentRole==='operateur')||(active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabStock'&&!canViewStock())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
+    if((active.id==='tabFiches'&&currentRole==='operateur')||(active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){

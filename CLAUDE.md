@@ -76,3 +76,5 @@ les fichiers des deux machines ne se recouvrent pas.
 - Un test échoue, un comportement surprend, une demande touche le moteur / le papier / Firebase → **NE POUSSE PAS**. Explique simplement le problème et propose d'appeler Esteban.
 - **Revenir en arrière** (urgence) : `git revert <commit fautif>` puis la checklist ci-dessus (jamais de `reset --hard` forcé sur le remote).
 - Une seule demande à la fois ; après chaque mise en ligne, dire à l'utilisateur de recharger la page pour vérifier.
+
+- **Module Stock SUPPRIME (L470, 29/08/2026, demande Esteban x3)** : bouton + panneau retires du DOM, corbeille sans stockArticles/stockMouvements. Les FONCTIONS stock (bkRunImport, loadStock, stockLocTotal...) restent en code DORMANT pour que bk18_test reste vert — ne pas les rebrancher sans demande explicite.

@@ -825,7 +825,7 @@ has(/#ficheRail>#shareBlock>#shareBtn\{display:none\}/,'L349 : PARTAGER hors du 
 has(/hb\.classList\.add\('rail-hide'\)/,'L349 : 🙈/👁 coupées déplacé dans le rail en paysage (retour dans #chgBtnRow en portrait)');
 
 console.log('── L350 : retours Esteban n°4 (18/08) ──');
-has(/#tabStock,#tabContentStock\{display:none!important\}/,'L350 : onglet Stock retiré de Données (masqué, contenu conservé)');
+absent(/id="tabStock"/,'L350 → L470 : onglet Stock d abord masque (L350) puis SUPPRIME du DOM (L470, demande Esteban)');
 has(/#reportBubble\{width:60px!important;height:60px!important;opacity:1!important;background:#1e3a5f!important/,'L350 : bulle 💬 bleue, 60px, pleinement visible');
 has(/#etiqPhotoZone img\{width:48px!important;height:48px!important;border:2px solid var\(--green\)!important/,'L350 : vignette photo d étiquette 48px liseré vert dès la prise');
 has(/#outilsFicheDlg \.outils-chg\{display:none\}/,'L350 : entrée 🔧 Changements retirée du tiroir en paysage (bouton du rail)');
@@ -1352,6 +1352,11 @@ console.log('── L436 : finitions (inventaire du 26/08) ──');
 has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque partout (partage abandonne)');
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
+
+console.log('── L470 : module Stock supprime ──');
+absent(/id="tabStock"/,'L470 : bouton onglet Stock retire du DOM');
+absent(/id="tabContentStock"/,'L470 : panneau Stock retire du DOM');
+has(/la corbeille ne scanne plus stockArticles/,'L470 : corbeille sans stock (fonctions dormantes conservees, test B+K intact)');
 
 console.log('── L469 : deux blocs retires ──');
 absent(/\{_l463Machines\(_liveKpi63\)\}/,'L469 : rangee cartes machines retiree du rendu (PAR MACHINE vit dans KPI)');
