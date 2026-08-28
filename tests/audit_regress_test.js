@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L466-L467 : mandrins DQ1002 ──');
+has(/45:\{c:"0453",k:5/,'L466 : mandrin 45 mm DQ1002 imprime');
+has(/SIB=\{'41319526':'41319051','41319051':'41319526'\}/,'L467 : repli mandrin entre DQ1002 imprime et transparent (meme laize = meme mandrin)');
+
 console.log('── L465 : cadrage final Analyse (retours + QCM) ──');
 has(/les graphiques HISTORIQUES reviennent tels quels/,'L465 : courbe op x laize revertee — anciens graphiques');
 has(/top clients RETIRE \(deja dans KPI mensuels/,'L465 : top clients retire (doublon KPI)');
@@ -1364,7 +1368,7 @@ has(/#tabContentAnalyse>details\{order:10\}/,'L464 : Releves de temps + Registre
 has(/#tabContentAnalyse\.hidden\{display:none!important\}/,'L464 : garde .hidden malgre le display:flex inline');
 has(/On calcule\n       le m² des mois passes EN LIVE/,'L464 : courbe 6 mois remplie en live (garde nbFiches vs agregat)');
 has(/une carte geante pour 1 point : non/,'L464 : bloc courbe masque sous 2 points');
-has(/45:\{c:"0453",k:5/,'L466 : mandrin 45 mm DQ1002 imprime (0453 — dictee 44, commande reelle 45)');
+
 
 console.log('── L463 : Analyse maquette complete ──');
 has(/function _l463ObjectifBlock/,'L463 : bloc objectif m² du mois (jauge + cible partagee)');
