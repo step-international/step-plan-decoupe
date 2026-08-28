@@ -1410,7 +1410,7 @@ has(/SIB_OK=\{'41319526':\{26:1,44:1,61:1,63:1,66:1,86:1\}\}/,'L467→L474 : rep
 
 console.log('── L465 : cadrage final Analyse (retours + QCM) ──');
 has(/les graphiques HISTORIQUES reviennent tels quels/,'L465 : courbe op x laize revertee — anciens graphiques');
-has(/top clients RETIRE \(deja dans KPI mensuels/,'L465 : top clients retire (doublon KPI)');
+has(/L465 → L477 regles actees/,'L465→L477 : top clients retire, carte matiere recablee sur les regles actees');
 has(/à ce rythme : <b>~/,'L465 : prevision fin de mois dans le hero');
 has(/vs '\+monthLabelFr\(ym1\)/,'L465 : comparaison N-1 dans le hero');
 
