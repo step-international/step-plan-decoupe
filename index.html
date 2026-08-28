@@ -2879,6 +2879,7 @@ html.theme-light .fp-num small{color:#8a8a84}
     <!-- [L223 · ergo #13] onglet « ⚠ Registre NC » fusionné dans 📈 Analyse (bloc repliable ncBox) -->
     <button class="tab-btn" id="tabAnalyse" onclick="switchTab('analyse')">📈 Analyse</button>
     <button class="tab-btn" id="tabPlanning" onclick="switchTab('planning')">📅 Planning</button><!-- [L111 · ÉTAPE 1] admin/pilotage -->
+    <button class="tab-btn" id="tabClients" onclick="switchTab('clients')" style="display:none">👥 Clients</button><!-- [L486] clients + emballages partages (pilotage/admin) -->
     <button class="tab-btn" id="tabCorbeille" onclick="switchTab('corbeille')" style="display:none">🗑 Corbeille</button>
     <!-- [L65] « Piste d'audit » retiré de l'écran (journal toujours ÉCRIT dans Firestore — ISO). -->
   </div>
@@ -2887,6 +2888,7 @@ html.theme-light .fp-num small{color:#8a8a84}
   <!-- ONGLET STOCK (ER uniquement) -->
 
   <!-- ONGLET PISTE D'AUDIT (admin uniquement) -->
+  <div id="tabContentClients" class="hidden"></div><!-- [L486] -->
   <div id="tabContentAudit" class="hidden"></div>
 
   <!-- ONGLET ÉTALONNAGE & MAINTENANCE (admin + pilotage) -->
@@ -3278,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L485';
+const APP_VERSION='2026.08.29-L486';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4283,6 +4285,7 @@ function applyRole(){
     _tA.textContent=canViewAnalyse()?'📈 Analyse':'⏱ Temps'; }
   _applyAnalyseScope();
   document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
+  { const _tc=document.getElementById('tabClients'); if(_tc) _tc.style.display=canManageData()?'':'none'; }   // [L486]
   { const _ncb=document.getElementById('ncBox'); if(_ncb) _ncb.style.display=canManageData()?'':'none'; }   // [L223 · ergo #13] le Registre NC (bloc dans Analyse) reste réservé pilotage/admin
   try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){}   // [L340 · fix audit] les initiales posées au login (sans événement) remontent sur la rangée de pastilles
   { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
@@ -4399,7 +4402,8 @@ document.addEventListener('keydown',function(e){
         currentRole=profile.role;
         currentUser=Object.assign({}, profile);
         applyRole();
-        try{ _l380CheckEnabled(); }catch(e){}   // [L381 · fix audit n°4] l'interrupteur assistant se relit à CHAQUE auth (le check du boot pouvait tomber avant la connexion → permission-denied avalé = assistant muet toute la session)
+        try{ _l380CheckEnabled(); }catch(e){}
+        try{ _l486LoadClients(); }catch(e){}   // [L486] clients + regles d emballage partages (Firestore, repli graines embarquees)   // [L381 · fix audit n°4] l'interrupteur assistant se relit à CHAQUE auth (le check du boot pouvait tomber avant la connexion → permission-denied avalé = assistant muet toute la session)
         // Rafraîchir le token App Check AVANT de charger les données, pour éviter
         // un token reCAPTCHA périmé qui ferait échouer les écritures Firestore/Storage.
         await refreshAppCheckToken();
@@ -4488,7 +4492,12 @@ document.addEventListener('keydown',function(e){
 // ============================================================
 // DONNÉES CLIENTS — extraites de l'Excel STEP International
 // ============================================================
-const CLIENT_DATA = {
+/* [L486 · backlog #43] CLIENT_DATA et PKG_CLIENTS sont des GRAINES embarquees : elles restent la
+   verite au 1er lancement et le repli permanent si Firestore est muet. Au demarrage, _l486LoadClients()
+   les REMPLACE par le doc config/clients quand il existe et qu il est valide — ajouter un client ne
+   demande donc plus de republier l app. `var` (et non `const`) pour permettre cette reassignation. */
+var CLIENT_DATA_SEED=null, PKG_CLIENTS_SEED=null;
+var CLIENT_DATA = {
   "Mtechnologie": [{ref:"GHX173A",largeur:1290,longueur:1000}],   // [L280 · demande Esteban 29/07]
   "Best Aluminium": [{ref:"TacFlex® DH1006 micro perf",largeur:2200,longueur:1000}],
   "ACCOPLAST": [{ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600}],
@@ -4864,6 +4873,62 @@ var PKG_CLIENTS={
 
 // [L410 · demande Esteban] LA resolution packaging, partagee A/B/C/D : cle exacte, sinon
 // inclusion bidirectionnelle normalisee (« PRIMA pour le 25 06 26 » -> regle PRIMA), sinon null.
+/* ============================================================
+   [L486 · backlog #43] CLIENTS & EMBALLAGES PARTAGES (doc unique config/clients)
+   Avant : chaque nouveau client obligeait a rouvrir le code et republier l app.
+   Maintenant : le doc Firestore config/clients {clientData, pkgClients} prend le pas
+   sur les graines embarquees. Regles de surete :
+   · les GRAINES restent en memoire (CLIENT_DATA_SEED / PKG_CLIENTS_SEED) : un doc vide,
+     malforme ou une lecture qui echoue ne peut JAMAIS vider la liste des clients ;
+   · un cache localStorage sert au demarrage hors-ligne (l atelier coupe sans reseau) ;
+   · l ecriture est reservee aux comptes qui gerent les donnees, et la regle Firestore
+     `config` en ecriture est aujourd hui isAdmin() : un compte pilotage recoit un toast
+     explicite plutot qu un echec muet (meme pattern que la cible m² L463).
+   ============================================================ */
+var _l486Loaded=false;
+function _l486Valid(o,minKeys){ try{ return !!o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length>=(minKeys||1); }catch(_){ return false; } }
+function _l486Apply(d,src){
+  var n=0;
+  try{ if(_l486Valid(d&&d.clientData)){ CLIENT_DATA=d.clientData; n++; } }catch(_){ }
+  try{ if(_l486Valid(d&&d.pkgClients)){ PKG_CLIENTS=d.pkgClients; n++; } }catch(_){ }
+  if(n){ _l486Loaded=true; try{ if(typeof _l370RecentClients==='function') _l370RecentClients(); }catch(_){ }
+    try{ console.log('[L486] clients/emballages charges depuis '+src+' — '+Object.keys(CLIENT_DATA).length+' clients, '+Object.keys(PKG_CLIENTS).length+' regles'); }catch(_){ } }
+  return n;
+}
+function _l486LoadClients(){
+  try{ if(!CLIENT_DATA_SEED){ CLIENT_DATA_SEED=CLIENT_DATA; PKG_CLIENTS_SEED=PKG_CLIENTS; } }catch(_){ }
+  try{ var c=localStorage.getItem('step_clients_v1'); if(c) _l486Apply(JSON.parse(c),'cache local'); }catch(_){ }   /* demarrage hors-ligne : on repart du dernier etat connu */
+  try{
+    if(!db) return;
+    db.collection('config').doc('clients').get().then(function(doc){
+      if(!doc.exists||!doc.data()) return;   /* pas encore publie : les graines restent la verite */
+      if(_l486Apply(doc.data(),'Firestore')){
+        try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
+      }
+    }).catch(function(e){ try{ console.warn('[L486] lecture config/clients impossible — graines embarquees conservees',e); }catch(_){ } });
+  }catch(_){ }
+}
+/* Publie l etat COURANT (graines eventuellement deja remplacees) dans Firestore : c est le geste
+   qui fait passer l app du code au partage. Idempotent, tracé dans la piste d audit ISO. */
+async function _l486Publish(btn){
+  if(typeof canManageData==='function'&&!canManageData()){ showToast('🔒 Reserve pilotage/admin.','err'); return; }
+  if(!db){ showToast('Base indisponible — reconnecte le reseau puis recharge la page.','err'); return; }
+  var nC=Object.keys(CLIENT_DATA||{}).length, nP=Object.keys(PKG_CLIENTS||{}).length;
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Publier la liste actuelle a TOUS les postes ?\n\n· '+nC+' client(s) avec leurs references\n· '+nP+' regle(s) d emballage\n\nChaque tablette la recevra a son prochain demarrage.',{ok:'Publier'}))) return;
+  if(btn) btn.disabled=true;
+  try{
+    await db.collection('config').doc('clients').set({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS,
+      updatedAt:isoNow(),updatedBy:(currentUser&&currentUser.ini)||'?'},{merge:false});
+    try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
+    try{ await logAudit('edit','config','clients','Publication clients/emballages : '+nC+' client(s), '+nP+' regle(s)'); }catch(_){ }
+    showToast('✔ Publie : '+nC+' client(s), '+nP+' regle(s) d emballage.','ok');
+  }catch(e){
+    var m=String((e&&e.code)||(e&&e.message)||e);
+    if(m.indexOf('permission')>=0) showToast('🔒 Ecriture refusee : la regle Firestore « config » est reservee a l admin. A elargir en console (match /config/{id} : allow write si pilotage).','err');
+    else showToast('Publication impossible : '+m,'err');
+  }
+  finally{ if(btn) btn.disabled=false; }
+}
 function _l410PkgResolve(nom){ try{
   if(typeof PKG_CLIENTS==='undefined') return null;
   if(PKG_CLIENTS[nom]) return PKG_CLIENTS[nom];
@@ -6464,9 +6529,10 @@ function switchTab(tab){
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
   if(tab==='stock'&&!canViewStock()) tab='saves';
   if(tab==='audit'&&!canViewAudit()) tab='saves';
+  if(tab==='clients'&&!canManageData()) tab='saves';   // [L486] edition du referentiel = bureau
   if(tab==='maintenance'&&!canAccessMaintenance()) tab='saves';
   // [L112 · ÉTAPE 2] Planning visible par TOUS (atelier = lecture seule ; pose/retrait gardés par plnCanEdit)
-  ['saves','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','planning'].forEach(t=>{
+  ['saves','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','planning','clients'].forEach(t=>{
     document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('active',tab===t);
     document.getElementById('tabContent'+t.charAt(0).toUpperCase()+t.slice(1))?.classList.toggle('hidden',tab!==t);
   });
@@ -6479,6 +6545,7 @@ function switchTab(tab){
   else if(tab==='nc'){ renderNc(); autoLoadHistoryThenRerender('nc'); }
   else if(tab==='stock') renderStock();
   else if(tab==='audit') renderAudit();
+  else if(tab==='clients') renderClients();   // [L486]
   else if(tab==='maintenance') renderMaintenance();
   else if(tab==='planning') renderPlanning();   // [L111 · ÉTAPE 1]
   else renderFiches();
@@ -18198,6 +18265,75 @@ function buildAuditCsv(rows){
     (r.details||'').replace(/[\n;]/g,' ')
   ].map(csvCell).join(';'));
   return '\uFEFF'+head.join(';')+'\n'+lines.join('\n');
+}
+/* [L486] Referentiel CLIENTS + EMBALLAGES — ecran de bureau (pilotage/admin).
+   Objectif : ajouter un client ou une reference SANS rouvrir le code ni republier l app.
+   Rien n est envoye tant que « Publier » n a pas ete presse : on edite une copie en memoire,
+   le bandeau rappelle qu il reste des modifications a publier. */
+var _l486Dirty=false;
+function _l486Esc(v){ return (typeof esc==='function')?esc(String(v==null?'':v)):String(v==null?'':v); }
+function renderClients(){
+  const c=document.getElementById('tabContentClients'); if(!c) return;
+  if(typeof canManageData==='function'&&!canManageData()){ c.innerHTML='<div style="padding:20px;color:var(--muted)">Accès réservé au bureau.</div>'; return; }
+  const noms=Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); });
+  const nRefs=noms.reduce(function(s2,n){ return s2+((CLIENT_DATA[n]||[]).length); },0);
+  const src=_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app';
+  const rows=noms.map(function(n,ni){   /* [L486] ids par INDEX : un nom avec apostrophe/esperluette ne peut pas casser le HTML */
+    const refs=(CLIENT_DATA[n]||[]).map(function(r,i){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px">'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_l486Esc(r.ref)+'</span>'
+        +'<span style="color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums">'+(r.largeur||'—')+' mm × '+(r.longueur||'—')+' m</span>'
+        +'<button class="btn btn-sm" style="min-height:28px;padding:2px 8px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx)" title="Retirer cette référence">✕</button>'
+        +'</div>';
+    }).join('')||'<div style="font-size:12px;color:var(--muted);padding:3px 0">aucune référence</div>';
+    const pkg=(PKG_CLIENTS||{})[n];
+    return '<details style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
+      +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
+      +'<div style="margin-top:6px">'+refs+'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
+      +'<input id="l486r_'+ni+'" placeholder="Référence (ex. 41319832 - TacFlex® DQ1009)" style="flex:2;min-width:180px;padding:6px 8px;border-radius:7px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:12.5px">'
+      +'<input id="l486l_'+ni+'" type="number" placeholder="laize mm" style="width:100px;padding:6px 8px;border-radius:7px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:12.5px">'
+      +'<input id="l486g_'+ni+'" type="number" placeholder="long. m" style="width:95px;padding:6px 8px;border-radius:7px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:12.5px">'
+      +'<button class="btn btn-sm" data-i="'+ni+'" onclick="_l486AddRef(+this.dataset.i)">+ Ajouter</button>'
+      +'</div></details>';
+  }).join('');
+  c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'
+    +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:12px 16px">'
+      +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Clients et références</div>'
+      +'<div style="font-size:13px;margin-top:4px">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+Object.keys(PKG_CLIENTS||{}).length+' règle(s) d’emballage <span style="color:var(--muted)">— source : '+src+'</span></div>'
+      +(_l486Dirty?'<div style="margin-top:8px;background:rgba(245,158,11,.10);border:1px solid #6b5416;border-radius:8px;padding:7px 11px;font-size:12.5px;color:#fbbf24;font-weight:600">✎ Modifications non publiées — elles ne sont actives que sur CE poste tant que tu n’as pas publié.</div>':'')
+      +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+        +'<input id="l486NewCli" placeholder="Nom du nouveau client" style="flex:1;min-width:180px;padding:7px 9px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px">'
+        +'<button class="btn btn-sm" onclick="_l486AddCli()">+ Nouveau client</button>'
+        +'<button class="btn btn-blue btn-sm" onclick="_l486Publish(this)" title="Envoie la liste à toutes les tablettes">⬆ Publier à tous les postes</button>'
+      +'</div>'
+    +'</div>'
+    +rows
+    +'<div style="font-size:11.5px;color:var(--muted);padding:0 4px">Les règles d’emballage (palette, cerclage, spécificités) se modifient encore dans le code — dis-moi si tu veux les éditer ici aussi.</div>'
+  +'</div>';
+}
+function _l486AddCli(){
+  const el=document.getElementById('l486NewCli'); const n=(el&&el.value||'').trim();
+  if(!n){ showToast('Saisis le nom du client.','err'); return; }
+  if(CLIENT_DATA[n]){ showToast('Ce client existe déjà.','err'); return; }
+  CLIENT_DATA[n]=[]; _l486Dirty=true; if(el) el.value=''; renderClients();
+  showToast('Client « '+n+' » ajouté — ajoute ses références puis publie.','ok');
+}
+function _l486Nom(ni){ return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni]; }   /* meme tri que le rendu */
+function _l486AddRef(ni){
+  const nom=_l486Nom(ni); if(!nom) return;
+  const r=(document.getElementById('l486r_'+ni)||{}).value||'', l=(document.getElementById('l486l_'+ni)||{}).value||'', g=(document.getElementById('l486g_'+ni)||{}).value||'';
+  const ref=String(r).trim(), la=parseInt(l,10)||0, lo=parseInt(g,10)||0;
+  if(!ref){ showToast('Saisis la référence.','err'); return; }
+  if(!(la>0)){ showToast('Saisis la laize en mm.','err'); return; }
+  (CLIENT_DATA[nom]=CLIENT_DATA[nom]||[]).push(lo>0?{ref:ref,largeur:la,longueur:lo}:{ref:ref,largeur:la});
+  _l486Dirty=true; renderClients(); showToast('Référence ajoutée à '+nom+'.','ok');
+}
+async function _l486DelRef(ni,idx){
+  const nom=_l486Nom(ni); if(!nom) return;
+  const arr=CLIENT_DATA[nom]||[]; const r=arr[idx]; if(!r) return;
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » de '+nom+' ?',{ok:'Retirer'}))) return;
+  arr.splice(idx,1); _l486Dirty=true; renderClients();
 }
 async function renderAudit(){
   const c=document.getElementById('tabContentAudit');

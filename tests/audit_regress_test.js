@@ -1370,6 +1370,16 @@ has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la
 has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
 has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
 
+console.log('── L486 : clients + emballages partages via Firestore (backlog #43) ──');
+has(/var CLIENT_DATA = \{/,'L486 : CLIENT_DATA reassignable (var) — plus une const figee dans le code');
+has(/CLIENT_DATA_SEED=CLIENT_DATA; PKG_CLIENTS_SEED=PKG_CLIENTS/,'L486 : graines embarquees conservees (un doc vide ne peut pas vider les clients)');
+has(/config'\)\.doc\('clients'\)\.get\(\)/,'L486 : lecture du referentiel partage au demarrage');
+has(/step_clients_v1/,'L486 : cache local (l atelier coupe hors-ligne)');
+has(/async function _l486Publish/,'L486 : publication a tous les postes, tracee dans la piste d audit');
+has(/la regle Firestore « config » est reservee a l admin/,'L486 : echec d ecriture pilotage explique, jamais muet');
+has(/function renderClients/,'L486 : ecran Clients (ajout client/reference, gate canManageData)');
+has(/_l486LoadClients\(\); \}catch\(e\)\{\}/,'L486 : chargement branche a chaque authentification');
+
 console.log('── L485 : fix audit adversarial L482/L483 (chute a la source) ──');
 has(/CHUTE GARDÉE en m², calculée À LA SOURCE et par RÉF/,'L485 : chuteM2 calcule par computePlanAggregate (1 solde par ref + fins de phase, ♻ exclus)');
 has(/chuteM2:_agg80\.chuteM2/,'L485 : chute gardee persistee sur la fiche a l archivage');
