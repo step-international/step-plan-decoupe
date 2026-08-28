@@ -1353,6 +1353,13 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L462 : bugs fiche du 29/08 ──');
+has(/Decocher la bobine efface son test 2e/,'L462 : decocher une bobine efface devi\/droit (ordre de coupe de-fige)');
+has(/non validée par l\\'opérateur — va dans PLAN/,'L462 : pop-up validation ref au reordonnancement');
+has(/id="fOp2DiffMachine" onchange="toggleOp2Machine\(\)" style="display:none"/,'L462 : case Autre machine du 2e operateur retiree (cachee, compat brouillons)');
+has(/window\._l462Reopened=window\._l462Reopened\|\|\{\}/,'L462 : snapshot MODIFIER en-tete');
+has(/re-validee automatiquement/,'L462 : REPLIER sans changement re-valide la bobine mere tout seul');
+
 console.log('── L461 : Analyse restructuree (maquette validee, phase 1) ──');
 has(/PLN_OVER_H=8;/,'L461 : planning aligne 8 h\/jour (QCM Esteban, horaires 8h-16h)');
 absent(/zonePilotage/,'L461 : bloc « Ou agir » retire de l Analyse');

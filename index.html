@@ -2712,8 +2712,9 @@ html.theme-light .fp-num small{color:#8a8a84}
         </div>
         <div class="chg-done" id="chgDoneOp2"></div>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:12px">
-          <input type="checkbox" id="fOp2DiffMachine" onchange="toggleOp2Machine()" style="width:18px;height:18px;flex:0 0 auto;accent-color:var(--orange)">
-          <span style="font-size:13px;color:var(--text)">Autre machine</span>
+          <input type="checkbox" id="fOp2DiffMachine" onchange="toggleOp2Machine()" style="display:none">
+          <!-- [L462 · demande Esteban 29/08] case « Autre machine » RETIREE : le bloc « Changement de machine »
+               couvre ce besoin. La checkbox reste (cachee) pour les restaurations de brouillons historiques. -->
         </label>
         <div id="op2MachineZone" class="hidden" style="margin-top:8px">
           <label>Machine de l'opérateur 2</label>
@@ -3249,7 +3250,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.28-L461';
+const APP_VERSION='2026.08.29-L462';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -19152,6 +19153,9 @@ function fmmMoveRefTo(idx,toPos){
   _fmmPrevOrder=_prevLocal;   // [L313 · fix audit] posé APRÈS l'import (qui purge l'undo) : l'↩ ne peut jamais s'appliquer à une AUTRE commande
   try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
   _fmmShowUndo();
+  /* [L462 · demande Esteban 29/08] la ref qu'on vient de placer n'est pas VALIDEE par l'operateur
+     (rangee initiales de la Partie operateur du PLAN) -> le dire TOUT DE SUITE, pas au moment de couper. */
+  try{ if(typeof ficheRefValidated!=='undefined'&&!ficheRefValidated.has(idx)){ const _r=(fmmGetRefs().find(r=>r.idx===idx)||{}); showToast('⚠ Référence '+(_r.ref?('« '+refDisp(_r.ref)+' » '):'')+'non validée par l\'opérateur — va dans PLAN (rangée initiales, Partie opérateur) la valider avant de couper.','err'); } }catch(e){}
   return true;
 }
 function _fmmShowUndo(){
@@ -19301,6 +19305,9 @@ function unvalidateFicheRef(idx){
   try{ const _b50=Array.from(document.querySelectorAll('#refBlocks .ref-block'))[idx]; if(_b50){ delete _b50.dataset.opValidated; } if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}
   if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks({});
   try{ const _r=String((fmmGetRefs().find(r=>r.idx===idx)||{}).ref||('réf '+(idx+1))); logAudit('edit','fiches','ref-check','Vérification bobine mère RÉOUVERTE (recorriger) — '+_r).catch(function(){}); }catch(_){}   // [L231 · audit MAJ-1] piste ISO complète : la ré-ouverture est tracée aussi
+  /* [L462 · bug Esteban 29/08] snapshot des valeurs a la re-ouverture : si on REPLIE sans RIEN changer,
+     la ref se re-valide TOUTE SEULE (toggleFicheHead) au lieu d'exiger « VALIDER LA BOBINE MERE » pour rien. */
+  try{ const _blk62=document.querySelector('.fmm-block[data-ref-idx="'+idx+'"]'); if(_blk62){ const _g62=s=>(_blk62.querySelector('[data-fmm="'+s+'"]')?.value||'').trim(); (window._l462Reopened=window._l462Reopened||{})[idx]=_g62('mother')+'\u00a6'+_g62('edge')+'\u00a6'+_g62('blade')+'\u00a6'+_g62('machine'); } }catch(e){}
 }
 function renderFicheMachineBlocks(opts){
   opts=opts||{};
@@ -20528,7 +20535,12 @@ function toggleCoupee(id){
   const isCoupee=line.classList.toggle('coupee');
   // [L73 · Lot 5 · B40] mémorise l'instant du marquage (fenêtres anti-rebond ci-dessus)
   if(isCoupee){ line.dataset.cutAt=String(Date.now()); _lastCoupeeMarkMs=Date.now(); }
-  else{ delete line.dataset.cutAt; }
+  else{ delete line.dataset.cutAt;
+    /* [L462 · bug Esteban 29/08] coche « COUPEE — TEST OK » par ERREUR puis decochee : les cases du test 2e
+       (devi/droit) posees par le MEME tap restaient cochees -> isFicheUntouched=false -> ordre de coupe FIGE
+       a jamais. Decocher la bobine efface son test 2e (les NC declarees, photos et actions restent). */
+    try{ ['flDevi_','flDroit_'].forEach(function(pre){ const cb=document.getElementById(pre+id); if(cb&&cb.checked){ cb.checked=false; try{ cb.dispatchEvent(new Event('change',{bubbles:true})); }catch(_){ } } }); }catch(e){}
+  }
   btn.style.borderColor=isCoupee?'var(--green)':'var(--border2)';
   btn.style.color=isCoupee?'var(--green)':'var(--muted)';
   btn.style.background=isCoupee?'#14371f':'#1a1a18';
@@ -21300,6 +21312,10 @@ function ficheHeadRevealed(){ return ['ficheHeadSec','fMachineMono','ficheChgSec
 function _l340RevealBox(box){ try{ if(!box) return; box.classList.add('reveal'); if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); if(typeof _l343SyncFicheTop==='function') _l343SyncFicheTop(); }catch(e){} }   // [L343 · fix audit BLOQUANT] déplier UNE section (pas les 3 : la pile d'en-tête écrasait la liste)
 function toggleFicheHead(force){ try{
   const on=(typeof force==='boolean')?force:!ficheHeadRevealed();
+  /* [L462 · bug Esteban 29/08] REPLIER apres un MODIFIER SANS changement : chaque ref re-ouverte dont les
+     valeurs (mere/bords/lame/machine) sont IDENTIQUES au snapshot est re-validee automatiquement — meme
+     chemin que le bouton « Valider la bobine mere » (regen inoffensive a valeurs egales, piste ISO comprise). */
+  if(!on){ try{ const _ro=window._l462Reopened||{}; Object.keys(_ro).forEach(function(k){ const idx=parseInt(k,10); const _blk=document.querySelector('.fmm-block[data-ref-idx="'+idx+'"]'); if(_blk&&typeof ficheRefValidated!=='undefined'&&!ficheRefValidated.has(idx)){ const _g=s=>(_blk.querySelector('[data-fmm="'+s+'"]')?.value||'').trim(); const _sig=_g('mother')+'\u00a6'+_g('edge')+'\u00a6'+_g('blade')+'\u00a6'+_g('machine'); if(_sig===_ro[k]&&typeof applyFicheRefPlanChange==='function') applyFicheRefPlanChange(idx); } delete _ro[k]; }); }catch(e){} }
   ['ficheHeadSec','fMachineMono','ficheChgSec'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.toggle('reveal',on); });
   renderFicheHeadPills();
   if(on){ const s=document.getElementById('ficheHeadSec'); if(s){ try{ s.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} } }
