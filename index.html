@@ -3281,7 +3281,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L480';
+const APP_VERSION='2026.08.29-L481';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16734,18 +16734,24 @@ function renderLameStats(){
       </div>
       <select onchange="setLameStatsPeriod(this.value)" style="background:#1c1c1b;border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:6px 10px">${opts}</select>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      ${kpi(totChg,'changements de lame',_LAME_MCOL.MAVEG)}
-      ${kpi(totNc,'non-conformités',_LAME_MCOL.FEBA==='#60a5fa'?'#f87171':'#f87171')}
-      ${kpi(esc(pl),'période analysée','#a78bfa')}
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
-      ${card('Changements de lame par machine',svgBars(chg,{}),'Poses + affûtages · période : '+esc(pl))}
-      ${card('Non-conformités par lame (top)',svgBars(ncB,{color:'#f87171'}),'NC rattachées à la lame active de la bobine · période : '+esc(pl))}
-      ${card('Non-conformités par machine',svgBars(ncM,{color:'#f87171'}),'NC (largeur / qté / casse / angle) ventilées par machine · période : '+esc(pl))}
-      ${card('Bobineaux / jour moyen par machine',svgBars(bpd,{color:'#4ade80'}),'Moyenne sur jours travaillés (relevés temps) · période : '+esc(pl))}
-      ${card('Bobineaux moyen par lame',svgBars(bpb,{}),'Bobineaux ÷ nombre de poses, par machine · période : '+esc(pl))}
-    </div>
+    ${(function(){
+      /* [L481 · retour Esteban « diagrammes eclates, rassemble »] UN tableau par machine remplace les 5
+         graphiques : Changements · NC · Bobineaux/jour moyen · Bobineaux moyens par lame — memes donnees. */
+      const MACHS=['FEBA','MAVEG','CEVENINI'];
+      const byName=arr=>{ const o={}; (arr||[]).forEach(x=>{ o[String(x.label||x.name||'').toUpperCase()]=x.value; }); return o; };
+      const vChg=byName(chg), vNcM=byName(ncM), vBpd=byName(bpd), vBpb=byName(bpb);
+      const col=m=>_LAME_MCOL[m]||'#888';
+      const rows=[['Changements de lame',vChg],['Non-conformités',vNcM],['Bobineaux / jour (moyenne)',vBpd],['Bobineaux par lame (moyenne)',vBpb]];
+      let h='<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">';
+      h+='<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums">';
+      h+='<tr><td style="padding:6px 8px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em">'+esc(pl)+'</td>'+MACHS.map(m=>'<th style="padding:6px 10px;text-align:right;color:'+col(m)+';font-size:12px;letter-spacing:.06em">'+m+'</th>').join('')+'</tr>';
+      rows.forEach(function(r,i){ h+='<tr style="border-top:1px solid var(--border2)"><td style="padding:7px 8px;color:var(--muted)">'+r[0]+'</td>'+MACHS.map(m=>'<td style="padding:7px 10px;text-align:right;font-weight:800">'+(r[1][m]!=null?r[1][m].toLocaleString('fr-FR'):'—')+'</td>').join('')+'</tr>'; });
+      h+='</table></div>';
+      const top=(ncB||[]).slice(0,3).filter(x=>x&&x.value>0);
+      if(top.length) h+='<div style="font-size:12px;color:var(--muted);margin-top:8px">⚠ Lames à surveiller (NC) : '+top.map(x=>'<b style="color:var(--text)">'+esc(String(x.label||x.name))+'</b> ('+x.value+')').join(' · ')+'</div>';
+      h+='<div style="font-size:11px;color:var(--muted);margin-top:6px;opacity:.8">'+totChg+' changements · '+totNc+' NC sur la période</div></div>';
+      return h;
+    })()}
   </div>`;
 }
 

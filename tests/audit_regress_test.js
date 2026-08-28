@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L481 : stats lames en tableau unique ──');
+has(/UN tableau par machine remplace les 5/,'L481 : les 5 graphiques lames remplaces par un tableau machine');
+has(/Bobineaux par lame \(moyenne\)/,'L481 : bobineaux moyens par lame dans le tableau');
+
 console.log('── L480 : fixes audit verification + style compact ──');
 has(/_edg80/,'L480 : bords TOUJOURS dans la perte m² (le % archive est en base utile)');
 has(/pertePctMl/,'L480 : % pondere par ml pour le m² multi-ref');
