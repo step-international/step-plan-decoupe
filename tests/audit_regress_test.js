@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L475 : chrono discret + HUD regroupe ──');
+has(/#ficheRail #chronoStatus\{display:none\}/,'L475 : texte long du chrono masque en paysage');
+has(/\.fp-num\{font-size:20px\}/,'L475 : compteur COUPEES reduit');
+
 console.log('── L474 : correctifs audit final (19 confirmes) ──');
 has(/TOUJOURS charger le cache \(≤24 docs\)/,'L474#1 : agregatsCache charge a chaque lancement');
 has(/attribution PAR GROUPE via fd\.refIdx/,'L474#2 : m² multi-ref par groupe (homonymes corrects)');
