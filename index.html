@@ -1260,7 +1260,7 @@ label.nc-check,.nc-check,.test2-sub,.test2-nc,label:has(input[type="checkbox"]),
 .fl-current [id^="flConf_"]{font-size:30px!important;line-height:1.12!important;background:transparent!important;   /* [L457] 36->30 : la police systeme (L456) est plus large que Barlow Condensed — la config debordait sous MODIFIER/CHUTE (photo Esteban) */
   border:none!important;border-bottom:2px dashed #b8860b!important;border-radius:0!important;padding:2px 0!important}
 .fiche-line:not(.fl-current) [id^="flConf_"]{font-size:24px!important;font-weight:700!important;background:transparent!important;border-color:transparent!important}
-body.atelier .fl-current [id^="flConf_"]{font-size:40px!important}
+body.atelier .fl-current [id^="flConf_"]{font-size:33px!important}   /* [L460 · audit #10] 40->33 : meme recalibrage police systeme que L457 (36->30) — le mode atelier (force ON operateurs) restait au calibre Barlow */
 /* — bouton ✂ : 20px capitales, repos en dégradé arcade (l'inline #1a1a18 du template est battu),
    78px/28px sur la bobine EN COURS (§2.13-C — l'arbitrage densité L288·T1 cède sur la seule carte courante) — */
 [id^="coupeeBtn_"]{font-size:20px!important;text-transform:uppercase;border-radius:12px!important;border-width:1px!important}
@@ -1454,8 +1454,8 @@ body.atelier #chronoStartBtn,body.atelier #chronoPauseBtn{font-size:22px;min-hei
   .fmm-order-row.foc-cur .fmm-order-num{color:var(--action)!important}
   /* [L455] ▲▼ VISIBLES en paysage aussi (le drag est retire — demande Esteban 28/08) : empiles a droite,
      compacts pour le rail de 320-376px ; le bouton long « Couper en 1er » reste portrait seulement. */
-  .fmm-order-btns{display:flex;flex-direction:column;gap:4px;margin-left:auto}
-  .fmm-order-btns .btn{min-width:46px;min-height:42px;padding:4px 10px}
+  .fmm-order-btns{display:flex;flex-direction:column;gap:8px;margin-left:auto}
+  .fmm-order-btns .btn{min-width:48px;min-height:48px;padding:4px 10px}   /* [L460 · audit #15] plancher tactile 48px + ecart 8px entre ▲ et ▼ (seul geste de reordonnancement desormais) */
   .fmm-order-btns .fmm-first-btn{display:none}
   /* le 🖨 du rail se masque : IMPRIMER vit dans la barre (§2.18) */
   #fMachineMulti>button[onclick="printFichePlan()"]{display:none}
@@ -1714,7 +1714,6 @@ body.atelier .stat-tile b{font-size:36px}
   .ref-band .rb-refchip{font-size:10.5px;padding:1px 7px}
   .ref-band .rb-name{font-size:12.5px}
   .ref-band .rb-m,.ref-band .rb-mch{font-size:10.5px;padding:1px 6px}
-  #planCards .bobine-card .badge.bc-waste{font-size:16px}
   #statsBar .stat-chip.sc-utile,#statsBar .stat-chip.sc-solde{display:none}   /* doublons des tuiles/lignes (utile = tuile bleue, solde = dernière ligne) */
   #statsBar .stat-chip{flex:0 0 auto;align-self:center;font-size:12px!important;padding:4px 10px}   /* [L447 · demande Esteban] « n references » PETITE, au meme niveau que les tuiles — en mode atelier elle gonflait a 17px et ecrasait toute la rangee */
   #statsBar{gap:10px}
@@ -3250,7 +3249,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.28-L459';
+const APP_VERSION='2026.08.28-L460';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4269,7 +4268,7 @@ function applyRole(){
   // Si l'onglet actif n'est plus autorisé, rebascule sur Plans
   const active=document.querySelector('.tab-btn.active');
   if(active){
-    if((active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabStock'&&!canViewStock())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
+    if((active.id==='tabFiches'&&currentRole==='operateur')||(active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabStock'&&!canViewStock())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){
@@ -4841,8 +4840,12 @@ var PKG_CLIENTS={
 function _l410PkgResolve(nom){ try{
   if(typeof PKG_CLIENTS==='undefined') return null;
   if(PKG_CLIENTS[nom]) return PKG_CLIENTS[nom];
-  const n=nrm(nom||''); if(!n) return null; let best=null,bl=0;
-  Object.keys(PKG_CLIENTS).forEach(function(k){ const kn=nrm(k); if(kn&&kn.length>2&&(n.indexOf(kn)>=0||kn.indexOf(n)>=0)&&kn.length>bl){ best=PKG_CLIENTS[k]; bl=kn.length; } });
+  const n=nrm(nom||'').replace(/\s+/g,' '); if(n.length<3) return null; let best=null,bl=0;
+  const bnd=function(s,i){ return s.length===i||!/[a-z0-9]/.test(s.charAt(i)); };   /* [L460 · audit #1] meme durcissement prefixe que _l454CatalogRefs */
+  Object.keys(PKG_CLIENTS).forEach(function(k){ const kn=nrm(k).replace(/\s+/g,' '); if(!kn||kn.length<3) return;
+    const okA=n.indexOf(kn)===0&&bnd(n,kn.length);
+    const okB=kn.indexOf(n)===0&&bnd(kn,n.length);
+    if((okA||okB)&&kn.length>bl){ best=PKG_CLIENTS[k]; bl=kn.length; } });
   return best;
 }catch(e){ return null; } }
 function applyPackagingRules(clientName){
@@ -7830,9 +7833,16 @@ function isLegrandFrName(v){
 function _l454CatalogRefs(client){ try{
   if(typeof CLIENT_DATA==='undefined') return [];
   if(CLIENT_DATA[client]) return CLIENT_DATA[client];
-  const n=nrm(client||''); if(!n) return [];
+  const n=nrm(client||'').replace(/\s+/g,' '); if(n.length<3) return [];
   let best=null,bl=0;
-  Object.keys(CLIENT_DATA).forEach(function(k){ const kn=nrm(k); if(kn&&kn.length>2&&(n.indexOf(kn)>=0||kn.indexOf(n)>=0)&&kn.length>bl){ best=CLIENT_DATA[k]; bl=kn.length; } });
+  /* [L460 · audit du jour #1] PREFIXE + limite de mot (plus de containment bidirectionnel) : « AS » resolvait
+     KOHLERWOODCAP PAYS-BAS, « Limagrain » LIMA, « Lactalis » ACTA — avec auto-remplissage silencieux de la
+     largeur mere (B4). Le cas voulu reste couvert : le texte libre terrain COMMENCE par le nom du client. */
+  const bnd=function(s,i){ return s.length===i||!/[a-z0-9]/.test(s.charAt(i)); };
+  Object.keys(CLIENT_DATA).forEach(function(k){ const kn=nrm(k).replace(/\s+/g,' '); if(!kn||kn.length<3) return;
+    const okA=n.indexOf(kn)===0&&bnd(n,kn.length);
+    const okB=kn.indexOf(n)===0&&bnd(kn,n.length);
+    if((okA||okB)&&kn.length>bl){ best=CLIENT_DATA[k]; bl=kn.length; } });
   return best||[];
 }catch(e){ return []; } }
 // Applique un client sauvegardé au <select> client, en tolérant qu'il ne soit
@@ -8752,7 +8762,7 @@ function recalcPlan(){
   if(!anyRows){
     planOversize=[];
     try{ const _psb=document.getElementById('planSaveBtn'); if(_psb&&statsEl&&statsEl.contains(_psb)){ const _tl=document.querySelector('#planResultSec>.section-title'); if(_tl) _tl.appendChild(_psb); } }catch(_){}   /* [L385] 💾 vit dans #statsBar (paysage) : le sortir avant de réécrire innerHTML sinon il serait détruit */
-    if(statsEl) statsEl.innerHTML='';
+    if(statsEl){ statsEl.innerHTML=''; try{ delete statsEl.dataset.pertePct; }catch(_){} }   /* [L460 · audit #6] pas de valeur perimee servie au harnais */
     if(cardsEl) cardsEl.innerHTML='<div class="text-muted" style="padding:8px 0">Aucune donnée à optimiser.</div>';
     try{ if(typeof _l402CliRecaps==='function') _l402CliRecaps(); }catch(e){}   /* [L410] recap clients vivant meme plan vide (laize fraiche encore incomplete) */
     try{ _updateRowShares(0); }catch(_){}   /* [L339 · audit] plan vidé : % de part vidés aussi */
@@ -8775,7 +8785,6 @@ function recalcPlan(){
   const oversizeBanner=planOversize.length
     ? `<div style="flex-basis:100%;width:100%;background:#3d1414;border:2px solid var(--red);color:#fca5a5;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⛔ ${planOversize.length} laize(s) dépassent la largeur utile de leur référence : ${planOversize.map(r=>fmt(r.width)+' mm').join(', ')} — exclues du plan. Corrige la commande (faute de frappe ?) avant d'envoyer.</div>`
     : '';
-  const perteCls=pctCls(pertePct);   // [L87 · simpl.9]
   const chutesChipLabel=Object.keys(chutesUsedAll).map(w=>chutesUsedAll[w]+'×'+fmt(Number(w))).join(' + ');
   // [L103 · audit-max] lignes SEMI-remplies (qté sans largeur, largeur illisible « O80 », valeur ≤0) :
   // getRefGroups les ignore en silence (qty>0&&w>0) → pièces absentes du plan SANS le moindre signal
@@ -8865,7 +8874,7 @@ function recalcPlan(){
         <div class="bc-count">♻ ${g.count>1?g.count+' rouleaux':'1 rouleau'}</div>
         <div class="bc-body">
           <div class="card-config">${esc(makeLabel(g.pattern))}</div>
-          <div class="card-sub">♻ rouleau chute ${fmt(g.rollW)} mm — À RECOUPER EN 1ER · ${fmt(st.total)} / ${fmt(g.rollW)} mm</div>
+          <div class="card-sub">♻ rouleau chute ${fmt(g.rollW)} mm · ${fmt(st.total)} / ${fmt(g.rollW)} mm</div>
           ${cliSub}
         </div>
         <span class="badge-recut">reste ${fmt(rest)} mm</span>
@@ -9161,6 +9170,7 @@ function renderPlanManual(){
     ${_cohBadge}
     <div class="stat-chip ${perteCls}">🗑 Perte : <span style="font-weight:700">${fmt(Math.round(s.perteMm))} mm · ${s.pertePct.toFixed(1)}%</span></div>
     <div class="stat-chip">✂ Chute stock <span style="font-weight:700;color:var(--orange)">${fmt(Math.round(s.chuteStock))} mm</span></div>`;
+  if(statsEl){ try{ statsEl.dataset.pertePct=s.pertePct.toFixed(1); }catch(_){} }   /* [L460 · audit #6] plan manuel : perte exposee comme le plan auto */
   let html='';
   // [L73 · Lot 5 · B44] Alerte « mère ≠ standard » aussi en plan manuel : le return du
   // bloc planManual de recalcPlan court-circuitait la bannière du recalcul automatique,
@@ -11135,7 +11145,7 @@ function _openVictory(p){
       +row('Lame · Opérateur', esc(lame||'—')+' · '+esc(op||'—'))
       +(p.etiq?row('Photos étiquettes', p.etiq+' jointe(s) ✓','var(--green)'):'')
       +'<div style="margin-top:10px;font-size:12px;color:var(--muted)">L\'envoi enregistre la fiche définitivement et vide le plan — action irréversible.</div>';
-    try{ const sb=document.getElementById('victoryGoSame'); if(sb){ const _multiCli=(typeof cliMulti==='function')&&cliMulti(); const _known=!!(cli&&typeof CLIENT_DATA!=='undefined'&&CLIENT_DATA[cli]); sb.style.display=(_known&&!_multiCli)?'':'none'; } }catch(e){}   // [L355 · §2.22-2] seulement si le client est du catalogue (le <select> Plan ne peut pas prendre une saisie libre) et hors multi-clients
+    try{ const sb=document.getElementById('victoryGoSame'); if(sb){ const _multiCli=(typeof cliMulti==='function')&&cliMulti(); const _known=!!(cli&&typeof CLIENT_DATA!=='undefined'&&(CLIENT_DATA[cli]||(typeof _l454CatalogRefs==='function'&&_l454CatalogRefs(cli).length>0)));   /* [L460 · audit #5] client texte libre resolu = bouton « meme client » garde */ sb.style.display=(_known&&!_multiCli)?'':'none'; } }catch(e){}   // [L355 · §2.22-2] seulement si le client est du catalogue (le <select> Plan ne peut pas prendre une saisie libre) et hors multi-clients
     document.getElementById('victoryOverlay')?.classList.add('open');
   }catch(e){ try{ if(confirm('Enregistrer la fiche définitivement et vider le plan ?')){ _victoryArmed=true; confirmCommandeRecap(); } }catch(_){} }   // repli ultime : jamais un envoi bloqué par le volet — [L351 · audit] mais jamais SANS confirmation
 }
@@ -16891,7 +16901,6 @@ function updateTabBadges(){
   try{
     const all=(typeof fichesCache!=='undefined'?fichesCache:[]).filter(f=>!f.deleted);
     setTabBadge('tabFiches', all.filter(f=>f.valide==null).length, canValidate());
-    const ncOuvertes=(typeof buildNcRows==='function')?buildNcRows().filter(r=>r.statut!=='cloture').length:0;
     setTabBadge('tabAnalyse', 0, false);   /* [L427 · demande Esteban] compteur NC retire de l'onglet Analyse (le registre reste dans l'onglet) */
   }catch(e){}
 }
@@ -20398,8 +20407,9 @@ function coupeeTapOne(id){
       try{ const pb=document.getElementById('planDriftApplyBtn'); if(pb){ pb.scrollIntoView({behavior:'smooth',block:'center'}); pb.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
       return;
     }
-    showToast('♻ Config modifiée : recalcule les écarts avant de couper (bouton « ♻ RECALCULER » sur la bobine).','err');
-    try{ const c=line.querySelector('.fl-edit-chip'); if(c){ c.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
+    const _ls345=(typeof _isLandscapeFiche==='function')&&_isLandscapeFiche();   /* [L460 · audit #12] cible VISIBLE : paysage = chip APPLIQUER (revele par need-recalc), portrait = ♻ Ecarts du bloc Cumul */
+    showToast(_ls345?'♻ Config modifiée : tape « ✓ APPLIQUER LES CHANGEMENTS » sur la bobine avant de couper.':'♻ Config modifiée : tape « ♻ Écarts » (bloc Cumul de la bobine) avant de couper.','err');
+    try{ let c=line.querySelector('.fl-edit-chip'); if(!c||c.offsetParent===null) c=line.querySelector('button[onclick="recalcEcartsFromFiche()"]'); if(c&&c.offsetParent!==null){ c.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
     return;
   }
   // [L353 · backlog n°9] la config DÉPASSE la laize utile (Σ laizes + lames > utile) : physiquement incoupable → confirmation de

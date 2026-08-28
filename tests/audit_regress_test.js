@@ -1353,6 +1353,17 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L460 : correctifs audit du jour (19 findings) ──');
+has(/PREFIXE \+ limite de mot/,'L460 : resolveur client durci (prefixe, plus de containment bidirectionnel)');
+has(/meme durcissement prefixe que _l454CatalogRefs/,'L460 : jumeau emballages _l410PkgResolve durci pareil');
+has(/font-size:33px!important/,'L460 : config atelier 40->33px (tablettes recalibrees police systeme)');
+absent(/#planCards \.bobine-card \.badge\.bc-waste\{font-size:16px\}/,'L460 : regle 16px morte retiree (le 13px de L459 agit)');
+has(/\.fmm-order-btns \.btn\{min-width:48px;min-height:48px/,'L460 : fleches ▲▼ au plancher tactile 48px');
+has(/delete statsEl\.dataset\.pertePct/,'L460 : data-perte-pct purge au vidage');
+has(/plan manuel : perte exposee comme le plan auto/,'L460 : data-perte-pct aussi en plan manuel');
+has(/active\.id==='tabFiches'&&currentRole==='operateur'/,'L460 : applyRole rebascule un poste reste sur Validation');
+has(/APPLIQUER LES CHANGEMENTS » sur la bobine avant de couper/,'L460 : toast conf-dirty pointe une cible visible');
+
 console.log('── L459 : Plan epure et lisible ──');
 has(/#planSaveBtn\{display:inline-flex;min-height:64px/,'L459 : bouton SAUVEGARDER agrandi');
 has(/#planCards \.card-config\{font-size:20px/,'L459 : config du plan 26->20px (plus de lignes visibles)');
@@ -1368,7 +1379,7 @@ has(/body\.role-op #tabFiches\{display:none!important\}/,'L457 : onglet Validati
 has(/tab==='fiches'&&typeof currentRole!=='undefined'&&currentRole==='operateur'/,'L457 : switchTab redirige un operateur qui atterrit sur fiches');
 absent(/rouleau\$\{recutCountAll>1\?'x':''\} chute recoupé/,'L457 : chip rouleaux chute recoupes retiree du haut du Plan');
 absent(/<i>de perte\$\{multi\?' globale':''\}/,'L457 : tuile % de perte globale retiree du Plan');
-absent(/ mm — À RECOUPER EN 1ER \(avant les bobines mères\)'\}/,'L457 : suffixe A RECOUPER EN 1ER retire des notes ecran');
+absent(/ mm — À RECOUPER EN 1ER \(avant les bobines mères\)'/,'L457 : suffixe A RECOUPER EN 1ER retire des notes ecran (addFicheLine ET restauration)');
 
 console.log('── L455 : fleches ordre de coupe + validation reservee bureau ──');
 has(/\.fmm-drag-handle\{display:none\}/,'L455 : poignee de drag retiree (fleches = seul geste)');
