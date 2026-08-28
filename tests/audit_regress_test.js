@@ -1353,11 +1353,24 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L480 : fixes audit verification + style compact ──');
+has(/_edg80/,'L480 : bords TOUJOURS dans la perte m² (le % archive est en base utile)');
+has(/pertePctMl/,'L480 : % pondere par ml pour le m² multi-ref');
+has(/parsing AUTONOME : computePlanAggregate/,'L480b : P11 reparee (parseNum hors bac a sable)');
+has(/#sendPlanWrap\{padding:6px 8px !important\}/,'L480 : la VRAIE barre du bas compactee (actionBar etait invisible >=1100)');
+has(/body\.atelier \.fp-num\{font-size:20px\}|\.fp-num,body\.atelier \.fp-num/,'L480 : compteur COUPEES reduit aussi en atelier');
+has(/🗑 Matière ce mois/,'L480 : carte matiere compacte (retour Esteban)');
+
+console.log('── L479 : PDF fiche validee aux regles actees (exemple valide par Esteban) ──');
+has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la place du % dans le PDF fiche');
+has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
+has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
+
 console.log('── L477 : regles pertes/dechets/chutes ACTEES (mail Esteban 29/08) ──');
 has(/PERTE = totale − client − chutes gardees/,'L477 : perteM2 + dechetM2 dans buildMonthlyKpi');
-has(/DECHET en m² \*\//,'L477 : dechet = ncLoss par bobineau NC');
-has(/de déchet \(NC\)/,'L477 : carte matiere Perte + Dechet en m² SANS %');
-has(/Perte matière — 6 mois \(m²\)/,'L477 : courbe perte en m² (plus de %)');
+has(/fd\.actDechet===true&&typeof ncLoss/,'L477→L479 : dechet = ncLoss des SEULS bobineaux 🗑 Dechet (NC en chutes = matiere stockee)');
+has(/déchet \(NC\)<\/span>/,'L477→L480 : carte matiere Perte + Dechet en m² SANS % (ligne compacte)');
+has(/Perte — 6 mois \(m²\)/,'L477→L480 : courbe perte en m² bornee (plus de %)');
 
 console.log('── L475 : chrono discret + HUD regroupe ──');
 has(/#ficheRail #chronoStatus\{display:none\}/,'L475 : texte long du chrono masque en paysage');
@@ -1376,7 +1389,7 @@ has(/sans agregat, un point live exige l HISTORIQUE COMPLET/,'L474#10 : backfill
 has(/repli LIMITE au sens transparent→imprime/i,'L474#11 : repli mandrin restreint aux laizes dictees');
 absent(/aucune place sous 7h30/,'L474#13 : plus de 7h30 en dur dans les toasts planning');
 has(/le % AFFICHE peut depasser 100/,'L474#16 : pourcentage objectif reel');
-has(/de perte ce mois<\/span>/,'L474#17→L477 : gros chiffre de perte libelle (m² sans %)');
+has(/m²<\/b> <span style="color:var\(--muted\)">perte<\/span>/,'L474#17→L480 : chiffre de perte libelle compact (m² sans %)');
 has(/function _l474MoisAbr/,'L474#19 : mois abreges normalises');
 
 console.log('── L472 : compaction tablette (voir le CUMUL sans defiler) ──');
@@ -1388,8 +1401,8 @@ console.log('── L471 : en-tete fiche compacte + CSV visibles ──');
 has(/cliCourt=cliCourt\.slice\(0,cut\)/,'L471 : pastille client COURTE (sans « pour le ... n° »)');
 has(/pastilles compactes : la rangee/,'L471 : pastilles atelier 14px, une seule ligne tablette');
 has(/function _l471FicheM2/,'L471 : m² par fiche dans l export commande');
-has(/;Commande;Total bobines;m²;Perte %;Temps;/,'L471 : colonne m² dans le CSV fiches');
-has(/exports deplaces TOUT EN BAS/,'L471→L476 : exports CSV tout en bas de l Analyse (rares d utilisation)');
+has(/;m²;Perte %;Perte m²;Déchet m²;Temps;/,'L471→L480 : colonnes m², Perte m² et Dechet m² dans le CSV fiches (regles actees)');
+has(/une seule ligne de liens discrets/,'L471→L480 : exports CSV + piste d audit en liens discrets tout en bas');
 
 console.log('── L470 : module Stock supprime ──');
 absent(/id="tabStock"/,'L470 : bouton onglet Stock retire du DOM');
