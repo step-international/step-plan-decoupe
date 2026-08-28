@@ -575,7 +575,7 @@ has(/id="ficheRail"/,'L311 : wrapper rail présent (chrono+machines+partage+sold
 has(/id="ficheMain"/,'L311 : wrapper centre présent (bandeau+entêtes+chg+ficheRight+cliRecap)');
 has(/#ficheRail,#ficheMain\{display:contents\}/,'L311 : portrait = wrappers transparents + ordre historique par `order`');
 has(/#chutesRappelBanner\{order:1\}/,'L311 : ordre portrait restauré explicitement (12 enfants)');
-has(/grid-template-columns:320px minmax\(0,1fr\)/,'L311→L333 : paysage ≥1100px = rail 320px sticky + centre (§2.18/§2.21 — 336→320 au lot fidélité)');
+has(/grid-template-columns:260px minmax\(0,1fr\)/,'L311→L333→L478 : paysage >=1100px = rail sticky (320->260 au retour Esteban PWA) + centre');
 has(/#ficheLines\{display:grid;grid-template-columns:1fr;/,'L311\u2192L334 : bobines en COLONNE UNIQUE pleine largeur en paysage (maquette 17 supers\u00e8de la grille 2 col \u00a72.7)');
 has(/\.fiche-line\.fl-current,#ficheLines \.fmm-block/,'L311 : carte en cours + blocs réf traversent (grid-column 1/-1)');
 has(/id="ficheChronoSec"/,'L311 : 3 ids AJOUTÉS (jamais renommés) — ficheChronoSec/ficheHeadSec/ficheChgSec');
@@ -1382,6 +1382,7 @@ has(/function _l474MoisAbr/,'L474#19 : mois abreges normalises');
 console.log('── L472 : compaction tablette (voir le CUMUL sans defiler) ──');
 has(/L472 · dictee Esteban 29\/08 · tablette/,'L472 : bloc de compaction paysage present');
 has(/min-height:54px!important;font-size:17px!important/,'L472 : bouton COUPEE reduit');
+has(/grid-template-columns:260px minmax/,'L478 : rail fiche 260px (bande noire resorbee, texte gagne)');
 
 console.log('── L471 : en-tete fiche compacte + CSV visibles ──');
 has(/cliCourt=cliCourt\.slice\(0,cut\)/,'L471 : pastille client COURTE (sans « pour le ... n° »)');
