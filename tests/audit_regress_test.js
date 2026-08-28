@@ -1353,6 +1353,11 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L468 : courbe production lisible et interactive ──');
+has(/function _l468Tip\(/,'L468 : bulle de valeur (survol + tap, div unique)');
+has(/le chiffre TOUJOURS visible/,'L468 : m² affiche au-dessus de chaque point');
+has(/echelle visible/,'L468 : echelle Y sur la courbe production');
+
 console.log('── L466-L467 : mandrins DQ1002 ──');
 has(/45:\{c:"0453",k:5/,'L466 : mandrin 45 mm DQ1002 imprime');
 has(/SIB=\{'41319526':'41319051','41319051':'41319526'\}/,'L467 : repli mandrin entre DQ1002 imprime et transparent (meme laize = meme mandrin)');

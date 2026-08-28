@@ -3250,7 +3250,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L467';
+const APP_VERSION='2026.08.29-L468';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16738,6 +16738,17 @@ function _anaFold(id,title,inner,defOpen){
 // cartes machines (bobines/perte/NC seulement — m²/h et temps median RETIRES, demande 29/08),
 // courbe temps/bobine par operateur selon la laize (INTERACTIVE : chips operateur + points <title>).
 // ============================================================
+/* [L468 · demande Esteban] bulle de valeur au survol/tap des points de courbe — un seul div reutilise */
+function _l468Tip(ev,html){ try{
+  let t=document.getElementById('l468Tip');
+  if(!t){ t=document.createElement('div'); t.id='l468Tip';
+    t.style.cssText='position:fixed;z-index:9999;background:#1E1F1A;border:1px solid #3a3b33;border-radius:9px;padding:7px 11px;font-size:12px;box-shadow:0 8px 22px rgba(0,0,0,.5);pointer-events:none;white-space:nowrap;font-variant-numeric:tabular-nums';
+    document.body.appendChild(t); }
+  t.innerHTML=html; t.style.display='block';
+  const x=Math.min((ev.clientX||0)+14, innerWidth-t.offsetWidth-8), y=Math.max(8,(ev.clientY||0)-t.offsetHeight-12);
+  t.style.left=x+'px'; t.style.top=y+'px';
+}catch(e){} }
+function _l468TipHide(){ try{ const t=document.getElementById('l468Tip'); if(t) t.style.display='none'; }catch(e){} }
 function _l463Cible(){ const v=parseInt(window._anaCibleM2,10); return v>0?v:320000; }
 function _l463LoadCible(){
   try{ const ls=parseInt(localStorage.getItem('step_cible_m2')||'',10); if(ls>0) window._anaCibleM2=ls; }catch(e){}
@@ -16786,19 +16797,23 @@ function _l463Prod6m(liveKpi){
   const max=Math.max.apply(null,has.map(function(p){return p.m2;}))*1.15||1, W=720,H=168,L=14,B=136;
   const x=function(i){ return L+i*(W-L-18)/(months.length-1); }, y=function(v){ return 16+(B-16)*(1-v/max); };
   let path='',dots='',labels='',prev=null;
+  const fmtK=function(v){ return v>=1000?Math.round(v/1000).toLocaleString('fr-FR')+' k':String(Math.round(v)); };
+  let grid='';[0.33,0.66,1].forEach(function(f){ const vv=max*f/1.15, Y=y(vv); grid+='<line x1="'+L+'" y1="'+Y.toFixed(1)+'" x2="'+(W-18)+'" y2="'+Y.toFixed(1)+'" stroke="#20211C" stroke-width="1"/><text x="'+(W-16)+'" y="'+(Y-3).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#77786f">'+fmtK(vv)+'</text>'; });   /* [L468] echelle visible */
   pts.forEach(function(p,i){
     labels+='<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="#77786f">'+monthLabelFr(p.ym).split(' ')[0].slice(0,4).toLowerCase()+'</text>';
     if(p.m2==null){ prev=null; return; }
     const X=x(i),Y=y(p.m2);
     path+=(prev==null?'M':'L')+X.toFixed(1)+','+Y.toFixed(1);
-    dots+='<circle cx="'+X+'" cy="'+Y+'" r="'+(p.ym===cur?5:3.4)+'" fill="'+(p.ym===cur?'#f5a623':'#141410')+'" stroke="#f5a623" stroke-width="2.2"><title>'+monthLabelFr(p.ym)+' : '+p.m2.toLocaleString('fr-FR')+' m²</title></circle>';
+    const tip=('<div style=&quot;color:#8b8d83;font-size:10.5px&quot;>'+monthLabelFr(p.ym)+'</div><b style=&quot;font-size:14px&quot;>'+p.m2.toLocaleString('fr-FR')+' m²</b>').replace(/'/g,'’');
+    dots+='<circle cx="'+X+'" cy="'+Y+'" r="'+(p.ym===cur?6:4.5)+'" fill="'+(p.ym===cur?'#f5a623':'#141410')+'" stroke="#f5a623" stroke-width="2.2" style="cursor:pointer" onmouseenter="_l468Tip(event,\''+tip+'\')" onmousemove="_l468Tip(event,\''+tip+'\')" onmouseleave="_l468TipHide()" onclick="_l468Tip(event,\''+tip+'\')"></circle>';
+    labels+='<text x="'+X+'" y="'+(Y-11).toFixed(1)+'" text-anchor="middle" font-size="10.5" font-weight="800" fill="#EAEBE5">'+fmtK(p.m2)+'</text>';   /* [L468] le chiffre TOUJOURS visible */
     prev=1;
   });
   let area='';   /* [L464] aire sous la courbe (maquette) sur le plus long segment continu */
   if(path){ const first=path.match(/M([\d.]+),/), lastXm=path.match(/[ML]([\d.]+),[\d.]+$/); if(first&&lastXm) area='<path d="'+path+' L'+lastXm[1]+','+B+' L'+first[1]+','+B+' Z" fill="#f5a623" fill-opacity=".12"/>'; }
   return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px">'
     +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">📈 Production — 6 derniers mois (m²)</div>'
-    +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:230px;height:auto;margin-top:4px">'+area+(path?'<path d="'+path+'" fill="none" stroke="#f5a623" stroke-width="2.6" stroke-linecap="round"/>':'')+dots+labels+'</svg></div>';
+    +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:230px;height:auto;margin-top:4px">'+grid+area+(path?'<path d="'+path+'" fill="none" stroke="#f5a623" stroke-width="2.6" stroke-linecap="round"/>':'')+dots+labels+'</svg></div>';
 }
 function _l463NcByMachine(ym){
   const out={FEBA:0,MAVEG:0,CEVENINI:0};
