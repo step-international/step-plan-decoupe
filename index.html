@@ -3281,7 +3281,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L482';
+const APP_VERSION='2026.08.29-L483';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -18277,6 +18277,7 @@ async function renderAudit(){
     <div style="display:flex;gap:6px">
       <button class="btn btn-ghost btn-sm" style="flex:1" onclick="auditRefresh(this)">↻ Rafraîchir</button>
       <button class="btn btn-blue btn-sm" style="flex:1" onclick="exportAudit()">⬇ CSV</button>
+      <button class="btn btn-ghost btn-sm" style="flex:1" onclick="exportAuditComplet(this)" title="Toute la piste depuis le début, pagination serveur — pour l'audit ISO">⬇ CSV complet (ISO)</button><!-- [L483 · backlog #36] -->
     </div>
   </div>
   <div style="overflow-x:auto">
@@ -18347,6 +18348,33 @@ function exportAudit(){
   const csv=entete+buildAuditCsv(rows);
   const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
   downloadBlob(b,'piste_audit_'+(partiel?('DERNIERES'+AUDIT_LOAD_LIMIT+'_'):'')+todayISO()+'.csv');   // [L98 · simpl.8]
+}
+/* [L483 · backlog #36 ISO] export COMPLET de la piste d'audit : requetes paginees (1000 par page,
+   startAfter) jusqu'au bout de la collection — le plafond AUDIT_LOAD_LIMIT ne concerne que l'ECRAN.
+   Filtres IGNORES volontairement : un export ISO doit etre exhaustif, l'entete le dit. */
+async function exportAuditComplet(btn){
+  if(!db) return;
+  const old=btn?btn.textContent:'';
+  try{
+    if(btn){ btn.disabled=true; btn.textContent='⏳ 0'; }
+    const all=[]; let last=null;
+    for(;;){
+      let q=db.collection('audit').orderBy('ts','desc').limit(1000);
+      if(last) q=q.startAfter(last);
+      const snap=await q.get();
+      if(snap.empty) break;
+      snap.docs.forEach(d=>all.push(Object.assign({_id:d.id},d.data())));
+      last=snap.docs[snap.docs.length-1];
+      if(btn) btn.textContent='⏳ '+all.length;
+      if(snap.docs.length<1000) break;
+    }
+    if(!all.length){ showToast('Piste d\'audit vide.','err'); return; }
+    const entete='# Piste d\'audit STEP · export COMPLET : '+all.length+' entrée(s) — toute la piste, filtres écran ignorés · généré le '+isoNow()+'\n';
+    const b=new Blob([entete+buildAuditCsv(all)],{type:'text/csv;charset=utf-8'});
+    downloadBlob(b,'piste_audit_COMPLET_'+todayISO()+'.csv');
+    showToast('✔ Export complet : '+all.length+' entrée(s).','ok');
+  }catch(e){ showToast('Export complet impossible : '+((e&&e.message)||e),'err'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent=old||'⬇ CSV complet (ISO)'; } }
 }
 async function auditRefresh(btn){
   if(!db) return;

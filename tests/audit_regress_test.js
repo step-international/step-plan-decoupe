@@ -1370,6 +1370,12 @@ has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la
 has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
 has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
 
+console.log('── L483 : export piste d audit COMPLET (backlog #36 ISO) ──');
+has(/async function exportAuditComplet/,'L483 : fonction export complet paginee');
+has(/startAfter\(last\)/,'L483 : pagination serveur startAfter (plafond ecran non applique)');
+has(/piste_audit_COMPLET_/,'L483 : nom de fichier COMPLET distinct du partiel');
+has(/exportAuditComplet\(this\)/,'L483 : bouton CSV complet (ISO) dans la piste d audit');
+
 console.log('── L482 : diagramme matiere mensuel ISO (perte / dechet / chutes separes) ──');
 has(/chuteM2=0;/,'L482 : accumulateur chuteM2 dans buildMonthlyKpi');
 has(/chuteM2:Math\.round\(chuteM2\*10\)\/10/,'L482 : chuteM2 dans le retour du KPI mensuel (voyage dans les agregats figes)');
