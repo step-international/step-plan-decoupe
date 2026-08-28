@@ -2911,7 +2911,7 @@ html.theme-light .fp-num small{color:#8a8a84}
   </div>
 
   <!-- ONGLET ANALYSE (+ Relevés de temps fusionnés ici en L120 : bloc repliable + liste défilable) -->
-  <div id="tabContentAnalyse" class="hidden">
+  <div id="tabContentAnalyse" class="hidden" style="display:flex;flex-direction:column;gap:0"><!-- [L464] accordeons APRES le contenu (maquette : Releves de temps + Registre NC tout en bas) — ordre flex, .hidden garde la main via !important --><style>#tabContentAnalyse.hidden{display:none!important}#tabContentAnalyse>details{order:10}#tabContentAnalyse>#analyseContent{order:1}</style>
     <div id="pilotageScope" style="display:none;margin-bottom:14px"></div><!-- [L255 · R7 arbitrage Esteban] le rôle pilotage (DC) voit le bloc 🎯 Pilotage ICI (analyseContent complet reste admin) -->
     <details id="tempsBox" style="background:var(--section);border:1px solid var(--border2);border-radius:10px;margin-bottom:14px"><!-- [L120] onglet ⏱ Temps fusionné dans Analyse : petit, repliable, liste défilable -->
       <summary class="dbx-sum" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:9px 13px;font-size:12.5px;font-weight:700;color:var(--muted)"><span class="dbx-chev">▸</span> ⏱ <b style="color:var(--blue);font-weight:800">Relevés de temps</b> — filtres, totaux &amp; liste</summary>
@@ -3250,7 +3250,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L463';
+const APP_VERSION='2026.08.29-L464';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16762,9 +16762,17 @@ function _l463ObjectifBlock(k){
 function _l463Prod6m(liveKpi){
   const cur=currentMonthYM(), months=prevMonthsYM(6).reverse(), byM={};
   try{ agregatsCache.forEach(function(a){ if(a&&a.mois) byM[a.mois]=a; }); }catch(e){}
-  const pts=months.map(function(ym){ const k=(ym===cur)?liveKpi:byM[ym]; return {ym:ym,m2:(k&&typeof k.m2==='number'&&k.m2>0)?k.m2:null}; });
+  const pts=months.map(function(ym){
+    const k=(ym===cur)?liveKpi:byM[ym];
+    let v=(k&&typeof k.m2==='number'&&k.m2>0)?k.m2:null;
+    /* [L464 · retour Esteban] les mois figes n'avaient pas m² -> courbe a UN point (« immondice »). On calcule
+       le m² des mois passes EN LIVE depuis fichesCache ; si un agregat existe, on ne l'affiche que si le cache
+       couvre bien le mois (meme nbFiches) — jamais un chiffre menteur. */
+    if(v==null&&ym!==cur){ try{ const lk=buildMonthlyKpi(ym,fichesCache,tempsCache); if(lk&&lk.m2>0&&(!k||!(k.nbFiches>0)||lk.nbFiches===k.nbFiches)) v=lk.m2; }catch(e){} }
+    return {ym:ym,m2:v};
+  });
   const has=pts.filter(function(p){ return p.m2!=null; });
-  if(!has.length) return '';
+  if(has.length<2) return '';   /* [L464] une carte geante pour 1 point : non — le bloc n'apparait qu'avec une vraie courbe */
   const max=Math.max.apply(null,has.map(function(p){return p.m2;}))*1.15||1, W=720,H=168,L=14,B=136;
   const x=function(i){ return L+i*(W-L-18)/(months.length-1); }, y=function(v){ return 16+(B-16)*(1-v/max); };
   let path='',dots='',labels='',prev=null;
@@ -16776,10 +16784,11 @@ function _l463Prod6m(liveKpi){
     dots+='<circle cx="'+X+'" cy="'+Y+'" r="'+(p.ym===cur?5:3.4)+'" fill="'+(p.ym===cur?'#f5a623':'#141410')+'" stroke="#f5a623" stroke-width="2.2"><title>'+monthLabelFr(p.ym)+' : '+p.m2.toLocaleString('fr-FR')+' m²</title></circle>';
     prev=1;
   });
+  let area='';   /* [L464] aire sous la courbe (maquette) sur le plus long segment continu */
+  if(path){ const first=path.match(/M([\d.]+),/), lastXm=path.match(/[ML]([\d.]+),[\d.]+$/); if(first&&lastXm) area='<path d="'+path+' L'+lastXm[1]+','+B+' L'+first[1]+','+B+' Z" fill="#f5a623" fill-opacity=".12"/>'; }
   return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px">'
     +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">📈 Production — 6 derniers mois (m²)</div>'
-    +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;margin-top:4px">'+(path?'<path d="'+path+'" fill="none" stroke="#f5a623" stroke-width="2.6" stroke-linecap="round"/>':'')+dots+labels+'</svg>'
-    +(has.length<months.length?'<div style="font-size:11px;color:#77786f">Mois figés avant cette version : m² absent — « ♻ Recalculer ce mois » (bloc KPI) pour compléter.</div>':'')+'</div>';
+    +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;max-height:230px;height:auto;margin-top:4px">'+area+(path?'<path d="'+path+'" fill="none" stroke="#f5a623" stroke-width="2.6" stroke-linecap="round"/>':'')+dots+labels+'</svg></div>';
 }
 function _l463NcByMachine(ym){
   const out={FEBA:0,MAVEG:0,CEVENINI:0};
@@ -16830,7 +16839,7 @@ function _l463PerteClients(liveKpi){
   if(tc){
     const mx=tc[0].v||1;
     right='<div><div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Top clients du mois (m²)</div>'
-      +tc.map(function(e){ return '<div style="padding:4px 0"><div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.k)+'</span><b style="font-variant-numeric:tabular-nums;color:var(--muted)">'+e.v.toLocaleString('fr-FR')+'</b></div><div style="height:4px;border-radius:99px;background:#f5a623;opacity:.7;width:'+Math.max(4,Math.round(e.v/mx*100))+'%"></div></div>'; }).join('')+'</div>';
+      +tc.map(function(e){ let nm=e.k; try{ const cut=nm.search(/\s+pour\s+le\s+/i); if(cut>2) nm=nm.slice(0,cut); }catch(_){ } return '<div style="padding:4px 0"><div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(nm)+'</span><b style="font-variant-numeric:tabular-nums;color:var(--muted)">'+e.v.toLocaleString('fr-FR')+'</b></div><div style="height:4px;border-radius:99px;background:#f5a623;opacity:.7;width:'+Math.max(4,Math.round(e.v/mx*100))+'%"></div></div>'; }).join('')+'</div>';
   }
   if(!left&&!right) return '';
   return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px;display:grid;grid-template-columns:'+(left&&right?'1.05fr 1fr':'1fr')+';gap:22px">'+left+right+'</div>';

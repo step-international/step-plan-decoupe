@@ -1353,6 +1353,13 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L464 : retours Esteban sur L463 ──');
+has(/#tabContentAnalyse>details\{order:10\}/,'L464 : Releves de temps + Registre NC EN BAS de l Analyse (ordre flex)');
+has(/#tabContentAnalyse\.hidden\{display:none!important\}/,'L464 : garde .hidden malgre le display:flex inline');
+has(/On calcule\n       le m² des mois passes EN LIVE/,'L464 : courbe 6 mois remplie en live (garde nbFiches vs agregat)');
+has(/une carte geante pour 1 point : non/,'L464 : bloc courbe masque sous 2 points');
+has(/nm\.search\(\/\\s\+pour\\s\+le\\s\+\/i\)/,'L464 : noms clients nettoyes dans le top m²');
+
 console.log('── L463 : Analyse maquette complete ──');
 has(/function _l463ObjectifBlock/,'L463 : bloc objectif m² du mois (jauge + cible partagee)');
 has(/function _l463Prod6m/,'L463 : courbe production 6 mois (m², trous assumes design L247)');
