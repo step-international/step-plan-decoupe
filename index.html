@@ -2873,7 +2873,7 @@ html.theme-light .fp-num small{color:#8a8a84}
   <div class="tab-bar">
     <!-- [L429 · demande Esteban] ORDRE : Plans · Validation · Lame · Brouillons · Analyse · Planning · Corbeille (Stock ensuite) -->
     <button class="tab-btn active" id="tabSaves" onclick="switchTab('saves')">💾 Plans</button>
-    <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">✓ Validation fiches découpe</button><!-- [L396 · demande Esteban 22/08] -->
+    <button class="tab-btn" id="tabFiches" onclick="switchTab('fiches')">✓ Valide fiche</button><!-- [L396 → L487 · demande Esteban 28/08] libelle raccourci -->
     <button class="tab-btn" id="tabMaintenance" onclick="switchTab('maintenance')" style="display:none">🔧 Lame</button><!-- [L125] « Lame / Machine » → « Lame » -->
     <button class="tab-btn" id="tabBrouillons" onclick="switchTab('brouillons')">📝 Brouillons</button>
     <!-- [L223 · ergo #13] onglet « ⚠ Registre NC » fusionné dans 📈 Analyse (bloc repliable ncBox) -->
@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L486';
+const APP_VERSION='2026.08.29-L487';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4285,7 +4285,7 @@ function applyRole(){
     _tA.textContent=canViewAnalyse()?'📈 Analyse':'⏱ Temps'; }
   _applyAnalyseScope();
   document.getElementById('tabCorbeille').style.display=canManageData()?'':'none';
-  { const _tc=document.getElementById('tabClients'); if(_tc) _tc.style.display=canManageData()?'':'none'; }   // [L486]
+  { const _tc=document.getElementById('tabClients'); if(_tc) _tc.style.display=(typeof _l486CanEdit==='function'&&_l486CanEdit())?'':'none'; }   // [L486→L487] Esteban + Dominique
   { const _ncb=document.getElementById('ncBox'); if(_ncb) _ncb.style.display=canManageData()?'':'none'; }   // [L223 · ergo #13] le Registre NC (bloc dans Analyse) reste réservé pilotage/admin
   try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){}   // [L340 · fix audit] les initiales posées au login (sans événement) remontent sur la rangée de pastilles
   { const _hb=document.getElementById('hygieneBtn'); if(_hb) _hb.style.display=canManageData()?'':'none'; }   // [L110 · hygiène 4D]
@@ -4886,6 +4886,13 @@ var PKG_CLIENTS={
      explicite plutot qu un echec muet (meme pattern que la cible m² L463).
    ============================================================ */
 var _l486Loaded=false;
+/* [L487 · demande Esteban 28/08] Le referentiel CLIENTS n est PAS ouvert a tout le bureau :
+   seuls les comptes ADMIN (Esteban, Christian) et DOMINIQUE (DC, pilotage) y touchent.
+   canManageData() etait trop large — un futur compte pilotage aurait herite du droit. */
+function _l486CanEdit(){ try{
+  if(typeof currentRole!=='undefined'&&currentRole==='admin') return true;
+  return !!(typeof currentUser!=='undefined'&&currentUser&&currentUser.ini==='DC');
+}catch(_){ return false; } }
 function _l486Valid(o,minKeys){ try{ return !!o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length>=(minKeys||1); }catch(_){ return false; } }
 function _l486Apply(d,src){
   var n=0;
@@ -4910,22 +4917,27 @@ function _l486LoadClients(){
 }
 /* Publie l etat COURANT (graines eventuellement deja remplacees) dans Firestore : c est le geste
    qui fait passer l app du code au partage. Idempotent, tracé dans la piste d audit ISO. */
-async function _l486Publish(btn){
-  if(typeof canManageData==='function'&&!canManageData()){ showToast('🔒 Reserve pilotage/admin.','err'); return; }
-  if(!db){ showToast('Base indisponible — reconnecte le reseau puis recharge la page.','err'); return; }
+async function _l486Publish(btn,silencieux){
+  /* [L487] silencieux=true : appele par le geste unique « Valider et publier » — pas de confirmation
+     ni de toast de succes (l appelant en emet un plus parlant), mais TOUJOURS le toast d erreur.
+     Retourne true/false pour que l appelant puisse annuler sa modification locale en cas d echec. */
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return false; }
+  if(!db){ showToast('Base indisponible — reconnecte le réseau puis recharge la page.','err'); return false; }
   var nC=Object.keys(CLIENT_DATA||{}).length, nP=Object.keys(PKG_CLIENTS||{}).length;
-  if(typeof confirmDlg==='function'&&!(await confirmDlg('Publier la liste actuelle a TOUS les postes ?\n\n· '+nC+' client(s) avec leurs references\n· '+nP+' regle(s) d emballage\n\nChaque tablette la recevra a son prochain demarrage.',{ok:'Publier'}))) return;
+  if(!silencieux&&typeof confirmDlg==='function'&&!(await confirmDlg('Publier la liste actuelle a TOUS les postes ?\n\n· '+nC+' client(s) avec leurs references\n· '+nP+' regle(s) d emballage\n\nChaque tablette la recevra a son prochain demarrage.',{ok:'Publier'}))) return false;
   if(btn) btn.disabled=true;
   try{
     await db.collection('config').doc('clients').set({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS,
       updatedAt:isoNow(),updatedBy:(currentUser&&currentUser.ini)||'?'},{merge:false});
     try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
     try{ await logAudit('edit','config','clients','Publication clients/emballages : '+nC+' client(s), '+nP+' regle(s)'); }catch(_){ }
-    showToast('✔ Publie : '+nC+' client(s), '+nP+' regle(s) d emballage.','ok');
+    if(!silencieux) showToast('✔ Publié : '+nC+' client(s), '+nP+' règle(s) d’emballage.','ok');
+    return true;
   }catch(e){
     var m=String((e&&e.code)||(e&&e.message)||e);
-    if(m.indexOf('permission')>=0) showToast('🔒 Ecriture refusee : la regle Firestore « config » est reservee a l admin. A elargir en console (match /config/{id} : allow write si pilotage).','err');
-    else showToast('Publication impossible : '+m,'err');
+    if(m.indexOf('permission')>=0) showToast('🔒 Écriture refusée : la règle Firestore « config » est réservée à l’admin. Rien n’a été enregistré — à élargir en console (match /config/{id} : allow write si Dominique/pilotage).','err');
+    else showToast('Publication impossible — rien n’a été enregistré : '+m,'err');
+    return false;
   }
   finally{ if(btn) btn.disabled=false; }
 }
@@ -6529,7 +6541,7 @@ function switchTab(tab){
   if((tab==='corbeille'||tab==='nc')&&!canManageData()) tab='saves';
   if(tab==='stock'&&!canViewStock()) tab='saves';
   if(tab==='audit'&&!canViewAudit()) tab='saves';
-  if(tab==='clients'&&!canManageData()) tab='saves';   // [L486] edition du referentiel = bureau
+  if(tab==='clients'&&!_l486CanEdit()) tab='saves';   // [L486→L487] referentiel = Esteban + Dominique uniquement
   if(tab==='maintenance'&&!canAccessMaintenance()) tab='saves';
   // [L112 · ÉTAPE 2] Planning visible par TOUS (atelier = lecture seule ; pose/retrait gardés par plnCanEdit)
   ['saves','fiches','brouillons','nc','analyse','corbeille','stock','audit','maintenance','planning','clients'].forEach(t=>{
@@ -6666,8 +6678,10 @@ function updateVekaVisibility(fromClientChange){
 function onClientChange(){
   const client=document.getElementById('planClient').value;
   const refs=_l454CatalogRefs(client);   /* [L454] tolere le client texte libre */
+  /* [L487] data-ci = index dans le catalogue : deux entrees de MEME reference a metrages differents
+     ne se confondent plus (la value reste la reference — rien ne change pour les plans archives). */
   const opts='<option value="">— Référence —</option>'+
-    refs.map(r=>`<option value="${esc(r.ref)}">${esc(r.ref)}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');
+    refs.map((r,ci)=>`<option value="${esc(r.ref)}" data-ci="${ci}">${esc(r.ref)}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');
   // Recharge la liste des réfs dans TOUS les blocs (même client partout), en gardant la valeur si possible
   document.querySelectorAll('.ref-block [data-rb="ref"]').forEach(sel=>{
     const _wasAuto=(sel.id==='planRef'&&!!sel.value&&sel.dataset.l363auto===sel.value);   // [L364 · fix audit] réf posée par B4 et jamais changée par l'opérateur → pas une saisie : ne pas la retenir au changement de client
@@ -6804,10 +6818,17 @@ function bumpDateLiv(days){
     try{ el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){}
   }catch(e){}
 }
+/* [L487] Resout l entree catalogue REELLEMENT choisie : par l index de l option (data-ci) quand il
+   existe, sinon par nom de reference (options re-ajoutees par applySavedRef, plans historiques). */
+function _l487Picked(sel,refs){
+  try{ const o=sel&&sel.selectedOptions&&sel.selectedOptions[0]; const ci=o&&o.dataset?parseInt(o.dataset.ci,10):NaN;
+    if(!isNaN(ci)&&refs[ci]) return refs[ci]; }catch(_){ }
+  return (refs||[]).find(function(r){ return r.ref===(sel&&sel.value); })||null;
+}
 function onRefChange(){
   const client=document.getElementById('planClient').value;
-  const ref=document.getElementById('planRef').value;
-  const found=_l454CatalogRefs(client).find(r=>r.ref===ref);   /* [L454] */
+  const _sel87=document.getElementById('planRef');
+  const found=_l487Picked(_sel87,_l454CatalogRefs(client));   /* [L454] · [L487] l entree choisie, pas la 1re du meme nom */
   if(found){
     document.getElementById('planLargeur').value=found.largeur||'';
     document.getElementById('planLongueur').value=found.longueur||'';
@@ -7289,7 +7310,7 @@ function addRefBlock(){
   const client=document.getElementById('planClient')?.value||'';
   const refs=_l454CatalogRefs(client);   /* [L454] tolere le client texte libre */
   const refOpts='<option value="">— Référence —</option>'+
-    refs.map(r=>`<option value="${esc(r.ref)}">${esc(r.ref)}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');
+    refs.map((r,ci)=>`<option value="${esc(r.ref)}" data-ci="${ci}">${esc(r.ref)}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');   /* [L487] idem bloc multi-ref */
   const block=document.createElement('div');
   block.className='ref-block extra';
   block.dataset.refIdx=idx;
@@ -7416,7 +7437,7 @@ function onRefChangeBlock(sel){
   const block=sel.closest('.ref-block');
   if(!block) return;
   const client=document.getElementById('planClient')?.value||'';
-  const found=_l454CatalogRefs(client).find(r=>r.ref===sel.value);   /* [L454] */
+  const found=_l487Picked(sel,_l454CatalogRefs(client));   /* [L454] · [L487] */
   if(found){
     if(found.largeur>0){const m=block.querySelector('[data-rb="mother"]');if(m)m.value=found.largeur;}
     const lg=block.querySelector('[data-rb="longueur"]');if(lg)lg.value=found.longueur||'';
@@ -18270,70 +18291,90 @@ function buildAuditCsv(rows){
    Objectif : ajouter un client ou une reference SANS rouvrir le code ni republier l app.
    Rien n est envoye tant que « Publier » n a pas ete presse : on edite une copie en memoire,
    le bandeau rappelle qu il reste des modifications a publier. */
-var _l486Dirty=false;
 function _l486Esc(v){ return (typeof esc==='function')?esc(String(v==null?'':v)):String(v==null?'':v); }
+/* [L487 · demande Esteban 28/08] UN SEUL GESTE. Les deux boutons separes (« + Nouveau client » et
+   « Publier a tous les postes ») disparaissent : on saisit le client ET sa reference sur la meme ligne,
+   un bouton unique « ✔ Valider et publier » cree/complete le client, ajoute la ou les references et
+   envoie tout aux tablettes dans la foulee. Plus jamais de client cree sans reference, ni de
+   modification oubliee sur un seul poste. Le retrait d une reference publie aussi immediatement. */
 function renderClients(){
   const c=document.getElementById('tabContentClients'); if(!c) return;
-  if(typeof canManageData==='function'&&!canManageData()){ c.innerHTML='<div style="padding:20px;color:var(--muted)">Accès réservé au bureau.</div>'; return; }
+  if(!_l486CanEdit()){ c.innerHTML='<div style="padding:20px;color:var(--muted)">Accès réservé à Esteban et Dominique.</div>'; return; }
   const noms=Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); });
   const nRefs=noms.reduce(function(s2,n){ return s2+((CLIENT_DATA[n]||[]).length); },0);
-  const src=_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app';
-  const rows=noms.map(function(n,ni){   /* [L486] ids par INDEX : un nom avec apostrophe/esperluette ne peut pas casser le HTML */
+  const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
+  const rows=noms.map(function(n,ni){
     const refs=(CLIENT_DATA[n]||[]).map(function(r,i){
       return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px">'
         +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_l486Esc(r.ref)+'</span>'
-        +'<span style="color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums">'+(r.largeur||'—')+' mm × '+(r.longueur||'—')+' m</span>'
-        +'<button class="btn btn-sm" style="min-height:28px;padding:2px 8px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx)" title="Retirer cette référence">✕</button>'
+        +'<span style="color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums">'+(r.largeur||'—')+' mm × '+(r.longueur||'—')+' ml</span>'
+        +'<button class="btn btn-sm" style="min-height:28px;padding:2px 8px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx,this)" title="Retirer cette référence et publier">✕</button>'
         +'</div>';
     }).join('')||'<div style="font-size:12px;color:var(--muted);padding:3px 0">aucune référence</div>';
     const pkg=(PKG_CLIENTS||{})[n];
     return '<details style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
       +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
-      +'<div style="margin-top:6px">'+refs+'</div>'
-      +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
-      +'<input id="l486r_'+ni+'" placeholder="Référence (ex. 41319832 - TacFlex® DQ1009)" style="flex:2;min-width:180px;padding:6px 8px;border-radius:7px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:12.5px">'
-      +'<input id="l486l_'+ni+'" type="number" placeholder="laize mm" style="width:100px;padding:6px 8px;border-radius:7px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:12.5px">'
-      +'<input id="l486g_'+ni+'" type="number" placeholder="long. m" style="width:95px;padding:6px 8px;border-radius:7px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:12.5px">'
-      +'<button class="btn btn-sm" data-i="'+ni+'" onclick="_l486AddRef(+this.dataset.i)">+ Ajouter</button>'
-      +'</div></details>';
+      +'<div style="margin-top:6px">'+refs+'</div></details>';
   }).join('');
-  c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'
-    +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:12px 16px">'
-      +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Clients et références</div>'
-      +'<div style="font-size:13px;margin-top:4px">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+Object.keys(PKG_CLIENTS||{}).length+' règle(s) d’emballage <span style="color:var(--muted)">— source : '+src+'</span></div>'
-      +(_l486Dirty?'<div style="margin-top:8px;background:rgba(245,158,11,.10);border:1px solid #6b5416;border-radius:8px;padding:7px 11px;font-size:12.5px;color:#fbbf24;font-weight:600">✎ Modifications non publiées — elles ne sont actives que sur CE poste tant que tu n’as pas publié.</div>':'')
-      +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
-        +'<input id="l486NewCli" placeholder="Nom du nouveau client" style="flex:1;min-width:180px;padding:7px 9px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px">'
-        +'<button class="btn btn-sm" onclick="_l486AddCli()">+ Nouveau client</button>'
-        +'<button class="btn btn-blue btn-sm" onclick="_l486Publish(this)" title="Envoie la liste à toutes les tablettes">⬆ Publier à tous les postes</button>'
+  const dl='<datalist id="l487Clis">'+noms.map(function(n){ return '<option value="'+_l486Esc(n)+'"></option>'; }).join('')+'</datalist>';
+  c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'+dl
+    +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">'
+      +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Ajouter un client et sa référence</div>'
+      +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu — tape les premières lettres, la liste te le propose. Tout part sur les 3 tablettes en une fois.</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        +'<input id="l487Cli" list="l487Clis" placeholder="Client" style="'+inp+';flex:1;min-width:150px">'
+        +'<input id="l487Ref" placeholder="Référence (ex. 41319832 - TacFlex® DQ1009)" style="'+inp+';flex:2;min-width:210px">'
+        +'<input id="l487La" type="number" placeholder="laize mm" style="'+inp+';width:110px">'
+        +'<input id="l487Ml" placeholder="mètre linéaire — 500 ou 100 / 250 / 500" title="Plusieurs métrages pour la MÊME référence : sépare-les par / ou par une virgule" style="'+inp+';width:230px">'
+        +'<button class="btn btn-blue" style="min-height:40px" onclick="_l487Valider(this)">✔ Valider et publier</button>'
       +'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · source : '+(_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app')+'</div>'
     +'</div>'
     +rows
     +'<div style="font-size:11.5px;color:var(--muted);padding:0 4px">Les règles d’emballage (palette, cerclage, spécificités) se modifient encore dans le code — dis-moi si tu veux les éditer ici aussi.</div>'
   +'</div>';
 }
-function _l486AddCli(){
-  const el=document.getElementById('l486NewCli'); const n=(el&&el.value||'').trim();
-  if(!n){ showToast('Saisis le nom du client.','err'); return; }
-  if(CLIENT_DATA[n]){ showToast('Ce client existe déjà.','err'); return; }
-  CLIENT_DATA[n]=[]; _l486Dirty=true; if(el) el.value=''; renderClients();
-  showToast('Client « '+n+' » ajouté — ajoute ses références puis publie.','ok');
+/* Le geste unique : cree le client s il est nouveau, ajoute la/les references, publie. Tout ou rien
+   cote message : si la publication echoue, on le DIT et on annule la modification locale pour ne pas
+   laisser un poste desynchronise des deux autres. */
+async function _l487Valider(btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
+  const g=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; };
+  const nom=g('l487Cli'), ref=g('l487Ref'), la=parseInt(g('l487La'),10)||0, mlTxt=g('l487Ml');
+  if(!nom){ showToast('Saisis le nom du client.','err'); return; }
+  if(!ref){ showToast('Saisis la référence — un client sans référence ne sert à rien au Plan.','err'); return; }
+  if(!(la>0)){ showToast('Saisis la laize de la bobine mère, en mm.','err'); return; }
+  const mls=mlTxt.split(/[\/;,]+/).map(function(x){ return parseInt(String(x).trim(),10)||0; }).filter(function(x){ return x>0; });
+  const nouveau=!CLIENT_DATA[nom];
+  const arr=(CLIENT_DATA[nom]=CLIENT_DATA[nom]||[]);
+  const avant=arr.slice();   /* copie de securite pour annuler si la publication echoue */
+  const add=[],deja=[];
+  (mls.length?mls:[0]).forEach(function(lo){
+    if(arr.some(function(x){ return x.ref===ref&&(x.longueur||0)===lo&&(x.largeur||0)===la; })){ deja.push(lo||'—'); return; }
+    arr.push(lo>0?{ref:ref,largeur:la,longueur:lo}:{ref:ref,largeur:la}); add.push(lo||'—');
+  });
+  if(!add.length){ if(nouveau) delete CLIENT_DATA[nom]; showToast('Déjà présent : '+ref+' en '+deja.join(' / ')+' ml.','err'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Publication…'; }
+  const ok=await _l486Publish(null,true);
+  if(btn){ btn.disabled=false; btn.textContent='✔ Valider et publier'; }
+  if(!ok){ if(nouveau) delete CLIENT_DATA[nom]; else CLIENT_DATA[nom]=avant; renderClients(); return; }   /* le toast d erreur vient de _l486Publish */
+  ['l487Ref','l487La','l487Ml'].forEach(function(id){ const e=document.getElementById(id); if(e) e.value=''; });
+  renderClients();
+  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) ('+add.join(' / ')+' ml) publiée(s) sur les 3 tablettes.'+(deja.length?' · '+deja.join(' / ')+' ml déjà présent(s)':''),'ok');
 }
 function _l486Nom(ni){ return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni]; }   /* meme tri que le rendu */
-function _l486AddRef(ni){
-  const nom=_l486Nom(ni); if(!nom) return;
-  const r=(document.getElementById('l486r_'+ni)||{}).value||'', l=(document.getElementById('l486l_'+ni)||{}).value||'', g=(document.getElementById('l486g_'+ni)||{}).value||'';
-  const ref=String(r).trim(), la=parseInt(l,10)||0, lo=parseInt(g,10)||0;
-  if(!ref){ showToast('Saisis la référence.','err'); return; }
-  if(!(la>0)){ showToast('Saisis la laize en mm.','err'); return; }
-  (CLIENT_DATA[nom]=CLIENT_DATA[nom]||[]).push(lo>0?{ref:ref,largeur:la,longueur:lo}:{ref:ref,largeur:la});
-  _l486Dirty=true; renderClients(); showToast('Référence ajoutée à '+nom+'.','ok');
-}
-async function _l486DelRef(ni,idx){
+async function _l486DelRef(ni,idx,btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const nom=_l486Nom(ni); if(!nom) return;
   const arr=CLIENT_DATA[nom]||[]; const r=arr[idx]; if(!r) return;
-  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » de '+nom+' ?',{ok:'Retirer'}))) return;
-  arr.splice(idx,1); _l486Dirty=true; renderClients();
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » ('+(r.longueur||'—')+' ml) de '+nom+' ?\n\nLe retrait part immédiatement sur les 3 tablettes.',{ok:'Retirer et publier'}))) return;
+  const avant=arr.slice();
+  if(btn) btn.disabled=true;
+  arr.splice(idx,1);
+  const ok=await _l486Publish(null,true);
+  if(btn) btn.disabled=false;
+  if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
+  renderClients(); showToast('✔ Référence retirée et publiée.','ok');
 }
 async function renderAudit(){
   const c=document.getElementById('tabContentAudit');

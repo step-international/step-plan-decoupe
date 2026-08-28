@@ -1221,7 +1221,7 @@ has(/debitM2:_moM>0\?metres\*_moM\*3600\/sec:null/,'L395 : débit surface par re
 has(/SURFACE coupée \(métrage × laize mère\) : comparable/,'L395 : carte Analyse en m²/h médian (repli m/h sans laize)');
 
 console.log('── L396 : validation fiches découpe ──');
-has(/✓ Validation fiches découpe<\/button>/,'L396 : onglet renommé « Validation fiches découpe »');
+has(/✓ Valide fiche<\/button>/,'L396→L487 : onglet « Valide fiche » (libelle raccourci)');
 has(/les plus ANCIENNES envoyées tout en haut/,'L396 : file de validation chronologique (anciennes en premier, archive inversée)');
 has(/carte ALLÉGÉE \(« trop de données, trop de boutons »\)/,'L396 : carte fiche allégée — détail au tap');
 
@@ -1370,13 +1370,25 @@ has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la
 has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
 has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
 
+console.log('── L487 : referentiel reserve Esteban+Dominique, multi-metrage ──');
+has(/function _l486CanEdit/,'L487 : garde dediee (admin + DC), plus canManageData trop large');
+has(/currentUser\.ini==='DC'/,'L487 : Dominique a acces a la partie client');
+has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé à Esteban et Dominique/,'L487 : refus explicite pour les autres comptes');
+has(/x\.ref===ref&&\(x\.longueur\|\|0\)===lo/,'L487 : meme reference a plusieurs metrages, sans doublon exact');
+has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
+has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
+absent(/Publier à tous les postes/,'L487 : le bouton « Publier » separe a disparu (tout est simultane)');
+has(/if\(!ok\)\{ if\(nouveau\) delete CLIENT_DATA\[nom\]/,'L487 : publication refusee = modification locale ANNULEE (pas de poste desynchronise)');
+has(/function _l487Picked/,'L487 : la liste deroulante distingue deux entrees de MEME reference');
+has(/data-ci="\$\{ci\}"/,'L487 : index catalogue porte par l option (value inchangee = plans archives intacts)');
+
 console.log('── L486 : clients + emballages partages via Firestore (backlog #43) ──');
 has(/var CLIENT_DATA = \{/,'L486 : CLIENT_DATA reassignable (var) — plus une const figee dans le code');
 has(/CLIENT_DATA_SEED=CLIENT_DATA; PKG_CLIENTS_SEED=PKG_CLIENTS/,'L486 : graines embarquees conservees (un doc vide ne peut pas vider les clients)');
 has(/config'\)\.doc\('clients'\)\.get\(\)/,'L486 : lecture du referentiel partage au demarrage');
 has(/step_clients_v1/,'L486 : cache local (l atelier coupe hors-ligne)');
 has(/async function _l486Publish/,'L486 : publication a tous les postes, tracee dans la piste d audit');
-has(/la regle Firestore « config » est reservee a l admin/,'L486 : echec d ecriture pilotage explique, jamais muet');
+has(/la règle Firestore « config » est réservée à l’admin/,'L486→L487 : echec d ecriture explique + rien n a ete enregistre');
 has(/function renderClients/,'L486 : ecran Clients (ajout client/reference, gate canManageData)');
 has(/_l486LoadClients\(\); \}catch\(e\)\{\}/,'L486 : chargement branche a chaque authentification');
 
