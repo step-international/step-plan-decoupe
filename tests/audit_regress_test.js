@@ -67,7 +67,7 @@ has(/const MAX_USEFUL_MM=4000/,'#5/#20 anti-gel : clamp laize utile 4000 mm (200
 has(/const MAX_BLADE_MM=50/,'#5 anti-gel : clamp lame 50 mm');
 has(/largeur < 1 mm/,'#23 : largeur sub-millimétrique refusée (0 slot → pièce perdue en silence)');
 has(/GARDIEN UNIQUE 7h30/,'L212 : plnSetPlan = gardien unique 7h30 (toute pose sans days recalcule load-aware, refuse si jour plein)');
-has(/Impossible sans dépasser 7h30/,'L212 : refus de pose quand le jour est déjà plein (jamais de dépassement au glisser)');
+has(/Impossible sans dépasser '\+String\(PLN_OVER_H\)/,'L212 (dynamise L474) : refus de pose quand le jour est deja plein — seuil lu de PLN_OVER_H');
 has(/normalisée au 1er jour OUVRÉ suivant/,'revue planning #3 : pose sur férié normalisée');
 has(/if\(M===60\)\{H\+\+;M=0;\}/,'revue planning #12 : _plnH report de retenue (1 h 60 → 2 h)');
 has(/importFullBackup/,'#16 : import de sauvegarde présent (round-trip)');
@@ -1353,6 +1353,22 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L474 : correctifs audit final (19 confirmes) ──');
+has(/TOUJOURS charger le cache \(≤24 docs\)/,'L474#1 : agregatsCache charge a chaque lancement');
+has(/attribution PAR GROUPE via fd\.refIdx/,'L474#2 : m² multi-ref par groupe (homonymes corrects)');
+has(/PRORATA : mois en cours PARTIEL vs N-1/,'L474#3 : vs N-1 proratise et « a date »');
+has(/feries exclus \*\//,'L474#4 : prevision sans jours feries');
+has(/calcule APRES le rendu partiel/,'L474#5 : KPI live plus jete au rendu partiel');
+has(/une NC declaree garde son motif/,'L474#6 : purge test 2e gardee par la coche NC');
+has(/function _l474PurgeReopened/,'L474#7 : snapshot MODIFIER purge aux changements de commande');
+has(/Retirer la machine op\. 2/,'L474#8 : sortie visible de la zone machine op.2 historique');
+has(/sans agregat, un point live exige l HISTORIQUE COMPLET/,'L474#10 : backfill courbe gate');
+has(/repli LIMITE au sens transparent→imprime/i,'L474#11 : repli mandrin restreint aux laizes dictees');
+absent(/aucune place sous 7h30/,'L474#13 : plus de 7h30 en dur dans les toasts planning');
+has(/le % AFFICHE peut depasser 100/,'L474#16 : pourcentage objectif reel');
+has(/de perte ce mois · /,'L474#17 : gros chiffre de perte libelle');
+has(/function _l474MoisAbr/,'L474#19 : mois abreges normalises');
+
 console.log('── L472 : compaction tablette (voir le CUMUL sans defiler) ──');
 has(/L472 · dictee Esteban 29\/08 · tablette/,'L472 : bloc de compaction paysage present');
 has(/min-height:54px!important;font-size:17px!important/,'L472 : bouton COUPEE reduit');
@@ -1380,7 +1396,7 @@ has(/echelle visible/,'L468 : echelle Y sur la courbe production');
 
 console.log('── L466-L467 : mandrins DQ1002 ──');
 has(/45:\{c:"0453",k:5/,'L466 : mandrin 45 mm DQ1002 imprime');
-has(/SIB=\{'41319526':'41319051','41319051':'41319526'\}/,'L467 : repli mandrin entre DQ1002 imprime et transparent (meme laize = meme mandrin)');
+has(/SIB_OK=\{'41319526':\{26:1,44:1,61:1,63:1,66:1,86:1\}\}/,'L467→L474 : repli mandrin RESTREINT (transparent→imprime, laizes dictees seulement — les codes divergent a laize egale)');
 
 console.log('── L465 : cadrage final Analyse (retours + QCM) ──');
 has(/les graphiques HISTORIQUES reviennent tels quels/,'L465 : courbe op x laize revertee — anciens graphiques');

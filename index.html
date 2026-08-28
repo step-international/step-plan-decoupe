@@ -2728,6 +2728,7 @@ html.theme-light .fp-num small{color:#8a8a84}
                couvre ce besoin. La checkbox reste (cachee) pour les restaurations de brouillons historiques. -->
         </label>
         <div id="op2MachineZone" class="hidden" style="margin-top:8px">
+          <button type="button" class="btn btn-ghost btn-sm" style="margin-bottom:8px" onclick="try{ficheMachine2='';}catch(e){}var c=document.getElementById('fOp2DiffMachine');if(c)c.checked=false;try{toggleOp2Machine();}catch(e){}">✕ Retirer la machine op. 2 (même machine que l'op. 1)</button><!-- [L474 · audit #8] la case est cachee (L462) : seul un brouillon historique restaure peut re-ouvrir cette zone — il faut un moyen VISIBLE d en sortir -->
           <label>Machine de l'opérateur 2</label>
           <div class="machine-btns" style="margin-bottom:0">
             <button type="button" class="machine-btn-fiche sel-feba" id="fBtnFeba2" onclick="selectFicheMachine2('feba')">FEBA</button>
@@ -3259,7 +3260,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L473';
+const APP_VERSION='2026.08.29-L474';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6189,7 +6190,7 @@ function importPlanToFiche(opts){
     if(!auto && !_fromResume){ _resumedForeignDraftId=null; _resumedDraftId=null; }   // [L298] passation désarmée SEULEMENT une fois tous les confirms passés (la régénération va vraiment avoir lieu)
     // Régénération complète = repart de zéro pour le gating multi-réf, SAUF si
     // l'appel vient d'une revalidation par référence (keepRefValidation).
-    if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); if(!window._l432KeepOrder) ficheRefOrder=[]; window._l432KeepOrder=false; }   /* [L422] seed validee-au-Plan dans renderFicheMachineBlocks — [L432] l'ordre pose par « Commencer a couper » (refs validees en tete) survit a CET import (drapeau one-shot) */
+    if(!opts.keepRefValidation && typeof ficheRefValidated!=='undefined'){ ficheRefValidated.clear(); if(!window._l432KeepOrder) ficheRefOrder=[]; window._l432KeepOrder=false; _l474PurgeReopened(); }   /* [L422] seed validee-au-Plan dans renderFicheMachineBlocks — [L432] l'ordre pose par « Commencer a couper » (refs validees en tete) survit a CET import (drapeau one-shot) */
 
     // En-têtes : copie depuis le Plan. En multi-réf, fRef liste toutes les réfs.
     const copy=(planId,ficheId)=>{
@@ -7379,12 +7380,13 @@ const LEGRAND_PKG={"41315709":{28:{c:"8675",k:8,x:true},40:{c:"0310",k:6,x:true}
 function legrandRefCode(ref){ return String(ref||'').trim().split(/[\s\-]/)[0].trim(); }
 function legrandPkg(ref,width){ const code=legrandRefCode(ref); const t=LEGRAND_PKG[code]; if(!t) return null; const w=Math.round(parseNum(width));
   if(t[w]) return t[w];
-  /* [L467 · gueulante Esteban 29/08 x2] DQ1002 imprime (41319051) et transparent (41319526) : un MEME mandrin
-     sert les deux films pour une meme laize — sa table a lui d'abord, la table soeur en repli. Sans ca, une
-     commande transparente sortait « — » sur 26/44/61/63/66/86 alors que les codes dictes etaient en table. */
-  const SIB={'41319526':'41319051','41319051':'41319526'};
-  const s=SIB[code]&&LEGRAND_PKG[SIB[code]];
-  return (s&&s[w])||null; }
+  /* [L467 → L474 · audit final #11] les codes sont SPECIFIQUES au film (preuve : 45=0453 imprime vs 3968
+     transparent ; 50 et 75 divergent aussi). Repli LIMITE au sens transparent→imprime et aux SEULES laizes
+     dictees par Esteban le 29/08 (26/44/61/63/66/86) — a etendre laize par laize sur sa confirmation. */
+  const SIB_OK={'41319526':{26:1,44:1,61:1,63:1,66:1,86:1}};
+  const ok=SIB_OK[code];
+  if(ok&&ok[w]){ const s=LEGRAND_PKG['41319051']; return (s&&s[w])||null; }
+  return null; }
 // Auto-remplit code mandrin + nb/carton d'une ligne de commande Legrand France depuis la table.
 function autofillLegrandRow(rowEl){
   if(!rowEl) return;
@@ -13236,7 +13238,7 @@ async function plnAutoFill(){
     }catch(e){ fail++; }
   }
   try{ renderPlanning(); }catch(e){}
-  showToast('⚡ Planning optimisé : '+done+' commande(s) posée(s)'+(respread?' · '+respread+' déjà posée(s) RÉ-ÉTALÉE(S)':'')+(spread?' · '+spread+' étalée(s)':'')+(moved?' · '+moved+' déplacée(s) sur une autre machine':'')+(notFit?' · ⚠ '+notFit+' NON placée(s) (semaine pleine — aucune place sous 7h30)':'')+(fail?' · '+fail+' échec(s)':'')+'.','ok');
+  showToast('⚡ Planning optimisé : '+done+' commande(s) posée(s)'+(respread?' · '+respread+' déjà posée(s) RÉ-ÉTALÉE(S)':'')+(spread?' · '+spread+' étalée(s)':'')+(moved?' · '+moved+' déplacée(s) sur une autre machine':'')+(notFit?' · ⚠ '+notFit+' NON placée(s) (semaine pleine — aucune place sous '+String(PLN_OVER_H).replace('.',',')+' h)':'')+(fail?' · '+fail+' échec(s)':'')+'.','ok');
   logAudit('planning','saves','auto-fill','Planning optimisé — '+done+' posée(s), '+respread+' ré-étalée(s), '+spread+' étalée(s), '+moved+' déplacée(s), '+notFit+' non placée(s) (max '+PLN_OVER_H+' h/j, semaine du '+dayIsos[0]+')').catch(function(){});
 }
 async function plnSetPlan(sid,dateIso,machKey,days,silent){
@@ -13284,11 +13286,11 @@ async function plnSetPlan(sid,dateIso,machKey,days,silent){
         _D++; }
       if(!_ok){
         try{ renderPlanning(); }catch(e){}   // remet la carte à sa place (le glisser l'avait déplacée visuellement)
-        if(!silent) showToast('⚠ Impossible sans dépasser 7h30 : à partir du '+new Date(dateIso+'T12:00:00').toLocaleDateString('fr-FR')+', la/les machine(s) concernée(s) sont déjà pleines sur les jours disponibles.\n\nDépose sur un jour plus libre, ou lance ⚡ Planning optimisé.','err');
+        if(!silent) showToast('⚠ Impossible sans dépasser '+String(PLN_OVER_H).replace('.',',')+' h : à partir du '+new Date(dateIso+'T12:00:00').toLocaleDateString('fr-FR')+', la/les machine(s) concernée(s) sont déjà pleines sur les jours disponibles.\n\nDépose sur un jour plus libre, ou lance ⚡ Planning optimisé.','err');
         return false;
       }
       nDays=_D;
-      if(!silent && _D>_minD) showToast('🗓 Étalée sur '+_D+' jours pour tenir sous 7h30 (les journées suivantes se remplissent).','ok');
+      if(!silent && _D>_minD) showToast('🗓 Étalée sur '+_D+' jours pour tenir sous '+String(PLN_OVER_H).replace('.',',')+' h (les journées suivantes se remplissent).','ok');
     }
   }
   const after={d:dateIso||null,m:machKey||null,days:nDays};
@@ -13981,12 +13983,23 @@ function buildMonthlyKpi(ym,fiches,temps){
     try{
       const _dets63=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
       if(Array.isArray(f.refGroups)&&f.refGroups.length){
-        const _seen63={};
-        f.refGroups.forEach(gr=>{ const k=nrm(gr.ref); if(_seen63[k]) return; _seen63[k]=1;
-          const nb=f.manqueMatiere?_dets63.filter(fd=>fd&&!fd.recut&&fd.coupee===true&&nrm(fd.ref)===k).length
-                                  :(_dets63.length?_dets63.filter(fd=>fd&&!fd.recut&&nrm(fd.ref)===k).length:0);
-          const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
-          if(mo>0&&lg>0&&nb>0) m2Total+=mo/1000*lg*nb; });
+        /* [L474 · audit #2/#9] attribution PAR GROUPE via fd.refIdx (persiste L379) : deux refs homonymes
+           (meme code, machines/dims differentes) ne s ecrasent plus. Repli par NOM (deduplique) pour les
+           fiches historiques sans refIdx — comportement L463 conserve. */
+        const _keep63=fd=>fd&&!fd.recut&&(!f.manqueMatiere||fd.coupee===true);
+        const _hasIdx63=_dets63.some(fd=>fd&&typeof fd.refIdx==='number');
+        if(_hasIdx63){
+          f.refGroups.forEach((gr,gi)=>{
+            const nb=_dets63.filter(fd=>_keep63(fd)&&fd.refIdx===gi).length;
+            const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
+            if(mo>0&&lg>0&&nb>0) m2Total+=mo/1000*lg*nb; });
+        } else {
+          const _seen63={};
+          f.refGroups.forEach(gr=>{ const k=nrm(gr.ref); if(_seen63[k]) return; _seen63[k]=1;
+            const nb=_dets63.filter(fd=>_keep63(fd)&&nrm(fd.ref)===k).length;
+            const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
+            if(mo>0&&lg>0&&nb>0) m2Total+=mo/1000*lg*nb; });
+        }
       } else {
         const mo=parseNum(f.mother)||0, lg=parseNum(f.longueur)||0;
         if(mo>0&&lg>0&&b>0) m2Total+=mo/1000*lg*b;
@@ -14082,8 +14095,8 @@ async function ensureMonthlyAggregates(){
   if(!db || !canManageData()) return;
   const KEY='step_aggregates_daily';
   const today=todayISO();
+  await loadAgregats();   /* [L474 · audit final #1] TOUJOURS charger le cache (≤24 docs) — au 2e lancement du jour, le return anticipe laissait agregatsCache VIDE : courbe 6 mois sans garde, carte % perte disparue */
   try{ if(localStorage.getItem(KEY)===today) return; }catch(e){}
-  await loadAgregats();
   const ym=lastClosedYM();
   if(agregatsCache.some(a=>a.mois===ym)){ try{localStorage.setItem(KEY,today);}catch(e){} return; }   // déjà figé → rien à recalculer, on marque le jour
   try{
@@ -16769,23 +16782,37 @@ function _l463EditCible(){
   try{ if(db) db.collection('config').doc('analyse').set({objectifM2:nv,by:(currentUser&&currentUser.ini)||'',at:isoNow()},{merge:true}).then(function(){ showToast('🎯 Cible '+nv.toLocaleString('fr-FR')+' m² partagée à tous les postes.','ok'); }).catch(function(){ showToast('🎯 Cible posée sur CE poste seulement (règle Firestore « config » en écriture manquante — à ajouter en console).','err'); }); }catch(e){}
   try{ renderAnalyse(); }catch(e){}
 }
-function _l463JoursOuvresRestants(){ const d=new Date(),y=d.getFullYear(),m=d.getMonth(),last=new Date(y,m+1,0).getDate(); let n=0; for(let j=d.getDate();j<=last;j++){ const w=new Date(y,m,j).getDay(); if(w>=1&&w<=5) n++; } return n; }
+function _l463JoursOuvresRestants(){ const d=new Date(),y=d.getFullYear(),m=d.getMonth(),last=new Date(y,m+1,0).getDate(); let n=0; const fer=(typeof _joursFeriesFR==='function')?_joursFeriesFR(y):new Set(); for(let j=d.getDate();j<=last;j++){ const w=new Date(y,m,j).getDay(); const iso=y+'-'+String(m+1).padStart(2,'0')+'-'+String(j).padStart(2,'0'); if(w>=1&&w<=5&&!fer.has(iso)) n++; } return n; }   /* [L474 · audit #4] feries exclus */
 function _l463ObjectifBlock(k){
-  const cible=_l463Cible(), m2=(k&&k.m2>0)?k.m2:0, pct=cible>0?Math.min(100,Math.round(m2/cible*100)):0;
+  const cible=_l463Cible(), m2=(k&&k.m2>0)?k.m2:0, pctReel=cible>0?Math.round(m2/cible*100):0, pct=Math.min(100,pctReel);   /* [L474 · audit #16] le % AFFICHE peut depasser 100 (seule la barre plafonne) */
+  const parDefaut=!(parseInt(window._anaCibleM2,10)>0);
   const rest=_l463JoursOuvresRestants(), ryt=(rest>0&&cible>m2)?Math.round((cible-m2)/rest):0;
   return '<div id="zoneObjectif" style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:16px 18px">'
     +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center">🎯 Objectif du mois — m² coupés'
     +((currentRole==='admin'||currentRole==='pilotage')?'<button onclick="_l463EditCible()" style="margin-left:auto;background:none;border:1px solid var(--border2);border-radius:7px;color:var(--muted);font-size:11px;padding:3px 9px;cursor:pointer">✎ cible</button>':'')+'</div>'
     +'<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:8px">'
     +'<span style="font-size:32px;font-weight:800;font-variant-numeric:tabular-nums">'+m2.toLocaleString('fr-FR')+'</span>'
-    +'<span style="color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums">/ '+cible.toLocaleString('fr-FR')+' m²</span>'
-    +'<span style="margin-left:auto;font-size:24px;font-weight:800;color:var(--orange);font-variant-numeric:tabular-nums">'+pct+' %</span></div>'
+    +'<span style="color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums">/ '+cible.toLocaleString('fr-FR')+' m²'+(parDefaut?' <span style="font-weight:600;font-size:11px">(cible par défaut — ✎ pour la fixer)</span>':'')+'</span>'
+    +'<span style="margin-left:auto;font-size:24px;font-weight:800;color:'+(pctReel>=100?'#4ade80':'var(--orange)')+';font-variant-numeric:tabular-nums">'+pctReel+' %</span></div>'
     +'<div style="height:12px;background:#1a1a18;border:1px solid var(--border2);border-radius:99px;overflow:hidden;margin-top:8px"><i style="display:block;height:100%;width:'+pct+'%;border-radius:99px;background:linear-gradient(90deg,#b97a12,#f5a623)"></i></div>'
     +'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;margin-top:8px;font-variant-numeric:tabular-nums">'
     +(function(){ try{ const d=new Date(); let done=0; for(let j=1;j<=d.getDate();j++){ const w=new Date(d.getFullYear(),d.getMonth(),j).getDay(); if(w>=1&&w<=5) done++; } const tot=done+rest-(function(){const w=d.getDay();return (w>=1&&w<=5)?1:0;})(); if(m2>0&&done>0&&tot>done){ const prev=Math.round(m2/done*tot); return '<span>📈 à ce rythme : <b>~'+prev.toLocaleString('fr-FR')+' m²</b> fin de mois</span>'; } }catch(e){} return ''; })()
-    +(function(){ try{ const d=new Date(); const ym1=(d.getFullYear()-1)+'-'+String(d.getMonth()+1).padStart(2,'0'); const k1=buildMonthlyKpi(ym1,fichesCache,tempsCache); if(k1&&k1.m2>0&&m2>0){ const dd=Math.round((m2-k1.m2)/k1.m2*100); return '<span>vs '+monthLabelFr(ym1).toLowerCase()+' : <b style="color:'+(dd>=0?'#4ade80':'#fca5a5')+'">'+(dd>=0?'+':'')+dd+' %</b></span>'; } }catch(e){} return ''; })()
+    +(function(){ try{ const d=new Date(); const ym1=(d.getFullYear()-1)+'-'+String(d.getMonth()+1).padStart(2,'0');
+      /* [L474 · audit #14] agregat FIGE d abord ; live seulement avec l historique complet (anti chiffre menteur) */
+      let m2N1=0; try{ const a1=agregatsCache.find(function(x){return x&&x.mois===ym1;}); if(a1&&a1.m2>0) m2N1=a1.m2; }catch(_){}
+      if(!(m2N1>0)&&typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded){ const k1=buildMonthlyKpi(ym1,fichesCache,tempsCache); if(k1&&k1.m2>0) m2N1=k1.m2; }
+      if(m2N1>0&&m2>0){
+        /* [L474 · audit #3] PRORATA : mois en cours PARTIEL vs N-1 ramene aux memes jours ouvres ecoules */
+        const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); let done=0,tot=0;
+        for(let j=1;j<=last;j++){ const w=new Date(d.getFullYear(),d.getMonth(),j).getDay(); if(w>=1&&w<=5){ tot++; if(j<=d.getDate()) done++; } }
+        const ref=m2N1*(tot>0?done/tot:1); if(!(ref>0)) return '';
+        const dd=Math.round((m2-ref)/ref*100);
+        return '<span>vs '+monthLabelFr(ym1).toLowerCase()+' à date : <b style="color:'+(dd>=0?'#4ade80':'#fca5a5')+'">'+(dd>=0?'+':'')+dd+' %</b></span>';
+      } }catch(e){} return ''; })()
     +'<span style="margin-left:auto;color:var(--muted)">'+(k?k.nbFiches:0)+' fiches · reste '+rest+' j ouvrés'+(ryt>0?' · '+ryt.toLocaleString('fr-FR')+' m²/j requis':'')+'</span></div></div>';
 }
+const _MOIS_ABR=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+function _l474MoisAbr(ym){ return _MOIS_ABR[parseInt(String(ym).slice(5),10)-1]||ym; }   /* [L474 · audit #19] « avr. » au lieu de « avri » */
 function _l463Prod6m(liveKpi){
   const cur=currentMonthYM(), months=prevMonthsYM(6).reverse(), byM={};
   try{ agregatsCache.forEach(function(a){ if(a&&a.mois) byM[a.mois]=a; }); }catch(e){}
@@ -16795,7 +16822,7 @@ function _l463Prod6m(liveKpi){
     /* [L464 · retour Esteban] les mois figes n'avaient pas m² -> courbe a UN point (« immondice »). On calcule
        le m² des mois passes EN LIVE depuis fichesCache ; si un agregat existe, on ne l'affiche que si le cache
        couvre bien le mois (meme nbFiches) — jamais un chiffre menteur. */
-    if(v==null&&ym!==cur){ try{ const lk=buildMonthlyKpi(ym,fichesCache,tempsCache); if(lk&&lk.m2>0&&(!k||!(k.nbFiches>0)||lk.nbFiches===k.nbFiches)) v=lk.m2; }catch(e){} }
+    if(v==null&&ym!==cur){ try{ const lk=buildMonthlyKpi(ym,fichesCache,tempsCache); if(lk&&lk.m2>0&&((k&&k.nbFiches>0)?lk.nbFiches===k.nbFiches:(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded))) v=lk.m2; }catch(e){} }   /* [L474 · audit #10] sans agregat, un point live exige l HISTORIQUE COMPLET (le cache boot ~200 fiches donnait un point menteur) */
     return {ym:ym,m2:v};
   });
   const has=pts.filter(function(p){ return p.m2!=null; });
@@ -16804,9 +16831,10 @@ function _l463Prod6m(liveKpi){
   const x=function(i){ return L+i*(W-L-18)/(months.length-1); }, y=function(v){ return 16+(B-16)*(1-v/max); };
   let path='',dots='',labels='',prev=null;
   const fmtK=function(v){ return v>=1000?Math.round(v/1000).toLocaleString('fr-FR')+' k':String(Math.round(v)); };
-  let grid='';[0.33,0.66,1].forEach(function(f){ const vv=max*f/1.15, Y=y(vv); grid+='<line x1="'+L+'" y1="'+Y.toFixed(1)+'" x2="'+(W-18)+'" y2="'+Y.toFixed(1)+'" stroke="#20211C" stroke-width="1"/><text x="'+(W-16)+'" y="'+(Y-3).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#77786f">'+fmtK(vv)+'</text>'; });   /* [L468] echelle visible */
+  const fmtKu=function(v){ return fmtK(v)+(v>=1000?' m²':''); };   /* [L474 · audit #19] unite sur l echelle */
+  let grid='';[0.33,0.66,1].forEach(function(f){ const vv=max*f/1.15, Y=y(vv); grid+='<line x1="'+L+'" y1="'+Y.toFixed(1)+'" x2="'+(W-18)+'" y2="'+Y.toFixed(1)+'" stroke="#20211C" stroke-width="1"/><text x="'+(W-16)+'" y="'+(Y-3).toFixed(1)+'" text-anchor="end" font-size="9.5" fill="#77786f">'+fmtKu(vv)+'</text>'; });   /* [L468] echelle visible */
   pts.forEach(function(p,i){
-    labels+='<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="#77786f">'+monthLabelFr(p.ym).split(' ')[0].slice(0,4).toLowerCase()+'</text>';
+    labels+='<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="#77786f">'+_l474MoisAbr(p.ym)+'</text>';
     if(p.m2==null){ prev=null; return; }
     const X=x(i),Y=y(p.m2);
     path+=(prev==null?'M':'L')+X.toFixed(1)+','+Y.toFixed(1);
@@ -16861,14 +16889,14 @@ function _l463PerteClients(liveKpi){
     let path='',prev=null,dots='';
     pts.forEach(function(p,i){ if(p.v==null){ prev=null; return; } const X=x(i),Y=y(p.v); path+=(prev==null?'M':'L')+X.toFixed(1)+','+Y.toFixed(1); prev=1;
       dots+='<circle cx="'+X+'" cy="'+Y+'" r="'+(p.ym===cur?4.5:3)+'" fill="'+(p.ym===cur?'#2fb85f':'#141410')+'" stroke="#2fb85f" stroke-width="2"><title>'+monthLabelFr(p.ym)+' : '+String(p.v).replace('.',',')+' %</title></circle>'; });
-    let lab=''; months.forEach(function(ym,i){ lab+='<text x="'+x(i)+'" y="'+(H-4)+'" text-anchor="middle" font-size="9.5" fill="#77786f">'+monthLabelFr(ym).split(' ')[0].slice(0,4).toLowerCase()+'</text>'; });
+    let lab=''; months.forEach(function(ym,i){ lab+='<text x="'+x(i)+'" y="'+(H-4)+'" text-anchor="middle" font-size="9.5" fill="#77786f">'+_l474MoisAbr(ym)+'</text>'; });
     left='<div><div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">% perte matière — 6 mois</div>'
       +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;margin-top:4px"><path d="'+path+'" fill="none" stroke="#2fb85f" stroke-width="2.2" stroke-linecap="round"/>'+dots+lab+'</svg></div>';
   }
   /* [L465 · retour Esteban] top clients RETIRE (deja dans KPI mensuels > TOP VOLUMES). m² de perte reels en tete. */
   if(!left) return '';
   let head='';
-  try{ if(liveKpi&&liveKpi.m2>0&&liveKpi.pertePct>0){ const pm2=Math.round(liveKpi.m2*liveKpi.pertePct/100); head='<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 4px"><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">≈ '+pm2.toLocaleString('fr-FR')+' m²</span><span style="color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums">ce mois · '+String(liveKpi.pertePct).replace('.',',')+' %</span></div>'; } }catch(e){}
+  try{ if(liveKpi&&liveKpi.m2>0&&liveKpi.pertePct>0){ const pm2=Math.round(liveKpi.m2*liveKpi.pertePct/100); head='<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 4px"><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">≈ '+pm2.toLocaleString('fr-FR')+' m²</span><span style="color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums">de perte ce mois · '+String(liveKpi.pertePct).replace('.',',')+' %</span></div>'; } }catch(e){}
   return '<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:14px 18px">'+head+left+'</div>';
 }
 function _l463OpChart(valid){
@@ -16930,7 +16958,6 @@ function renderAnalyse(partial){
   });
   const valid=fTemps.filter(t=>t.duree>0&&t.totalLaizes>0);
   const _filtered=_anaFiltered();
-  let _liveKpi63=null; try{ _liveKpi63=buildMonthlyKpi(currentMonthYM(),fichesCache,tempsCache); }catch(e){}   /* [L463] KPI live du mois pour objectif + courbe + machines */
   const chartsHTML=_anaChartsHTML(valid,_filtered);   /* [L463 → L465 retour Esteban] les graphiques HISTORIQUES reviennent tels quels (« pareil que ce qu'on avait avant ») — _l463OpChart reste en code, plus appele */
   const faHTML=buildFicheAnalytics();
   // [L249 · R4a] RENDU PARTIEL PAR ZONES : un clic de filtre ne reconstruit que la barre, les graphiques
@@ -16944,6 +16971,7 @@ function renderAnalyse(partial){
       return;
     }
   }
+  let _liveKpi63=null; try{ _liveKpi63=buildMonthlyKpi(currentMonthYM(),fichesCache,tempsCache); }catch(e){}   /* [L463 → L474 audit #5] calcule APRES le rendu partiel (il etait calcule puis JETE a chaque clic de filtre) */
   // [L249 · R4a] bandeau « périmètre » : ces blocs NE SONT PAS filtrables — on le DIT plutôt que de
   // laisser croire qu'ils suivent le filtre (mois figé + filtre client = chiffre faux sinon).
   const scopeNote='<div class="ana-scope-note" style="display:'+(_filtered?'block':'none')+';font-size:12px;font-weight:600;color:#fbbf24;background:rgba(245,158,11,.08);border:1px solid #6b5416;border-radius:8px;padding:7px 11px">🎛 Filtre actif — ce bloc n\'est pas filtrable : il montre TOUT l\'atelier.</div>';
@@ -19494,6 +19522,7 @@ function onFmmMachineBtn(btn,m){
 // opts.fresh       : import neuf depuis le plan -> repart de zéro (gating actif)
 // opts.allValidated: reprise d'un brouillon -> toutes les réfs déjà validées
 // [L217] « recorriger » depuis le résumé compact d'une réf validée → dé-valide cette réf et ré-affiche sa carte éditable (mère/bords/machine). N'efface QUE cette réf (pas opts.fresh).
+function _l474PurgeReopened(){ try{ window._l462Reopened={}; }catch(e){} }   /* [L474 · audit #7] le snapshot MODIFIER ne survit JAMAIS a un changement de commande (le REPLIER re-validait une ref d une AUTRE commande — fausse trace ISO) */
 function unvalidateFicheRef(idx){
   if(typeof ficheRefValidated!=='undefined') ficheRefValidated.delete(idx);
   /* [L450 · bug Esteban 28/08 « le bouton MODIFIER ne marche pas »] le re-rendu RE-SEEDait la validation
@@ -19520,7 +19549,7 @@ function renderFicheMachineBlocks(opts){
     // MONO-RÉF : comportement historique inchangé.
     mono.style.display='';
     multi.style.display='none';
-    ficheRefValidated.clear();
+    ficheRefValidated.clear(); _l474PurgeReopened();
     return;
   }
   // MULTI-RÉF
@@ -20643,16 +20672,9 @@ function coupeeTapOne(id){
     if(setR&&r) r.checked=false;
     try{ updateTest2Subs(id); }catch(e){}
   }
-  if((setD||setR)&&cutNow){ try{ line.dataset.t2auto='1'; }catch(e){} }   // [L307 · fix audit ISO] trace « attestation posée par le tap » (pour la purge au dé-marquage)
+  /* [L474 · audit final #15] flag t2auto retire : la purge vit desormais UNIQUEMENT dans toggleCoupee (doctrine L462, garde NC) — l ancien chemin conditionne mourait a la restauration de brouillon (flag perdu, coches recochees) */   // [L307 · fix audit ISO] trace « attestation posée par le tap » (pour la purge au dé-marquage)
   if(!already&&cutNow){ try{ _pushTrail('coupé '+id); }catch(e){} try{ hintCoupeeCount(); }catch(e){}
     try{ if(!(ncEl&&ncEl.checked)&&!ncMotif&&line.dataset.stkc!=='1'){ line.dataset.stkc='1'; streakBump(); } }catch(e){} }   // [L322 LOT 20 + L324 LOT 12·G1 + fixes audit] +1 par coupe SAINE, UNE fois par bobine (anti-gonflage par re-marquage) ; la NC d'un COLLÈGUE ne reset pas MA série
-  if(already&&!cutNow&&line.dataset&&line.dataset.t2auto==='1'){
-    // [L307 · fix audit ISO] dé-marquage d'une coupe faite PAR ERREUR : l'attestation test 2ᵉ AUTO ne survit
-    // pas (elle n'a jamais été un geste physique). Les coches posées À LA MAIN, elles, restent.
-    try{ const _d=document.getElementById('flDevi_'+id); if(_d) _d.checked=false;
-         const _r=document.getElementById('flDroit_'+id); if(_r) _r.checked=false;
-         delete line.dataset.t2auto; updateTest2Subs(id); }catch(e){}
-  }
 }
 function toggleCoupee(id){
   const line=document.getElementById(id);
@@ -20737,7 +20759,7 @@ function toggleCoupee(id){
     /* [L462 · bug Esteban 29/08] coche « COUPEE — TEST OK » par ERREUR puis decochee : les cases du test 2e
        (devi/droit) posees par le MEME tap restaient cochees -> isFicheUntouched=false -> ordre de coupe FIGE
        a jamais. Decocher la bobine efface son test 2e (les NC declarees, photos et actions restent). */
-    try{ ['flDevi_','flDroit_'].forEach(function(pre){ const cb=document.getElementById(pre+id); if(cb&&cb.checked){ cb.checked=false; try{ cb.dispatchEvent(new Event('change',{bubbles:true})); }catch(_){ } } }); }catch(e){}
+    try{ const _nc62=document.getElementById('flTest2nc_'+id); if(!(_nc62&&_nc62.checked)) ['flDevi_','flDroit_'].forEach(function(pre){ const cb=document.getElementById(pre+id); if(cb&&cb.checked){ cb.checked=false; try{ cb.dispatchEvent(new Event('change',{bubbles:true})); }catch(_){ } } }); }catch(e){}   /* [L474 · audit #6] une NC declaree garde son motif : purge seulement sans ⚠ Test NC */
   }
   btn.style.borderColor=isCoupee?'var(--green)':'var(--border2)';
   btn.style.color=isCoupee?'var(--green)':'var(--muted)';
@@ -24019,6 +24041,7 @@ function restoreFicheLineFromData(ld){
 }
 function restoreFicheState(st){
   if(!st) return;
+  _l474PurgeReopened();   /* [L474 · audit #7] */
   // [L103 · audit-max] l'écran est intégralement REMPLACÉ : le drapeau « copie locale d'un
   // partage terminé » (bandeau orange + confirm anti-doublon à l'envoi) ne concerne plus ce
   // contenu — il survivait à la reprise d'un brouillon SANS RAPPORT et bloquait/inquiétait
