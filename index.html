@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L486';
+const APP_VERSION='2026.08.29-L487';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -18114,18 +18114,21 @@ async function saveFicheConfigs(id){
     // Régénère le plan (groups) depuis les bobines modifiées → le PDF reflète la modif.
     const useful=parseNum(f.useful)||0, blade=parseNum(f.blade)||0;
     const newGroups=groupsFromDetail(newDetail,useful,blade);
-    const totalUsed=newGroups.reduce((s,g)=>s+parseNum(g.total)*g.count,0);
-    const totalMat=useful*newDetail.length;
     upd.groups=newGroups;                                              // [L73 · Lot 5 · B53]
     // [L76 · B53] Plan théorique FIGÉ quand un écart d'origine est conservé : réécrire
     // nbPlan=nbFiche rendait le bandeau PDF contradictoire (« ÉCART — +2 bobines » mais
     // « Plan théorique : 12 · Fiche terrain : 12 »). Seul consommateur de nbPlan : cet affichage.
     if(f.hasEcart!==true) upd.nbPlan=newDetail.length;                 // [L76 · B53] (était inconditionnel)
-    // [L83 · Audit #13] même règle qu'à la CRÉATION : le solde (chute de la dernière bobine,
-    // conservé en stock) est EXCLU de la perte — un simple ré-enregistrement admin gonflait le pct.
-    const _lastG=newGroups[newGroups.length-1];
-    const _chuteStock=_lastG?Math.max(0,useful-parseNum(_lastG.total)):0;
-    upd.pct=(totalMat>0?(Math.max(0,totalMat-totalUsed-_chuteStock)/totalMat*100):0).toFixed(1);   // [L73 · Lot 5 · B53]
+    // [L487 · regle matiere Esteban 28/08] pct N'EST PLUS REECRIT ICI.
+    // Ce recalcul local etait plus grossier que le calcul d'origine : il ignorait les FINS DE
+    // PHASE (chutes REUTILISABLES — la fiche dit elle-meme « a CONSERVER, pas un dechet ») et
+    // comptait chaque ligne pour une bobine mere ENTIERE, donc un rouleau recoupe de 300 mm
+    // pour 1560 mm engages. Resultat : plus on reutilisait de chutes, plus le % archive montait.
+    // CONSEQUENCE DIRECTE depuis L482 : perteM2 du diagramme matiere ISO vaut
+    // bords + (reste x f.pct/100) — une simple correction d'etiquette gonflait donc
+    // l'indicateur ISO du mois, sans qu'aucune bobine de plus soit partie a la poubelle.
+    // Champ ABSENT de l'update = valeur d'origine conservee en base, comme deja en multi-reference.
+    // upd.groups reste regenere : le PDF reflete bien les bobines modifiees.
   }
   try{
     // M5 : garde-fou 1 Mo — retire les photos base64 lourdes avant l'update.

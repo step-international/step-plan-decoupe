@@ -1834,5 +1834,9 @@ has(/les refs VALIDEES au Plan passent EN TETE/,'L432 : Commencer a couper met l
 has(/fmm-first-btn/,'L432 : bouton « ⬆ Couper en 1er » sur chaque rangee (memes gardes que le glisser)');
 has(/ou mets ta référence déjà validée en premier/,'L432 : la garde chrono propose les deux sorties');
 
+console.log('── L487 : saveFicheConfigs ne corrompt plus f.pct (donc plus perteM2 du diagramme ISO) ──');
+absent(/upd.pct=/,'L487 CRITIQUE : saveFicheConfigs ne reecrit PLUS le pct — son recalcul comptait fins de phase et rouleaux recoupes en perte, donc plus on reutilisait de chutes plus le % archive montait, et perteM2 (L482) en derive');
+has(/pct N.EST PLUS REECRIT ICI/,'L487 : la suppression du recalcul est documentee sur place');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
