@@ -1353,6 +1353,10 @@ has(/#shareBtn\{display:none!important\}/,'L436 : bouton « Partager » masque p
 has(/NE PAS promettre une mise a jour « a l'envoi »/,'L436 : le toast « machine inconnue » ne ment plus');
 has(/registre NON mis à jour \(machine manquante\)/,'L436 : le resume dit que le registre n a PAS ete mis a jour');
 
+console.log('── L469 : deux blocs retires ──');
+absent(/\{_l463Machines\(_liveKpi63\)\}/,'L469 : rangee cartes machines retiree du rendu (PAR MACHINE vit dans KPI)');
+absent(/Quelle machine décroche \?/,'L469 : carte « Quelle machine decroche » retiree');
+
 console.log('── L468 : courbe production lisible et interactive ──');
 has(/function _l468Tip\(/,'L468 : bulle de valeur (survol + tap, div unique)');
 has(/le chiffre TOUJOURS visible/,'L468 : m² affiche au-dessus de chaque point');
