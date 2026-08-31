@@ -1377,6 +1377,18 @@ has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé 
 has(/x\.ref===L\.ref&&\(x\.longueur\|\|0\)===lo&&\(x\.largeur\|\|0\)===L\.la/,'L487→L488 : meme reference a plusieurs metrages, sans doublon exact');
 has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
 has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
+console.log('── L493 : decisions Esteban (temps reel, m², PDF, recalcul) ──');
+has(/_l486Unsub=db\.collection\('config'\)\.doc\('clients'\)\.onSnapshot/,'L493 : referentiel clients en TEMPS REEL (les 3 tablettes voient un nouveau client aussitot)');
+has(/if\(!db\|\|_l486Unsub\) return;/,'L493 : garde d idempotence (onAuthStateChanged refire : pas de fuite d abonnement)');
+has(/function _l486StopClients/,'L493 : detachement de l abonnement a la deconnexion');
+has(/_l486Retries<5/,'L493 : repli borne si le listener tombe (Firestore ne le relance pas seul)');
+has(/function _l493ChuteFromDetail/,'L493 : chute gardee des fiches anciennes reconstruite depuis ficheDetail (definition actee)');
+has(/if\(!fd\|\|fd\.recut\) return;/,'L493 : rouleaux ♻ exclus de la reconstruction (residu = perte)');
+has(/Chutes gardées<\/div>/,'L493 : tuile KPI en m² (etait une somme de largeurs mm affichee en metres)');
+absent(/'Chute réut\. \(m\)',/,'L493 : colonne CSV doublon retiree de l en-tete ET sa valeur (sinon 9 colonnes machines decalees)');
+has(/Matière coupée<\/td>/,'L493 : les 4 m² dans le PDF de revue de direction');
+has(/async function recalcTousMois/,'L493 : recalcul des 12 mois figes, sequentiel');
+
 console.log('── L492 : correctifs de l audit 20 agents (74 confirmes) ──');
 has(/refs\[ci\]&&refs\[ci\]\.ref===\(sel&&sel\.value\)/,'L492 CRITIQUE : data-ci perime ne peut plus designer une AUTRE reference (mere/metrage faux)');
 has(/boundedTx\(db\.runTransaction/,'L492 CRITIQUE : referentiel clients ecrit en transaction bornee (un poste n ecrase plus le travail des autres)');
@@ -1423,7 +1435,7 @@ has(/data-ci="\$\{ci\}"/,'L487 : index catalogue porte par l option (value incha
 console.log('── L486 : clients + emballages partages via Firestore (backlog #43) ──');
 has(/var CLIENT_DATA = \{/,'L486 : CLIENT_DATA reassignable (var) — plus une const figee dans le code');
 has(/CLIENT_DATA_SEED=CLIENT_DATA; PKG_CLIENTS_SEED=PKG_CLIENTS/,'L486 : graines embarquees conservees (un doc vide ne peut pas vider les clients)');
-has(/config'\)\.doc\('clients'\)\.get\(\)/,'L486 : lecture du referentiel partage au demarrage');
+has(/doc\('clients'\)\.onSnapshot/,'L486→L493 : referentiel partage lu au demarrage ET suivi en temps reel');
 has(/step_clients_v1/,'L486 : cache local (l atelier coupe hors-ligne)');
 has(/async function _l486Publish/,'L486 : publication a tous les postes, tracee dans la piste d audit');
 has(/la règle Firestore « config » est réservée à l’admin/,'L486→L487 : echec d ecriture explique + rien n a ete enregistre');

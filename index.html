@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.31-L492';
+const APP_VERSION='2026.08.31-L493';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4455,6 +4455,7 @@ document.addEventListener('keydown',function(e){
       const _lab=document.getElementById('lameAlertBanner'); if(_lab) _lab.style.display='none';
       if(typeof _syncTopBanner==='function')_syncTopBanner();
       stopBrouillons();
+      try{ _l486StopClients(); }catch(_){ }   /* [L493] detacher l abonnement referentiel (le catch est obligatoire ici : une exception faisait sauter TOUT le nettoyage) */
       // [L73 · Lot 5 · B34] l'« historique complet » appartient à la SESSION : au re-login,
       // loadFirestoreData ne recharge que le récent (200/500/200) — sans ce reset, les
       // exports/Analyse croyaient encore l'historique (complet ou tronqué) de la session
@@ -4885,7 +4886,7 @@ var PKG_CLIENTS={
      `config` en ecriture est aujourd hui isAdmin() : un compte pilotage recoit un toast
      explicite plutot qu un echec muet (meme pattern que la cible m² L463).
    ============================================================ */
-var _l486Loaded=false, _l486SeenAt;   /* [L492] horodatage du referentiel tel qu on l a charge (undefined = jamais lu) */
+var _l486Loaded=false, _l486SeenAt, _l486Unsub=null, _l486Retries=0;   /* [L493] abonnement temps reel : poignee de desabonnement + compteur de repli, meme motif que _brouillonsUnsub */   /* [L492] horodatage du referentiel tel qu on l a charge (undefined = jamais lu) */
 /* [L487 · demande Esteban 28/08] Le referentiel CLIENTS n est PAS ouvert a tout le bureau :
    seuls les comptes ADMIN (Esteban, Christian) et DOMINIQUE (DC, pilotage) y touchent.
    canManageData() etait trop large — un futur compte pilotage aurait herite du droit. */
@@ -4894,6 +4895,9 @@ function _l486CanEdit(){ try{
   return !!(typeof currentUser!=='undefined'&&currentUser&&currentUser.ini==='DC');
 }catch(_){ return false; } }
 function _l486Valid(o,minKeys){ try{ return !!o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).length>=(minKeys||1); }catch(_){ return false; } }
+/* [L493] jumeau de stopBrouillons. On NE VIDE PAS CLIENT_DATA/PKG_CLIENTS : le referentiel doit rester
+   en memoire (ecran de login, poste hors-ligne). On repart d un etat « jamais lu » pour la session suivante. */
+function _l486StopClients(){ if(_l486Unsub){ try{ _l486Unsub(); }catch(_){ } _l486Unsub=null; } _l486SeenAt=undefined; _l486Retries=0; }
 function _l486Apply(d,src){
   var n=0;
   try{ if(_l486Valid(d&&d.clientData)){ CLIENT_DATA=d.clientData; n++; } }catch(_){ }
@@ -4904,16 +4908,27 @@ function _l486Apply(d,src){
 }
 function _l486LoadClients(){
   try{ if(!CLIENT_DATA_SEED){ CLIENT_DATA_SEED=CLIENT_DATA; PKG_CLIENTS_SEED=PKG_CLIENTS; } }catch(_){ }
-  try{ var c=localStorage.getItem('step_clients_v1'); if(c) _l486Apply(JSON.parse(c),'cache local'); }catch(_){ }   /* demarrage hors-ligne : on repart du dernier etat connu */
+  if(!_l486Unsub){ try{ var c=localStorage.getItem('step_clients_v1'); if(c) _l486Apply(JSON.parse(c),'cache local'); }catch(_){ } }   /* demarrage hors-ligne : on repart du dernier etat connu (pas au re-abonnement) */
   try{
-    if(!db) return;
-    db.collection('config').doc('clients').get().then(function(doc){
+    /* [L493 · decision Esteban 31/08 « les nouveaux clients doivent arriver EN DIRECT »] ABONNEMENT
+       permanent au lieu d une lecture unique : un client ajoute au bureau apparait sur les 3 tablettes
+       sans attendre un redemarrage. Garde d idempotence (_l486Unsub) OBLIGATOIRE : onAuthStateChanged
+       refire a chaque rafraichissement de jeton — sans elle on empilerait un abonnement par appel.
+       Firestore ne relance PAS un listener apres erreur : d ou le remise a null + repli borne, motif
+       copie de startBrouillons. */
+    if(!db||_l486Unsub) return;
+    _l486Unsub=db.collection('config').doc('clients').onSnapshot(function(doc){
+      _l486Retries=0;
       if(!doc.exists||!doc.data()) return;   /* pas encore publie : les graines restent la verite */
       try{ _l486SeenAt=(doc.data()&&doc.data().updatedAt)||null; }catch(_){ }   /* [L492] version lue : sert au refus de concurrence a l ecriture */
       if(_l486Apply(doc.data(),'Firestore')){
         try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
       }
-    }).catch(function(e){ try{ console.warn('[L486] lecture config/clients impossible — graines embarquees conservees',e); }catch(_){ } });
+    },function(e){
+      try{ console.warn('[L493] abonnement config/clients interrompu — graines/cache conserves',e); }catch(_){ }
+      _l486Unsub=null;
+      if(_l486Retries<5){ const n=++_l486Retries; setTimeout(function(){ if(!_l486Unsub){ try{ _l486LoadClients(); }catch(_){ } } },8000*n); }
+    });
   }catch(_){ }
 }
 /* Publie l etat COURANT (graines eventuellement deja remplacees) dans Firestore : c est le geste
@@ -4943,7 +4958,7 @@ async function _l486Publish(btn,silencieux){
       tx.set(_ref92,{clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS,
         updatedAt:isoNow(),updatedBy:(currentUser&&currentUser.ini)||'?'},{merge:false});
     }),10000);   /* [L492 · gardien L272#5] boundedTx et NON boundedWrite : une transaction qui expire n est PAS mise en file — dire « ne re-saisis pas » serait un mensonge, l action n a PAS eu lieu */
-    try{ _l486SeenAt=null; }catch(_){ }   /* on relit la version au prochain chargement */
+    /* [L493] plus de remise a null ici : l abonnement remet _l486SeenAt a la vraie version tout seul. La remettre a null faisait perdre la course a l echo du snapshot -> faux « CONCURRENCE » a la 2e publication de la meme session. */
     try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
     try{ await logAudit('edit','config','clients','Publication clients/emballages : '+nC+' client(s), '+nP+' regle(s)'); }catch(_){ }
     if(!silencieux) showToast('✔ Publié : '+nC+' client(s), '+nP+' règle(s) d’emballage.','ok');
@@ -14161,6 +14176,51 @@ function fmtHm(sec){sec=Math.max(0,Math.round(sec));const h=Math.floor(sec/3600)
 // Perte = moyenne PONDÉRÉE par le nombre de bobines (une grosse commande pèse plus).
 // [L98 · #13] mois LOCAL (une fiche de 00h30 le 1er ne part plus dans le mois UTC précédent)
 function _localYM(d){ const x=new Date(d); if(isNaN(x)) return String(d||'').slice(0,7); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'); }
+/* [L493 · demande Esteban « recalcule les mois figés avant le 28/08 »] RECONSTRUCTION de la chute gardée
+   d une fiche archivée AVANT L485 (elle ne porte pas le champ f.chuteM2).
+   L ancien repli lisait f.groups[dernier].waste : il ne voyait qu UN solde pour toute la fiche, ratait
+   les fins de phase (le drapeau n est pas dans f.groups) et abandonnait dès qu il y avait 2 références —
+   donc 0 m² crédité sur toutes les fiches multi-réf. Or f.ficheDetail persiste, PAR BOBINE, tout ce qu il
+   faut : conf, useful, blade, refIdx, recut, phaseEnd, coupee. On applique donc MOT POUR MOT la définition
+   actée (computePlanAggregate) : solde de la DERNIÈRE bobine de CHAQUE référence + TOUS les restes de fin
+   de phase, rouleaux ♻ exclus, × le métrage de SA référence. Aucun appel au moteur de placement : on relit
+   ce que l archive contient, on ne rejoue pas un plan (l enveloppe de calcul a changé plusieurs fois). */
+function _l493ChuteFromDetail(f){
+  try{
+    const det=Array.isArray(f&&f.ficheDetail)?f.ficheDetail:[]; if(!det.length) return 0;
+    if(typeof parseConf!=='function'||typeof calcStats!=='function') return 0;
+    const _lgOf=function(ri){   /* métrage de LA référence (jamais f.longueur en multi-réf : c est « 1500 / 2000 ») */
+      try{ const rg=Array.isArray(f.refGroups)?f.refGroups:null;
+        if(rg&&rg.length){ const g=(typeof ri==='number'&&rg[ri])||rg[0]; const v=parseNum(g&&g.longueur)||0; if(v>0) return v; }
+      }catch(_){ }
+      return parseNum(f&&f.longueur)||0;
+    };
+    const wasteOf=function(fd){
+      try{ const u=Number(fd.useful)||0, b=Number(fd.blade)||0; if(!(u>0)) return 0;
+        const p=parseConf(String(fd.conf||'')); if(!p||!p.length) return 0;
+        return Math.max(0,u-calcStats(p,b).total);
+      }catch(_){ return 0; }
+    };
+    const byRef={};
+    det.forEach(function(fd,i){
+      if(!fd||fd.recut) return;                                   /* résidu de rouleau ♻ = perte, jamais une chute */
+      if(f.manqueMatiere&&fd.coupee!==true) return;               /* bobine jamais montée : pas de chute */
+      const k=(typeof fd.refIdx==='number')?('i'+fd.refIdx):('n'+nrm(fd.ref||''));
+      (byRef[k]=byRef[k]||{ri:(typeof fd.refIdx==='number'?fd.refIdx:null),last:null,phase:0}); 
+      const e=byRef[k];
+      e.last=fd;                                                   /* la dernière bobine de la réf porte le solde (ordre d archivage) */
+      if(fd.phaseEnd) e.phase+=wasteOf(fd);
+    });
+    let m2=0;
+    Object.keys(byRef).forEach(function(k){
+      const e=byRef[k], lg=_lgOf(e.ri); if(!(lg>0)) return;        /* métrage inconnu : cette réf est omise (jamais un chiffre inventé) */
+      let mm=e.phase;
+      if(e.last&&!e.last.phaseEnd) mm+=wasteOf(e.last);            /* si la dernière est déjà une fin de phase, elle est déjà comptée */
+      if(mm>0) m2+=mm/1000*lg;
+    });
+    return Math.round(m2*10)/10;
+  }catch(_){ return 0; }
+}
 function buildMonthlyKpi(ym,fiches,temps){
   const F=(fiches||[]).filter(f=>!f.deleted&&f.valide!==false&&_localYM(f.date)===ym);   // [L98 · #13] mois local   // [L79·AN-1] exclure les fiches REFUSÉES (valide===false) des KPI mensuels (bobines/perte gonflées sinon)
   const T=(temps||[]).filter(t=>!t.deleted&&_localYM(t.date)===ym);   // [L98 · #13] mois local
@@ -14239,14 +14299,8 @@ function buildMonthlyKpi(ym,fiches,temps){
        mono-réf, hors manque-matière, dernier groupe non ♻. Une fiche multi-réf ancienne est OMISE (sous-compte
        assumé et documenté) plutôt que valorisée avec la longueur de la mauvaise réf. */
     try{
-      if(typeof f.chuteM2==='number'&&f.chuteM2>0&&!f.manqueMatiere) chuteM2+=f.chuteM2;   /* [L492 · audit] manque-matière : chuteM2 est calculé sur le plan COMPLET, la dernière bobine n'a jamais été montée — on ne crédite pas une chute qui n'existe pas (même garde que le repli juste en dessous et que _keep63 pour les m²) */
-      else if(f.chuteM2==null&&!f.manqueMatiere&&gs.length&&!(Array.isArray(f.refGroups)&&f.refGroups.length>1)){
-        const _lbl85=String(gs[gs.length-1].label||'');
-        if(_lbl85.indexOf('♻')<0){   /* résidu de rouleau recoupé = PERTE (doctrine moteur), jamais une chute */
-          const _w82=parseNum(gs[gs.length-1].waste)||0, _lg82=parseNum(f.longueur)||0;
-          if(_w82>0&&_lg82>0) chuteM2+=_w82/1000*_lg82;
-        }
-      }
+      if(typeof f.chuteM2==='number'&&f.chuteM2>0&&!f.manqueMatiere) chuteM2+=f.chuteM2;   /* [L492 · audit] manque-matière : chuteM2 est calculé sur le plan COMPLET, la dernière bobine n'a jamais été montée — on ne crédite pas une chute qui n'existe pas (même garde que _keep63 pour les m²) */
+      else if(f.chuteM2==null){ const _r93=_l493ChuteFromDetail(f); if(_r93>0) chuteM2+=_r93; }   /* [L493] fiches archivées AVANT L485 : reconstruction EXACTE depuis ficheDetail (voir la fonction) */
     }catch(_){ }
     chutesPieces+=Object.values(f.chutesStock||{}).reduce((a2,b2)=>a2+(Number(b2)||0),0);   // [L98 · #13] bobineaux pris en stock
     // [L247 · R3] qualité par bobine (NC par type, ouvertes, délai de traitement fiche→clôture en jours)
@@ -14353,6 +14407,33 @@ async function recalcMois(ym,btn){
   try{await computeMonthAggregate(ym);renderKpiMois(ym);showToast('✓ KPI '+monthLabelFr(ym)+' recalculés','ok');}
   catch(e){showToast('Erreur recalcul : '+e.message,'err');if(btn){btn.disabled=false;btn.textContent='♻ Recalculer ce mois';}}
 }
+/* [L493 · demande Esteban 31/08 « recalcule tous les mois figés avant le 28/08 »] Balayage des 12 mois
+   exposés par l'écran (prevMonthsYM(12)), mois COURANT exclu (il est calculé en direct, jamais figé).
+   SÉQUENTIEL et non parallèle : chaque mois relit ses fiches depuis Firestore par requête datée — les
+   lancer ensemble ferait exploser le quota de lectures et l'app sur tablette. Le bouton affiche l'avancée.
+   HONNÊTETÉ ISO : le recalcul relit les fiches ARCHIVÉES, il récupère donc réellement m², perte m²,
+   déchet m², qualité, ponctualité et écarts sur des mois qui affichent « — » aujourd'hui. La chute gardée
+   est reconstruite par _l493ChuteFromDetail (définition actée, depuis ficheDetail) — elle n'est omise que
+   pour une référence dont le métrage n'a jamais été saisi. */
+async function recalcTousMois(btn){
+  if(!db){ showToast('Base indisponible.','err'); return; }
+  if(typeof canViewAnalyse==='function'&&!canViewAnalyse()){ showToast('🔒 Réservé au bureau.','err'); return; }
+  const cur=currentMonthYM();
+  const mois=(typeof prevMonthsYM==='function'?prevMonthsYM(12):[]).filter(function(m){ return m&&m!==cur; });
+  if(!mois.length){ showToast('Aucun mois à recalculer.','err'); return; }
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Recalculer les '+mois.length+' mois précédents ?\n\nLes fiches archivées sont relues une par une : compte environ une minute.\nLes chiffres déjà affichés peuvent changer — c\'est le but (nouvelles règles perte/déchet/chutes).',{ok:'Recalculer'}))) return;
+  const old=btn?btn.textContent:''; if(btn){ btn.disabled=true; }
+  let ok=0,ko=0;
+  for(let i=0;i<mois.length;i++){
+    if(btn) btn.textContent='⏳ '+(i+1)+'/'+mois.length;
+    try{ await computeMonthAggregate(mois[i]); ok++; }
+    catch(e){ ko++; try{ console.warn('[L493] recalcul '+mois[i]+' impossible',e); }catch(_){ } }
+  }
+  if(btn){ btn.disabled=false; btn.textContent=old||'♻ Recalculer les 12 mois'; }
+  try{ renderKpiMois((document.getElementById('kpiMoisSel')||{}).value||cur); }catch(_){ }
+  try{ if(typeof refreshAnalyseIfPresent==='function') refreshAnalyseIfPresent(); }catch(_){ }
+  showToast('✓ '+ok+' mois recalculé(s)'+(ko?' · ⚠ '+ko+' en échec (voir la console)':'')+'.',ko?'err':'ok');
+}
 // [L79 · AN-6] Impression THÈME CLAIR du KPI mensuel = artefact « revue de direction » ISO 9001,
 // lisible sur papier/PDF (le tableau de bord à l'écran est en thème sombre, illisible imprimé).
 // Passe par l'overlay openPrintWindow (pas de window.open → pas d'éjection Safari sur PWA iOS).
@@ -14374,6 +14455,11 @@ function printKpiMois(ym){
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:18px">
       <tr><td style="${td}">Fiches</td><td style="${td};text-align:right;font-weight:700">${kpi.nbFiches||0}</td><td style="${td}">Bobines</td><td style="${td};text-align:right;font-weight:700">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</td></tr>
       <tr><td style="${td}">Rendement matière</td><td style="${td};text-align:right;font-weight:700">${rendement} %</td><td style="${td}">Perte moyenne (pondérée)</td><td style="${td};text-align:right;font-weight:700">${kpi.pertePct||0} %</td></tr>
+      <!-- [L493 · demande Esteban] les 3 familles MATIERE en m² dans la revue de direction (regles actees L477/L482 :
+           perte / dechet NC / chutes gardees TOUJOURS en m²). Chaque champ est garde INDIVIDUELLEMENT : un mois fige
+           avant la version qui le calcule affiche « — », jamais un faux 0 — et un 0 reellement archive reste un vrai 0. -->
+      <tr><td style="${td}">Matière coupée</td><td style="${td};text-align:right;font-weight:700">${typeof kpi.m2==='number'?kpi.m2.toLocaleString('fr-FR')+' m²':'—'}</td><td style="${td}">🗑 Perte</td><td style="${td};text-align:right;font-weight:700">${typeof kpi.perteM2==='number'?kpi.perteM2.toLocaleString('fr-FR')+' m²':'—'}</td></tr>
+      <tr><td style="${td}">🗑 Déchet (NC)</td><td style="${td};text-align:right;font-weight:700">${typeof kpi.dechetM2==='number'?kpi.dechetM2.toLocaleString('fr-FR',{maximumFractionDigits:1})+' m²':'—'}</td><td style="${td}">✂ Chutes gardées</td><td style="${td};text-align:right;font-weight:700">${typeof kpi.chuteM2==='number'?kpi.chuteM2.toLocaleString('fr-FR',{maximumFractionDigits:1})+' m²':'—'}</td></tr>
       <tr><td style="${td}">Temps total production</td><td style="${td};text-align:right;font-weight:700" colspan="3">${fmtHm(kpi.tempsSec||0)}</td></tr>
       ${kpi.qual?`<tr><td style="${td}">Bobines NC</td><td style="${td};text-align:right;font-weight:700">${kpi.qual.nc} / ${kpi.qual.ctrl}${kpi.qual.ctrl?' ('+(Math.round(kpi.qual.nc/kpi.qual.ctrl*1000)/10).toLocaleString('fr-FR')+' %)':''}</td><td style="${td}">NC ouvertes · délai clôture</td><td style="${td};text-align:right;font-weight:700">${kpi.qual.ouv}${kpi.qual.delaiMoy!=null?' · '+kpi.qual.delaiMoy.toLocaleString('fr-FR')+' j':''}</td></tr>`:''}
       ${kpi.liv?`<tr><td style="${td}">Livraisons à temps</td><td style="${td};text-align:right;font-weight:700">${kpi.liv.tot?(Math.round(kpi.liv.ok/kpi.liv.tot*1000)/10).toLocaleString('fr-FR')+' % ('+kpi.liv.ok+'/'+kpi.liv.tot+')':'n/d'}</td><td style="${td}">Fiches en écart</td><td style="${td};text-align:right;font-weight:700">${typeof kpi.ecartsN==='number'?kpi.ecartsN+' / '+(kpi.nbFiches||0):'—'}</td></tr>`:''}
@@ -14404,7 +14490,7 @@ async function exportDashboardCsv(){
     const fLbl=_anaFiltered()?('filtre Analyse ACTIF : '+[analyseFilter.mach!=='ALL'?'machine '+analyseFilter.mach:'',analyseFilter.op!=='ALL'?'op '+analyseFilter.op:'',analyseFilter.month!=='ALL'?'mois '+analyseFilter.month:'',analyseFilter.client!=='ALL'?'client '+analyseFilter.client:''].filter(Boolean).join(' · ')+' (KPI/débit/pilotage ci-dessous = TOUT atelier, non filtrés)'):'aucun filtre actif';
     // ── Section 1 : KPI mensuels (agrégats figés + mois courant) ──
     rows.push('# --- KPI MENSUELS (mois figés + mois en cours) ---');
-    rows.push(['Mois','Statut','Fiches','Bobines','Perte %','Rendement %','m² coupés','Perte m²','Déchet m²','Chutes gardées m²','Temps (h)','Bob. NC','Bob. contrôlées','NC %','NC ouvertes','Délai NC (j)','Liv. à temps','Fiches datées','À temps %','Fiches en écart','Chute réut. (m)','Bobineaux stock','FEBA bob','FEBA perte %','FEBA s/laize','MAVEG bob','MAVEG perte %','MAVEG s/laize','CEVENINI bob','CEVENINI perte %','CEVENINI s/laize'].join(';'));
+    rows.push(['Mois','Statut','Fiches','Bobines','Perte %','Rendement %','m² coupés','Perte m²','Déchet m²','Chutes gardées m²','Temps (h)','Bob. NC','Bob. contrôlées','NC %','NC ouvertes','Délai NC (j)','Liv. à temps','Fiches datées','À temps %','Fiches en écart','Bobineaux stock','FEBA bob','FEBA perte %','FEBA s/laize','MAVEG bob','MAVEG perte %','MAVEG s/laize','CEVENINI bob','CEVENINI perte %','CEVENINI s/laize'].join(';'));
     const list=agregatsCache.slice().sort((a,b)=>a.mois<b.mois?-1:1);
     let liveKpi=null; try{ liveKpi=buildMonthlyKpi(cur,fichesCache,tempsCache); }catch(e){}
     const all=list.filter(a=>a.mois!==cur).concat(liveKpi?[liveKpi]:[]);
@@ -14417,7 +14503,7 @@ async function exportDashboardCsv(){
         q?q.nc:'n/d',q?q.ctrl:'n/d',(q&&q.ctrl)?Math.round(q.nc/q.ctrl*1000)/10:'n/d',q?q.ouv:'n/d',(q&&q.delaiMoy!=null)?q.delaiMoy:'n/d',
         lv?lv.ok:'n/d',lv?lv.tot:'n/d',(lv&&lv.tot)?Math.round(lv.ok/lv.tot*1000)/10:'n/d',
         (typeof k.ecartsN==='number')?k.ecartsN:'n/d',
-        Math.round((k.soldeMm||0)/100)/10,k.chutesPieces||0]
+        k.chutesPieces||0]   /* [L493] colonne « Chute réut. (m) » RETIREE : doublon trompeur de « Chutes gardées m² » (une somme de largeurs mm affichee en metres). En-tete et valeurs modifies ENSEMBLE — sinon toutes les colonnes machines se decalent. */
         .concat(mrow('FEBA')).concat(mrow('MAVEG')).concat(mrow('CEVENINI')).map(csvCell).join(';'));
     });
     rows.push('# n/d = mois figé AVANT la version qui calcule ce champ (« ♻ Recalculer ce mois » pour le compléter)');
@@ -14494,7 +14580,7 @@ function kpiMoisInnerHTML(ym){
     </div></div>`;};
   const evo=agregatsCache.slice().sort((a,b)=>a.mois<b.mois?-1:1).slice(-4);
   const evoRows=evo.map(a=>`<tr><td style="padding:5px 8px">${monthLabelFr(a.mois)}</td><td style="text-align:right">${(a.totalBobines||0).toLocaleString('fr-FR')}</td><td style="text-align:right">${a.nbFiches||0}</td><td style="text-align:right;color:var(--orange)">${(a.pertePct||0).toLocaleString('fr-FR')}</td></tr>`).join('');
-  const recalcBtn=(!isLive&&canViewAnalyse())?`<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button onclick="recalcMois('${ym}',this)" style="background:#2a1f3d;color:var(--violet);border:1px solid #4a3a70;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">♻ Recalculer ce mois</button></div>`:'';
+  const recalcBtn=(!isLive&&canViewAnalyse())?`<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button onclick="recalcMois('${ym}',this)" style="background:#2a1f3d;color:var(--violet);border:1px solid #4a3a70;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">♻ Recalculer ce mois</button><button onclick="recalcTousMois(this)" title="Recalcule les 12 derniers mois figés — utile après une évolution des règles de calcul" style="background:#2a1f3d;color:var(--violet);border:1px solid #4a3a70;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;margin-left:8px">♻ Recalculer les 12 mois</button></div>`:'';
   // [L79 · AN-3] Rendement matière (= 100 − perte pondérée : part de la bobine mère réellement utilisée)
   // + Δ vs mois précédent (agrégat figé) sur Bobines et Perte. La perte qui BAISSE s'affiche en vert (goodDown).
   const _prevYM=(m)=>{const y=+m.slice(0,4),mo=+m.slice(5,7);return mo===1?(y-1)+'-12':y+'-'+String(mo-1).padStart(2,'0');};
@@ -14544,7 +14630,7 @@ function kpiMoisInnerHTML(ym){
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Rendement matière</div><div style="font-size:24px;font-weight:800;color:var(--green)">${rendement.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#999;margin-top:3px">utile ÷ mère</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#999">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chute réutilisable</div><div style="font-size:24px;font-weight:800;color:#5eead4">${((kpi.soldeMm||0)/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})} m</div><div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chutes gardées</div>${(typeof kpi.chuteM2==='number')?`<div style="font-size:24px;font-weight:800;color:#5eead4">${kpi.chuteM2.toLocaleString('fr-FR',{maximumFractionDigits:1})} m²</div>`:_naTile}<div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)</div></div><!-- [L493 · décision Esteban] était une somme de LARGEURS en mm affichée en mètres (« 6 m » ne veut rien dire) : passe en m², même source que le diagramme et la ligne « Matière ce mois » -->
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>${r3Tiles}
     </div>
     <div id="kpiFichesList" style="display:none"></div><!-- [L249 · R4b] drill-down fiches du mois -->
