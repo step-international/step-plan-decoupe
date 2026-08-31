@@ -1377,6 +1377,12 @@ has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé 
 has(/x\.ref===L\.ref&&\(x\.longueur\|\|0\)===lo&&\(x\.largeur\|\|0\)===L\.la/,'L487→L488 : meme reference a plusieurs metrages, sans doublon exact');
 has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
 has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
+console.log('── L490 : la chute ♻ est vraiment coupee EN 1er (signalement JF 31/08) ──');
+has(/signalement atelier JF 31\/08/,'L490 : bug atelier trace dans le code');
+has(/const _hasRecut90=function\(b\)/,'L490 : detection d une reference porteuse de rouleau ♻');
+has(/_chu90\.concat\(_val32\)\.concat\(_rest32\)/,'L490 : chute d abord, puis refs validees (L432), puis le reste');
+has(/jamais de\s*\n?\s*renumérotation des BOB-xxx en cours de découpe/,'L490 : garde countCoupees===0 heritee de L432 (fiche engagee intouchee)');
+
 console.log('── L488 : references en liste deroulante + plusieurs lignes ──');
 has(/id="l488Refs"/,'L488 : datalist de TOUTES les references deja connues');
 has(/function _l488AddRow/,'L488 : bouton ➕ ajoute une ligne de reference');

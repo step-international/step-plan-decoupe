@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L489';
+const APP_VERSION='2026.08.31-L490';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6818,9 +6818,20 @@ function startCutFromPlan(){
   try{
     if(typeof countCoupees!=='function'||countCoupees()===0){   /* [L432] une commande EN COUPE garde son ordre ; sinon les validees passent devant */
       const _bl32=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
-      const _val32=[],_rest32=[];
-      _bl32.forEach(function(b,i2){ (b.dataset.opValidated==='1'?_val32:_rest32).push(i2); });
-      if(_val32.length&&_rest32.length){ ficheRefOrder=_val32.concat(_rest32); window._l432KeepOrder=true;
+      /* [L490 · signalement atelier JF 31/08] « quand je rajoute une chute, ça me demande de la découper
+         sur la 3e ligne au lieu de la couper en 1er ». Diagnostic : le rouleau ♻ était bien PREMIER de SA
+         référence, mais sa référence pouvait être coupée en 2e ou 3e — donc la chute tombait au milieu de
+         la fiche (reproduit : position 9/12, et 15/21 chez Jordan). Le badge de saisie promet « recoupé en
+         1er » : la référence QUI PORTE une chute passe donc devant, exactement comme les réfs validées en
+         L432, et sous LA MÊME GARDE (rien de coupé). Une commande déjà engagée garde son ordre — jamais de
+         renumérotation des BOB-xxx en cours de découpe. */
+      const _chu90=[],_val32=[],_rest32=[];
+      const _hasRecut90=function(b){ try{ return Array.from(b.querySelectorAll('.rb-recut-row')).some(function(r){
+        const q=parseInt(((r.querySelector('[data-ct="rq"]')||{}).value)||'',10)||0;
+        const w=parseFloat(String(((r.querySelector('[data-ct="rw"]')||{}).value)||'').replace(',','.'))||0;
+        return q>0&&w>0; }); }catch(_){ return false; } };
+      _bl32.forEach(function(b,i2){ if(_hasRecut90(b)) _chu90.push(i2); else if(b.dataset.opValidated==='1') _val32.push(i2); else _rest32.push(i2); });
+      if(_chu90.length?(_chu90.length<_bl32.length):(_val32.length&&_rest32.length)){ ficheRefOrder=_chu90.concat(_val32).concat(_rest32); window._l432KeepOrder=true;
         try{ _ficheGenPlanSig=null; }catch(e){}   /* [L440 · audit #15/#22] la signature de generation ne connait PAS l'ordre de coupe : une fiche deja generee (visite de l'onglet) court-circuitait l'import -> ordre jamais applique -> chrono refuse en boucle (garde _l420RefOk sur la ref non validee restee en tete). Signature invalidee = regeneration garantie. */
       }
     }
