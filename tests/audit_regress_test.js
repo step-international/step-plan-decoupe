@@ -1377,6 +1377,11 @@ has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé 
 has(/x\.ref===L\.ref&&\(x\.longueur\|\|0\)===lo&&\(x\.largeur\|\|0\)===L\.la/,'L487→L488 : meme reference a plusieurs metrages, sans doublon exact');
 has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
 has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
+console.log('── L494 : TTL des fils assistant (geste console) ──');
+has(/const ASSIST_TTL_DAYS=90;/,'L494 : retention des fils 💬 nommee et modifiable');
+has(/doc\.expireAt=firebase\.firestore\.Timestamp\.fromDate/,'L494 : vraie date d EXPIRATION (pas createdTs : le TTL aurait efface chaque fil des sa creation)');
+has(/collection « assist », champ « expireAt »/,'L494 : la cible de la regle console est documentee dans le code');
+
 console.log('── L493 : decisions Esteban (temps reel, m², PDF, recalcul) ──');
 has(/_l486Unsub=db\.collection\('config'\)\.doc\('clients'\)\.onSnapshot/,'L493 : referentiel clients en TEMPS REEL (les 3 tablettes voient un nouveau client aussitot)');
 has(/if\(!db\|\|_l486Unsub\) return;/,'L493 : garde d idempotence (onAuthStateChanged refire : pas de fuite d abonnement)');

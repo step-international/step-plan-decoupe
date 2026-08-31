@@ -3228,6 +3228,7 @@ function _machineProfileOf(email){
 }
 // Destinataire du mail plan de découpe — changer ici uniquement (un seul endroit)
 // Rétention archives (réglable ici)
+const ASSIST_TTL_DAYS=90;         // [L494] rétention des fils 💬 (champ expireAt, purge auto par le TTL Firestore)
 const RETENTION_DRAFT_DAYS=45;    // brouillons / fiches NON validées : purge auto après 45 jours
 const RETENTION_VALID_DAYS=730;   // fiches VALIDÉES : conservées 2 ans (730 j) — qualité / ISO / réclamations
 const COLD_ARCHIVE_KEY='step_cold_archive'; // archivage froid local avant purge définitive
@@ -3280,7 +3281,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.31-L493';
+const APP_VERSION='2026.08.31-L494';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3553,7 +3554,15 @@ function _l380AssistSend(kind,txt,shots){ try{
   const msg={role:'operator',text:(txt||'(signalement sans texte — voir le contexte)'),at:isoNow()};
   const doc={createdAt:isoNow(),kind:kind||'bug',poste:(typeof _machinePostName==='function'?_machinePostName():'')||'',ini:(typeof _ini==='function'?_ini():'')||'',version:APP_VERSION,context:_l380Snapshot(),messages:[msg],status:'pending'};
   if(shots&&(shots.plan||shots.fiche)) doc.shots=shots;   // [L388] Claude verra ce que voit l'opérateur (vision, côté Cloud Function)
-  try{ doc.createdTs=firebase.firestore.FieldValue.serverTimestamp(); }catch(e){}   // [L381 · n°11] Timestamp réel → TTL Firestore possible en console
+  try{ doc.createdTs=firebase.firestore.FieldValue.serverTimestamp(); }catch(e){}   // [L381 · n°11] Timestamp réel (date de CRÉATION — voir l'avertissement ci-dessous)
+  /* [L494 · geste console Esteban] Le TTL Firestore supprime un document QUAND la date du champ visé est
+     ATTEINTE. Pointer une règle TTL sur createdTs (date de création, donc déjà passée) effacerait chaque fil
+     DÈS sa création — piège évité de justesse. On écrit donc une vraie date d'EXPIRATION, et c'est ELLE que
+     la règle console doit viser : collection « assist », champ « expireAt ».
+     Horloge du client : un décalage de quelques minutes est sans conséquence sur une rétention de 90 jours.
+     ⚠ Les fils créés AVANT cette version n'ont pas le champ : le TTL ne les touchera jamais (à purger à la
+     main en console si besoin — ils sont peu nombreux et sans valeur ISO). */
+  try{ doc.expireAt=firebase.firestore.Timestamp.fromDate(new Date(Date.now()+ASSIST_TTL_DAYS*86400000)); }catch(e){}
   const ref=db.collection('assist').doc(); _assistDocId=ref.id; _assistSeen=0;
   try{ sessionStorage.setItem('step_assist_doc',JSON.stringify({id:ref.id,at:Date.now()})); }catch(e){}   // [L381 · n°12] le fil survit à un reload (reprise ≤1 h)
   ref.set(doc).catch(function(){});
