@@ -148,7 +148,11 @@ service cloud.firestore {
       // [L380] config lisible par tout compte connu (doc "assistant" : {enabled:true} affiche la
       // note IA dans la bulle). Écriture réservée à l'admin (console ou compte admin).
       allow read: if isKnown();
-      allow write: if isAdmin();
+      // [L493 · décision Esteban 31/08] « Dominique doit pouvoir enregistrer » : le document
+      // config/clients est le RÉFÉRENTIEL MÉTIER (clients, références, règles d'emballage) — il est
+      // ouvert au bureau (admin + pilotage). Les AUTRES documents config (assistant, analyse) restent
+      // réservés à l'admin : ce sont des interrupteurs techniques, pas des données métier.
+      allow write: if isAdmin() || (isManage() && id == 'clients');
     }
     match /assist/{id} {
       // [L380] fil de discussion avec l'assistant IA (bulle 💬). Le client crée le doc et ajoute
