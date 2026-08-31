@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.31-L491';
+const APP_VERSION='2026.08.31-L492';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4885,7 +4885,7 @@ var PKG_CLIENTS={
      `config` en ecriture est aujourd hui isAdmin() : un compte pilotage recoit un toast
      explicite plutot qu un echec muet (meme pattern que la cible m² L463).
    ============================================================ */
-var _l486Loaded=false;
+var _l486Loaded=false, _l486SeenAt;   /* [L492] horodatage du referentiel tel qu on l a charge (undefined = jamais lu) */
 /* [L487 · demande Esteban 28/08] Le referentiel CLIENTS n est PAS ouvert a tout le bureau :
    seuls les comptes ADMIN (Esteban, Christian) et DOMINIQUE (DC, pilotage) y touchent.
    canManageData() etait trop large — un futur compte pilotage aurait herite du droit. */
@@ -4909,6 +4909,7 @@ function _l486LoadClients(){
     if(!db) return;
     db.collection('config').doc('clients').get().then(function(doc){
       if(!doc.exists||!doc.data()) return;   /* pas encore publie : les graines restent la verite */
+      try{ _l486SeenAt=(doc.data()&&doc.data().updatedAt)||null; }catch(_){ }   /* [L492] version lue : sert au refus de concurrence a l ecriture */
       if(_l486Apply(doc.data(),'Firestore')){
         try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
       }
@@ -4927,16 +4928,32 @@ async function _l486Publish(btn,silencieux){
   if(!silencieux&&typeof confirmDlg==='function'&&!(await confirmDlg('Publier la liste actuelle a TOUS les postes ?\n\n· '+nC+' client(s) avec leurs references\n· '+nP+' regle(s) d emballage\n\nChaque tablette la recevra a son prochain demarrage.',{ok:'Publier'}))) return false;
   if(btn) btn.disabled=true;
   try{
-    await db.collection('config').doc('clients').set({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS,
-      updatedAt:isoNow(),updatedBy:(currentUser&&currentUser.ini)||'?'},{merge:false});
+    /* [L492 · audit 20 agents, CRITIQUE] chaque poste lit le referentiel UNE fois a la connexion et
+       reecrivait le document ENTIER a partir de cette photo : le poste le plus ancien effacait les clients
+       ajoutes entre-temps par les deux autres, sans conflit ni message. On relit donc DANS une transaction
+       et on REFUSE si la version a bouge depuis notre chargement — l operateur recharge et recommence
+       plutot que d ecraser le travail d un collegue. boundedWrite : meme garde hors-ligne que les 30
+       autres ecritures du fichier (sans lui, la promesse ne revenait jamais et le bouton restait fige). */
+    const _ref92=db.collection('config').doc('clients');
+    await boundedTx(db.runTransaction(async function(tx){
+      const snap=await tx.get(_ref92);
+      const _cur=(snap.exists&&snap.data())?snap.data():null;
+      const _vu=(_cur&&_cur.updatedAt)||null;
+      if(_l486SeenAt!==undefined&&_vu&&_vu!==_l486SeenAt) throw new Error('CONCURRENCE');
+      tx.set(_ref92,{clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS,
+        updatedAt:isoNow(),updatedBy:(currentUser&&currentUser.ini)||'?'},{merge:false});
+    }),10000);   /* [L492 · gardien L272#5] boundedTx et NON boundedWrite : une transaction qui expire n est PAS mise en file — dire « ne re-saisis pas » serait un mensonge, l action n a PAS eu lieu */
+    try{ _l486SeenAt=null; }catch(_){ }   /* on relit la version au prochain chargement */
     try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
     try{ await logAudit('edit','config','clients','Publication clients/emballages : '+nC+' client(s), '+nP+' regle(s)'); }catch(_){ }
     if(!silencieux) showToast('✔ Publié : '+nC+' client(s), '+nP+' règle(s) d’emballage.','ok');
     return true;
   }catch(e){
     var m=String((e&&e.code)||(e&&e.message)||e);
-    if(m.indexOf('permission')>=0) showToast('🔒 Écriture refusée : la règle Firestore « config » est réservée à l’admin. Rien n’a été enregistré — à élargir en console (match /config/{id} : allow write si Dominique/pilotage).','err');
-    else showToast('Publication impossible — rien n’a été enregistré : '+m,'err');
+    if(m.indexOf('CONCURRENCE')>=0) showToast('⚠ Un autre poste a modifié la liste entre-temps. Rien n’a été enregistré — recharge la page (ta modification n’est pas perdue à l’écran, re-saisis-la après le rechargement).','err');
+    else if(m.indexOf('permission')>=0) showToast('🔒 Écriture refusée : la règle Firestore « config » est réservée à l’admin. Rien n’a été enregistré — à élargir en console (match /config/{id} : allow write si Dominique/pilotage).','err');
+    else if(/hors.?ligne|offline|unavailable|delai|timeout/i.test(m)) showToast('📴 Pas de réseau — rien n’a été enregistré. Refais-le une fois reconnecté (ne re-saisis pas deux fois).','err');
+    else showToast('Enregistrement impossible — rien n’a été enregistré : '+m,'err');
     return false;
   }
   finally{ if(btn) btn.disabled=false; }
@@ -6677,6 +6694,21 @@ function _l488RefreshClientUI(){
     }
     if(typeof _l370RecentClients==='function') _l370RecentClients();
     if(typeof renderCliPanel==='function') renderCliPanel();   /* blocs multi-clients : ils reconstruisent leurs propres listes */
+    /* [L492 · audit] la liste des REFERENCES aussi : une reference ajoutee a un client DEJA selectionne
+       restait invisible jusqu a un changement de client (qui vidait au passage longueur, largeur et VEKA).
+       On reconstruit les options en gardant la valeur choisie — sans toucher aux champs saisis. */
+    try{
+      const cli=(document.getElementById('planClient')||{}).value||'';
+      if(cli&&typeof _l454CatalogRefs==='function'){
+        const refs=_l454CatalogRefs(cli);
+        const opts='<option value="">— Référence —</option>'+refs.map(function(r,ci){
+          return '<option value="'+esc(r.ref)+'" data-ci="'+ci+'">'+esc(r.ref)+(r.largeur?' · '+r.largeur+' mm':'')+(r.longueur?' · '+r.longueur+' ml':'')+'</option>'; }).join('');
+        document.querySelectorAll('.ref-block [data-rb="ref"]').forEach(function(sel){
+          const prev=sel.value; sel.innerHTML=opts;
+          if(prev){ sel.value=prev; if(sel.value!==prev&&typeof applySavedRef==='function') applySavedRef(sel,prev,cli); }
+        });
+      }
+    }catch(_){ }
   }catch(_){ }
 }
 function initClientDropdown(){
@@ -6714,7 +6746,7 @@ function onClientChange(){
   /* [L487] data-ci = index dans le catalogue : deux entrees de MEME reference a metrages differents
      ne se confondent plus (la value reste la reference — rien ne change pour les plans archives). */
   const opts='<option value="">— Référence —</option>'+
-    refs.map((r,ci)=>`<option value="${esc(r.ref)}" data-ci="${ci}">${esc(r.ref)}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');
+    refs.map((r,ci)=>`<option value="${esc(r.ref)}" data-ci="${ci}">${esc(r.ref)}${r.largeur?` · ${r.largeur} mm`:''}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');   /* [L492 · audit] la LAIZE au libelle : deux entrees de meme reference et meme metrage mais laizes differentes etaient indistinguables a l ecran */
   // Recharge la liste des réfs dans TOUS les blocs (même client partout), en gardant la valeur si possible
   document.querySelectorAll('.ref-block [data-rb="ref"]').forEach(sel=>{
     const _wasAuto=(sel.id==='planRef'&&!!sel.value&&sel.dataset.l363auto===sel.value);   // [L364 · fix audit] réf posée par B4 et jamais changée par l'opérateur → pas une saisie : ne pas la retenir au changement de client
@@ -6865,8 +6897,12 @@ function bumpDateLiv(days){
 /* [L487] Resout l entree catalogue REELLEMENT choisie : par l index de l option (data-ci) quand il
    existe, sinon par nom de reference (options re-ajoutees par applySavedRef, plans historiques). */
 function _l487Picked(sel,refs){
+  /* [L492 · audit 20 agents, CRITIQUE] data-ci est une POSITION dans le catalogue : si le referentiel a
+     change depuis la construction de la liste (ajout/retrait d une reference, publication d un autre poste),
+     la position pointe une AUTRE reference -> largeur mere et metrage faux, silencieusement. On n accepte
+     donc l index QUE s il designe bien la reference choisie ; sinon repli par nom. */
   try{ const o=sel&&sel.selectedOptions&&sel.selectedOptions[0]; const ci=o&&o.dataset?parseInt(o.dataset.ci,10):NaN;
-    if(!isNaN(ci)&&refs[ci]) return refs[ci]; }catch(_){ }
+    if(!isNaN(ci)&&refs[ci]&&refs[ci].ref===(sel&&sel.value)) return refs[ci]; }catch(_){ }
   return (refs||[]).find(function(r){ return r.ref===(sel&&sel.value); })||null;
 }
 function onRefChange(){
@@ -7354,7 +7390,7 @@ function addRefBlock(){
   const client=document.getElementById('planClient')?.value||'';
   const refs=_l454CatalogRefs(client);   /* [L454] tolere le client texte libre */
   const refOpts='<option value="">— Référence —</option>'+
-    refs.map((r,ci)=>`<option value="${esc(r.ref)}" data-ci="${ci}">${esc(r.ref)}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');   /* [L487] idem bloc multi-ref */
+    refs.map((r,ci)=>`<option value="${esc(r.ref)}" data-ci="${ci}">${esc(r.ref)}${r.largeur?` · ${r.largeur} mm`:''}${r.longueur?` · ${r.longueur} ml`:''}</option>`).join('');   /* [L487 → L492] idem bloc multi-ref, laize incluse */
   const block=document.createElement('div');
   block.className='ref-block extra';
   block.dataset.refIdx=idx;
@@ -8628,9 +8664,11 @@ function computePlanAggregate(computed){
      PREMIÈRE réf, et le drapeau _phaseEnd n'est pas persisté. null si un métrage manque (jamais un faux 0). */
   let _chM2=0,_chOk=computed.length>0;
   computed.forEach(c=>{
-    const ml=parseFloat(String(c.longueur==null?'':c.longueur).replace(',','.'));   /* parsing AUTONOME (bac à sable P11, cf. pertePctMl) */
+    const pg=c.planGroups||[]; if(!pg.length) return;   /* [L492 · audit] réf tout en ♻ : aucune chute gardée (résidu de résidu = perte). Testé AVANT le métrage : une réf qui ne peut RIEN apporter ne doit pas rendre toute la fiche « inconnue ». */
+    /* [L492 · audit] MÊME normalisation que parseNum (qui n'existe pas dans le bac à sable P11) : espaces des
+       milliers, lettre O tapée pour un zéro, virgule décimale. Sans elle « 6OO » se lisait 6 → chute ÷100 en silence. */
+    const ml=parseFloat(String(c.longueur==null?'':c.longueur).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.'));
     if(!(ml>0)){ _chOk=false; return; }
-    const pg=c.planGroups||[]; if(!pg.length) return;   /* réf tout en ♻ : aucune chute gardée (résidu de résidu = perte) */
     let cs=Math.max(0,c.useful-calcStats(pg[pg.length-1].pattern,c.blade).total);
     pg.forEach(g=>{ if(g._phaseEnd) cs+=Math.max(0,c.useful-calcStats(g.pattern,c.blade).total); });
     _chM2+=cs/1000*ml;
@@ -14201,7 +14239,7 @@ function buildMonthlyKpi(ym,fiches,temps){
        mono-réf, hors manque-matière, dernier groupe non ♻. Une fiche multi-réf ancienne est OMISE (sous-compte
        assumé et documenté) plutôt que valorisée avec la longueur de la mauvaise réf. */
     try{
-      if(typeof f.chuteM2==='number'&&f.chuteM2>0) chuteM2+=f.chuteM2;
+      if(typeof f.chuteM2==='number'&&f.chuteM2>0&&!f.manqueMatiere) chuteM2+=f.chuteM2;   /* [L492 · audit] manque-matière : chuteM2 est calculé sur le plan COMPLET, la dernière bobine n'a jamais été montée — on ne crédite pas une chute qui n'existe pas (même garde que le repli juste en dessous et que _keep63 pour les m²) */
       else if(f.chuteM2==null&&!f.manqueMatiere&&gs.length&&!(Array.isArray(f.refGroups)&&f.refGroups.length>1)){
         const _lbl85=String(gs[gs.length-1].label||'');
         if(_lbl85.indexOf('♻')<0){   /* résidu de rouleau recoupé = PERTE (doctrine moteur), jamais une chute */
@@ -18360,14 +18398,14 @@ function renderClients(){
       return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px">'
         +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_l486Esc(r.ref)+'</span>'
         +'<span style="color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums">'+(r.largeur||'—')+' mm × '+(r.longueur||'—')+' ml</span>'
-        +'<button class="btn btn-sm" style="min-height:28px;padding:2px 8px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx,this)" title="Retirer cette référence">✕</button>'
+        +'<button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx,this)" title="Retirer cette référence">✕</button>'
         +'</div>';
     }).join('')||'<div style="font-size:12px;color:var(--muted);padding:3px 0">aucune référence</div>';
     const pkg=(PKG_CLIENTS||{})[n];
     return '<details style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
       +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
       +'<div style="margin-top:6px">'+refs+'</div>'
-      +'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" style="min-height:30px;padding:3px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" onclick="_l489DelCli(+this.dataset.i,this)" title="Supprimer ce client et toutes ses références">🗑 Supprimer ce client</button></div>'
+      +'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" onclick="_l489DelCli(+this.dataset.i,this)" title="Supprimer ce client et toutes ses références">🗑 Supprimer ce client</button></div>'
       +'</details>';
   }).join('');
   const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
@@ -18376,12 +18414,12 @@ function renderClients(){
     +'<datalist id="l488Refs">'+refsAll.map(function(r){ const d=_l488RefDims[r]; return '<option value="'+_l486Esc(r)+'">'+d.largeur+' mm'+(d.longueur?' × '+d.longueur+' ml':'')+'</option>'; }).join('')+'</datalist>'
     +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">'
       +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Ajouter un client et ses références</div>'
-      +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu, et autant de références que tu veux (bouton +). Tout part sur les 3 tablettes en une fois.</div>'
+      +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu, et autant de références que tu veux (bouton +). Enregistré pour tous les postes — les 2 autres tablettes le recevront à leur prochain démarrage.</div>'
       +'<input id="l487Cli" list="l487Clis" placeholder="Client" style="'+inp+';width:100%;max-width:340px">'
       +'<div id="l488Lignes" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'
         +'<button class="btn btn-sm" onclick="_l488AddRow()" title="Ajouter une autre référence pour ce client">➕ Une autre référence</button>'
-        +'<button class="btn btn-blue" style="min-height:40px" onclick="_l487Valider(this)">✔ Enregistrer sur les 3 tablettes</button>'
+        +'<button class="btn btn-blue" style="min-height:40px" onclick="_l487Valider(this)">✔ Enregistrer pour tous les postes</button>'
       +'</div>'
       +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+refsAll.length+' référence(s) distincte(s) · source : '+(_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app')+'</div>'
     +'</div>'
@@ -18404,7 +18442,7 @@ function _l488AddRow(){
   d.innerHTML='<input id="l488r_'+i+'" list="l488Refs" oninput="_l488RefPicked('+i+')" placeholder="Référence — choisis dans la liste ou tape la nouvelle" style="'+inp+';flex:2;min-width:230px">'
     +'<input id="l488l_'+i+'" type="number" placeholder="laize mm" style="'+inp+';width:110px">'
     +'<input id="l488m_'+i+'" placeholder="mètre linéaire — 500 ou 100 / 250 / 500" title="Plusieurs métrages pour la MÊME référence : sépare-les par / ou par une virgule" style="'+inp+';width:230px">'
-    +'<button class="btn btn-sm" style="min-height:34px;padding:2px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" onclick="_l488DelRow('+i+')" title="Retirer cette ligne">✕</button>';
+    +'<button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" onclick="_l488DelRow('+i+')" title="Retirer cette ligne">✕</button>';
   box.appendChild(d);
   try{ document.getElementById('l488r_'+i).focus(); }catch(_){ }
 }
@@ -18456,20 +18494,20 @@ async function _l487Valider(btn){
   if(!add.length){ if(nouveau) delete CLIENT_DATA[nom]; showToast('Déjà présent : '+deja.join(' · ')+'.','err'); return; }
   if(btn){ btn.disabled=true; btn.textContent='⏳ Enregistrement…'; }
   const ok=await _l486Publish(null,true);
-  if(btn){ btn.disabled=false; btn.textContent='✔ Enregistrer sur les 3 tablettes'; }
+  if(btn){ btn.disabled=false; btn.textContent='✔ Enregistrer pour tous les postes'; }
   if(!ok){ if(nouveau) delete CLIENT_DATA[nom]; else CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488 · bug terrain] le nouveau client apparait AUSSITOT dans la liste du Plan */
   renderClients();
-  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) enregistrée(s) sur les 3 tablettes : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):''),'ok');
+  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) enregistrée(s) (les 2 autres tablettes les auront à leur prochain démarrage) : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):''),'ok');
 }
 /* [L489 · demande Esteban] Supprimer un client ENTIER (il venait d en creer un pour tester).
-   Meme regle que le reste : la suppression part aussitot sur les 3 tablettes, et si l enregistrement
+   Meme regle que le reste : la suppression est enregistree aussitot (les autres postes la voient a leur prochain demarrage), et si l enregistrement
    echoue le client est REMIS en place localement — jamais un poste qui differe des deux autres. */
 async function _l489DelCli(ni,btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const nom=_l486Nom(ni); if(!nom) return;
   const n=(CLIENT_DATA[nom]||[]).length;
-  if(typeof confirmDlg==='function'&&!(await confirmDlg('Supprimer le client « '+nom+' » et ses '+n+' référence(s) ?\n\nIl disparaîtra aussi des 2 autres tablettes.\nLes commandes déjà enregistrées à son nom ne bougent pas.',{ok:'Supprimer'}))) return;
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Supprimer le client « '+nom+' » et ses '+n+' référence(s) ?\n\nIl disparaîtra aussi des 2 autres tablettes à leur prochain démarrage.\nLes commandes déjà enregistrées à son nom ne bougent pas.',{ok:'Supprimer'}))) return;
   const avant=CLIENT_DATA[nom];
   if(btn) btn.disabled=true;
   delete CLIENT_DATA[nom];
@@ -18477,14 +18515,14 @@ async function _l489DelCli(ni,btn){
   if(btn) btn.disabled=false;
   if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }
-  renderClients(); showToast('✔ Client « '+nom+' » supprimé sur les 3 tablettes.','ok');
+  renderClients(); showToast('✔ Client « '+nom+' » supprimé (effectif sur les autres postes à leur prochain démarrage).','ok');
 }
 function _l486Nom(ni){ return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni]; }   /* meme tri que le rendu */
 async function _l486DelRef(ni,idx,btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const nom=_l486Nom(ni); if(!nom) return;
   const arr=CLIENT_DATA[nom]||[]; const r=arr[idx]; if(!r) return;
-  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » ('+(r.longueur||'—')+' ml) de '+nom+' ?\n\nElle disparaîtra aussi des 2 autres tablettes.',{ok:'Retirer'}))) return;   /* [L489 · retour Esteban] « publier » faisait croire a une mise en ligne publique — on dit ce que ca fait vraiment */
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » ('+(r.longueur||'—')+' ml) de '+nom+' ?\n\nElle disparaîtra aussi des 2 autres tablettes à leur prochain démarrage.',{ok:'Retirer'}))) return;   /* [L489 · retour Esteban] « publier » faisait croire a une mise en ligne publique — on dit ce que ca fait vraiment */
   const avant=arr.slice();
   if(btn) btn.disabled=true;
   arr.splice(idx,1);
@@ -18492,7 +18530,7 @@ async function _l486DelRef(ni,idx,btn){
   if(btn) btn.disabled=false;
   if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }
-  renderClients(); showToast('✔ Référence retirée sur les 3 tablettes.','ok');
+  renderClients(); showToast('✔ Référence retirée (effective sur les autres postes à leur prochain démarrage).','ok');
 }
 async function renderAudit(){
   const c=document.getElementById('tabContentAudit');
@@ -18595,8 +18633,8 @@ function exportAudit(){
   // EXPLICITEMENT dans le fichier ET le nom, pour qu'un export ISO ne soit jamais pris à tort pour complet.
   const partiel=(auditCache.length>=AUDIT_LOAD_LIMIT);
   const entete='# Piste d\'audit STEP · '+rows.length+' entrée(s) exportée(s) sur '+auditCache.length+' chargée(s)'+(partiel?(' · ⚠ PARTIEL : seules les '+AUDIT_LOAD_LIMIT+' dernières sont chargées — les actions plus anciennes ne sont PAS incluses'):' · complet (sous ce plafond)')+' · généré le '+isoNow()+'\n';
-  const csv=entete+buildAuditCsv(rows);
-  const b=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const csv=buildAuditCsv(rows).replace(/^\uFEFF/,'');   /* [L492 · audit] le BOM doit rester a l offset 0 du FICHIER : l entete le repoussait au milieu et Excel decodait tous les accents en Windows-1252 (l export « complet » voisin le faisait deja bien) */
+  const b=new Blob(['\uFEFF'+entete+csv],{type:'text/csv;charset=utf-8'});
   downloadBlob(b,'piste_audit_'+(partiel?('DERNIERES'+AUDIT_LOAD_LIMIT+'_'):'')+todayISO()+'.csv');   // [L98 · simpl.8]
 }
 /* [L483 · backlog #36 ISO] export COMPLET de la piste d'audit : requetes paginees (1000 par page,
@@ -18625,7 +18663,7 @@ async function exportAuditComplet(btn){
       if(btn) btn.textContent='⏳ '+all.length;
       if(snap.docs.length<PAGE) break;
     }
-    if(!all.length){ showToast('Piste d\'audit vide.','err'); return; }
+    if(!all.length){ showToast(fromCache?'📴 Hors-ligne — piste d\'audit inaccessible, RIEN n\'a été exporté. Reconnecte le réseau et recommence.':'Piste d\'audit vide.','err'); return; }   /* [L492 · audit] le cache local vide repondait « vide » a un auditeur : l inverse de la verite */
     const partiel=fromCache||tronque;
     const entete='# Piste d\'audit STEP · '+(partiel?'⚠ EXPORT INCOMPLET':'export COMPLET')+' : '+all.length+' entrée(s)'
       +(fromCache?' · ⚠ SERVI DEPUIS LE CACHE HORS-LIGNE — des entrées peuvent manquer, refaire l\'export en ligne':'')
@@ -19589,7 +19627,7 @@ async function exportFiches(){
     f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
     (f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'),
     f.totalBobines,_l471FicheM2(f),f.pct,
-    (()=>{try{ const m2f=_l471FicheM2(f)||0,p9=parseFloat(f.pct),edg9=_l480FicheEdgeM2(f); return (m2f>0&&!isNaN(p9))?Math.round(edg9+Math.max(0,m2f-edg9)*p9/100):0; }catch(e){ return ''; }})(),
+    (()=>{try{ const m2f=_l471FicheM2(f)||0,_pm92=parseFloat(f.pctMl),p9=isNaN(_pm92)?parseFloat(f.pct):_pm92,edg9=_l480FicheEdgeM2(f); return (m2f>0&&!isNaN(p9))?Math.round(edg9+Math.max(0,m2f-edg9)*p9/100):0; }catch(e){ return ''; }})(),
     (()=>{try{ let d9=0; (Array.isArray(f.ficheDetail)?f.ficheDetail:[]).forEach(fd=>{ try{ if(fd&&fd.actDechet===true){ const nl=ncLoss(f,fd); if(nl&&nl.m2>0) d9+=nl.m2; } }catch(_){ } }); return Math.round(d9*10)/10; }catch(e){ return ''; }})(),   /* [L480 · fix audit] Perte m² (bords + m² utiles × % plan) et Déchet m² (bobineaux 🗑 NC via ncLoss) — MEMES règles que la liste des fiches (l.18575) et buildMonthlyKpi : le patron peut recouper l'écran avec le fichier (recoupe backlog #16 / Q9) */
     f.tempsStr,
     (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'')

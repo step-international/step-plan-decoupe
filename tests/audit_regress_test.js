@@ -1377,6 +1377,20 @@ has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé 
 has(/x\.ref===L\.ref&&\(x\.longueur\|\|0\)===lo&&\(x\.largeur\|\|0\)===L\.la/,'L487→L488 : meme reference a plusieurs metrages, sans doublon exact');
 has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
 has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
+console.log('── L492 : correctifs de l audit 20 agents (74 confirmes) ──');
+has(/refs\[ci\]&&refs\[ci\]\.ref===\(sel&&sel\.value\)/,'L492 CRITIQUE : data-ci perime ne peut plus designer une AUTRE reference (mere/metrage faux)');
+has(/boundedTx\(db\.runTransaction/,'L492 CRITIQUE : referentiel clients ecrit en transaction bornee (un poste n ecrase plus le travail des autres)');
+has(/CONCURRENCE/,'L492 : refus explicite si un autre poste a modifie entre-temps');
+has(/_l486SeenAt/,'L492 : version du referentiel memorisee a la lecture');
+has(/replace\(\/\[Oo\]\/g,'0'\)/,'L492 : chuteM2 normalise le metrage comme parseNum (« 6OO » ne vaut plus 6)');
+has(/f\.chuteM2>0&&!f\.manqueMatiere/,'L492 : manque-matiere ne credite plus une chute jamais montee');
+has(/_pm92=parseFloat\(f\.pctMl\)/,'L492 : CSV par commande utilise le % pondere metrage (comme la fiche et le KPI)');
+has(/piste d..audit inaccessible, RIEN n/,'L492 : l export audit ne dit plus « vide » a un auditeur hors-ligne');
+has(/le BOM doit rester a l offset 0 du FICHIER/,'L492 : accents du CSV audit repares pour Excel');
+has(/la liste des REFERENCES aussi/,'L492 : une reference ajoutee a un client deja selectionne apparait sans changer de client');
+has(/r\.largeur\?` · \$\{r\.largeur\} mm`/,'L492 : la LAIZE figure au libelle des options (deux entrees ne sont plus identiques a l ecran)');
+absent(/sur les 3 tablettes\./,'L492 : plus de promesse de diffusion immediate (lecture au demarrage)');
+
 console.log('── L491 : chute ♻ en 1er par TOUS les chemins (precision Esteban 31/08) ──');
 has(/const _hasR91=k=>/,'L491 : hissage des refs porteuses de chute DANS la generation de la fiche');
 has(/_genOrder\.filter\(_hasR91\)\.concat\(_genOrder\.filter\(k=>!_hasR91\(k\)\)\)/,'L491 : chute d abord, ordre relatif des autres refs preserve');
@@ -1398,7 +1412,7 @@ has(/querySelectorAll\('\.l488-row'\)/,'L488 : le geste unique traite TOUTES les
 has(/function _l488RefreshClientUI/,'L488 : la liste du Plan se reconstruit apres un ajout (bug terrain Esteban)');
 has(/y compris un client texte libre/,'L488 : la selection en cours de l operateur est preservee au rafraichissement');
 absent(/Publier à tous les postes/,'L487 : le bouton « Publier » separe a disparu (tout est simultane)');
-has(/✔ Enregistrer sur les 3 tablettes/,'L489 : « publier » remplace par « enregistrer sur les 3 tablettes » (retour Esteban : publier faisait croire a une mise en ligne)');
+has(/✔ Enregistrer pour tous les postes/,'L489→L492 : « publier » remplace par « enregistrer » (et la promesse de diffusion immediate corrigee)');
 has(/Elle disparaîtra aussi des 2 autres tablettes/,'L489 : le retrait d une reference dit ce qu il fait, sans le mot publier');
 has(/async function _l489DelCli/,'L489 : supprimer un client entier (et ses references)');
 has(/if\(!ok\)\{ CLIENT_DATA\[nom\]=avant; renderClients\(\); return; \}/,'L489 : suppression annulee si l enregistrement echoue');
