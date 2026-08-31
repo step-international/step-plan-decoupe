@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.31-L490';
+const APP_VERSION='2026.08.31-L491';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6371,7 +6371,22 @@ function importPlanToFiche(opts){
     // séparateur visuel entre réfs. `ci` reste l'index d'origine (planManual).
     let bi=1;
     let prevMach='';
-    const _genOrder=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
+    let _genOrder=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
+    /* [L491 · signalement atelier JF, precise par Esteban 31/08] « la chute faut TOUJOURS couper en
+       premiere ». Le cas reel : 2 references, la 1re entierement coupee, puis a la reception de la
+       marchandise de la 2e l operateur AJOUTE une chute -> elle se retrouvait a couper apres la 3e
+       bobine (reproduit : position 4/7). Le hissage fait en L490 ne vivait que dans startCutFromPlan
+       (bouton « Commencer a couper ») : le retour Plan->Fiche apres modification passe par l import
+       AUTO et l ignorait. On le fait donc ICI, dans la generation elle-meme, seul endroit traverse
+       par TOUS les chemins. La regeneration renumerote de toute facon l integralite des BOB-xxx, et
+       reordonner des REFS ne change ni leur nombre ni leur ordre interne : les etiquettes deja tapees
+       retombent sur leur bobine (cf. _l434SnapLabels). Une fiche ENGAGEE n arrive jamais ici en auto
+       (isFicheUntouched garde plus haut) : le travail terrain reste intouche. */
+    try{
+      const _hasR91=k=>{ const c=computed[k]; return !!(c&&Array.isArray(c.recutGroups)&&c.recutGroups.length); };
+      if(_genOrder.some(_hasR91)&&!_hasR91(_genOrder[0]))
+        _genOrder=_genOrder.filter(_hasR91).concat(_genOrder.filter(k=>!_hasR91(k)));
+    }catch(e){}
     _genOrder.forEach(ci=>{
       const c=computed[ci];
       if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach, c.mother, c.edge); if(c.machine) prevMach=c.machine; }

@@ -1377,6 +1377,12 @@ has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé 
 has(/x\.ref===L\.ref&&\(x\.longueur\|\|0\)===lo&&\(x\.largeur\|\|0\)===L\.la/,'L487→L488 : meme reference a plusieurs metrages, sans doublon exact');
 has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
 has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
+console.log('── L491 : chute ♻ en 1er par TOUS les chemins (precision Esteban 31/08) ──');
+has(/const _hasR91=k=>/,'L491 : hissage des refs porteuses de chute DANS la generation de la fiche');
+has(/_genOrder\.filter\(_hasR91\)\.concat\(_genOrder\.filter\(k=>!_hasR91\(k\)\)\)/,'L491 : chute d abord, ordre relatif des autres refs preserve');
+has(/seul endroit traverse\s*\n?\s*par TOUS les chemins/,'L491 : couvre l import AUTO (retour Plan->Fiche), pas seulement « Commencer a couper »');
+has(/Une fiche ENGAGEE n arrive jamais ici en auto/,'L491 : le travail terrain deja engage reste intouche');
+
 console.log('── L490 : la chute ♻ est vraiment coupee EN 1er (signalement JF 31/08) ──');
 has(/signalement atelier JF 31\/08/,'L490 : bug atelier trace dans le code');
 has(/const _hasRecut90=function\(b\)/,'L490 : detection d une reference porteuse de rouleau ♻');
