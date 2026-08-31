@@ -1386,6 +1386,10 @@ has(/querySelectorAll\('\.l488-row'\)/,'L488 : le geste unique traite TOUTES les
 has(/function _l488RefreshClientUI/,'L488 : la liste du Plan se reconstruit apres un ajout (bug terrain Esteban)');
 has(/y compris un client texte libre/,'L488 : la selection en cours de l operateur est preservee au rafraichissement');
 absent(/Publier à tous les postes/,'L487 : le bouton « Publier » separe a disparu (tout est simultane)');
+has(/✔ Enregistrer sur les 3 tablettes/,'L489 : « publier » remplace par « enregistrer sur les 3 tablettes » (retour Esteban : publier faisait croire a une mise en ligne)');
+has(/Elle disparaîtra aussi des 2 autres tablettes/,'L489 : le retrait d une reference dit ce qu il fait, sans le mot publier');
+has(/async function _l489DelCli/,'L489 : supprimer un client entier (et ses references)');
+has(/if\(!ok\)\{ CLIENT_DATA\[nom\]=avant; renderClients\(\); return; \}/,'L489 : suppression annulee si l enregistrement echoue');
 has(/if\(!ok\)\{ if\(nouveau\) delete CLIENT_DATA\[nom\]/,'L487 : publication refusee = modification locale ANNULEE (pas de poste desynchronise)');
 has(/function _l487Picked/,'L487 : la liste deroulante distingue deux entrees de MEME reference');
 has(/data-ci="\$\{ci\}"/,'L487 : index catalogue porte par l option (value inchangee = plans archives intacts)');

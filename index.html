@@ -3280,7 +3280,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.29-L488';
+const APP_VERSION='2026.08.29-L489';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -18334,13 +18334,15 @@ function renderClients(){
       return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px">'
         +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_l486Esc(r.ref)+'</span>'
         +'<span style="color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums">'+(r.largeur||'—')+' mm × '+(r.longueur||'—')+' ml</span>'
-        +'<button class="btn btn-sm" style="min-height:28px;padding:2px 8px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx,this)" title="Retirer cette référence et publier">✕</button>'
+        +'<button class="btn btn-sm" style="min-height:28px;padding:2px 8px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx,this)" title="Retirer cette référence">✕</button>'
         +'</div>';
     }).join('')||'<div style="font-size:12px;color:var(--muted);padding:3px 0">aucune référence</div>';
     const pkg=(PKG_CLIENTS||{})[n];
     return '<details style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
       +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
-      +'<div style="margin-top:6px">'+refs+'</div></details>';
+      +'<div style="margin-top:6px">'+refs+'</div>'
+      +'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" style="min-height:30px;padding:3px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" onclick="_l489DelCli(+this.dataset.i,this)" title="Supprimer ce client et toutes ses références">🗑 Supprimer ce client</button></div>'
+      +'</details>';
   }).join('');
   const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
   c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'
@@ -18353,7 +18355,7 @@ function renderClients(){
       +'<div id="l488Lignes" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'
         +'<button class="btn btn-sm" onclick="_l488AddRow()" title="Ajouter une autre référence pour ce client">➕ Une autre référence</button>'
-        +'<button class="btn btn-blue" style="min-height:40px" onclick="_l487Valider(this)">✔ Valider et publier</button>'
+        +'<button class="btn btn-blue" style="min-height:40px" onclick="_l487Valider(this)">✔ Enregistrer sur les 3 tablettes</button>'
       +'</div>'
       +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+refsAll.length+' référence(s) distincte(s) · source : '+(_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app')+'</div>'
     +'</div>'
@@ -18426,20 +18428,37 @@ async function _l487Valider(btn){
     });
   });
   if(!add.length){ if(nouveau) delete CLIENT_DATA[nom]; showToast('Déjà présent : '+deja.join(' · ')+'.','err'); return; }
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Publication…'; }
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Enregistrement…'; }
   const ok=await _l486Publish(null,true);
-  if(btn){ btn.disabled=false; btn.textContent='✔ Valider et publier'; }
+  if(btn){ btn.disabled=false; btn.textContent='✔ Enregistrer sur les 3 tablettes'; }
   if(!ok){ if(nouveau) delete CLIENT_DATA[nom]; else CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488 · bug terrain] le nouveau client apparait AUSSITOT dans la liste du Plan */
   renderClients();
-  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) publiée(s) sur les 3 tablettes : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):''),'ok');
+  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) enregistrée(s) sur les 3 tablettes : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):''),'ok');
+}
+/* [L489 · demande Esteban] Supprimer un client ENTIER (il venait d en creer un pour tester).
+   Meme regle que le reste : la suppression part aussitot sur les 3 tablettes, et si l enregistrement
+   echoue le client est REMIS en place localement — jamais un poste qui differe des deux autres. */
+async function _l489DelCli(ni,btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
+  const nom=_l486Nom(ni); if(!nom) return;
+  const n=(CLIENT_DATA[nom]||[]).length;
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Supprimer le client « '+nom+' » et ses '+n+' référence(s) ?\n\nIl disparaîtra aussi des 2 autres tablettes.\nLes commandes déjà enregistrées à son nom ne bougent pas.',{ok:'Supprimer'}))) return;
+  const avant=CLIENT_DATA[nom];
+  if(btn) btn.disabled=true;
+  delete CLIENT_DATA[nom];
+  const ok=await _l486Publish(null,true);
+  if(btn) btn.disabled=false;
+  if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
+  try{ _l488RefreshClientUI(); }catch(_){ }
+  renderClients(); showToast('✔ Client « '+nom+' » supprimé sur les 3 tablettes.','ok');
 }
 function _l486Nom(ni){ return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni]; }   /* meme tri que le rendu */
 async function _l486DelRef(ni,idx,btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const nom=_l486Nom(ni); if(!nom) return;
   const arr=CLIENT_DATA[nom]||[]; const r=arr[idx]; if(!r) return;
-  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » ('+(r.longueur||'—')+' ml) de '+nom+' ?\n\nLe retrait part immédiatement sur les 3 tablettes.',{ok:'Retirer et publier'}))) return;
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » ('+(r.longueur||'—')+' ml) de '+nom+' ?\n\nElle disparaîtra aussi des 2 autres tablettes.',{ok:'Retirer'}))) return;   /* [L489 · retour Esteban] « publier » faisait croire a une mise en ligne publique — on dit ce que ca fait vraiment */
   const avant=arr.slice();
   if(btn) btn.disabled=true;
   arr.splice(idx,1);
@@ -18447,7 +18466,7 @@ async function _l486DelRef(ni,idx,btn){
   if(btn) btn.disabled=false;
   if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }
-  renderClients(); showToast('✔ Référence retirée et publiée.','ok');
+  renderClients(); showToast('✔ Référence retirée sur les 3 tablettes.','ok');
 }
 async function renderAudit(){
   const c=document.getElementById('tabContentAudit');
