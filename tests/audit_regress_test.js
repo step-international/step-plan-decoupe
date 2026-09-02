@@ -1382,6 +1382,15 @@ has(/const ASSIST_TTL_DAYS=90;/,'L494 : retention des fils 💬 nommee et modifi
 has(/doc\.expireAt=firebase\.firestore\.Timestamp\.fromDate/,'L494 : vraie date d EXPIRATION (pas createdTs : le TTL aurait efface chaque fil des sa creation)');
 has(/collection « assist », champ « expireAt »/,'L494 : la cible de la regle console est documentee dans le code');
 
+console.log('── L496 : chrono a 28 h (signalement atelier JF, nuit 31/08 -> 01/09) ──');
+has(/began:_chronoRunBeganAt\|\|null\},   \/\* \[L496/,'L496 : l instant REEL du ▶ voyage avec le brouillon');
+has(/_chronoRunBeganAt = c\.began \|\| c\.runStart \|\| Date\.now\(\);/,'L496 CAUSE RACINE : la reprise EN MARCHE restaure le ▶ reel (sinon garde cross-day neutralisee)');
+has(/Ne JAMAIS écraser par null un « began » déjà stocké/,'L496 : la panne ne s auto-entretient plus (le 1er tick detruisait la copie durable)');
+has(/Réinjection REMONTÉE ICI/,'L496 : la reinjection couvre le cas NORMAL (un brouillon existe), plus seulement le repli');
+has(/function chronoCrossDaySec\(sec,runStart,virtualStart\)/,'L496 : 3e parametre optionnel — les 3 autres appelants restent inchanges');
+has(/if\(virtualStart!=null && virtualStart<=_fin\) return Math\.max\(0,Math\.floor\(\(_fin-virtualStart\)\/1000\)\);/,'L496 : le rattrapage REMPLACE la valeur gonflee au lieu d en prendre le maximum');
+has(/chronoCrossDaySec\(chronoSec\|\|0,_chronoRunBeganAt,chronoRunStart\)/,'L496 : jour = ▶ reel, duree = origine virtuelle (cumul anterieur compris)');
+
 console.log('── L495 : lame bloquee en « Depart affutage » (signalement atelier 01/09) ──');
 has(/_lameEvent porte les DEUX transitions du cycle affutage/,'L495 : cause racine documentee (correctif L441 jamais propage a _lameEvent)');
 has(/catch\(e\)\{ if\(typeof _isQueuedWrite==='function'&&_isQueuedWrite\(e\)\)\{ rec\._enFile=true; \} else throw e; \}/,'L495 : ecriture MISE EN FILE traitee comme un succes (la lame bascule hors-ligne)');

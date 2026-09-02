@@ -3281,7 +3281,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.01-L495';
+const APP_VERSION='2026.09.02-L496';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10914,12 +10914,20 @@ function dayChronoCutoffMs(ms){
 // pas réellement passé (horloge déréglée → runStart « futur »), on conserve la valeur
 // écrite. Partagé par les DEUX chemins de reprise : auto (maybeResumeRunningChrono) et
 // manuelle depuis Brouillons (restoreChrono) — mêmes chiffres partout.
-function chronoCrossDaySec(sec,runStart){
+function chronoCrossDaySec(sec,runStart,virtualStart){
   const _cut=dayChronoCutoffMs(runStart);
   const _d0=new Date(runStart);
   const _minuit=new Date(_d0.getFullYear(),_d0.getMonth(),_d0.getDate()+1,0,0,0,0).getTime();
   const _fin=(_cut!=null && _cut>runStart)?_cut:_minuit;
   if(_fin>Date.now()) return Math.max(0,sec||0);   // jour de départ non passé (horloge) : valeur écrite conservée
+  /* [L496 · chrono 28 h] 3e paramètre OPTIONNEL — l'origine VIRTUELLE (chronoRunStart = instant du ▶ moins
+     le cumul déjà acquis). Quand elle est fournie, le temps à figer se calcule depuis ELLE : elle encode
+     déjà le cumul antérieur, alors que le calcul depuis le ▶ réel l'oublierait. Et surtout, le résultat
+     REMPLACE la valeur courante au lieu d'en prendre le maximum — sinon un chrono gonflé par une nuit
+     entière (28 h) ne peut JAMAIS être ramené à la fin de journée : c'est exactement ce qui bloquait le
+     rattrapage. Les 3 autres appelants (l.~23268, 24242, 24831) passent déjà l'origine virtuelle en 2e
+     argument et gardent le comportement Math.max d'origine : ils sont inchangés. */
+  if(virtualStart!=null && virtualStart<=_fin) return Math.max(0,Math.floor((_fin-virtualStart)/1000));
   return Math.max(sec||0,Math.floor((_fin-runStart)/1000));
 }
 function chronoAutoStopCheck(){
@@ -10935,7 +10943,7 @@ function chronoAutoStopCheck(){
      jour de depart (chronoCrossDaySec) et on arrete. Sans effet sur le fix L431 : une reprise matinale
      repose _chronoRunBeganAt a l'instant du ▶. */
   if(_chronoRunBeganAt && _dateKey(_chronoRunBeganAt)!==_dateKey(now)){
-    chronoSec=chronoCrossDaySec(chronoSec||0,_chronoRunBeganAt);
+    chronoSec=chronoCrossDaySec(chronoSec||0,_chronoRunBeganAt,chronoRunStart);   /* [L496] jour = le ▶ RÉEL ; durée = depuis l'origine virtuelle (cumul antérieur compris) */
     autoStopChrono();
     return;
   }
@@ -10982,7 +10990,12 @@ function persistChronoLive(){
       // brouillon perso au boot la réécrivait mir:null et détruisait le temps du récepteur avant la réouverture).
       localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',mir:_viewingSharedId}));
     }else if(chronoRunning && chronoRunStart!=null){
-      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',began:_chronoRunBeganAt||null}));   /* [L440 · audit #21] le ▶ reel survit au reload */
+      /* [L496 · chrono 28 h] Ne JAMAIS écraser par null un « began » déjà stocké : quand _chronoRunBeganAt
+         était perdu, le premier tick suivant détruisait la seule copie durable du vrai ▶ et la panne
+         devenait auto-entretenue (elle survivait à tous les rechargements suivants). */
+      let _bg96=_chronoRunBeganAt||null;
+      if(!_bg96){ try{ const _o96=JSON.parse(localStorage.getItem(CHRONO_LS_KEY)||'null'); if(_o96&&_o96.began&&_o96.runStart===chronoRunStart) _bg96=_o96.began; }catch(_){ } }
+      localStorage.setItem(CHRONO_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',began:_bg96}));   /* [L440 · audit #21] le ▶ reel survit au reload */
       _wroteChronoLive=true;
     }else if((typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof chronoSec==='number'&&chronoSec>0)){
       // [L298 · audit v2] miroir + chrono EN PAUSE (⏸ ou arrêt auto 16h15) : les autosaves sont neutralisés en
@@ -23884,7 +23897,7 @@ function serializeFicheState(){
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
       numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||'',
       refOrder:(typeof ficheRefOrder!=='undefined'?ficheRefOrder.slice():[]),refValidated:(typeof ficheRefValidated!=='undefined'?Array.from(ficheRefValidated):[]),planValidated:fichePlanValidated},   // [L89] le verrou « Changement plan » survit au rechargement
-    chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning, runStart:chronoRunStart},
+    chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning, runStart:chronoRunStart, began:_chronoRunBeganAt||null},   /* [L496 · chrono 28 h] l instant REEL du ▶ voyage avec le brouillon : sans lui, restoreChrono reprenait le chrono EN MARCHE avec _chronoRunBeganAt=null et la garde cross-day etait neutralisee pour toute la session */
     lines:getFicheLinesData(),
     pendingFicheId:_pendingFicheId||null, pendingTempsId:_pendingTempsId||null,   // ENVOI-1 : renvoi idempotent
     resumedDraftId:_resumedDraftId||null,   // [L166 · audit #6] lien de reprise DURABLE : sans lui, un solde repris puis re-coupé APRÈS un rechargement n'était jamais marqué consommé → reprennable une 2ᵉ fois = double découpe
@@ -24174,6 +24187,11 @@ async function maybeResumeRunningChrono(){
     if(chronoRunning) return;
     const _plan430=(typeof planHasContent==='function')?planHasContent():false;   /* [L430 audit] photo AVANT l'attente reseau : si l'operateur saisit PENDANT, on ne l'ecrase pas (et un simple residu ne bloque plus la reprise) */
     const live=readChronoLive();                         // sauvegarde instantanée (localStorage, hors-ligne)
+    /* [L496 · chrono 28 h] Réinjection REMONTÉE ICI : elle ne vivait que dans la branche de repli
+       « pas de brouillon exploitable » (plus bas), donc le cas NORMAL — un brouillon existe, l'opérateur a
+       déjà coché des bobines — sortait avant de l'atteindre. Les brouillons enregistrés AVANT ce lot ne
+       portent pas encore `began` : c'est localStorage qui le fournit alors. */
+    try{ if(live && live.began && !_chronoRunBeganAt) _chronoRunBeganAt=live.began; }catch(e){}
     const aid=(typeof autosaveId==='function')?autosaveId():null;
     let d=null;
     if(aid){
@@ -24789,6 +24807,14 @@ function restoreChrono(c){
   const _crossDay = c.runStart && (typeof _dateKey==='function') && (_dateKey(c.runStart)!==_dateKey(Date.now()));
   if(c.wasRunning && c.runStart && !_crossDay){
     // Reprise EN MARCHE : recalcul du temps actif réel depuis le début de segment.
+    /* [L496 · chrono 28 h — CAUSE RACINE] On restaure AUSSI l'instant réel du ▶. Sans cette ligne,
+       _chronoRunBeganAt restait null après tout rechargement (mise à jour, crash, PWA relancée), et la
+       garde cross-day (l.~10937 : « si le ▶ date d'un autre jour, on fige et on arrête ») ne se déclenchait
+       plus JAMAIS de la session. Combiné au gel des minuteurs par Android quand l'écran s'éteint — la coupure
+       de 16h15 ne tombe pas la nuit — le chrono repartait le lendemain matin en comptant depuis son départ
+       VIRTUEL de la veille : 28 h affichées sur la commande Legrand 365356 (signalement JF du 01/09).
+       Repli sur c.runStart : sûr, car _crossDay===false garantit qu'il date d'aujourd'hui. */
+    _chronoRunBeganAt = c.began || c.runStart || Date.now();
     chronoRunStart=c.runStart;
     chronoSec=Math.max(0,Math.floor((Date.now()-chronoRunStart)/1000));
     chronoRunning=true;
