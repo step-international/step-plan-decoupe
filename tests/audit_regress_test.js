@@ -1382,6 +1382,14 @@ has(/const ASSIST_TTL_DAYS=90;/,'L494 : retention des fils 💬 nommee et modifi
 has(/doc\.expireAt=firebase\.firestore\.Timestamp\.fromDate/,'L494 : vraie date d EXPIRATION (pas createdTs : le TTL aurait efface chaque fil des sa creation)');
 has(/collection « assist », champ « expireAt »/,'L494 : la cible de la regle console est documentee dans le code');
 
+console.log('── L495 : lame bloquee en « Depart affutage » (signalement atelier 01/09) ──');
+has(/_lameEvent porte les DEUX transitions du cycle affutage/,'L495 : cause racine documentee (correctif L441 jamais propage a _lameEvent)');
+has(/catch\(e\)\{ if\(typeof _isQueuedWrite==='function'&&_isQueuedWrite\(e\)\)\{ rec\._enFile=true; \} else throw e; \}/,'L495 : ecriture MISE EN FILE traitee comme un succes (la lame bascule hors-ligne)');
+has(/const ref=db\.collection\('maintenance'\)\.doc\(\);\n  try\{ await boundedWrite\(ref\.set\(rec\),10000\); \}/,'L495 : id genere AVANT l ecriture (mise a jour optimiste possible)');
+absent(/await logAudit\('create','maintenance',r\.id/,'L495 : plus d await sur la piste d audit (une piste qui pend gelait le retour, L441 #10)');
+has(/📡 Hors-ligne : lame '\+num\+' envoyée à l..affûtage/,'L495 : message vert honnete au lieu du bandeau rouge « Erreur »');
+has(/Reçue de l.affûteur<\/button>/,'L495 : filet de rattrapage — « Recue de l affuteur » aussi dans la section Depart affutage');
+
 console.log('── L493 : decisions Esteban (temps reel, m², PDF, recalcul) ──');
 has(/_l486Unsub=db\.collection\('config'\)\.doc\('clients'\)\.onSnapshot/,'L493 : referentiel clients en TEMPS REEL (les 3 tablettes voient un nouveau client aussitot)');
 has(/if\(!db\|\|_l486Unsub\) return;/,'L493 : garde d idempotence (onAuthStateChanged refire : pas de fuite d abonnement)');

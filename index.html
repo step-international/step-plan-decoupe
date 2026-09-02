@@ -3281,7 +3281,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.08.31-L494';
+const APP_VERSION='2026.09.01-L495';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -16119,18 +16119,31 @@ async function _lameEvent(categorie,machine,num,description,dateIso){
   const rec={ type:'lame', categorie, machine:machine||'', lameNum:String(num).trim(), dateInstall:d, date:d,
     description:description||'', responsable:currentUser?currentUser.ini:'',
     createdAt:now, createdBy:currentUser?currentUser.ini:'?', appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''), deleted:false };   // [L272 · audit #12] version estampillée : diagnostiquer un état lame faux sur un parc en versions hétérogènes
-  const r=await boundedWrite(db.collection('maintenance').add(rec),10000);
-  rec.id=r.id; maintenanceCache.unshift(rec);
-  await logAudit('create','maintenance',r.id,(MAINT_CAT_LABEL[categorie]||categorie)+' — lame '+rec.lameNum+' ('+getMachineLabel(machine)+')');
+  /* [L495 · signalement atelier 01/09 : « lame envoyee a l affutage restee dans A affuter »] CAUSE RACINE.
+     _lameEvent porte les DEUX transitions du cycle affutage (envoi + reception) et etait la SEULE ecriture
+     de lame a n avoir jamais recu les correctifs hors-ligne L441 (appliques a lameInstall l.15755 et a
+     lameJeter l.16248). Sur reseau lent, boundedWrite rejette a 10 s avec e.queued=true : l ecriture est
+     MISE EN FILE et partira, mais ici le rejet remontait comme une erreur -> unshift jamais fait, carte
+     jamais re-rendue, bandeau rouge. La lame restait affichee dans « Depart affutage », et « Receptionner »
+     n existe que dans la section « En cours d affutage » : l operateur etait bloque le lendemain.
+     Meme motif que lameJeter : id genere AVANT l ecriture (mise a jour optimiste possible), file d attente
+     traitee comme un succes, logAudit non bloquant (une piste qui pend gelait le retour, L441 #10). */
+  const ref=db.collection('maintenance').doc();
+  try{ await boundedWrite(ref.set(rec),10000); }
+  catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ rec._enFile=true; } else throw e; }
+  rec.id=ref.id; maintenanceCache.unshift(rec);
+  logAudit('create','maintenance',ref.id,(MAINT_CAT_LABEL[categorie]||categorie)+' — lame '+rec.lameNum+' ('+getMachineLabel(machine)+')').catch(function(){});
   return rec;
 }
 async function lameEnvoyerAffutage(machine,num,comment){
-  try{ await _lameEvent('affutage',machine,num,comment||('Envoi à l\'affûteur — lame '+num+' '+getMachineLabel(machine))); showToast('🛠 Lame '+num+' ('+getMachineLabel(machine)+') envoyée à l\'affûtage','ok'); renderMaintenance(); }
-  catch(e){ showToast('Erreur : '+e.message,'err'); }
+  try{ const _r=await _lameEvent('affutage',machine,num,comment||('Envoi à l\'affûteur — lame '+num+' '+getMachineLabel(machine)));
+    showToast(_r&&_r._enFile?('📡 Hors-ligne : lame '+num+' envoyée à l\'affûtage — enregistré, ça partira au retour du réseau. Ne recharge pas la tablette.'):('🛠 Lame '+num+' ('+getMachineLabel(machine)+') envoyée à l\'affûtage'),'ok'); renderMaintenance(); }
+  catch(e){ showToast('Erreur : '+e.message,'err'); renderMaintenance(); }   /* [L495] re-rendu meme en echec : l ecran ne doit jamais mentir sur l etat reel */
 }
 async function lameRetourStock(machine,num,comment){
-  try{ await _lameEvent('stock',machine,num,comment||('Retour affûteur → stock — lame '+num+' '+getMachineLabel(machine))); showToast('📦 Lame '+num+' ('+getMachineLabel(machine)+') de retour en stock','ok'); renderMaintenance(); }
-  catch(e){ showToast('Erreur : '+e.message,'err'); }
+  try{ const _r=await _lameEvent('stock',machine,num,comment||('Retour affûteur → stock — lame '+num+' '+getMachineLabel(machine)));
+    showToast(_r&&_r._enFile?('📡 Hors-ligne : lame '+num+' reçue de l\'affûteur — enregistré, ça partira au retour du réseau. Ne recharge pas la tablette.'):('📦 Lame '+num+' ('+getMachineLabel(machine)+') de retour en stock'),'ok'); renderMaintenance(); }
+  catch(e){ showToast('Erreur : '+e.message,'err'); renderMaintenance(); }
 }
 async function lameSeedStock(machine,num,dateIso){   // helper seed inventaire (console admin)
   return _lameEvent('stock',machine,num,'Seed inventaire — lame '+num+' '+getMachineLabel(machine)+' en stock',dateIso);
@@ -16204,7 +16217,7 @@ function renderAffutageList(){
   };
   el.innerHTML=
     sec('🟠','Départ affûtage','','aAffuter',
-      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
+      (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(245,158,11,.14);border:1px solid var(--orange);color:var(--orange)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameEnvoyerAffutage(this.dataset.mch,this.dataset.num)">🛠 Envoyer à l'affûtage</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(96,165,250,.10);border:1px solid var(--blue);color:var(--blue)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetourStock(this.dataset.mch,this.dataset.num)" title="Filet de rattrapage : la lame est revenue de l'affûteur alors qu'elle est encore affichée ici">📦 Reçue de l'affûteur</button>`:'',
       'démontée le','aucune lame en départ affûtage 👍')
     +sec('📦','Lames stockées','','stockees',
       (m,l)=>canAct?`<button class="btn btn-sm lc-act" style="background:rgba(74,222,128,.12);border:1px solid #4ade80;color:#4ade80" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameMonterDepuisStock(this.dataset.mch,this.dataset.num)">⬆ Monter</button>`+`<button class="btn btn-sm" style="min-height:36px;padding:4px 10px;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : jeter à la benne — la trace reste dans le registre">🗑 Benne</button>`:'',
