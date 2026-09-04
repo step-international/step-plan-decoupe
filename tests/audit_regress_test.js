@@ -1933,5 +1933,8 @@ has(/Un seul métrage en modification/,'L498 : le multi-métrage passe par ⧉ D
 has(/details\[open\]\[data-cli\]/,'L498 : état ouvert des clients conservé au re-rendu (motif L367)');
 has(/_l486Esc\(r\)\+' — '\+d\.largeur\+' mm'/,'L498 : le NOM figure au libellé des options du datalist (rendu natif tablette)');
 
+console.log('── L499 : métrage de la mère sur le PDF plan mono-réf (demande Céline 04/09) ──');
+has(/mono.longueur/,'L499 : l en-tête mono du PDF plan affiche le métrage de la mère (mono.longueur, absent avant ce lot) — Dominique l écrivait au stylo, le multi l avait déjà');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
