@@ -2087,7 +2087,8 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   body:not(.show-ref-bands) #ficheRight>.fmm-inline-block:not(.active),body:not(.show-ref-bands) #ficheLines .fmm-inline-block:not(.active){display:none}
   body.show-ref-bands .fmm-inline-block:has(.fmm-badge.val) .fmm-valsum{display:flex!important}
   body.show-ref-bands .fmm-inline-block:has(.fmm-badge.val) .fmm-head::after{content:none}
-  body.show-ref-bands .fiche-ref-sep.refonly{display:none}   /* [L376 · A2.11] la réf n'est pas portée deux fois pendant la recorrection */
+  body.show-ref-bands .fiche-ref-sep.refonly{display:none}
+.fiche-ref-sep.refonly.twin{display:flex}   /* [L497 · signalement MR 04/09] EXCEPTION homonymes : deux refs de MEME NOM (metrages differents, ex. KX1006-1 en 1000 ml puis 700 ml) n ont aucun autre repere a l ecran — le separateur reste visible, avec sa pastille ml. La regle recorrection (body.show-ref-bands, plus bas) garde priorite. */   /* [L376 · A2.11] la réf n'est pas portée deux fois pendant la recorrection */
 }
 /* ============================================================
    [L362 · ANALYSE DES PARCOURS 19/08 — VOCABULAIRE COULEURS (section D) : quick wins A8·A9·A10·A11 + décisions B1(b)·B2(b)·B7(b)·B8(b)·B9
@@ -3281,7 +3282,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.02-L496';
+const APP_VERSION='2026.09.04-L497';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6428,9 +6429,16 @@ function importPlanToFiche(opts){
       if(_genOrder.some(_hasR91)&&!_hasR91(_genOrder[0]))
         _genOrder=_genOrder.filter(_hasR91).concat(_genOrder.filter(k=>!_hasR91(k)));
     }catch(e){}
+    // [L497 · signalement MR 04/09 · atelier CEVENINI] refs HOMONYMES (meme nom, metrage
+    // different — KX1006-1 en 1000 ml puis 700 ml) : l operateur voyait 26 cartes au libelle
+    // IDENTIQUE, frontiere invisible (separateur masque depuis L382 hors changement de machine),
+    // et le solde de la 1re ref passait pour une bobine a moitie vide inexpliquee. Correctif :
+    // le libelle des bobines porte le metrage, et le separateur reste visible (classe twin).
+    const _l497Twins={}; try{ _genOrder.forEach(_c7=>{ const _r7=computed[_c7]; const _n7=refDisp((_r7&&_r7.ref)||''); if(_n7) _l497Twins[_n7]=(_l497Twins[_n7]||0)+1; }); }catch(e){}
+    const _l497RefLbl=c0=>{ try{ const n0=refDisp((c0&&c0.ref)||''); return (n0&&_l497Twins[n0]>1&&c0.longueur)?(n0+' · '+c0.longueur+' ml'):n0; }catch(e){ return refDisp((c0&&c0.ref)||''); } };
     _genOrder.forEach(ci=>{
       const c=computed[ci];
-      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach, c.mother, c.edge); if(c.machine) prevMach=c.machine; }
+      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach, c.mother, c.edge, !!(c.ref&&_l497Twins[refDisp(c.ref)]>1)); if(c.machine) prevMach=c.machine; }
       const man=planManual?_pmFindEntry(c,ci,computed.length):null;   // [L70 · Audit B29] appariement par clé, plus par index brut ([L170] nb de groupes pour la garde mono-réf)
       if(man){
         // Plan modifié à la main : il fait foi, on génère les bobines telles
@@ -6444,7 +6452,7 @@ function importPlanToFiche(opts){
         // non éditables dans l'éditeur), générés AVANT les bobines manuelles — miroir exact du plan auto.
         (c.recutGroups||[]).forEach(g=>{
           for(let k=0;k<g.count;k++){
-            const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
+            const lbl=(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
@@ -6455,7 +6463,7 @@ function importPlanToFiche(opts){
         man.bobines.forEach(b=>{
           const cnt=Math.max(1,parseInt(b.count)||1);
           for(let k=0;k<cnt;k++){
-            addFicheLine({label:(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
+            addFicheLine({label:(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
               conf:normConf(b.conf),   // [L88] * accepté
               ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
             bi++;
@@ -6475,7 +6483,7 @@ function importPlanToFiche(opts){
         // compte dans la production comme n'importe quelle bobine.
         (c.recutGroups||[]).forEach(g=>{
           for(let k=0;k<g.count;k++){
-            const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
+            const lbl=(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:(function(){ const _r=(_a15&&typeof _l415Conf==='function')?_l415Conf(g.pattern,_a15[_i15],null):null; _i15++; return _r||g.pattern.map(p=>p.qty+'×'+p.width).join(' + '); })(),   /* [L415] contigue par client */
               ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
@@ -6490,7 +6498,7 @@ function importPlanToFiche(opts){
           const _phNote=g._phaseEnd?('⟲ FIN DE PHASE — reste ≈'+fmt(Math.max(0,Math.round(c.useful-calcStats(g.pattern,c.blade).total)))+' mm à CONSERVER (chute réutilisable, pas un déchet)'):'';
           const chuteNote=[g.chute?('✂ '+Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')+' mm pris dans chute stock (déjà en stock, ne pas découper)'):'',_phNote].filter(Boolean).join(' · ');
           for(let k=0;k<g.count;k++){
-            const lbl=(multi&&c.ref?refDisp(c.ref)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
+            const lbl=(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:(function(){ const _r=(_a15&&typeof _l415Conf==='function')?_l415Conf(g.pattern,_a15[_i15],g.chute):null; _i15++; return _r||g.pattern.map(p=>p.qty+'×'+p.width).join(' + '); })(),   /* [L415] contigue par client (chute stock = ordre historique) */
               ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
               phaseEnd:!!g._phaseEnd});
@@ -6523,7 +6531,7 @@ function importPlanToFiche(opts){
 // [L231 · audit MAJ-1] cluster _refCheckOk/_paintRefValid/toggleRefValid SUPPRIMÉ (code mort depuis L217/L224 :
 // plus aucun élément .frs-valid rendu). La trace ISO « ref-check » vit désormais dans applyFicheRefPlanChange
 // (validation) + unvalidateFicheRef (ré-ouverture).
-function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,edge){
+function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,edge,twin){
   const div=document.createElement('div');
   div.className='fiche-ref-sep'+machineCls(machine);
   div.dataset.ref=ref||'';
@@ -6540,7 +6548,8 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,
   // [L224 · demande Esteban] la bande verte de réf est SUPPRIMÉE (« pas de répétition de données ») : la carte
   // « Réf N » en haut (bloc fmm) est l'UNIQUE porteur de l'info réf/machine/film. On ne rend le séparateur QUE
   // s'il y a un CHANGEMENT DE MACHINE (bande rouge — repère atelier critique, conservé).
-  if(!bandHtml) div.classList.add('refonly');   // [L372 · demande Esteban 20/08] pas de changement de machine : bande de réf quand même rendue (masquée en portrait — L224 y garde le bloc « Réf N » ; en paysage L361 a masqué ces blocs → la pile n'avait plus AUCUN repère au passage de réf)
+  if(!bandHtml) div.classList.add('refonly');
+  if(twin&&!bandHtml) div.classList.add('twin');   // [L497] refs homonymes : visible malgre refonly (regle CSS .refonly.twin)   // [L372 · demande Esteban 20/08] pas de changement de machine : bande de réf quand même rendue (masquée en portrait — L224 y garde le bloc « Réf N » ; en paysage L361 a masqué ces blocs → la pile n'avait plus AUCUN repère au passage de réf)
   const _mlChip=(!bandHtml&&longueur)?`<span class="frs-m">${esc(String(longueur))} ml</span>`:'';
   div.innerHTML=`${bandHtml}${machLbl?`<span class="frs-mch">⚙ ${esc(machLbl)}</span>`:''}<span class="frs-name">🎞 ${esc(refDisp(ref))}</span>${_mlChip}<span class="frs-count ref-sep-count"></span>`;   /* [L293] nom court (dataset.ref garde le nom complet pour le matching) */
   document.getElementById('ficheLines').appendChild(div);
@@ -10009,9 +10018,15 @@ function getEtiquetteSoldeList(){
   // --- Cas fiche remplie : on groupe les bobines par réf ---
   if(ficheLines.length){
     // Détecte le multi-réf : plus d'une réf distincte non vide parmi les lignes.
+    // [L497 · signalement MR 04/09] regroupement par IDENTITE de ref (refIdKey = ref+film+veka+
+    // metrage), NOM en repli pour les vieilles fiches sans refIdKey. Deux refs HOMONYMES ne
+    // fusionnent plus : chacune garde SA derniere bobine, donc SON etiquette solde — avant, une
+    // seule etiquette sortait (sur la derniere bobine GLOBALE) et le reste de la derniere bobine
+    // de la 1re ref n etait etiquete NULLE PART (vu en atelier : ~1 m de laize sans etiquette).
+    const _selKey=l=>l.refIdKey||('nom¦'+(l.ref||''));
     const refsSeen=[];
-    ficheLines.forEach(l=>{const r=l.ref||'';if(!refsSeen.includes(r))refsSeen.push(r);});
-    const multi=refsSeen.filter(r=>r).length>1;
+    ficheLines.forEach(l=>{const k=_selKey(l);if(!refsSeen.some(x=>x.k===k))refsSeen.push({k,r:l.ref||''});});
+    const multi=refsSeen.filter(x=>x.r).length>1;
     // [L103 · audit-max] FINS DE PHASE (plan phasé ≤4 palettes) : leur reste est une chute à
     // CONSERVER — écran plan et PDF l'annonçaient (« solde conservé ») mais aucune étiquette
     // solde n'était proposée. Une étiquette par bobine fin-de-phase, en plus du solde final.
@@ -10030,8 +10045,9 @@ function getEtiquetteSoldeList(){
     if(multi){
       // Une étiquette par réf : dernière bobine de chaque réf (+ fins de phase [L103]).
       const out=[];
-      refsSeen.forEach((r,idx)=>{
-        const lines=ficheLines.filter(l=>(l.ref||'')===r);
+      refsSeen.forEach((x,idx)=>{
+        const r=x.r;   // [L497] nom d affichage ; le FILTRE se fait par identite
+        const lines=ficheLines.filter(l=>_selKey(l)===x.k);
         if(!lines.length) return;
         const last=lines[lines.length-1];
         const useful=last.useful>0?last.useful:getUseful();
@@ -10042,7 +10058,9 @@ function getEtiquetteSoldeList(){
         const p=parseConf(document.getElementById('flConf_'+last.id)?.value||'');
         if(!p.length) return;
         const solde=useful-calcStats(p,blade).total;
-        out.push({key:'r'+idx,mn,ref:r||'—',solde:fmt(solde),date:today(),color:_rc,..._matOf(last,r)});
+        const _mat=_matOf(last,r);
+        const _twin=refsSeen.some(y=>y!==x&&y.r===r);   // [L497] homonyme -> metrage sur l etiquette
+        out.push({key:'r'+idx,mn,ref:(r||'—')+((_twin&&_mat.longueur)?(' · '+_mat.longueur+' ml'):''),solde:fmt(solde),date:today(),color:_rc,..._mat});
       });
       return out;
     }
@@ -11866,6 +11884,10 @@ function recalcEcartsFromFiche(opts){
     const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
     const doneKeys=new Set(), _riByBase={}, _rollConsByBase={};   // [L298] compteur d'étiquettes + conso rouleaux PAR CLÉ DE BASE (partagés entre blocs machine frères)
     let _prevMachR='';   // [L92 · Audit #15] même signalétique machine que l'import
+    // [L497] meme detection d homonymes que la generation initiale (le recalcul d une commande
+    // en cours doit garder les memes libelles et le meme separateur, sinon derive visuelle).
+    const _l497Twins={}; try{ _genOrderR.forEach(_c7=>{ const _r7=computed[_c7]; const _n7=refDisp((_r7&&_r7.ref)||''); if(_n7) _l497Twins[_n7]=(_l497Twins[_n7]||0)+1; }); }catch(e){}
+    const _l497RefLbl=c0=>{ try{ const n0=refDisp((c0&&c0.ref)||''); return (n0&&_l497Twins[n0]>1&&c0.longueur)?(n0+' · '+c0.longueur+' ml'):n0; }catch(e){ return refDisp((c0&&c0.ref)||''); } };
     _genOrderR.forEach(ci=>{
       const c=computed[ci];
       const k=refKey(c);
@@ -11875,7 +11897,7 @@ function recalcEcartsFromFiche(opts){
       // bobines figées ré-attachées en double, pas de reliquat compté 2×.
       if(doneKeys.has(k)) return;
       doneKeys.add(k);
-      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, _prevMachR, c.mother, c.edge); if(c.machine) _prevMachR=c.machine; }   // [L92 · Audit #15] couleur machine + bande CHANGEMENT DE MACHINE conservées après recalcul
+      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, _prevMachR, c.mother, c.edge, !!(c.ref&&_l497Twins[refDisp(c.ref)]>1)); if(c.machine) _prevMachR=c.machine; }   // [L92 · Audit #15] couleur machine + bande CHANGEMENT DE MACHINE conservées après recalcul
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
       frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=_refIdKey(c); if(!l.machine&&c.machine) l.machine=c.machine; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante — [L295] clé de BASE (jamais la composite interne) + machine complétée
@@ -11925,7 +11947,7 @@ function recalcEcartsFromFiche(opts){
         groupRecutRolls(rr.rolls).forEach(g=>{
           waste+=Math.max(0,g.rollW-calcStats(g.pattern,pb).total)*g.count;
           for(let n=0;n<g.count;n++){
-            addFicheLine({label:(multi&&c.ref?refDisp(c.ref)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
+            addFicheLine({label:(multi&&c.ref?_l497RefLbl(c)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:pb, machine:pm,   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
               recut:true, rollW:g.rollW,
@@ -11947,7 +11969,7 @@ function recalcEcartsFromFiche(opts){
         groups.forEach(g=>{
           waste+=(pu-calcStats(g.pattern,pb).total)*g.count;
           for(let n=0;n<g.count;n++){
-            addFicheLine({label:(multi&&c.ref?refDisp(c.ref)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
+            addFicheLine({label:(multi&&c.ref?_l497RefLbl(c)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:pu, blade:pb, machine:pm});   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
             if(!_firstAddedId&&ficheLines.length) _firstAddedId=ficheLines[ficheLines.length-1].id;   // [L87] 1re bobine ajoutée : repérée pour scroll+surbrillance

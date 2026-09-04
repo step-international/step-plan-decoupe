@@ -462,7 +462,7 @@ absent(/STEP International — Plan<\/div>/,'L293 : l\'ancien titre discret L292
 has(/« N références » supprimé \(violet\)/,'L293 : « · N références · » retiré de la ligne Machine/Date');
 has(/colonne « À couper »\n {6}\/\/ et ligne « Total » SUPPRIMÉES|et ligne « Total » SUPPRIMÉES/,'L293 : tableau laize = Laize | Commandé | ✂ En stock (colonne À couper + ligne Total supprimées)');
 has(/replace\(\/\\s\*\\\(\[\^\)\]\*\\\)\\s\*\$\/,''\)\)\}<\/b>/,'L293 : parenthèse du cerclage retirée du papier (« Standard » au lieu de « Standard (≤39mm + tous KX) »)');
-has(/label:\(multi&&c\.ref\?refDisp\(c\.ref\)\+' · ':''\)/,'L293 : étiquettes BOB de la fiche en nom court');
+has(/_l497RefLbl.c..' · '/,'L293 → recalibré L497 : étiquettes BOB toujours en nom court — _l497RefLbl = refDisp + métrage UNIQUEMENT entre réfs homonymes (signalement MR 04/09)');
 has(/frs-name">🎞 \$\{esc\(refDisp\(ref\)\)\}/,'L293 : séparateurs de réf de la fiche en nom court (dataset complet préservé pour le matching)');
 has(/pas de doublon : n° déjà présent dans le nom client/,'L292 : N° Cmd supprimé du PDF quand le numéro figure déjà dans le nom client');
 has(/Cerclage : automatique \(film KX, toutes largeurs\)/,'L292 : SPÉCIFICITÉ LIMA réécrite courte (papier vert 1×, cerclage 1×)');
@@ -1917,6 +1917,11 @@ console.log('── L432 : multi-ref — valider UNE ref suffit + bouton Couper 
 has(/les refs VALIDEES au Plan passent EN TETE/,'L432 : Commencer a couper met les refs validees en tete de l ordre (fiche vierge seulement)');
 has(/fmm-first-btn/,'L432 : bouton « ⬆ Couper en 1er » sur chaque rangee (memes gardes que le glisser)');
 has(/ou mets ta référence déjà validée en premier/,'L432 : la garde chrono propose les deux sorties');
+
+console.log('── L497 : refs homonymes sur la fiche (signalement MR 04/09, cas VEKA 1000/700 ml) ──');
+has(/_l497Twins/,'L497 : libelles BOB/RESTE/OP2 portent le metrage quand deux refs partagent le meme nom');
+has(/refonly.twin/,'L497 : separateur de ref VISIBLE entre refs homonymes meme sans changement de machine (exception a L382)');
+has(/_selKey=l=>l.refIdKey/,'L497 : etiquette solde par IDENTITE de ref (refIdKey) — chaque homonyme a la sienne ; avant, le reste de la 1re ref sortait sans etiquette');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
