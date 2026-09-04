@@ -3282,7 +3282,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.04-L497';
+const APP_VERSION='2026.09.04-L498';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -18522,8 +18522,86 @@ function _l486Esc(v){ return (typeof esc==='function')?esc(String(v==null?'':v))
    un bouton unique « ✔ Valider et publier » cree/complete le client, ajoute la ou les references et
    envoie tout aux tablettes dans la foulee. Plus jamais de client cree sans reference, ni de
    modification oubliee sur un seul poste. Le retrait d une reference publie aussi immediatement. */
+/* [L498 · demande Céline 04/09/2026] ✏️ Modifier et ⧉ Dupliquer une référence, sans supprimer/re-créer.
+   Même patron que _l486DelRef : mutation optimiste → _l486Publish → rollback si échec.
+   L'index (ni,idx) peut être PÉRIMÉ (l'écran ne se re-rend pas sur mise à jour distante, cf. _l486Apply) :
+   on emporte une EMPREINTE (ref+laize+métrage) et on re-résout par CONTENU au moment d'enregistrer. */
+function _l498Edit(ni,idx,btn){ _l498Editor(ni,idx,'edit',btn); }
+function _l498Dup(ni,idx,btn){ _l498Editor(ni,idx,'dup',btn); }
+function _l498Editor(ni,idx,mode,btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
+  const nom=_l486Nom(ni); if(!nom) return;
+  const r=(CLIENT_DATA[nom]||[])[idx]; if(!r) return;
+  const dj=document.querySelector('.l498-edit'); if(dj) dj.remove();   /* un seul éditeur ouvert à la fois */
+  const row=btn.closest('.l498-ligne'); if(!row) return;
+  const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
+  const d=document.createElement('div');
+  d.className='l498-edit'; d.dataset.ni=ni; d.dataset.idx=idx; d.dataset.mode=mode;
+  d.dataset.ref=r.ref; d.dataset.la=String(r.largeur||0); d.dataset.lo=String(r.longueur||0);   /* l'empreinte */
+  d.style.cssText='display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px;margin:4px 0;background:var(--bg);border:1px dashed var(--border2);border-radius:8px';
+  d.innerHTML='<span style="width:100%;font-size:11.5px;color:var(--muted)">'
+    +(mode==='dup'?'⧉ Nouvelle référence pour '+_l486Esc(nom)+' — ne change que le métrage (plusieurs : 100 / 250 / 500)'
+                  :'✏️ Modifier — les commandes et fiches déjà enregistrées gardent l’ancien nom')+'</span>'
+    +'<input class="l498-ref" value="'+_l486Esc(r.ref)+'" placeholder="Référence" style="'+inp+';flex:2;min-width:230px">'
+    +'<input class="l498-la" type="number" value="'+(r.largeur||'')+'" placeholder="laize mm" style="'+inp+';width:110px">'
+    +'<input class="l498-ml" value="'+(mode==='dup'?'':(r.longueur||''))+'" placeholder="'+(mode==='dup'?'mètre linéaire — 500 ou 100 / 250 / 500':'mètre linéaire')+'" style="'+inp+';width:230px">'
+    +'<button class="btn btn-sm btn-blue" onclick="_l498Save(this)">'+(mode==='dup'?'✔ Créer':'✔ Enregistrer')+'</button>'
+    +'<button class="btn btn-sm" onclick="this.closest(&quot;.l498-edit&quot;).remove()">Annuler</button>';
+  row.after(d);
+  try{ d.querySelector(mode==='dup'?'.l498-ml':'.l498-ref').focus(); }catch(_){ }
+}
+async function _l498Save(btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
+  const d=btn.closest('.l498-edit'); if(!d) return;
+  const nom=_l486Nom(+d.dataset.ni);
+  if(!nom){ showToast('La liste a changé entre-temps — elle vient d’être rechargée.','err'); renderClients(); return; }
+  const arr=CLIENT_DATA[nom]||[];
+  let idx=+d.dataset.idx;
+  const emp=function(x){ return !!x&&x.ref===d.dataset.ref&&String(x.largeur||0)===d.dataset.la&&String(x.longueur||0)===d.dataset.lo; };
+  if(!emp(arr[idx])) idx=arr.findIndex(emp);   /* re-résolution par contenu : index périmé ≠ mauvaise référence */
+  if(idx<0){ showToast('Cette référence a été modifiée sur un autre poste — la liste vient d’être rechargée.','err'); renderClients(); return; }
+  const ref=String(d.querySelector('.l498-ref').value||'').trim();
+  const la=parseInt(d.querySelector('.l498-la').value,10)||0;
+  const mls=String(d.querySelector('.l498-ml').value||'').split(/[\/;,]+/).map(function(x){ return parseInt(String(x).trim(),10)||0; }).filter(function(x){ return x>0; });
+  if(!ref){ showToast('La référence a besoin d’un nom.','err'); return; }
+  if(!(la>0)){ showToast('Laize manquante pour « '+ref+' » (en mm).','err'); return; }
+  if(d.dataset.mode==='edit'){
+    if(mls.length>1){ showToast('Un seul métrage en modification — pour en créer d’autres, utilise ⧉ Dupliquer.','err'); return; }
+    const lo=mls[0]||0;
+    if(arr.some(function(x,j){ return j!==idx&&x.ref===ref&&(x.longueur||0)===lo&&(x.largeur||0)===la; })){ showToast('Déjà présent chez '+nom+' : '+ref+' '+(lo||'—')+' ml.','err'); return; }
+    const renomme=(ref!==d.dataset.ref);
+    if(renomme&&typeof confirmDlg==='function'&&!(await confirmDlg('Renommer « '+d.dataset.ref+' » en « '+ref+' » pour '+nom+' ?\n\nLes commandes et fiches DÉJÀ enregistrées gardent l’ancien nom : chacune emporte sa propre copie, rien de passé ne sera renommé.\nEffectif sur les autres postes à leur prochain démarrage.',{ok:'Renommer'}))) return;
+    const avant=arr[idx];
+    btn.disabled=true; btn.textContent='⏳ Enregistrement…';
+    arr[idx]=(lo>0?{ref:ref,largeur:la,longueur:lo}:{ref:ref,largeur:la});
+    const ok=await _l486Publish(null,true);
+    btn.disabled=false;
+    if(!ok){ arr[idx]=avant; renderClients(); return; }
+    try{ _l488RefreshClientUI(); }catch(_){ }
+    renderClients();
+    showToast('✔ Référence modifiée'+(renomme?' — l’ancien nom reste sur les commandes et fiches passées':'')+' (les autres postes l’auront à leur prochain démarrage).','ok');
+    return;
+  }
+  /* mode dup : N NOUVELLES entrées chez le même client (même parsing multi-métrage que le formulaire d'ajout) */
+  if(!mls.length){ showToast('Saisis le métrage de la nouvelle référence (ou plusieurs : 100 / 250 / 500).','err'); return; }
+  const avant=arr.slice(); const add=[],deja=[];
+  mls.forEach(function(lo){
+    if(arr.some(function(x){ return x.ref===ref&&(x.longueur||0)===lo&&(x.largeur||0)===la; })){ deja.push(ref+' '+lo+' ml'); return; }
+    arr.push({ref:ref,largeur:la,longueur:lo}); add.push(ref+' '+lo+' ml');
+  });
+  if(!add.length){ showToast('Déjà présent : '+deja.join(' · ')+'.','err'); return; }
+  btn.disabled=true; btn.textContent='⏳ Enregistrement…';
+  const ok=await _l486Publish(null,true);
+  btn.disabled=false;
+  if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
+  try{ _l488RefreshClientUI(); }catch(_){ }
+  renderClients();
+  showToast('✔ '+add.length+' référence(s) créée(s) chez '+nom+' : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):'')+' — les autres postes à leur prochain démarrage.','ok');
+}
+
 function renderClients(){
   const c=document.getElementById('tabContentClients'); if(!c) return;
+  const _l498Deplies=new Set(); try{ c.querySelectorAll('details[open][data-cli]').forEach(function(x){ _l498Deplies.add(x.dataset.cli); }); }catch(_){ }   /* [L498] état ouvert conservé au re-rendu (motif L367) — sans ça, chaque ✏️/⧉ refermait tous les clients */
   if(!_l486CanEdit()){ c.innerHTML='<div style="padding:20px;color:var(--muted)">Accès réservé à Esteban et Dominique.</div>'; return; }
   const noms=Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); });
   const nRefs=noms.reduce(function(s2,n){ return s2+((CLIENT_DATA[n]||[]).length); },0);
@@ -18538,14 +18616,16 @@ function renderClients(){
   const refsAll=Object.keys(_l488RefDims).sort(function(a,b){ return a.localeCompare(b,'fr'); });
   const rows=noms.map(function(n,ni){
     const refs=(CLIENT_DATA[n]||[]).map(function(r,i){
-      return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px">'
-        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_l486Esc(r.ref)+'</span>'
+      return '<div class="l498-ligne" style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13.5px">'   /* [L498] 13.5px + title + ✏️/⧉ (demande Céline : lignes lisibles, modifier sans supprimer, dupliquer en changeant le métrage) */
+        +'<span title="'+_l486Esc(r.ref)+'" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_l486Esc(r.ref)+'</span>'
         +'<span style="color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums">'+(r.largeur||'—')+' mm × '+(r.longueur||'—')+' ml</span>'
+        +'<button class="btn btn-sm" data-i="'+ni+'" data-idx="'+i+'" onclick="_l498Edit(+this.dataset.i,+this.dataset.idx,this)" title="Modifier — nom, laize ou métrage, sans supprimer">✏️</button>'
+        +'<button class="btn btn-sm" data-i="'+ni+'" data-idx="'+i+'" onclick="_l498Dup(+this.dataset.i,+this.dataset.idx,this)" title="Dupliquer — même référence, autre métrage">⧉</button>'
         +'<button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx,this)" title="Retirer cette référence">✕</button>'
         +'</div>';
     }).join('')||'<div style="font-size:12px;color:var(--muted);padding:3px 0">aucune référence</div>';
     const pkg=(PKG_CLIENTS||{})[n];
-    return '<details style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
+    return '<details data-cli="'+_l486Esc(n)+'"'+(_l498Deplies.has(n)?' open':'')+' style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
       +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
       +'<div style="margin-top:6px">'+refs+'</div>'
       +'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" onclick="_l489DelCli(+this.dataset.i,this)" title="Supprimer ce client et toutes ses références">🗑 Supprimer ce client</button></div>'
@@ -18554,7 +18634,7 @@ function renderClients(){
   const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
   c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'
     +'<datalist id="l487Clis">'+noms.map(function(n){ return '<option value="'+_l486Esc(n)+'"></option>'; }).join('')+'</datalist>'
-    +'<datalist id="l488Refs">'+refsAll.map(function(r){ const d=_l488RefDims[r]; return '<option value="'+_l486Esc(r)+'">'+d.largeur+' mm'+(d.longueur?' × '+d.longueur+' ml':'')+'</option>'; }).join('')+'</datalist>'
+    +'<datalist id="l488Refs">'+refsAll.map(function(r){ const d=_l488RefDims[r]; return '<option value="'+_l486Esc(r)+'">'+_l486Esc(r)+' — '+d.largeur+' mm'+(d.longueur?' × '+d.longueur+' ml':'')+'</option>';   /* [L498] le NOM dans le libellé : le rendu natif tablette n'affiche que le texte d'option, pas la value */ }).join('')+'</datalist>'
     +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">'
       +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Ajouter un client et ses références</div>'
       +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu, et autant de références que tu veux (bouton +). Enregistré pour tous les postes — les 2 autres tablettes le recevront à leur prochain démarrage.</div>'

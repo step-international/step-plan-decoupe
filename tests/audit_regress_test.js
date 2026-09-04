@@ -1923,5 +1923,15 @@ has(/_l497Twins/,'L497 : libelles BOB/RESTE/OP2 portent le metrage quand deux re
 has(/refonly.twin/,'L497 : separateur de ref VISIBLE entre refs homonymes meme sans changement de machine (exception a L382)');
 has(/_selKey=l=>l.refIdKey/,'L497 : etiquette solde par IDENTITE de ref (refIdKey) — chaque homonyme a la sienne ; avant, le reste de la 1re ref sortait sans etiquette');
 
+console.log('── L498 : écran Clients — lisibilité, ✏️ Modifier, ⧉ Dupliquer (demande Céline 04/09) ──');
+has(/function _l498Editor/,'L498 : éditeur commun Modifier/Dupliquer une référence');
+has(/async function _l498Save/,'L498 : enregistrement via _l486Publish uniquement (jamais d écriture Firestore directe)');
+has(/if\(!emp\(arr\[idx\]\)\) idx=arr\.findIndex\(emp\);/,'L498 CRITIQUE : re-résolution par CONTENU (un index périmé après snapshot distant = mauvaise cible)');
+has(/gardent l’ancien nom : chacune emporte sa propre copie/,'L498 : le renommage AVERTIT qu il ne renomme pas les commandes/fiches passées');
+has(/if\(!ok\)\{ arr\[idx\]=avant; renderClients\(\); return; \}/,'L498 : modification annulée si l enregistrement échoue (rollback)');
+has(/Un seul métrage en modification/,'L498 : le multi-métrage passe par ⧉ Dupliquer, pas par ✏️ Modifier');
+has(/details\[open\]\[data-cli\]/,'L498 : état ouvert des clients conservé au re-rendu (motif L367)');
+has(/_l486Esc\(r\)\+' — '\+d\.largeur\+' mm'/,'L498 : le NOM figure au libellé des options du datalist (rendu natif tablette)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
 process.exit(fail?1:0);
