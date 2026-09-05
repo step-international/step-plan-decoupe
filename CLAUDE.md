@@ -1,7 +1,7 @@
 # Plan de découpe STEP — consignes pour Claude
 
 ## Contexte (à lire avant toute modification)
-- L'application est **UN seul fichier** : `index.html` (~23 000 lignes, JS vanilla + Firebase compat, une lib html2canvas minifiée embarquée en tête). Elle est servie par **GitHub Pages** depuis ce repo, branche `main`.
+- L'application est **UN seul fichier** : `index.html` (~25 000 lignes au 05/09/2026 — chiffre à ne pas recopier : `wc -l index.html`, JS vanilla + Firebase compat, une lib html2canvas minifiée embarquée en tête). Elle est servie par **GitHub Pages** depuis ce repo, branche `main`.
 - **Un push sur `main` = mise en production immédiate** (~2 min). Les 3 tablettes de l'atelier voient alors une bannière « Recharger ».
 - Atelier ISO 9001 : 3 machines (FEBA, MAVEG, CEVENINI), 3 tablettes Galaxy Tab A9+ (paysage 1280×800), comptes machine `feba@/maveg@/cevenini@step-international.com`. Administrateur : **Esteban**.
 - L'utilisateur de cette session peut être **NON TECHNIQUE** (la mère d'Esteban assure les modifications simples : clients, références, petits correctifs). Dans ce cas : parle simplement, sans jargon, ne montre pas de code, fais tout toi-même, vérifie tout, et dis clairement quand c'est en ligne.
@@ -15,17 +15,45 @@
 6. Un lot de modifications = **APP_VERSION bumpé** (`'AAAA.MM.JJ-LNNN'`, LNNN incrémenté) + un **marqueur** dans `tests/audit_regress_test.js` pour tout correctif important.
 7. Écrire dans le fichier via des scripts : attention aux commentaires `//` qui avalent la fin de ligne — toujours re-vérifier la syntaxe (étape 1 ci-dessous).
 
-## Avant CHAQUE mise en ligne (obligatoire, dans l'ordre)
-1. **Syntaxe** des 3 scripts inline :
-   `python3 -c "import re,subprocess,tempfile,os; s=open('index.html',encoding='utf-8').read(); t=tempfile.gettempdir(); [print(i,subprocess.run(['node','--check',os.path.join(t,f'sc{i}.js')],capture_output=True,text=True).stderr[:200]) for i,sc in enumerate(re.findall(r'<script>(.*?)</script>',s,re.S)) if open(os.path.join(t,f'sc{i}.js'),'w',encoding='utf-8').write(sc) or True]"`
-   (portable Mac + Windows : dossier temporaire du systeme au lieu de `/tmp`, encodage UTF-8 explicite.)
-2. **Batterie complète** (tout doit afficher 🏆 — et compter les ❌ EXPLICITEMENT : `node tests/audit_regress_test.js 2>&1 | grep -c "❌"` doit rendre 0, car `| tail -1` masque le code de sortie et un push peut partir avec un marqueur rouge, cf. L458) :
-   `node tests/engine_identity.js` puis `node tests/X_test.js` pour X ∈ refs, pln, multiref, solde_phase, pm130, bk18, t5_estim, pmsort, offline, lames, kpi, analyse_fixes, draft_concordance, audit_regress, props, regroup.
-3. **Simulation** : d'abord vérifier que le serveur local répond — `curl -s http://127.0.0.1:8000/ | grep -c APP_VERSION` doit rendre 1 (sinon le relancer : `nohup python3 -m http.server 8000 &` depuis la racine) ; un serveur MORT fait échouer les sims avec « resetAll is not defined » ET rend les smokes FAUSSEMENT verts (le capteur __jsErrors meurt avec la page). Puis `node tests/sim200.mjs --n 8 --seed 7 --multi 0.5` → « sans anomalie ». (Un échec isolé sous forte charge machine peut être transitoire : relancer une fois avant de conclure.)
-4. **Smoke headless** : `node tests/shot.mjs --scene plan --w 1180 --h 820 --nopng --json --js "(function(){return (window.__jsErrors||[]).length})()"` → 0, idem scènes `fiche-cut` et `donnees`, + un passage portrait `--w 820 --h 1180`. (Le harnais démarre en mode entraînement — appeler `stopTraining()` avant de tester l'entrée en entraînement.)
-5. **Miroir** (Mac d'Esteban UNIQUEMENT — sauter ailleurs) : `cp index.html "/Users/EstebanR/Documents/step/code plan de découpe/index.html"`
-6. **Commit** : message SANS accents, préfixé `LNNN (AAAA.MM.JJ) - `, avec la ligne `Co-Authored-By: Claude <noreply@anthropic.com>`. Puis `git push origin main` et `git branch -f redesign main && git push origin redesign`.
-7. **Vérifier la prod** : `curl -s "https://step-international.github.io/step-plan-decoupe/?nc=$RANDOM" | grep -o "APP_VERSION='[^']*'"` doit montrer la nouvelle version (parfois 1-2 min).
+## Avant CHAQUE mise en ligne — UN SEUL CHEMIN : `tests/battery.sh`
+```bash
+bash tests/battery.sh
+```
+Il enchaîne, dans l'ordre et en s'arrêtant au premier rouge : version bumpée vs `origin/main` → syntaxe des
+3 scripts inline (`tests/syntax_test.js`) → moteur gelé (empreintes SHA-256 figées) → tous les `tests/*_test.js`
+(liste dérivée du disque) → gardien de régression (jugé par son CODE DE SORTIE) → serveur `:8000` → simulation
+(plancher 8 scénarios, rapport committé protégé) → 4 smokes avec un VRAI capteur d'erreurs → recensement des
+écritures Firestore non bornées (doit être vide) et des `await logAudit(` (doit être 0).
+**Ne jamais recopier ces étapes à la main** : c'est exactement comme ça que `grep -c "❌"` (sort en code 1 quand tout
+est vert), `| tail -1` (masque l'échec) et le capteur `__jsErrors` (qui n'existait pas) ont validé des lots cassés.
+Le même contrôle tourne sur GitHub Actions (job `verifier`, `needs:` sur le déploiement) : un push cassé ne se déploie plus.
+
+Puis : miroir (Mac d'Esteban UNIQUEMENT) `cp index.html "/Users/EstebanR/Documents/step/code plan de découpe/index.html"`,
+commit **sans accents ni accents graves (backticks : le shell les interprète)**, préfixé `LNNN (AAAA.MM.JJ) - `, avec
+`Co-Authored-By: Claude <noreply@anthropic.com>`, `git push origin main` et `git branch -f redesign main && git push origin redesign`,
+et vérifier la prod : `curl -s "https://step-international.github.io/step-plan-decoupe/?nc=$RANDOM" | grep -o "APP_VERSION='[^']*'"`.
+
+## Règles de MÉTHODE (audit à 30 agents du 05/09/2026 — chaque règle a son garde-fou mécanique)
+1. **Un correctif n'est fini que quand ses jumeaux le sont** : `grep -n` sur la FORME du bug (pas le nom), chaque site
+   traité ou justifié dans le commit (« Jumeaux vérifiés : … »). Cause des deux bugs d'atelier de la semaine (L495, L496).
+   Garde-fou : le recensement des écritures Firestore dans `battery.sh` / CI.
+2. **Reproduire le bug AVANT de le déclarer réglé, et re-tester APRÈS** (le 1er correctif du chrono faisait tomber la garde
+   mais laissait 28:00:00 — seul le test l'a vu).
+3. **Un test n'existe que s'il a été vu ROUGE** : tout marqueur ou test nouveau est lancé contre le code d'avant. Un `has()`
+   sur un commentaire ou une chaîne de texte ne prouve rien.
+4. **Ancre = signature complète en début de ligne, `async` compris, comptée == 1 avant d'écrire.** `function X(){` matche
+   l'intérieur de `async function X(){` et coupe le mot-clé (arrivé en L486). Jamais de numéro de ligne dans une édition :
+   un numéro calculé avant une suppression plus haut a écrasé une accolade 43 lignes plus loin (L484).
+5. **Tout `git push` commence par `git fetch origin && git log HEAD..origin/main`** : deux postes poussent sur `main`
+   (Mac + Windows de Céline). Push refusé = repartir de `origin/main` et ré-appliquer par ancrage, jamais de force.
+6. **Changer la nature d'une donnée** (lecture unique → temps réel, position → identité, lectrice → écrivaine d'un global)
+   = lister dans le commit chaque écran, index, `await`, rollback et message qui s'y fiait.
+7. **Un message de succès lit une variable calculée par ce qu'il annonce** (compteur `okN`), un geste = un toast, jamais
+   « tout partira » ; un `catch(_){}` sur un chiffre ISO est interdit (`console.warn` + compteur affiché).
+8. **Une écriture Firestore = `_bw`/`boundedWrite`/`boundedTx`**, mise en file traitée comme un succès, cache optimiste,
+   re-rendu, toast honnête — jamais un `await` nu. Transaction = `boundedTx` (une transaction qui expire n'est PAS en file).
+9. **Les agents d'audit sont en LECTURE SEULE** (`agentType: Explore`) : des agents ont édité `index.html` pendant un audit.
+10. **Une règle nouvelle ici arrive AVEC le test ou le script qui la fait rougir**, dans le même commit — sinon c'est un souhait.
 
 ## Sur le PC Windows (poste de Céline)
 
@@ -54,7 +82,7 @@ Le site public ne contient QUE ce que le workflow `.github/workflows/static.yml`
 (étape « Assembler le site public », ligne `cp index.html manifest.json sw.js _site/`). Tout le reste
 du dépôt répond **404 en production, sans message d'erreur**. Si tu ajoutes un fichier dont l'application
 a besoin au runtime (icône, police, asset), tu DOIS l'ajouter à cette ligne `cp`, sinon il ne sera
-jamais servi. (Note : `icon-192.png` est référencé par index.html mais absent du dépôt — 404 connu.)
+jamais servi. (Note : les icônes `icon-192*.png` / `icon-512*.png` sont dans le dépôt depuis L473 et copiées par le workflow.)
 
 ### Deux machines poussent sur `main`
 Un clone Windows existe (`K:\STEP INTERNATIONAL\ESTEBAN Alternance 2025 2026\claude\claude index\`).

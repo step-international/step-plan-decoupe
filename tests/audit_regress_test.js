@@ -1985,5 +1985,5 @@ has(/\(typeof fd\.refIdx==='number'&&f\.refGroups\[fd\.refIdx\]\)\n        \|\|\
 console.log('── L499 : métrage de la mère sur le PDF plan mono-réf (demande Céline 04/09) ──');
 has(/mono.longueur/,'L499 : l en-tête mono du PDF plan affiche le métrage de la mère (mono.longueur, absent avant ce lot) — Dominique l écrivait au stylo, le multi l avait déjà');
 
-console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les correctifs L126→L407 présents dans index.html + sw.js');
+console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

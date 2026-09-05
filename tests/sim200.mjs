@@ -6,7 +6,7 @@
 // garde « config modifiée → ✂ refusé tant que non recalculé », RESTE n, HUD n/T, jalons, clôture (volet victoire),
 // aucune erreur JS, aucun _domGuardWarn, resetAll propre. Sortie : rapport JSON + résumé texte.
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -147,8 +147,13 @@ const PAGE_ONE = `(async function(k){
   const summary = { n: N, seed: SEED, ok: N - bugs.length, withBugs: bugs.length, jsErrors: errs.length, domGuards: guards.length, secs: Math.round((Date.now() - t0) / 1000),
     bugKinds: Object.entries(bugs.flatMap(r => r.bugs).reduce((m, b) => { const kk = b.replace(/\d+/g, 'n').slice(0, 70); m[kk] = (m[kk] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]),
     errKinds: Object.entries(errs.flatMap(r => r.errs).reduce((m, b) => { m[b.slice(0, 90)] = (m[b.slice(0, 90)] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 10) };
-  writeFileSync(join(process.cwd(), 'tests', 'sim200-report.json'), JSON.stringify({ summary, reports }, null, 1));
+  // [L504 · audit 30 agents, pattern 3] le rapport COMMITTE (n>=8) ne doit jamais etre ecrase par une passe plus faible (--n 4) :
+  // c est arrive 2 fois. Et on ecrit a cote du script, pas dans process.cwd() (lance depuis un autre dossier = fichier orphelin).
+  const _rep=new URL('./sim200-report.json', import.meta.url);
+  let _prevN=0; try{ _prevN=(JSON.parse(readFileSync(_rep,'utf8')).summary||{}).n||0; }catch{}
+  if(N>=8 || N>=_prevN) writeFileSync(_rep, JSON.stringify({ summary, reports }, null, 1));
+  else console.log('rapport committe (n='+_prevN+') CONSERVE — cette passe n='+N+' est plus faible');
   console.log('\n===== RÉSUMÉ =====\n' + JSON.stringify(summary, null, 2));
   console.log(bugs.length ? `💥 ${bugs.length} commande(s) avec anomalie` : `🏆 ${N} commandes simulées sans anomalie`);
-  ws.close(); chrome.kill(); process.exit(bugs.length ? 1 : 0);
+  ws.close(); chrome.kill(); process.exit((bugs.length||errs.length||guards.length) ? 1 : 0);   // [L504] erreurs JS et gardes DOM etaient calculees puis IGNOREES (exit 0 « sans anomalie »)
 })().catch(e => { console.error(e); chrome.kill(); process.exit(2); });

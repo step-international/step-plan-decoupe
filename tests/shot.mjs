@@ -56,6 +56,13 @@ const SETUP = {
   const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
   const S = (m, p) => send(m, p, sessionId);
   await S('Page.enable'); await S('Runtime.enable');
+  // [L504 · audit 30 agents, pattern 2] CAPTEUR D ERREURS. CLAUDE.md lisait window.__jsErrors qui n existait
+  // NULLE PART : (undefined||[]).length = 0 toujours — 8 lots « valides » par un capteur mort. Ici le capteur est
+  // pose AVANT le chargement de la page (addScriptToEvaluateOnNewDocument), et les exceptions non capturees
+  // remontent aussi par CDP. A la fin : setup rate ou erreur = code de sortie 1, jamais 0.
+  await S('Page.addScriptToEvaluateOnNewDocument', { source: "window.__jsErrors=[];window.addEventListener('error',e=>{try{window.__jsErrors.push(String(e&&(e.message||e)))}catch(_){}});window.addEventListener('unhandledrejection',e=>{try{window.__jsErrors.push('unhandled: '+String(e&&e.reason&&(e.reason.message||e.reason)))}catch(_){}});" });
+  const cdpErrors = [];
+  ws.addEventListener('message', ev => { try { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') cdpErrors.push(String((m.params.exceptionDetails.exception||{}).description || m.params.exceptionDetails.text).split('\n')[0]); } catch {} });
   await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
   await S('Page.navigate', { url: URL_ });
   await sleep(2500);
@@ -75,5 +82,9 @@ const SETUP = {
     writeFileSync(out, Buffer.from(shot.result.data, 'base64'));
     console.log('PNG', out, extra !== null && !args.json ? JSON.stringify(extra).slice(0, 400) : '');
   }
+  // [L504] verdict par le code de sortie : setup rate, erreur JS captee dans la page, ou exception CDP => 1
+  const pageErrs = await evalJs(`(function(){ return (window.__jsErrors||['CAPTEUR ABSENT']).slice(0,10); })()`);
+  const allErrs = [].concat(Array.isArray(pageErrs) ? pageErrs : ['capteur illisible: ' + JSON.stringify(pageErrs)], cdpErrors);
+  if (setupErr || allErrs.length) { console.error('❌ smoke ' + scene + ' : ' + (setupErr ? 'SETUP ERROR ; ' : '') + allErrs.length + ' erreur(s) : ' + allErrs.slice(0, 5).join(' | ')); ws.close(); chrome.kill(); process.exit(1); }
   ws.close(); chrome.kill(); process.exit(0);
 })().catch(e => { console.error(e); chrome.kill(); process.exit(1); });

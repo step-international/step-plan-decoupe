@@ -29,8 +29,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # [L504 · audit 30 agents, pattern 3] VERIFICATION BLOQUANTE : un hook pre-push se contourne (--no-verify),
+  # `needs:` non. Tout ce qui tourne sans navigateur : syntaxe, moteur gele, tests unitaires, gardien,
+  # recensement des ecritures. Sims et smokes restent locaux (tests/battery.sh) — Chrome n est pas ici.
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Syntaxe (3 scripts inline compilent)
+        run: node tests/syntax_test.js
+      - name: Moteur gele (empreintes figees)
+        run: node tests/engine_identity.js
+      - name: Tests unitaires (liste derivee du disque)
+        run: |
+          set -euo pipefail
+          for f in tests/*_test.js; do
+            case "$f" in *audit_regress_test.js|*syntax_test.js) continue;; esac
+            echo "== $f"; node "$f" >/dev/null
+          done
+      - name: Gardien de regression (code de sortie)
+        run: node tests/audit_regress_test.js >/dev/null
+      - name: Recensement ecritures Firestore non bornees (doit etre vide)
+        run: |
+          set -euo pipefail
+          UNB=$(grep -n "db\.collection([^)]*)\(\.doc([^)]*)\)\?\.\(set\|update\|delete\|add\)(" index.html | grep -v "boundedWrite\|boundedTx\|raceTimeout\|_commitRace\|_bw(\|tx\.\|batch\." | grep "await " || true)
+          [ -z "$UNB" ] || { echo "$UNB"; exit 1; }
+          [ "$(grep -c 'await logAudit(' index.html || true)" = "0" ]
   # Single deploy job since we're just deploying
   deploy:
+    needs: verifier
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
