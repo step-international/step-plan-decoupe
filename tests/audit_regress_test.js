@@ -1423,7 +1423,8 @@ has(/piste d..audit inaccessible, RIEN n/,'L492 : l export audit ne dit plus « 
 has(/le BOM doit rester a l offset 0 du FICHIER/,'L492 : accents du CSV audit repares pour Excel');
 has(/la liste des REFERENCES aussi/,'L492 : une reference ajoutee a un client deja selectionne apparait sans changer de client');
 has(/r\.largeur\?` · \$\{r\.largeur\} mm`/,'L492 : la LAIZE figure au libelle des options (deux entrees ne sont plus identiques a l ecran)');
-absent(/sur les 3 tablettes\./,'L492 : plus de promesse de diffusion immediate (lecture au demarrage)');
+absent(/prochain démarrage\)/,'L492→L501 : le referentiel est en TEMPS REEL depuis L493 — plus aucun message « prochain demarrage » (le marqueur L492 interdisait la verite)');
+has(/tout de suite sur les autres postes/,'L501 : les messages du referentiel disent le temps reel');
 
 console.log('── L491 : chute ♻ en 1er par TOUS les chemins (precision Esteban 31/08) ──');
 has(/const _hasR91=k=>/,'L491 : hissage des refs porteuses de chute DANS la generation de la fiche');
@@ -1447,7 +1448,7 @@ has(/function _l488RefreshClientUI/,'L488 : la liste du Plan se reconstruit apre
 has(/y compris un client texte libre/,'L488 : la selection en cours de l operateur est preservee au rafraichissement');
 absent(/Publier à tous les postes/,'L487 : le bouton « Publier » separe a disparu (tout est simultane)');
 has(/✔ Enregistrer pour tous les postes/,'L489→L492 : « publier » remplace par « enregistrer » (et la promesse de diffusion immediate corrigee)');
-has(/Elle disparaîtra aussi des 2 autres tablettes/,'L489 : le retrait d une reference dit ce qu il fait, sans le mot publier');
+has(/Elle disparaîtra aussi des autres tablettes, tout de suite\./,'L489→L501 : le retrait d une reference dit ce qu il fait (temps reel), sans le mot publier');
 has(/async function _l489DelCli/,'L489 : supprimer un client entier (et ses references)');
 has(/if\(!ok\)\{ CLIENT_DATA\[nom\]=avant; renderClients\(\); return; \}/,'L489 : suppression annulee si l enregistrement echoue');
 has(/if\(!ok\)\{ if\(nouveau\) delete CLIENT_DATA\[nom\]/,'L487 : publication refusee = modification locale ANNULEE (pas de poste desynchronise)');
@@ -1932,6 +1933,19 @@ has(/if\(!ok\)\{ arr\[idx\]=avant; renderClients\(\); return; \}/,'L498 : modifi
 has(/Un seul métrage en modification/,'L498 : le multi-métrage passe par ⧉ Dupliquer, pas par ✏️ Modifier');
 has(/details\[open\]\[data-cli\]/,'L498 : état ouvert des clients conservé au re-rendu (motif L367)');
 has(/_l486Esc\(r\)\+' — '\+d\.largeur\+' mm'/,'L498 : le NOM figure au libellé des options du datalist (rendu natif tablette)');
+
+console.log('── L501 : hors-ligne PARTOUT (audit 30 agents, pattern n°1 « correctif non propage aux jumeaux ») ──');
+has(/async function _bw\(p,ms\)/,'L501 : helper unique ecriture bornee, file = succes');
+absent(/await\s+logAudit\(/,'L501 : plus AUCUN await logAudit — une piste qui pend ne gele plus un flux deja ecrit');
+has(/try\{ await boundedWrite\(db\.collection\('audit'\)\.add\(entry\),8000\); \}/,'L501 : logAudit borne DANS le helper (regle L148 enfin mecanique)');
+has(/expireAt:new Date\(Date\.now\(\)\+\(typeof ASSIST_TTL_DAYS/,'L501 : la relance d un fil assistant reprolonge le TTL');
+has(/if\(okN===files\.length\) showToast\('📷 '/,'L501 : photos d etiquettes — vert SEULEMENT si toutes sont parties');
+has(/\(kind==='err'\?'#3d1414':'#2a2d2a'\)/,'L501 : showToast sans kind = NEUTRE');
+has(/À REFAIRE une fois reconnecté : validation de fiche, clôture de NC, référentiel clients, photos/,'L501 : le bandeau hors-ligne liste ce qui NE part PAS seul');
+has(/enFile\+\+; \} else console\.warn\('retrait lame:'/,'L501 : lameRetirerDuSuivi — mise en file = succes (motif L495 propage)');
+has(/_enFile\?'📡 Hors-ligne : entrée archivée/,'L501 : maintDelete — mise en file = succes (motif L495 propage)');
+has(/_bw\(db\.collection\('agregats'\)\.doc\(ym\)\.set\(kpi\),15000\)/,'L501 : figeage KPI borne (le bouton ne reste plus fige sur 1/12)');
+has(/_bw\(db\.collection\('brouillons'\)\.doc\(id\)\.delete\(\),8000\)/,'L501 : purge DRAFT-4 bornee (plus de double decoupe hors-ligne)');
 
 console.log('── L500 : refs HOMONYMES, complement du L497 distant (numerotation, rail, archives, refIdx) ──');
 has(/function _refKeyOf\(l\)/,'L500 : cle d IDENTITE d une ligne (refIdKey, repli nom)');

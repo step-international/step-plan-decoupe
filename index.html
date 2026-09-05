@@ -3290,7 +3290,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.05-L500';
+const APP_VERSION='2026.09.05-L501';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3586,7 +3586,8 @@ function assistFollowUp(){ try{
   // longueur vit côté fonction (>24 messages → status "closed").
   db.collection('assist').doc(_assistDocId).set({
     messages:firebase.firestore.FieldValue.arrayUnion({role:'operator',text:txt,at:isoNow()}),
-    status:'pending',context:_l380Snapshot()
+    status:'pending',context:_l380Snapshot(),
+    expireAt:new Date(Date.now()+(typeof ASSIST_TTL_DAYS==='number'?ASSIST_TTL_DAYS:90)*86400000)   /* [L501] la relance reprolonge le TTL — sans ca un fil purge puis relance renaissait SANS date d expiration */
   },{merge:true}).catch(function(){});
 }catch(e){} }
 function openReport(){ try{ _repKind='bug'; document.querySelectorAll('.rep-choice').forEach(function(b){ b.style.outline=''; }); var t=document.getElementById('reportText'); if(t) t.value=''; var c=document.getElementById('reportCtx'); if(c){ var x=_reportCtx(); c.textContent='Joint automatiquement : '+x.ecran+' · '+(x.machine||'—')+' · '+(x.client||'sans commande')+(x.numCmd?(' '+x.numCmd):'')+(x.bobine?(' · bobine '+x.bobine):'')+' · '+x.version; } document.getElementById('reportOverlay')?.classList.add('open'); }catch(e){} }
@@ -3635,7 +3636,7 @@ function showToast(msg,kind){
     t.style.cssText='position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9999;max-width:90%;padding:11px 16px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.5);display:none';   // [L74 · Design Lot B] toast au-dessus de la barre home iPhone
     document.body.appendChild(t);
   }
-  t.style.background=kind==='ok'?'#14371f':'#3d1414';
+  t.style.background=kind==='ok'?'#14371f':(kind==='err'?'#3d1414':'#2a2d2a');   /* [L501 · audit #13] sans kind = NEUTRE (« Réseau rétabli » s affichait en rouge comme une panne) */
   t.style.color=kind==='ok'?'#4ade80':'#fca5a5';
   t.style.border='1px solid '+(kind==='ok'?'#1e5c30':'#7a2222');
   t.textContent=msg;t.style.display='block';
@@ -3933,10 +3934,10 @@ async function backfillDeleted(){
         for(const doc of snap.docs){
           if(doc.data().deleted===undefined){
             batch.update(doc.ref,{deleted:false}); n++; total++;
-            if(n>=400){ await batch.commit(); batch=db.batch(); n=0; }
+            if(n>=400){ await _bw(batch.commit(),15000); batch=db.batch(); n=0; }
           }
         }
-        if(n>0) await batch.commit();
+        if(n>0) await _bw(batch.commit(),15000);
         last=snap.docs[snap.docs.length-1];
         if(snap.size<PAGE) break;   // dernière page atteinte
       }
@@ -4009,16 +4010,16 @@ async function purgeExpiredItems(){
     if(!addToColdArchive(expired)){ try{ console.warn('Purge auto reportée : archive froide non écrite (espace local plein).'); }catch(_){} return; }
     // Supprime aussi les photos Storage des fiches expirées
     for(const it of expired){ if(it._col==='fiches') await deleteFichePhotos(it); }
-    await Promise.all(expired.map(it=>db.collection(it._col).doc(it._id).delete()));
+    await Promise.all(expired.map(it=>_bw(db.collection(it._col).doc(it._id).delete(),8000)));   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     corbeilleCache=corbeilleCache.filter(it=>!isExpired(it));
     // Traçabilité ISO : la seule opération destructrice automatique doit laisser une trace (comme permanentDeleteAll/permanentDelete).
     const _byCol={}; for(const it of expired){ _byCol[it._col]=(_byCol[it._col]||0)+1; }
     const _resume=Object.entries(_byCol).map(([c,n])=>`${n} ${c}`).join(', ');
-    try{ await logAudit('permanent_delete','*','*',`Purge auto (rétention dépassée) — ${expired.length} élément(s) supprimé(s) définitivement : ${_resume}`); }catch(_){}
+    try{ logAudit('permanent_delete','*','*',`Purge auto (rétention dépassée) — ${expired.length} élément(s) supprimé(s) définitivement : ${_resume}`).catch(function(){}); }catch(_){}
     console.log('Purge :',expired.length,'élément(s) supprimé(s) définitivement (archivés en froid avant).');
   }catch(e){
     console.error('Erreur purge auto :',e);
-    try{ await logAudit('permanent_delete','*','*',`⚠ Purge auto ÉCHOUÉE (partielle possible) sur ${expired.length} élément(s) — ${e&&e.message?e.message:'erreur inconnue'}`); }catch(_){}
+    try{ logAudit('permanent_delete','*','*',`⚠ Purge auto ÉCHOUÉE (partielle possible) sur ${expired.length} élément(s) — ${e&&e.message?e.message:'erreur inconnue'}`).catch(function(){}); }catch(_){}
   }
 }
 
@@ -4058,9 +4059,9 @@ async function purgeExpiredBrouillons(){
   });
   if(!doomed.length) return;
   addToColdArchive(doomed);   // même filet que la corbeille : copie JSON locale avant suppression
-  await Promise.all(doomed.map(it=>db.collection('brouillons').doc(it._id).delete()));
+  await Promise.all(doomed.map(it=>_bw(db.collection('brouillons').doc(it._id).delete(),8000)));   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
   // Traçabilité ISO : trace d'audit comme la purge corbeille.
-  try{ await logAudit('permanent_delete','brouillons','*',`Purge auto brouillons — ${doomed.length} doc(s) technique(s) supprimé(s) (consumed >${RETENTION_DRAFT_DAYS} j / partages inactifs >7 j)`); }catch(_){}
+  try{ logAudit('permanent_delete','brouillons','*',`Purge auto brouillons — ${doomed.length} doc(s) technique(s) supprimé(s) (consumed >${RETENTION_DRAFT_DAYS} j / partages inactifs >7 j)`).catch(function(){}); }catch(_){}
   console.log('Purge brouillons :',doomed.length,'doc(s) supprimé(s) (archivés en froid avant).');
 }
 
@@ -4149,9 +4150,15 @@ async function logAudit(action,collection,docId,details,ctx){
     ts:Date.now()
   };
   try{
-    await db.collection('audit').add(entry);
+    /* [L501 · audit #11] BORNE DANS LE HELPER : 20+ appelants faisaient « logAudit(...).catch(function(){}) » et une piste
+       qui pend (reseau zombie) gelait le flux APRES une ecriture reussie (NC cloturee en base mais overlay
+       ouvert, fiche validee mais ecran fige). Une ecriture mise en file n est pas un echec : on l avale.
+       La regle L148 « ne jamais attendre logAudit » etait ecrite deux fois en commentaire et violee 20 fois —
+       la corriger a chaque point d appel se reoublie ; ici elle ne peut plus etre oubliee. */
+    try{ await boundedWrite(db.collection('audit').add(entry),8000); }
+    catch(e){ if(!(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e))) throw e; }
   }catch(e){
-    try{ await db.collection('audit').add(entry); }   // 1 retry
+    try{ await _bw(db.collection('audit').add(entry),8000); }   // 1 retry   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     catch(e2){ console.warn('Audit non enregistré (2 tentatives) :',e2.message); try{showToast('⚠ Action effectuée mais NON tracée (piste d\'audit indisponible).','err');}catch(_){} }
   }
 }
@@ -4978,7 +4985,7 @@ async function _l486Publish(btn,silencieux){
     }),10000);   /* [L492 · gardien L272#5] boundedTx et NON boundedWrite : une transaction qui expire n est PAS mise en file — dire « ne re-saisis pas » serait un mensonge, l action n a PAS eu lieu */
     /* [L493] plus de remise a null ici : l abonnement remet _l486SeenAt a la vraie version tout seul. La remettre a null faisait perdre la course a l echo du snapshot -> faux « CONCURRENCE » a la 2e publication de la meme session. */
     try{ localStorage.setItem('step_clients_v1',JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS})); }catch(_){ }
-    try{ await logAudit('edit','config','clients','Publication clients/emballages : '+nC+' client(s), '+nP+' regle(s)'); }catch(_){ }
+    try{ logAudit('edit','config','clients','Publication clients/emballages : '+nC+' client(s), '+nP+' regle(s)').catch(function(){}); }catch(_){ }
     if(!silencieux) showToast('✔ Publié : '+nC+' client(s), '+nP+' règle(s) d’emballage.','ok');
     return true;
   }catch(e){
@@ -5144,6 +5151,11 @@ function boundedTx(p,ms){
 // [L139] vrai « écriture en file offline » (à conserver optimiste) : soit le drapeau boundedWrite, soit __TIMEOUT__ (raceTimeout inline).
 // [L272] un txTimeout n'est PAS une écriture en file (voir boundedTx) → _isQueuedWrite reste false, l'appelant traite en vraie erreur.
 function _isQueuedWrite(e){ return !!(e&&(e.queued||String(e.message)==='__TIMEOUT__')); }
+/* [L501 · audit #10/#11] ECRITURE BORNEE, FILE = SUCCES. 15 ecritures etaient attendues sans borne : hors-ligne
+   la promesse ne revient jamais (bouton fige, boucle qui ne finit pas, formulaire qui reste ouvert -> double
+   saisie). Une ecriture MISE EN FILE par la persistance Firestore n est pas un echec : elle partira. On la
+   traite donc comme un succes (retour null) ; seule une vraie erreur (permission, quota) remonte. */
+async function _bw(p,ms){ try{ return await boundedWrite(p,ms||10000); }catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)) return null; throw e; } }
 // [L85 · Audit #27] Comptage des bobines cochées ✂ Coupée — était copié-collé 7 fois.
 function countCoupees(){ return ficheLines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length; }
 // [L157 · simplify #2] RÉVÉLER une carte bobine fautive : démasque les coupées + défile + repère fl-spot.
@@ -5614,7 +5626,7 @@ document.getElementById('blFileInput').addEventListener('change',async function(
       await _ref.update({bls:FV.arrayUnion(entry)});
     }
     f.bls=ficheBLs(f).slice(); f.bls.push(entry); if('bl' in f) delete f.bl;
-    await logAudit('bl-add','fiches',f._id,`${f.client||''} / ${entry.ref||'global'}`);
+    logAudit('bl-add','fiches',f._id,`${f.client||''} / ${entry.ref||'global'}`).catch(function(){});
     renderFiches();
   }catch(e){ showToast('Erreur BL : '+e.message,'err'); }
 });
@@ -5645,7 +5657,7 @@ async function deleteBLFiche(ficheId,idx){
     }),12000);   // [L83 · Audit #38] borné
     f.bls=newBls; if('bl' in f) delete f.bl;
     if(target.url){ try{ await deletePhotoFromStorage(target.url); }catch(e){ console.warn('Suppression fichier BL (Storage) :',e&&e.message); } }
-    await logAudit('bl-del','fiches',ficheId,`${f.client||''} / ${target.ref||'global'}`);
+    logAudit('bl-del','fiches',ficheId,`${f.client||''} / ${target.ref||'global'}`).catch(function(){});
     renderFiches();
   }catch(e){showToast('Erreur : '+e.message,'err');}
 }
@@ -5765,17 +5777,20 @@ document.getElementById('etiqPhotoInput').addEventListener('change',async functi
   if(!files.length) return;
   const z=document.getElementById('etiqPhotoZone');
   if(z) z.insertAdjacentHTML('afterbegin','<span id="etiqUploadingMsg" style="color:var(--muted);font-size:13px">⏳ Upload en cours…</span>');
-  let n=(commandeFiles||[]).filter(f=>f&&/^Étiquette /.test(f.name||'')).length;
+  let n=(commandeFiles||[]).filter(f=>f&&/^Étiquette /.test(f.name||'')).length, okN=0;
   for(const file of files){
     try{
       const blob=storage?await compressImageBlob(file,1400,0.7):null;
       const url=storage?await uploadCommandeFile(blob,'jpg','image/jpeg'):await compressImage(file,1400,0.7);
-      commandeFiles.push({url,type:'image',name:'Étiquette '+(++n)});
-    }catch(e){ showToast('Erreur photo étiquette : '+e.message,'err'); }
+      commandeFiles.push({url,type:'image',name:'Étiquette '+(++n)}); okN++;
+    }catch(e){ console.warn('photo étiquette',e); }
   }
   try{ refreshCommandePhotoZone(); }catch(e){}
   refreshEtiqPhotoZone();
-  showToast('📷 Étiquette(s) enregistrée(s) — archivées avec la fiche','ok');
+  /* [L501 · audit #12] le toast final etait INCONDITIONNEL et vert : il ecrasait les rouges du catch (meme
+     noeud #globalToast) — 3 uploads echoues, operateur rassure, fiche envoyee sans preuve photo. */
+  if(okN===files.length) showToast('📷 '+okN+' étiquette(s) enregistrée(s) — elles partiront avec la fiche','ok');
+  else showToast('⚠ '+(files.length-okN)+'/'+files.length+' photo(s) NON enregistrée(s) — reprends-les (réseau ?).','err');
 });
 function refreshEtiqPhotoZone(){
   const z=document.getElementById('etiqPhotoZone'); if(!z) return;
@@ -10721,7 +10736,7 @@ async function deleteSave(id){
     await boundedWrite(db.collection('saves').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   // [L83 · Audit #39] borné
     const item=savesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
-    await logAudit('delete','saves',id,item?`Sauvegarde archivée — ${item.client||''} / ${item.ref||''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
+    logAudit('delete','saves',id,item?`Sauvegarde archivée — ${item.client||''} / ${item.ref||''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''}).catch(function(){});
   }catch(e){showToast('Erreur : '+e.message,'err');}
   renderSaves();
 }
@@ -13000,7 +13015,7 @@ async function deleteTempo(id){
     await boundedWrite(db.collection('temps').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   // [L83 · Audit #39] borné
     const item=tempsCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
-    await logAudit('delete','temps',id,item?`Relevé archivé — ${item.client||''} / ${item.ref||''}${item.duree?` (durée ${fmtTimeFr(item.duree)})`:''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
+    logAudit('delete','temps',id,item?`Relevé archivé — ${item.client||''} / ${item.ref||''}${item.duree?` (durée ${fmtTimeFr(item.duree)})`:''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''}).catch(function(){});
   }catch(e){showToast('Erreur : '+e.message,'err');}
   refreshAnalyseIfPresent();   // [L157 simplify] renderTemps inclus dans le helper (était rendu 2×)
 }
@@ -13105,9 +13120,9 @@ async function saveTempsEdit(id){
   // la machine 1, la machine 2 disparaît des stats). On refuse la correction incohérente.
   if(changes.operateur2 && !changes.op2Bobine){ showToast('⚠ Opérateur 2 renseigné sans « Op.2 dès bobine » : indique le n° de bobine de bascule, ou vide l\'opérateur 2.','err'); return; }
   try{
-    await db.collection('temps').doc(id).update(changes);
+    await _bw(db.collection('temps').doc(id).update(changes),10000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     Object.assign(t, changes);
-    await logAudit('edit','temps',id,`Relevé corrigé — ${changes.client} / ${changes.ref} (durée ${fmtTimeFr(duree)})`,{client:changes.client,ref:changes.ref});
+    logAudit('edit','temps',id,`Relevé corrigé — ${changes.client} / ${changes.ref} (durée ${fmtTimeFr(duree)})`,{client:changes.client,ref:changes.ref}).catch(function(){});
     document.getElementById('tempsEditOverlay')?.remove();
     refreshAnalyseIfPresent();   // [L157 simplify] renderTemps inclus dans le helper (était rendu 2×)
     showToast('✓ Relevé corrigé','ok');
@@ -13118,9 +13133,9 @@ async function clearTemps(){
   if(!(await confirmDlg('Archiver TOUTES les données de temps ? (récupérable 45 jours)',{danger:true,ok:'Tout archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
     const active=tempsCache.filter(t=>!t.deleted);
-    await Promise.all(active.map(t=>db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()})));
+    await Promise.all(active.map(t=>_bw(db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()}),10000)));   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     active.forEach(t=>{t.deleted=true;t.deletedAt=isoNow();});
-    await logAudit('delete','temps','*',`Archivage global (${active.length} temps)`);
+    logAudit('delete','temps','*',`Archivage global (${active.length} temps)`).catch(function(){});
   }catch(e){showToast('Erreur : '+e.message,'err');}
   refreshAnalyseIfPresent();   // [L157 simplify] renderTemps inclus dans le helper (était rendu 2×)
 }
@@ -13608,7 +13623,7 @@ async function plnSetPlan(sid,dateIso,machKey,days,silent){
     const txt=after.d
       ?('Planning : posé '+after.d+' × '+getMachineLabel(after.m)+(nDays>1?(' sur '+nDays+' j'):'')+' — '+lbl+(before.d?(' (était '+before.d+' × '+getMachineLabel(before.m)+')'):''))
       :('Planning : retiré — '+lbl+' (était '+before.d+' × '+getMachineLabel(before.m)+')');
-    try{ await logAudit('planning','saves',sid,txt,{client:s.client||'',numCmd:s.numCmd||'',plannedDate:after.d||'',plannedMachine:after.m||'',plannedDays:after.days||1}); }catch(e){}
+    try{ logAudit('planning','saves',sid,txt,{client:s.client||'',numCmd:s.numCmd||'',plannedDate:after.d||'',plannedMachine:after.m||'',plannedDays:after.days||1}).catch(function(){}); }catch(e){}
     return true;
   }catch(e){
     // [L139 · audit #8/#28] écriture MISE EN FILE (offline) : NE PAS faire de retour arrière — l'update
@@ -14429,11 +14444,11 @@ async function computeMonthAggregate(ym){
   const kpi=buildMonthlyKpi(ym,r[0].docs.map(d=>d.data()),r[1].docs.map(d=>d.data()));
   kpi.figeAt=isoNow();
   kpi.figeBy=currentUser?(currentUser.ini||currentUser.nom||'?'):'?';
-  await db.collection('agregats').doc(ym).set(kpi);
+  await _bw(db.collection('agregats').doc(ym).set(kpi),15000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
   const i=agregatsCache.findIndex(a=>a.mois===ym);
   if(i>=0) agregatsCache[i]=kpi; else agregatsCache.push(kpi);
   agregatsCache.sort((a,b)=>a.mois<b.mois?1:-1);
-  await logAudit('aggregate','agregats',ym,`KPI mensuel figé — ${kpi.nbFiches} fiches · ${kpi.totalBobines} bob · perte ${kpi.pertePct}%`);
+  logAudit('aggregate','agregats',ym,`KPI mensuel figé — ${kpi.nbFiches} fiches · ${kpi.totalBobines} bob · perte ${kpi.pertePct}%`).catch(function(){});
   return kpi;
 }
 async function loadAgregats(){
@@ -15318,7 +15333,7 @@ async function annulStockMouvement(id){
     }),12000);   // [L83 · Audit #38] borné
     corr.id=corrRef.id; stockMouvementsCache.unshift(corr);
     m.corrigePar=corrRef.id;
-    await logAudit('correction','stockMouvements',id,`Annulation ${(Number(m.m2)||0).toLocaleString('fr-FR')} m² · ${m.ref}`);
+    logAudit('correction','stockMouvements',id,`Annulation ${(Number(m.m2)||0).toLocaleString('fr-FR')} m² · ${m.ref}`).catch(function(){});
     renderStock();
     showToast('✓ Mouvement annulé (correction tracée)','ok');
   }catch(e){ showToast('Erreur : '+e.message,'err'); }
@@ -16210,9 +16225,11 @@ async function lameRetirerDuSuivi(machine,num){
   if(!evts.length){ showToast('Aucune trace à retirer.','err'); return; }
   if(!(await confirmDlg('Retirer la lame '+num+' ('+(getMachineLabel(machine)||'hors machine')+') du suivi ?\n\n'+evts.length+' trace(s) partiront à la corbeille (récupérables 45 j).\nLa même lame sur une autre machine n\'est pas touchée.',{danger:true,ok:'Retirer'}))) return;
   let n=0;
-  for(const r of evts){ try{ await boundedWrite(db.collection('maintenance').doc(r.id).update({deleted:true,deletedAt:isoNow()}),10000); r.deleted=true; n++; }catch(e){ console.warn('retrait lame:',e); } }
+  let enFile=0;
+  for(const r of evts){ try{ await boundedWrite(db.collection('maintenance').doc(r.id).update({deleted:true,deletedAt:isoNow()}),10000); r.deleted=true; n++; }
+    catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ r.deleted=true; n++; enFile++; } else console.warn('retrait lame:',e); } }   /* [L501 · audit #9] mise en file = succes optimiste (meme motif que _lameEvent L495) */
   logAudit('delete','maintenance',evts.map(r=>r.id).join(','),'Lame '+num+' ('+(getMachineLabel(machine)||'hors')+') retirée du suivi — '+n+' trace(s) archivée(s)').catch(function(){});
-  showToast('🗑 Lame '+num+' retirée du suivi ('+n+' trace(s) → corbeille)','ok');
+  showToast(enFile?('📡 Hors-ligne : lame '+num+' retirée du suivi ('+n+' trace(s)) — ça partira au retour du réseau, ne recharge pas la tablette.'):('🗑 Lame '+num+' retirée du suivi ('+n+' trace(s) → corbeille)'),'ok');
   renderMaintenance();
 }
 // Affûtage d'une lame DÉMONTÉE : trace SEULE (pas de réinstallation — la lame n'est
@@ -16364,13 +16381,15 @@ async function maintDelete(id){
   if(!canManageData()){ showToast('Action réservée au pilotage et aux admins.','err'); return; }
   const rec=maintenanceCache.find(x=>x.id===id);
   if(!(await confirmDlg('Archiver cette entrée de l\'historique ?\n\n(Récupérable '+RETENTION_DRAFT_DAYS+' jours via la Corbeille.)',{danger:true,ok:'Archiver'}))) return;   // [L121 · T1] soft-delete → verbe « Archiver » uniforme
+  let _enFile=false;
   try{
-    await boundedWrite(db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   // [L83 · Audit #39] borné
+    try{ await boundedWrite(db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow()}),10000); }   // [L83 · Audit #39] borné
+    catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)) _enFile=true; else throw e; }   /* [L501 · audit #9] mise en file = succes optimiste */
     maintenanceCache=maintenanceCache.filter(x=>x.id!==id);
-    await logAudit('delete','maintenance',id,rec?`Lame ${esc(rec.lameNum||'')} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel('lame',rec.categorie)}`:'');
+    logAudit('delete','maintenance',id,rec?`Lame ${esc(rec.lameNum||'')} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel('lame',rec.categorie)}`:'').catch(function(){});
     renderMaintenance();
-    showToast('Entrée archivée (Corbeille)','ok');
-  }catch(e){ showToast('Erreur : '+e.message,'err'); }
+    showToast(_enFile?'📡 Hors-ligne : entrée archivée — ça partira au retour du réseau.':'Entrée archivée (Corbeille)','ok');
+  }catch(e){ showToast('Erreur : '+e.message,'err'); renderMaintenance(); }
 }
 function maintFilteredRows(){
   const fM=document.getElementById('m_filterMachine')?.value||'';
@@ -17680,7 +17699,7 @@ async function reprendreCommandeManque(id){   // [L202 · audit #15] async : rec
     if(await confirmDlg('Le solde n\'est plus ni en plan ni en brouillon (repris ou supprimé).\n\nRECONSTRUIRE le plan du reste depuis la fiche (commande − déjà coupé) ?',{ok:'Reconstruire'})){
       const pid=await createRemainingPlan(f);
       if(pid){
-        try{ await db.collection('fiches').doc(id).update({restePlanId:pid}); f.restePlanId=pid; }catch(e){}
+        try{ await _bw(db.collection('fiches').doc(id).update({restePlanId:pid}),10000); f.restePlanId=pid; }catch(e){ showToast('⚠ Lien fiche → plan du reste NON enregistré (réseau ?). Le plan existe : recharge la page pour le relier.','err'); }   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
         showToast('♻ Plan du reste RECONSTRUIT — retape « ▶ Reprendre » pour le charger (ou Données > Plans).','ok');
         renderFiches(); return;
       }
@@ -17914,7 +17933,7 @@ async function createRemainingPlan(f){
     catch(e){ if(!_isQueuedWrite(e)) throw e; }
     savesCache.unshift({_id:_rid,...entry});
     savesCache=_capSessionCache(savesCache,1000);   // [L128 · audit #20 · L133 revue E · L157 simplify] cf. supra
-    try{ await logAudit('create','saves',_rid,`Plan du reste — ${entry.client} / ${entry.ref}`); }catch(e){}
+    try{ logAudit('create','saves',_rid,`Plan du reste — ${entry.client} / ${entry.ref}`).catch(function(){}); }catch(e){}
     return _rid;
   }catch(e){ showToast('Erreur création du plan du reste : '+e.message,'err'); return null; }
   }finally{ _resteCreating=null; }   // [L68 · Audit B12]
@@ -18133,7 +18152,7 @@ async function validateFiche(id){
       tx.update(dref,{valide:true,valideBy:by,valideAt:at});
     }),12000);   // [L83 · Audit #38] borné
     f.valide=true;f.valideBy=by;f.valideAt=at;
-    await logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''});
+    logAudit('validate','fiches',id,`${f.client||''} / ${f.ref||''}`,{client:f.client,ref:f.ref,dateCmd:f.date||''}).catch(function(){});
     try{ proposeStockSortie(f); }catch(e){ console.warn('Sortie stock :',e); }   // [L98 · #9] proposition de sortie de stock (refusable d'un tap)
     try{ if(typeof renderDrafts==='function') renderDrafts(); }catch(e){}   /* [L430] fiche validee : ses brouillons RESIDUELS disparaissent de la liste (masquage, aucune suppression) */
   }catch(e){showToast('Erreur validation : '+e.message,'err');}
@@ -18153,7 +18172,7 @@ async function validateFiche(id){
     if(confirm(_q)){
       const pid=await createRemainingPlan(f);
       if(pid){
-        try{ await db.collection('fiches').doc(id).update({restePlanId:pid}); f.restePlanId=pid; }
+        try{ await _bw(db.collection('fiches').doc(id).update({restePlanId:pid}),10000); f.restePlanId=pid; }   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
         catch(e){ console.warn('restePlanId update:',e); }
         // Suppression du brouillon du solde : lien direct fromFicheId, repli label + cmd.
         try{
@@ -18587,7 +18606,7 @@ async function _l498Save(btn){
     const lo=mls[0]||0;
     if(arr.some(function(x,j){ return j!==idx&&x.ref===ref&&(x.longueur||0)===lo&&(x.largeur||0)===la; })){ showToast('Déjà présent chez '+nom+' : '+ref+' '+(lo||'—')+' ml.','err'); return; }
     const renomme=(ref!==d.dataset.ref);
-    if(renomme&&typeof confirmDlg==='function'&&!(await confirmDlg('Renommer « '+d.dataset.ref+' » en « '+ref+' » pour '+nom+' ?\n\nLes commandes et fiches DÉJÀ enregistrées gardent l’ancien nom : chacune emporte sa propre copie, rien de passé ne sera renommé.\nEffectif sur les autres postes à leur prochain démarrage.',{ok:'Renommer'}))) return;
+    if(renomme&&typeof confirmDlg==='function'&&!(await confirmDlg('Renommer « '+d.dataset.ref+' » en « '+ref+' » pour '+nom+' ?\n\nLes commandes et fiches DÉJÀ enregistrées gardent l’ancien nom : chacune emporte sa propre copie, rien de passé ne sera renommé.\nEffectif tout de suite sur les autres postes (temps réel).',{ok:'Renommer'}))) return;
     const avant=arr[idx];
     btn.disabled=true; btn.textContent='⏳ Enregistrement…';
     arr[idx]=(lo>0?{ref:ref,largeur:la,longueur:lo}:{ref:ref,largeur:la});
@@ -18596,7 +18615,7 @@ async function _l498Save(btn){
     if(!ok){ arr[idx]=avant; renderClients(); return; }
     try{ _l488RefreshClientUI(); }catch(_){ }
     renderClients();
-    showToast('✔ Référence modifiée'+(renomme?' — l’ancien nom reste sur les commandes et fiches passées':'')+' (les autres postes l’auront à leur prochain démarrage).','ok');
+    showToast('✔ Référence modifiée'+(renomme?' — l’ancien nom reste sur les commandes et fiches passées':'')+' (visible tout de suite sur les autres postes).','ok');
     return;
   }
   /* mode dup : N NOUVELLES entrées chez le même client (même parsing multi-métrage que le formulaire d'ajout) */
@@ -18613,7 +18632,7 @@ async function _l498Save(btn){
   if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }
   renderClients();
-  showToast('✔ '+add.length+' référence(s) créée(s) chez '+nom+' : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):'')+' — les autres postes à leur prochain démarrage.','ok');
+  showToast('✔ '+add.length+' référence(s) créée(s) chez '+nom+' : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):'')+' — visible tout de suite sur les autres postes.','ok');
 }
 
 function renderClients(){
@@ -18654,7 +18673,7 @@ function renderClients(){
     +'<datalist id="l488Refs">'+refsAll.map(function(r){ const d=_l488RefDims[r]; return '<option value="'+_l486Esc(r)+'">'+_l486Esc(r)+' — '+d.largeur+' mm'+(d.longueur?' × '+d.longueur+' ml':'')+'</option>';   /* [L498] le NOM dans le libellé : le rendu natif tablette n'affiche que le texte d'option, pas la value */ }).join('')+'</datalist>'
     +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">'
       +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Ajouter un client et ses références</div>'
-      +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu, et autant de références que tu veux (bouton +). Enregistré pour tous les postes — les 2 autres tablettes le recevront à leur prochain démarrage.</div>'
+      +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu, et autant de références que tu veux (bouton +). Enregistré pour tous les postes — les autres tablettes le voient tout de suite (temps réel).</div>'
       +'<input id="l487Cli" list="l487Clis" placeholder="Client" style="'+inp+';width:100%;max-width:340px">'
       +'<div id="l488Lignes" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">'
@@ -18738,16 +18757,16 @@ async function _l487Valider(btn){
   if(!ok){ if(nouveau) delete CLIENT_DATA[nom]; else CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488 · bug terrain] le nouveau client apparait AUSSITOT dans la liste du Plan */
   renderClients();
-  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) enregistrée(s) (les 2 autres tablettes les auront à leur prochain démarrage) : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):''),'ok');
+  showToast('✔ '+(nouveau?'Client « '+nom+' » créé. ':'')+add.length+' référence(s) enregistrée(s) (visibles tout de suite sur les autres postes) : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):''),'ok');
 }
 /* [L489 · demande Esteban] Supprimer un client ENTIER (il venait d en creer un pour tester).
-   Meme regle que le reste : la suppression est enregistree aussitot (les autres postes la voient a leur prochain demarrage), et si l enregistrement
+   Meme regle que le reste : la suppression est enregistree aussitot (les autres postes la voient en temps reel depuis L493), et si l enregistrement
    echoue le client est REMIS en place localement — jamais un poste qui differe des deux autres. */
 async function _l489DelCli(ni,btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const nom=_l486Nom(ni); if(!nom) return;
   const n=(CLIENT_DATA[nom]||[]).length;
-  if(typeof confirmDlg==='function'&&!(await confirmDlg('Supprimer le client « '+nom+' » et ses '+n+' référence(s) ?\n\nIl disparaîtra aussi des 2 autres tablettes à leur prochain démarrage.\nLes commandes déjà enregistrées à son nom ne bougent pas.',{ok:'Supprimer'}))) return;
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Supprimer le client « '+nom+' » et ses '+n+' référence(s) ?\n\nIl disparaîtra aussi des autres tablettes, tout de suite.\nLes commandes déjà enregistrées à son nom ne bougent pas.',{ok:'Supprimer'}))) return;
   const avant=CLIENT_DATA[nom];
   if(btn) btn.disabled=true;
   delete CLIENT_DATA[nom];
@@ -18755,14 +18774,14 @@ async function _l489DelCli(ni,btn){
   if(btn) btn.disabled=false;
   if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }
-  renderClients(); showToast('✔ Client « '+nom+' » supprimé (effectif sur les autres postes à leur prochain démarrage).','ok');
+  renderClients(); showToast('✔ Client « '+nom+' » supprimé (effectif tout de suite sur les autres postes).','ok');
 }
 function _l486Nom(ni){ return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni]; }   /* meme tri que le rendu */
 async function _l486DelRef(ni,idx,btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const nom=_l486Nom(ni); if(!nom) return;
   const arr=CLIENT_DATA[nom]||[]; const r=arr[idx]; if(!r) return;
-  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » ('+(r.longueur||'—')+' ml) de '+nom+' ?\n\nElle disparaîtra aussi des 2 autres tablettes à leur prochain démarrage.',{ok:'Retirer'}))) return;   /* [L489 · retour Esteban] « publier » faisait croire a une mise en ligne publique — on dit ce que ca fait vraiment */
+  if(typeof confirmDlg==='function'&&!(await confirmDlg('Retirer « '+r.ref+' » ('+(r.longueur||'—')+' ml) de '+nom+' ?\n\nElle disparaîtra aussi des autres tablettes, tout de suite.',{ok:'Retirer'}))) return;   /* [L489 · retour Esteban] « publier » faisait croire a une mise en ligne publique — on dit ce que ca fait vraiment */
   const avant=arr.slice();
   if(btn) btn.disabled=true;
   arr.splice(idx,1);
@@ -18770,7 +18789,7 @@ async function _l486DelRef(ni,idx,btn){
   if(btn) btn.disabled=false;
   if(!ok){ CLIENT_DATA[nom]=avant; renderClients(); return; }
   try{ _l488RefreshClientUI(); }catch(_){ }
-  renderClients(); showToast('✔ Référence retirée (effective sur les autres postes à leur prochain démarrage).','ok');
+  renderClients(); showToast('✔ Référence retirée (effective tout de suite sur les autres postes).','ok');
 }
 async function renderAudit(){
   const c=document.getElementById('tabContentAudit');
@@ -19022,9 +19041,9 @@ async function ncArchiveFiche(id){
   const f=fichesCache.find(x=>x._id===id);
   if(!(await confirmDlg('Archiver toute la fiche de cette non-conformité ?\n\nLa fiche entière part à la corbeille (récupérable) et disparaît du registre NC.',{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
-    await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
+    await _bw(db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     if(f){f.deleted=true;f.deletedAt=isoNow();}
-    await logAudit('delete','fiches',id,f?`NC → archive — ${f.client||''} / ${f.ref||''}`:'',{client:f?f.client:'',ref:f?f.ref:'',dateCmd:f?f.date:''});
+    logAudit('delete','fiches',id,f?`NC → archive — ${f.client||''} / ${f.ref||''}`:'',{client:f?f.client:'',ref:f?f.ref:'',dateCmd:f?f.date:''}).catch(function(){});
   }catch(e){showToast('Erreur : '+e.message,'err');}
   renderNc();
 }
@@ -19109,7 +19128,7 @@ async function ncSaveTreat(ficheId,bobIdx,mode){
     if(finalDetail) f.ficheDetail=finalDetail;             // cache = version fraîche + patch (inclut les modifs concurrentes)
     if(strippedCount){ try{showToast('⚠ '+strippedCount+' photo(s) trop lourde(s) retirée(s) (stockage indisponible) — traitement NC enregistré.','err');}catch(_){} }
     const verbe=mode==='close'?'clôturée':mode==='reopen'?'rouverte':'mise à jour';
-    await logAudit('edit','fiches',ficheId,`NC ${verbe} — bobine ${bobIdx+1}${resp?' · resp. '+resp:''}`,{client:f.client||'',ref:f.ref||'',dateCmd:f.date});
+    logAudit('edit','fiches',ficheId,`NC ${verbe} — bobine ${bobIdx+1}${resp?' · resp. '+resp:''}`,{client:f.client||'',ref:f.ref||'',dateCmd:f.date}).catch(function(){});
     document.getElementById('ncTreatOverlay')?.remove();
     renderNc();
     showToast(mode==='close'?'✓ NC clôturée':mode==='reopen'?'NC rouverte':'✓ Traitement enregistré','ok');
@@ -19549,10 +19568,10 @@ async function deleteFiche(id){
   }
   if(!(await confirmDlg('Archiver cette fiche ? (récupérable 45 jours)',{danger:true,ok:'Archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
-    await db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()});
+    await _bw(db.collection('fiches').doc(id).update({deleted:true,deletedAt:isoNow()}),10000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     const item=fichesCache.find(x=>x._id===id);
     if(item){item.deleted=true;item.deletedAt=isoNow();}
-    await logAudit('delete','fiches',id,item?`${item.client||''} / ${item.ref||''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''});
+    logAudit('delete','fiches',id,item?`${item.client||''} / ${item.ref||''}`:'',{client:item?item.client:'',ref:item?item.ref:'',dateCmd:item?item.date:''}).catch(function(){});
     // [L200 · audit #14] CASCADE : le(s) relevé(s) de temps de CETTE commande partent aussi à la corbeille
     // (récupérables 45 j, comme la fiche) — sinon temps ORPHELIN, compté au KPI d'une fiche disparue.
     // Borné au numCmd RÉEL (jamais sur '—'/vide : client+ref seuls sur-matcheraient d'anciennes commandes).
@@ -19568,8 +19587,8 @@ async function deleteFiche(id){
         const _sibling=(fichesCache||[]).some(f=>f&&!f.deleted&&f._id!==id&&String(f.numCmd||'').trim()===_nc&&f.client===item.client&&f.ref===item.ref);
         if(!_sibling){
           const _tt=(tempsCache||[]).filter(t=>t&&!t.deleted&&String(t.numCmd||'').trim()===_nc&&t.client===item.client&&t.ref===item.ref);
-          for(const t of _tt){ await db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()}); t.deleted=true; t.deletedAt=isoNow(); }
-          if(_tt.length) await logAudit('delete','temps',_tt.map(t=>t._id).join(','),'Cascade archivage fiche — '+_tt.length+' relevé(s) de temps ('+(item.client||'')+' / '+(item.ref||'')+')');
+          for(const t of _tt){ await _bw(db.collection('temps').doc(t._id).update({deleted:true,deletedAt:isoNow()}),10000); t.deleted=true; t.deletedAt=isoNow(); }   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
+          if(_tt.length) logAudit('delete','temps',_tt.map(t=>t._id).join(','),'Cascade archivage fiche — '+_tt.length+' relevé(s) de temps ('+(item.client||'')+' / '+(item.ref||'')+')').catch(function(){});
         }
       }
     }catch(e){ console.warn('Cascade temps :',e); }
@@ -19582,9 +19601,9 @@ async function clearFiches(){
   if(!(await confirmDlg('Archiver TOUTES les fiches ? (récupérable 45 jours)',{danger:true,ok:'Tout archiver'}))) return;   // [L74 · Design Lot E] confirm() natif → modale
   try{
     const active=fichesCache.filter(f=>!f.deleted);
-    await Promise.all(active.map(f=>db.collection('fiches').doc(f._id).update({deleted:true,deletedAt:isoNow()})));
+    await Promise.all(active.map(f=>_bw(db.collection('fiches').doc(f._id).update({deleted:true,deletedAt:isoNow()}),10000)));   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     active.forEach(f=>{f.deleted=true;f.deletedAt=isoNow();});
-    await logAudit('delete','fiches','*',`Archivage global (${active.length} fiches)`);
+    logAudit('delete','fiches','*',`Archivage global (${active.length} fiches)`).catch(function(){});
   }catch(e){showToast('Erreur : '+e.message,'err');}
   renderFiches();
 }
@@ -19650,7 +19669,7 @@ async function importFullBackup(file){
     }
   }
   for(const f of fichesValid){ try{ await f.ref.update(f._v); }catch(e){ failed++; } }
-  try{ await logAudit('import','backup','restore','Restauration sauvegarde — '+created+' créé(s), '+skipped+' existant(s) intacts, '+failed+' échec(s)'); }catch(e){}
+  try{ logAudit('import','backup','restore','Restauration sauvegarde — '+created+' créé(s), '+skipped+' existant(s) intacts, '+failed+' échec(s)').catch(function(){}); }catch(e){}
   showToast((failed?'⚠':'✓')+' Restauration : '+created+' recréé(s) · '+skipped+' déjà présents (intacts)'+(failed?' · '+failed+' échec(s)':'')+'.\n\nRecharge la page pour voir les données restaurées.',(failed?'err':'ok'));
 }
 
@@ -19717,12 +19736,12 @@ async function permanentDeleteAll(){
   for(const it of items){
     try{
       addToColdArchive([it]); if(it._col==='fiches') await deleteFichePhotos(it);   // [L85 · Audit #16] archive froide pour TOUT
-      await db.collection(it._col).doc(it._id).delete();
+      await _bw(db.collection(it._col).doc(it._id).delete(),8000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
       doneIds.add(it._id);
     }catch(e){ errc++; console.error('permanentDeleteAll',it._col,it._id,e); }
   }
   corbeilleCache=corbeilleCache.filter(it=>!doneIds.has(it._id));
-  await logAudit('permanent_delete','*','*','Vidage corbeille ('+doneIds.size+' supprimé(s)'+(errc?', '+errc+' échec(s)':'')+')');
+  logAudit('permanent_delete','*','*','Vidage corbeille ('+doneIds.size+' supprimé(s)'+(errc?', '+errc+' échec(s)':'')+')').catch(function(){});   /* [L501] non bloquant : la corbeille est deja videe en base, une piste qui pend ne doit pas figer l ecran */
   renderCorbeille();
   showToast(doneIds.size+' élément(s) supprimé(s) définitivement'+(errc?' · '+errc+' échec(s)':''), errc?'err':'ok');
 }
@@ -21019,7 +21038,7 @@ async function hygieneApply(){
     try{
       await boundedWrite(db.collection('saves').doc(s._id).update({deleted:true,deletedAt:stamp}),10000);
       s.deleted=true; s.deletedAt=stamp;   // [L113 · audit #12] optimiste : la liste se met à jour tout de suite ; un 2ᵉ appui ne re-détecte plus (pas de doublon d'audit)
-      try{ await logAudit('delete','saves',s._id,'Hygiène — plan déjà coupé archivé ('+(s.client||'')+' / '+(s.ref||'')+' / N°'+(s.numCmd||'')+')',{client:s.client||'',ref:s.ref||'',dateCmd:s.date||''}); }catch(e){}
+      try{ logAudit('delete','saves',s._id,'Hygiène — plan déjà coupé archivé ('+(s.client||'')+' / '+(s.ref||'')+' / N°'+(s.numCmd||'')+')',{client:s.client||'',ref:s.ref||'',dateCmd:s.date||''}).catch(function(){}); }catch(e){}
       okN++;
     }catch(e){ koN++; console.warn('Hygiène (plan '+s._id+') :',e&&e.message); }
   }
@@ -22467,7 +22486,7 @@ function _l376PostMachineSwap(withFiche){ try{
     if(!on){ if(!b){ b=document.createElement('span'); b.id='netOffBadge'; b.textContent='📡 HORS-LIGNE'; b.style.cssText='display:inline-flex;align-items:center;background:#3d2a00;color:#f0742a;font:800 13px/1 var(--f-head);letter-spacing:.04em;padding:5px 10px;border-radius:8px;margin-left:6px;white-space:nowrap'; const vt=document.getElementById('verTag'); const nav=document.getElementById('nav'); if(vt&&vt.parentNode) vt.parentNode.insertBefore(b,vt); else if(nav) nav.appendChild(b); } b.style.display='inline-flex'; }
     else if(b) b.style.display='none';
   }catch(e){} };
-  window.addEventListener('offline',function(){ upd(false); try{ showToast('📡 Hors-ligne — la saisie continue, tout partira au retour du réseau.'); }catch(e){} });
+  window.addEventListener('offline',function(){ upd(false); try{ showToast('📡 Hors-ligne — tu peux continuer à couper et chronométrer. Fiches, brouillons, lames et signalements partiront seuls au retour du réseau. À REFAIRE une fois reconnecté : validation de fiche, clôture de NC, référentiel clients, photos.');   /* [L501 · audit #13] « tout partira » etait faux pour les 6 flux en transaction et pour Storage */ }catch(e){} });
   window.addEventListener('online',function(){ upd(true); try{ if(typeof flushDraftFallbacks==='function') flushDraftFallbacks(); }catch(e){} try{ if(typeof renderShareWho==='function') renderShareWho(); }catch(e){} try{ showToast('📡 Réseau rétabli.'); }catch(e){} });
   if(navigator.onLine===false) upd(false);
 }catch(e){} })();
@@ -24006,9 +24025,9 @@ async function clearCurrentDraft(ficheId){
   if(!db) return;
   for(const id of ids){
     try{
-      await db.collection('brouillons').doc(id).delete();
+      await _bw(db.collection('brouillons').doc(id).delete(),8000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     }catch(e){
-      try{ await db.collection('brouillons').doc(id).set({consumed:true, ficheId:ficheId||'', consumedAt:isoNow()}, {merge:true}); }
+      try{ await _bw(db.collection('brouillons').doc(id).set({consumed:true, ficheId:ficheId||'', consumedAt:isoNow()}, {merge:true}),8000); }   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
       catch(e2){ console.warn('Brouillon auto non purgé/consommé :',id, e2&&e2.message); }
     }
   }
@@ -24205,7 +24224,7 @@ async function flushDraftFallbacks(){
   const arr=_draftFallbackLoad();
   if(!arr.length) return;
   for(const d of arr){
-    try{ await db.collection('brouillons').doc(d.id).set(_draftStrip(d)); _draftFallbackRemove(d.id); }
+    try{ await _bw(db.collection('brouillons').doc(d.id).set(_draftStrip(d)),8000); _draftFallbackRemove(d.id); }   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     catch(e){ /* on conserve le repli local, réessai au prochain démarrage */ }
   }
 }
