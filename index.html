@@ -3291,7 +3291,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.05-L503';
+const APP_VERSION='2026.09.05-L505';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8699,6 +8699,7 @@ function debouncedRecalcPlan(){
 // Terme ambigu « chute stock » : sortant (solde qui PART en stock) vs entrant (bobineaux PRIS du stock).
 // Décision en attente : laquelle fait foi ISO + unifier le vocabulaire opérateur (cf. rapport d'audit).
 function computePlanAggregate(computed){
+  const _mlOf=function(c){ const v=(c&&c.longueur!=null)?c.longueur:''; return parseFloat(String(v).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.')); };   /* [L505 · audit #8] UN seul point de lecture du métrage (pertePctMl lisait « 1 500 » comme 1, la chute dix lignes plus bas comme 1500) — parsing AUTONOME (bac à sable P11, pas de parseNum global) */
   // 1) Totaux matière/utilisé (déjà calculés par réf dans packRefGroups).
   const totalBobines=computed.reduce((s,c)=>s+c.stats.totalBobines,0);
   const totalMat    =computed.reduce((s,c)=>s+c.stats.totalMat,0);
@@ -8729,7 +8730,7 @@ function computePlanAggregate(computed){
   // (repli à l'identique). AFFICHAGE % inchangé partout (chip Plan, moyenne KPI) : ne sert QUE la perte en m².
   let _mlN=0,_mlD=0,_mlOk=computed.length>0;
   computed.forEach(c=>{
-    const ml=parseFloat(String(c.longueur==null?'':c.longueur).replace(',','.'));   /* [L480b · fix P11] parsing AUTONOME : computePlanAggregate vit dans le bac a sable des tests de proprietes, sans parseNum global */
+    const ml=_mlOf(c);   /* [L505 · audit #8] même lecture que la chute (_mlOf) */   /* [L480b · fix P11] parsing AUTONOME : computePlanAggregate vit dans le bac a sable des tests de proprietes, sans parseNum global */
     if(!(ml>0)){ _mlOk=false; return; }
     const pg=c.planGroups||[];
     let cs=0;
@@ -8752,7 +8753,7 @@ function computePlanAggregate(computed){
     const pg=c.planGroups||[]; if(!pg.length) return;   /* [L492 · audit] réf tout en ♻ : aucune chute gardée (résidu de résidu = perte). Testé AVANT le métrage : une réf qui ne peut RIEN apporter ne doit pas rendre toute la fiche « inconnue ». */
     /* [L492 · audit] MÊME normalisation que parseNum (qui n'existe pas dans le bac à sable P11) : espaces des
        milliers, lettre O tapée pour un zéro, virgule décimale. Sans elle « 6OO » se lisait 6 → chute ÷100 en silence. */
-    const ml=parseFloat(String(c.longueur==null?'':c.longueur).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.'));
+    const ml=_mlOf(c);   /* [L505 · audit #8] helper unique */
     if(!(ml>0)){ _chOk=false; return; }
     let cs=Math.max(0,c.useful-calcStats(pg[pg.length-1].pattern,c.blade).total);
     pg.forEach(g=>{ if(g._phaseEnd) cs+=Math.max(0,c.useful-calcStats(g.pattern,c.blade).total); });
@@ -12280,7 +12281,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     catch(e){ console.warn('Archive multi-clients :',e); _cliParts=null; }
   }
   const ficheDetailTagged=ficheData.map((fd,i)=>{
-    const t={...fd,horsPlan:(!!fd.rattrapage)||/(^|·\s*)(RESTE|OP2)-\d/i.test(String(fd.autoLabel||fd.label||''))};   // [L97 · relecture #10] par NATURE de la ligne (rattrapage / RESTE- / OP2-) · [L141 · audit #19] tester l'étiquette AUTO stable (autoLabel) d'abord : sinon renommer une bobine RESTE- avec le vrai n° de mère la sortait de la section « HORS PLAN » du PDF
+    const t={...fd,horsPlan:_l505HorsPlan(fd)};   /* [L505 · audit #8] règle unique (était dupliquée ici et implicite dans la reconstruction chute) */   // [L97 · relecture #10] par NATURE de la ligne (rattrapage / RESTE- / OP2-) · [L141 · audit #19] tester l'étiquette AUTO stable (autoLabel) d'abord : sinon renommer une bobine RESTE- avec le vrai n° de mère la sortait de la section « HORS PLAN » du PDF
     if(_shareActive){ const c=_shareCutInfoFor(i,fd.label); if(c) Object.assign(t,c); }
     if(_cliParts&&Array.isArray(_cliParts[i])&&_cliParts[i].length) t.cliParts=_cliParts[i];
     return t;
@@ -14281,25 +14282,37 @@ function _localYM(d){ const x=new Date(d); if(isNaN(x)) return String(d||'').sli
    actée (computePlanAggregate) : solde de la DERNIÈRE bobine de CHAQUE référence + TOUS les restes de fin
    de phase, rouleaux ♻ exclus, × le métrage de SA référence. Aucun appel au moteur de placement : on relit
    ce que l archive contient, on ne rejoue pas un plan (l enveloppe de calcul a changé plusieurs fois). */
+/* [L505 · audit #8] règle HORS PLAN unique : posée à l archivage (fd.horsPlan) et relue par la reconstruction chute. */
+function _l505HorsPlan(fd){ try{ if(!fd) return false; if(fd.horsPlan===true||fd.rattrapage) return true; return /(^|·\s*)(RESTE|OP2)-\d/i.test(String(fd.autoLabel||fd.label||'')); }catch(e){ return false; } }
+/* [L505 · audit #8] les catch muets de la chaîne ISO cachaient un calcul en repli (0 silencieux dans un KPI de revue de direction) : trace + compteur affiché sur la tuile Chutes gardées. */
+function _l505Warn(where,e){ try{ if(typeof window!=='undefined') window._l505WarnN=(window._l505WarnN||0)+1; console.warn('[ISO · calcul en repli] '+where+' : '+(e&&e.message?e.message:e)); }catch(_){ } }
 function _l493ChuteFromDetail(f){
   try{
     const det=Array.isArray(f&&f.ficheDetail)?f.ficheDetail:[]; if(!det.length) return 0;
     if(typeof parseConf!=='function'||typeof calcStats!=='function') return 0;
-    const _lgOf=function(ri){   /* métrage de LA référence (jamais f.longueur en multi-réf : c est « 1500 / 2000 ») */
+    const _lgOf=function(ri,nom){   /* [L505 · audit #8] métrage de LA référence : par INDEX, sinon par NOM (rg.find), et en multi-réf JAMAIS rg[0] ni f.longueur (« 1500 / 2000 » lu 1500 par parseNum — ce que l ancien commentaire interdisait tout en le faisant) */
       try{ const rg=Array.isArray(f.refGroups)?f.refGroups:null;
-        if(rg&&rg.length){ const g=(typeof ri==='number'&&rg[ri])||rg[0]; const v=parseNum(g&&g.longueur)||0; if(v>0) return v; }
-      }catch(_){ }
+        if(rg&&rg.length){
+          let g=(typeof ri==='number'&&rg[ri])||null;
+          if(!g&&nom){ const nn=nrm(nom); g=rg.find(function(x){ return x&&nrm(x.ref)===nn; })||null; }
+          if(!g&&rg.length===1) g=rg[0];
+          const v=g?(parseNum(g.longueur)||0):0;
+          if(v>0) return v;
+          if(rg.length>1) return 0;                                /* multi-réf sans métrage résolu : réf OMISE, jamais un chiffre inventé */
+        }
+      }catch(e){ _l505Warn('_lgOf',e); }
       return parseNum(f&&f.longueur)||0;
     };
     const wasteOf=function(fd){
       try{ const u=Number(fd.useful)||0, b=Number(fd.blade)||0; if(!(u>0)) return 0;
         const p=parseConf(String(fd.conf||'')); if(!p||!p.length) return 0;
         return Math.max(0,u-calcStats(p,b).total);
-      }catch(_){ return 0; }
+      }catch(e){ _l505Warn('wasteOf',e); return 0; }
     };
     const byRef={};
     det.forEach(function(fd,i){
       if(!fd||fd.recut) return;                                   /* résidu de rouleau ♻ = perte, jamais une chute */
+      if(_l505HorsPlan(fd)) return;                                /* [L505 · audit #8] RESTE-/OP2-/rattrapage = HORS PLAN (même règle que le PDF) : la ligne créait un 2e seau et la chute sortait 2,5× — la source (computePlanAggregate) ne voit que le PLAN */
       if(f.manqueMatiere&&fd.coupee!==true) return;               /* bobine jamais montée : pas de chute */
       const k=(typeof fd.refIdx==='number')?('i'+fd.refIdx):('n'+nrm(fd.ref||''));
       (byRef[k]=byRef[k]||{ri:(typeof fd.refIdx==='number'?fd.refIdx:null),last:null,phase:0}); 
@@ -14309,13 +14322,13 @@ function _l493ChuteFromDetail(f){
     });
     let m2=0;
     Object.keys(byRef).forEach(function(k){
-      const e=byRef[k], lg=_lgOf(e.ri); if(!(lg>0)) return;        /* métrage inconnu : cette réf est omise (jamais un chiffre inventé) */
+      const e=byRef[k], lg=_lgOf(e.ri, e.last&&e.last.ref); if(!(lg>0)) return;        /* métrage inconnu : cette réf est omise (jamais un chiffre inventé) */
       let mm=e.phase;
       if(e.last&&!e.last.phaseEnd) mm+=wasteOf(e.last);            /* si la dernière est déjà une fin de phase, elle est déjà comptée */
       if(mm>0) m2+=mm/1000*lg;
     });
     return Math.round(m2*10)/10;
-  }catch(_){ return 0; }
+  }catch(e){ _l505Warn('_l493ChuteFromDetail',e); return 0; }
 }
 function buildMonthlyKpi(ym,fiches,temps){
   const F=(fiches||[]).filter(f=>!f.deleted&&f.valide!==false&&_localYM(f.date)===ym);   // [L98 · #13] mois local   // [L79·AN-1] exclure les fiches REFUSÉES (valide===false) des KPI mensuels (bobines/perte gonflées sinon)
@@ -14409,7 +14422,7 @@ function buildMonthlyKpi(ym,fiches,temps){
       if(f.manqueMatiere && fd.coupee!==true) return;
       qCtrl++;
       try{ if(fd.actDechet===true&&typeof ncLoss==='function'){ const _nl=ncLoss(f,fd); if(_nl&&_nl.m2>0) dechetM2+=_nl.m2; } }catch(_){ }   /* [L477] DECHET en m² · [L479 · audit] SEULS les bobineaux 🗑 Déchet comptent : une NC partie en ✂ Chutes = matière STOCKÉE (CHUTE, règle actée), pas un déchet — aligné sur le registre NC (sD, l.18332) et computePerteChute */
-      try{ if(fd.actChutes===true&&!fd.recut&&typeof ncLoss==='function'){ const _nl2=ncLoss(f,fd); if(_nl2&&_nl2.m2>0) chuteM2+=_nl2.m2; } }catch(_){ }   /* [L485 · fix audit] !fd.recut : meme perimetre que _keep63 (m2Total) — sans lui la chute sortait des m² coupes du mois. La branche DECHET juste au-dessus garde volontairement son perimetre L479 (chiffre deja valide par Esteban). */   /* [L482] la NC partie en ✂ Chutes rejoint la CHUTE GARDEE du mois (matière stockée réutilisable, règle actée) */
+      try{ if(fd.actChutes===true&&!fd.recut&&typeof ncLoss==='function'){ const _nl2=ncLoss(f,fd); if(_nl2&&_nl2.m2>0) chuteM2+=_nl2.m2; } }catch(e){ _l505Warn('ncLoss·chute',e); }   /* [L485 · fix audit] !fd.recut : meme perimetre que _keep63 (m2Total) — sans lui la chute sortait des m² coupes du mois. La branche DECHET juste au-dessus garde volontairement son perimetre L479 (chiffre deja valide par Esteban). */   /* [L482] la NC partie en ✂ Chutes rejoint la CHUTE GARDEE du mois (matière stockée réutilisable, règle actée) */
       let _is=false;
       if(fd.ncLarg){qLarg++;_is=true;}
       if(fd.ncQty){qQty++;_is=true;}
@@ -14731,7 +14744,7 @@ function kpiMoisInnerHTML(ym){
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Rendement matière</div><div style="font-size:24px;font-weight:800;color:var(--green)">${rendement.toLocaleString('fr-FR')} %</div><div style="font-size:11px;color:#999;margin-top:3px">utile ÷ mère</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Perte moy. <span style="color:#999">(pondérée)</span></div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.pertePct||0).toLocaleString('fr-FR')} %</div>${_delta(kpi.pertePct,prevKpi&&prevKpi.pertePct,'%',true)}</div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chutes gardées</div>${(typeof kpi.chuteM2==='number')?`<div style="font-size:24px;font-weight:800;color:#5eead4">${kpi.chuteM2.toLocaleString('fr-FR',{maximumFractionDigits:1})} m²</div>`:_naTile}<div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)</div></div><!-- [L493 · décision Esteban] était une somme de LARGEURS en mm affichée en mètres (« 6 m » ne veut rien dire) : passe en m², même source que le diagramme et la ligne « Matière ce mois » -->
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chutes gardées</div>${(typeof kpi.chuteM2==='number')?`<div style="font-size:24px;font-weight:800;color:#5eead4">${kpi.chuteM2.toLocaleString('fr-FR',{maximumFractionDigits:1})} m²</div>`:_naTile}<div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)${(typeof window!=='undefined'&&window._l505WarnN>0)?' · ⚠ '+window._l505WarnN+' calcul(s) en repli (console)':''}</div></div><!-- [L493 · décision Esteban] était une somme de LARGEURS en mm affichée en mètres (« 6 m » ne veut rien dire) : passe en m², même source que le diagramme et la ligne « Matière ce mois » -->
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>${r3Tiles}
     </div>
     <div id="kpiFichesList" style="display:none"></div><!-- [L249 · R4b] drill-down fiches du mois -->
@@ -18433,7 +18446,9 @@ async function saveFicheConfigs(id){
     const _lastG=newGroups[newGroups.length-1];
     const _chuteStock=_lastG?Math.max(0,useful-parseNum(_lastG.total)):0;
     upd.pct=(totalMat>0?(Math.max(0,totalMat-totalUsed-_chuteStock)/totalMat*100):0).toFixed(1);   // [L73 · Lot 5 · B53]
+    upd.pctMl=null;   /* [L505 · audit #8] pct est recalculé mais pctMl (PRIORITAIRE pour KPI, PDF, CSV) restait celui de l archivage : on l invalide, les 3 lecteurs retombent sur le pct frais (isNaN → repli) */
   }
+  upd.chuteM2=null;   /* [L505 · audit #8] idem chute gardée : null déclenche _l493ChuteFromDetail sur le ficheDetail ÉDITÉ (définition actée), jamais un rejeu moteur sur une archive */
   try{
     // M5 : garde-fou 1 Mo — retire les photos base64 lourdes avant l'update.
     const _fstrip=_ficheStripHeavyPhotos(upd);

@@ -34,6 +34,10 @@ jobs:
   # recensement des ecritures. Sims et smokes restent locaux (tests/battery.sh) — Chrome n est pas ici.
   verifier:
     runs-on: ubuntu-latest
+    # [L505] fuseau de l atelier : les KPI mensuels sont « mois LOCAL » (convention L98) et kpi_test.js l encode ;
+    # sous UTC (runner) un cas de bord de journee change de mois -> rouge en CI, vert sur les Mac/tablettes (1er passage reel du job).
+    env:
+      TZ: Europe/Paris
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,10 +51,10 @@ jobs:
           set -euo pipefail
           for f in tests/*_test.js; do
             case "$f" in *audit_regress_test.js|*syntax_test.js) continue;; esac
-            echo "== $f"; node "$f" >/dev/null
+            echo "== $f"; node "$f" > /tmp/_t.log 2>&1 || { cat /tmp/_t.log; echo "ECHEC $f"; exit 1; }
           done
       - name: Gardien de regression (code de sortie)
-        run: node tests/audit_regress_test.js >/dev/null
+        run: node tests/audit_regress_test.js > /tmp/_g.log 2>&1 || { grep -E "❌|💥" /tmp/_g.log; exit 1; }
       - name: Recensement ecritures Firestore non bornees (doit etre vide)
         run: |
           set -euo pipefail

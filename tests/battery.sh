@@ -32,6 +32,20 @@ step "4. gardien de regression (juge par son CODE DE SORTIE, jamais par un grep 
 node tests/audit_regress_test.js >/tmp/_bat_$$.log 2>&1 || { grep "❌" /tmp/_bat_$$.log | head -20; red "gardien ROUGE"; exit 1; }
 tail -1 /tmp/_bat_$$.log
 
+step "4b. meta-gardien : sur la version PRECEDENTE, le gardien doit etre ROUGE (sinon il est vert par construction)"
+# [L505 · audit famille 2] un gardien qui passe aussi sur HEAD ne prouve rien pour ce lot : chaque lot d app doit laisser
+# au moins un marqueur qui echoue sur la version d avant. Lot d outillage (index.html inchange) : sans objet.
+if git diff --quiet HEAD -- index.html 2>/dev/null; then
+  echo "index.html inchange vs HEAD : lot d outillage, meta-gardien sans objet"
+else
+  _PREV="$(mktemp)"; git show HEAD:index.html > "$_PREV"
+  if AUDIT_HTML="$_PREV" node tests/audit_regress_test.js >/dev/null 2>&1; then
+    rm -f "$_PREV"; red "le gardien est VERT sur la version precedente (HEAD) : aucun marqueur de ce lot ne discrimine"; exit 1
+  fi
+  _NRED="$(AUDIT_HTML="$_PREV" node tests/audit_regress_test.js 2>/dev/null | grep -c '❌' || true)"; rm -f "$_PREV"
+  echo "meta-gardien OK : $_NRED marqueur(s) rouge(s) sur HEAD, tous verts sur le fichier courant"
+fi
+
 step "5. serveur local :8000 (sinon sims et smokes sont FAUSSEMENT verts)"
 # [L504] pas de tube vers grep -q : sous pipefail, grep ferme le tube et curl sort en 23 -> FAUX ROUGE (vu au 1er passage reel).
 # Si aucun serveur ne repond, la batterie lance le sien (et le coupe a la fin) : le chemin est autonome.

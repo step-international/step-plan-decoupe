@@ -2,7 +2,7 @@
 // présents (marqueurs de code distinctifs). Cadence d'edits élevée + 16 tests perdus → filet contre un revert
 // silencieux. Ne teste pas la logique fine (couverte ailleurs) mais l'INTÉGRITÉ des correctifs livrés.
 const fs=require('fs');
-const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
+const src=fs.readFileSync(process.env.AUDIT_HTML||require('path').join(__dirname,'..','index.html'),'utf8');   // [L505 · meta-gardien] AUDIT_HTML : la batterie rejoue le gardien sur la version PRECEDENTE (git show HEAD:index.html) et exige qu il soit rouge
 const sw=fs.readFileSync(require('path').join(__dirname,'..','sw.js'),'utf8');
 let fail=0; const has=(re,m)=>{const ok=(re instanceof RegExp?re.test(src):src.includes(re));console.log((ok?'✅ ':'❌ ')+m);if(!ok)fail++;};
 const hasSw=(re,m)=>{const ok=(re instanceof RegExp?re.test(sw):sw.includes(re));console.log((ok?'✅ ':'❌ ')+m);if(!ok)fail++;};
@@ -1985,5 +1985,24 @@ has(/\(typeof fd\.refIdx==='number'&&f\.refGroups\[fd\.refIdx\]\)\n        \|\|\
 console.log('── L499 : métrage de la mère sur le PDF plan mono-réf (demande Céline 04/09) ──');
 has(/mono.longueur/,'L499 : l en-tête mono du PDF plan affiche le métrage de la mère (mono.longueur, absent avant ce lot) — Dominique l écrivait au stylo, le multi l avait déjà');
 
+console.log('── L505 · audit 30 agents #8 · perte/chute : un seul chemin par ingrédient ──');
+has(/const _mlOf=function\(c\)\{ const v=\(c&&c\.longueur!=null\)\?c\.longueur:''; return parseFloat\(String\(v\)\.replace\(\/\\s\+\/g,''\)\.replace\(\/\[Oo\]\/g,'0'\)\.replace\(',','\.'\)\); \};/,'L505 : métrage lu par UN helper _mlOf dans computePlanAggregate (parsing autonome, bac à sable P11)');
+absent(/const ml=parseFloat\(String\(c\.longueur==null\?'':c\.longueur\)/,'L505 : plus aucune lecture brute du métrage dans computePlanAggregate (« 1 500 » valait 1 dans pertePctMl)');
+has(/const ml=_mlOf\(c\);   \/\* \[L505 · audit #8\] même lecture que la chute/,'L505 : pertePctMl passe par _mlOf');
+has(/const ml=_mlOf\(c\);   \/\* \[L505 · audit #8\] helper unique/,'L505 : chuteM2 passe par _mlOf');
+has(/upd\.pctMl=null;   \/\* \[L505 · audit #8\]/,'L505 : édition admin (mono-réf) invalide pctMl → les 3 lecteurs retombent sur le pct recalculé');
+has(/upd\.chuteM2=null;   \/\* \[L505 · audit #8\]/,'L505 : édition admin invalide chuteM2 → reconstruction depuis le ficheDetail édité');
+has(/const _lgOf=function\(ri,nom\)\{/,'L505 : _lgOf résout par INDEX puis par NOM');
+has(/if\(rg\.length>1\) return 0;\s+\/\* multi-réf sans métrage résolu : réf OMISE/,'L505 : multi-réf sans métrage → 0, jamais rg[0] ni f.longueur « 1500 / 2000 »');
+absent(/const g=\(typeof ri==='number'&&rg\[ri\]\)\|\|rg\[0\];/,'L505 : le repli rg[0] a disparu de _lgOf');
+has(/lg=_lgOf\(e\.ri, e\.last&&e\.last\.ref\)/,'L505 : la reconstruction passe le NOM de la réf à _lgOf');
+has(/^function _l505HorsPlan\(fd\)\{/m,'L505 : règle HORS PLAN unique (_l505HorsPlan)');
+has(/const t=\{\.\.\.fd,horsPlan:_l505HorsPlan\(fd\)\};/,'L505 : l archivage pose fd.horsPlan via la règle unique');
+has(/if\(_l505HorsPlan\(fd\)\) return;\s+\/\* \[L505 · audit #8\] RESTE-\/OP2-\/rattrapage = HORS PLAN/,'L505 : RESTE-/OP2- exclus de la chute reconstruite (2e seau = 2,5×)');
+has(/^function _l505Warn\(where,e\)\{/m,'L505 : catch muets de la chaîne ISO → console.warn + compteur');
+has(/\}catch\(e\)\{ _l505Warn\('wasteOf',e\); return 0; \}/,'L505 : wasteOf trace son repli');
+has(/\}catch\(e\)\{ _l505Warn\('_l493ChuteFromDetail',e\); return 0; \}/,'L505 : _l493ChuteFromDetail trace son repli');
+has(/\}catch\(e\)\{ _l505Warn\('ncLoss·chute',e\); \}/,'L505 : NC → chute trace son repli');
+has(/window\._l505WarnN>0\)\?' · ⚠ '\+window\._l505WarnN\+' calcul\(s\) en repli \(console\)':''/,'L505 : la tuile Chutes gardées affiche le compteur de replis');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
