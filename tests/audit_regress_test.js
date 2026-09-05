@@ -345,7 +345,7 @@ has(/localStorage\.removeItem\(CHRONO_MIR_LS_KEY\); \}catch\(e\)\{\} \}catch\(e2
 has(/miroir \+ chrono EN PAUSE/,'L298 : chrono miroir en PAUSE persisté (16h15/⏸ + purge iOS ne perdent plus le temps du récepteur)');
 has(/&& !live\.mir && !live\.paused\)/,'L298 : un chrono de vue MIROIR n\'est jamais greffé sur un brouillon perso');
 has(/GARDE D'IDENTITÉ sur la préservation L294/,'L298 : le chrono d\'une AUTRE commande ne se déverse plus sur un miroir ouvert');
-has(/function refDispCtx\(ref\)/,'L298 : noms courts en collision désambiguïsés par la longueur (KX1045-1 · 100 ml vs · 500 ml)');
+has(/if\(me&&me\.longueur\) return short\+' · '\+me\.longueur\+' ml';/,'L298 → L500 : noms courts en collision désambiguïsés par la longueur, résolus par IDENTITÉ quand elle est fournie');
 has(/le PDF archive dit la MÊME consigne que le papier atelier/,'L298 : migration des vieux textes SPÉCIFICITÉ sur TOUTES les surfaces (écran, popup planning, PDF archive)');
 has(/bobine\(s\) d\\'une réf RENOMMÉE ou RETIRÉE du plan/,'L296 : lignes ORPHELINES (réf renommée / bloc retiré) détectées → bannière needClick (fini le silence total)');
 has(/Production sous une réf ABSENTE du plan/,'L296 : la production d\'une réf renommée n\'est plus classée « Coupé EN PLUS » (fausse trace ISO) — boîte dédiée « à vérifier »');
@@ -1077,7 +1077,7 @@ has(/html\.theme-light \.stat-tile\.pct-orange b\{color:#ff9d4d\}/,'L378 : thèm
 
 console.log('── L379 : correctifs audit L377/L378 ──');
 has(/if\(typeof _ln\.refIdx==='number'\)\{ _blockCut=\(typeof ficheRefValidated!=='undefined'\)&&!ficheRefValidated\.has\(_ln\.refIdx\); \}/,'L379 n°2 : verrou B3 par INDEX de groupe (les homonymes ne mentent plus) — structurel');
-has(/refIdKey:_refIdKey\(c\), refIdx:c\.idx,/,'L379 n°2 : refIdx posé à la génération des lignes');
+has(/refIdKey:_refIdKey\(c\), refIdx:ci,/,'L379 n°2 → L500 : refIdx posé à la génération des lignes (c.idx n existait pas — corrigé en ci)');
 has(/st\.fiche\.refValidated=\[\]; st\.fiche\.refOrder=\[\];/,'L379 n°3 : les mères du SOLDE se re-valident (index ré-alignés)');
 has(/if\(_blockCut\)\{   \/\/ \[L379 · n°4\] décision HORS du try/,'L379 n°4 : verrou fail-closed');
 has(/conf0:\(get\('flConf'\)\?\.dataset\.conf0!==undefined/,'L379 n°6 : baseline conf0 sérialisée (la protection B8 survit au brouillon)');
@@ -1932,6 +1932,20 @@ has(/if\(!ok\)\{ arr\[idx\]=avant; renderClients\(\); return; \}/,'L498 : modifi
 has(/Un seul métrage en modification/,'L498 : le multi-métrage passe par ⧉ Dupliquer, pas par ✏️ Modifier');
 has(/details\[open\]\[data-cli\]/,'L498 : état ouvert des clients conservé au re-rendu (motif L367)');
 has(/_l486Esc\(r\)\+' — '\+d\.largeur\+' mm'/,'L498 : le NOM figure au libellé des options du datalist (rendu natif tablette)');
+
+console.log('── L500 : refs HOMONYMES, complement du L497 distant (numerotation, rail, archives, refIdx) ──');
+has(/function _refKeyOf\(l\)/,'L500 : cle d IDENTITE d une ligne (refIdKey, repli nom)');
+has(/function _refMatchFn\(rk,k\)/,'L500 : predicat par cle — plus de OU additif par nom');
+absent(/\(\(_rk\d&&l\.refIdKey===_rk\d\)\|\|nrm\(l\.ref\)===_k\d\)/,'L500 : les 3 predicats additifs du rail ont disparu');
+has(/totalsByRef\[k\]=\(totalsByRef\[k\]\|\|0\)\+1;\}\);   \/\* \[L500\] par IDENTITE/,'L500 : numerotation n/N par identite (23/23 et 1/3, plus 23/26)');
+has(/pos-last-ref/,'L500 : repere 🎯 sur la derniere bobine de CHAQUE reference');
+has(/refIdKey:_refIdKey\(c\), refIdx:ci,/,'L500 : refIdx ENFIN renseigne (c.idx n a jamais existe — anti-homonymes L379/L474 mort a la source)');
+absent(/refIdx:c\.idx/,'L500 : plus aucun refIdx:c.idx (undefined)');
+has(/lastByRef\[\(typeof fd\.refIdx==='number'\)\?\('i'\+fd\.refIdx\):_refKeyOf\(fd\)\]=i;/,'L500 : solde de chaque ref homonyme compte en CHUTE, plus en perte');
+has(/if\(refKey\) div\.dataset\.refKey=refKey;/,'L500 : le separateur porte l identite de sa ref (en plus du twin L497)');
+has(/try\{ ficheRefOrder=_genOrder\.slice\(\); window\._l432KeepOrder=true; \}catch\(e\)\{\}/,'L500 : le hissage L491 ecrit ficheRefOrder (le rail ne diverge plus)');
+has(/function refDispCtx\(ref,refKey\)/,'L500 : le metrage affiche sur une carte est celui de SA reference');
+has(/\(typeof fd\.refIdx==='number'&&f\.refGroups\[fd\.refIdx\]\)\n        \|\|\(fd\.refIdKey&&/,'L500 : bords resolus par identite avant le nom');
 
 console.log('── L499 : métrage de la mère sur le PDF plan mono-réf (demande Céline 04/09) ──');
 has(/mono.longueur/,'L499 : l en-tête mono du PDF plan affiche le métrage de la mère (mono.longueur, absent avant ce lot) — Dominique l écrivait au stylo, le multi l avait déjà');

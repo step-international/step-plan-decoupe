@@ -697,6 +697,7 @@ body.atelier .test2-main input[type=checkbox],body.atelier .test2-nc input[type=
 body.atelier .card-config{font-size:18px}
 body.atelier .bc-count{font-size:16px}
 body.atelier .fl-pos,body.atelier .fl-title{font-size:18px}
+.fl-pos.pos-last-ref::after{content:" 🎯"}/* [L500] derniere bobine de SA reference (porte le solde) */
 /* ============================================================
    [L180 · demande Esteban] MODE ATELIER « TABLETTE » : tout UN CRAN PLUS GROS (lettres, police, chiffres).
    Bloc APRÈS les règles atelier historiques → la cascade prend ces valeurs. Cibles tactiles élargies d'autant.
@@ -3255,11 +3256,18 @@ function refDisp(r){
 }
 // [L298 · audit v2] nom court DÉSAMBIGUÏSÉ : deux réfs DISTINCTES du plan peuvent partager le même nom court
 // (cas réel : 41312799/41312806/41312809 → « KX1045-1 » ×3, en 100/250/500 ml). On suffixe alors la longueur.
-function refDispCtx(ref){
+function refDispCtx(ref,refKey){
   try{
     const short=refDisp(ref);
     const twins=getRefGroups().filter(x=>refDisp(x.ref||'')===short);
-    if(twins.length>1){ const me=twins.find(x=>(x.ref||'')===String(ref||'')); if(me&&me.longueur) return short+' · '+me.longueur+' ml'; }
+    if(twins.length>1){
+      /* [L500] noms bruts identiques : find par nom rendait toujours la PREMIERE. Avec l identite on retrouve
+         la bonne ; sans identite et noms identiques, on ne suffixe PAS plutot que de mentir. */
+      let me=null;
+      if(refKey){ me=twins.find(x=>_refIdKey(x)===refKey)||null; }
+      else { const same=twins.filter(x=>(x.ref||'')===String(ref||'')); if(same.length===1) me=same[0]; }
+      if(me&&me.longueur) return short+' · '+me.longueur+' ml';
+    }
     return short;
   }catch(e){ return refDisp(ref); }
 }
@@ -3282,7 +3290,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.04-L499';
+const APP_VERSION='2026.09.05-L500';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6426,8 +6434,10 @@ function importPlanToFiche(opts){
        (isFicheUntouched garde plus haut) : le travail terrain reste intouche. */
     try{
       const _hasR91=k=>{ const c=computed[k]; return !!(c&&Array.isArray(c.recutGroups)&&c.recutGroups.length); };
-      if(_genOrder.some(_hasR91)&&!_hasR91(_genOrder[0]))
+      if(_genOrder.some(_hasR91)&&!_hasR91(_genOrder[0])){
         _genOrder=_genOrder.filter(_hasR91).concat(_genOrder.filter(k=>!_hasR91(k)));
+        try{ ficheRefOrder=_genOrder.slice(); window._l432KeepOrder=true; }catch(e){}   /* [L500 · audit] sinon le rail (fmmGenOrder lit fmmCutOrder) affichait l ancien ordre — meme geste que L490 */
+      }
     }catch(e){}
     // [L497 · signalement MR 04/09 · atelier CEVENINI] refs HOMONYMES (meme nom, metrage
     // different — KX1006-1 en 1000 ml puis 700 ml) : l operateur voyait 26 cartes au libelle
@@ -6438,7 +6448,7 @@ function importPlanToFiche(opts){
     const _l497RefLbl=c0=>{ try{ const n0=refDisp((c0&&c0.ref)||''); return (n0&&_l497Twins[n0]>1&&c0.longueur)?(n0+' · '+c0.longueur+' ml'):n0; }catch(e){ return refDisp((c0&&c0.ref)||''); } };
     _genOrder.forEach(ci=>{
       const c=computed[ci];
-      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach, c.mother, c.edge, !!(c.ref&&_l497Twins[refDisp(c.ref)]>1)); if(c.machine) prevMach=c.machine; }
+      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, prevMach, c.mother, c.edge, !!(c.ref&&_l497Twins[refDisp(c.ref)]>1), _refIdKey(c)); if(c.machine) prevMach=c.machine; }
       const man=planManual?_pmFindEntry(c,ci,computed.length):null;   // [L70 · Audit B29] appariement par clé, plus par index brut ([L170] nb de groupes pour la garde mono-réf)
       if(man){
         // Plan modifié à la main : il fait foi, on génère les bobines telles
@@ -6454,7 +6464,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:g.rollW, blade:c.blade, machine:c.machine||'',
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci,   /* [L500] c.idx n a JAMAIS existe (undefined) : l anti-homonymes L379/L474 tournait sur le repli par nom. ci = index dans computed = getRefGroups */ useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm'});
             bi++;
@@ -6465,7 +6475,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<cnt;k++){
             addFicheLine({label:(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0'),
               conf:normConf(b.conf),   // [L88] * accepté
-              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci,   /* [L500] c.idx n a JAMAIS existe (undefined) : l anti-homonymes L379/L474 tournait sur le repli par nom. ci = index dans computed = getRefGroups */ useful:man.useful, blade:man.blade, machine:c.machine||man.machine||''});
             bi++;
           }
         });
@@ -6485,7 +6495,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:(function(){ const _r=(_a15&&typeof _l415Conf==='function')?_l415Conf(g.pattern,_a15[_i15],null):null; _i15++; return _r||g.pattern.map(p=>p.qty+'×'+p.width).join(' + '); })(),   /* [L415] contigue par client */
-              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:g.rollW, blade:c.blade, machine:c.machine||'',
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci,   /* [L500] c.idx n a JAMAIS existe (undefined) : l anti-homonymes L379/L474 tournait sur le repli par nom. ci = index dans computed = getRefGroups */ useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm'});
             bi++;
@@ -6500,7 +6510,7 @@ function importPlanToFiche(opts){
           for(let k=0;k<g.count;k++){
             const lbl=(multi&&c.ref?_l497RefLbl(c)+' · ':'')+'BOB-'+String(bi).padStart(3,'0');
             addFicheLine({label:lbl, conf:(function(){ const _r=(_a15&&typeof _l415Conf==='function')?_l415Conf(g.pattern,_a15[_i15],g.chute):null; _i15++; return _r||g.pattern.map(p=>p.qty+'×'+p.width).join(' + '); })(),   /* [L415] contigue par client (chute stock = ordre historique) */
-              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:c.idx, useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci,   /* [L500] c.idx n a JAMAIS existe (undefined) : l anti-homonymes L379/L474 tournait sur le repli par nom. ci = index dans computed = getRefGroups */ useful:c.useful, blade:c.blade, machine:c.machine||'', chuteNote,
               phaseEnd:!!g._phaseEnd});
             bi++;
           }
@@ -6531,10 +6541,11 @@ function importPlanToFiche(opts){
 // [L231 · audit MAJ-1] cluster _refCheckOk/_paintRefValid/toggleRefValid SUPPRIMÉ (code mort depuis L217/L224 :
 // plus aucun élément .frs-valid rendu). La trace ISO « ref-check » vit désormais dans applyFicheRefPlanChange
 // (validation) + unvalidateFicheRef (ré-ouverture).
-function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,edge,twin){
+function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,edge,twin,refKey){
   const div=document.createElement('div');
   div.className='fiche-ref-sep'+machineCls(machine);
   div.dataset.ref=ref||'';
+  if(refKey) div.dataset.refKey=refKey;   /* [L500] identite : deux separateurs « KX1006-1 » ne recoivent plus le meme compteur */
   const machLbl=getMachineLabel(machine||'');
   // Bandeau rouge : la machine de cette réf diffère de la précédente.
   let bandHtml='';
@@ -8037,6 +8048,12 @@ function vekaClass(v){ return v==='Profilé'?'veka-profile':(v==='VEKA'?'veka-ve
 // nom seul). Deux réfs de même code mais film / VEKA / longueur / laize / lame différents
 // obtiennent des clés distinctes → fini la fusion de commandes et les bobines écrites en
 // double lors du recalcul. Robuste au ré-ordonnancement (aucun index positionnel).
+/* [L500 · complement du L497 distant, signalement MR 04/09] IDENTITE d une ligne de fiche. Le L497 pousse
+   depuis l autre poste a regle l etiquette solde et le separateur visible ; il restait la NUMEROTATION
+   « /26 », le suivi par ref, le rail, la perte/chute et les bords des archives, tous regroupes par l.ref
+   (NOM) — et surtout refIdx qui n a JAMAIS ete renseigne (c.idx n existe pas). */
+function _refMatchFn(rk,k){ return rk?(l=>!!l&&(l.refIdKey?(l.refIdKey===rk):(nrm(l.ref)===k))):(l=>!!l&&nrm(l.ref)===k); }   /* ligne AVEC cle : par la cle ; SANS cle (archive) : par le nom — jamais un OU additif */
+function _refKeyOf(l){ return (l&&l.refIdKey)||('nom¦'+nrm((l&&l.ref)||'')); }
 function _refIdKey(g){
   // [L243 · props P4a/P4b] : (1) longueur passée par n() comme les autres champs texte (« 6000ML » ≠ « 6000ml »
   // scindait une même réf en deux identités) ; (2) séparateur ¦ ÉCHAPPÉ dans chaque champ (un ¦ saisi déplaçait
@@ -11897,7 +11914,7 @@ function recalcEcartsFromFiche(opts){
       // bobines figées ré-attachées en double, pas de reliquat compté 2×.
       if(doneKeys.has(k)) return;
       doneKeys.add(k);
-      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, _prevMachR, c.mother, c.edge, !!(c.ref&&_l497Twins[refDisp(c.ref)]>1)); if(c.machine) _prevMachR=c.machine; }   // [L92 · Audit #15] couleur machine + bande CHANGEMENT DE MACHINE conservées après recalcul
+      if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, _prevMachR, c.mother, c.edge, !!(c.ref&&_l497Twins[refDisp(c.ref)]>1), _refIdKey(c)); if(c.machine) _prevMachR=c.machine; }   // [L92 · Audit #15] couleur machine + bande CHANGEMENT DE MACHINE conservées après recalcul
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
       frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=_refIdKey(c); if(!l.machine&&c.machine) l.machine=c.machine; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante — [L295] clé de BASE (jamais la composite interne) + machine complétée
@@ -19128,14 +19145,17 @@ function computePerteChute(f){
   // écriture Firestore. Comptée pour toute fiche disposant de ces champs.
   const edgeForFd=(fd)=>{
     if(Array.isArray(f.refGroups)&&f.refGroups.length){
-      const g=f.refGroups.find(x=>(x.ref||'')===(fd.ref||''))||f.refGroups[0];
+      /* [L500] identite d abord (refIdx, puis refIdKey), nom en dernier — deux homonymes prenaient les bords de la PREMIERE. Meme ordre que ncLoss. */
+      const g=(typeof fd.refIdx==='number'&&f.refGroups[fd.refIdx])
+        ||(fd.refIdKey&&f.refGroups.find(x=>{ try{ return _refIdKey(x)===fd.refIdKey; }catch(_){ return false; } }))
+        ||f.refGroups.find(x=>(x.ref||'')===(fd.ref||''))||f.refGroups[0];
       if(g) return Math.max(0,parseNum(g.edge));
     }
     return Math.max(0,parseNum(f.mother)-parseNum(f.useful));
   };
   // Indices de la dernière bobine de chaque référence (= solde conservé).
   const lastByRef={};
-  det.forEach((fd,i)=>{ if(fd.recut) return; lastByRef[fd.ref||'']=i; });   // [L70 · Audit B27] le « solde conservé » ne peut pas être un rouleau
+  det.forEach((fd,i)=>{ if(fd.recut) return; lastByRef[(typeof fd.refIdx==='number')?('i'+fd.refIdx):_refKeyOf(fd)]=i; });   // [L70 · Audit B27] le « solde conservé » ne peut pas être un rouleau · [L500] par IDENTITE : le solde de la 1re ref homonyme etait compte en PERTE
   const lastIdx=new Set(Object.values(lastByRef));
   det.forEach((fd,i)=>{
     const pat=parseConf(fd.conf||'');
@@ -20005,7 +20025,8 @@ function _refHasFicheBob(r){
   if(!r) return false;
   const rk=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null);   // clé robuste (cf. fmmRawRefs) → pas de faux négatif sur réf sans nom
   const k=nrm(r.ref);
-  return (rk && ficheLines.some(l=>l&&l.refIdKey===rk)) || ficheLines.some(l=>l&&nrm(l.ref)===k);
+  if(rk && ficheLines.some(l=>l&&l.refIdKey)) return ficheLines.some(l=>l&&l.refIdKey===rk);   /* [L500] des cles existent : plus de repli par nom (faux positif entre homonymes) */
+  return ficheLines.some(l=>l&&nrm(l.ref)===k);
 }
 // Positions d'origine dans `computed` (ordre plan) réordonnées en ordre de coupe.
 // Sert à générer les bobines dans l'ordre de coupe SANS casser l'index planManual.
@@ -20298,16 +20319,16 @@ function renderFicheMachineBlocks(opts){
       const _done0=ficheRefValidated.has(r.idx)||(_actPos>=0&&pos<_actPos);
       // [L340 · fix (vu en test multi-réf)] « validée » ≠ « finie » : l'état se lit sur les BOBINES de la réf (coupées / total),
       // pas sur le curseur de validation — une réf validée qu'on est en train de couper s'affichait « ✓ FINI » et la suivante « EN COURS ».
-      let _cutN=0,_totN=0; try{ const _rk3=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k3=nrm(r.ref); ficheLines.forEach(l=>{ if(!l||!((_rk3&&l.refIdKey===_rk3)||nrm(l.ref)===_k3)) return; _totN++; const el=document.getElementById(l.id); if(el&&el.classList.contains('coupee')) _cutN++; }); }catch(_){ }
+      let _cutN=0,_totN=0; try{ const _rk3=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k3=nrm(r.ref); ficheLines.forEach(l=>{ if(!l||!_refMatchFn(_rk3,_k3)(l)) return; _totN++; const el=document.getElementById(l.id); if(el&&el.classList.contains('coupee')) _cutN++; }); }catch(_){ }
       let _act=_act0,_done=_done0;
       if(_totN>0){ _done=(_cutN===_totN); _act=!_done&&!_l340CurTaken; if(_act) _l340CurTaken=true; }
       const _stCls=_act?'cur':(_done?'done':'todo');
       const _stTxt=_act?'EN COURS':(_done?'✓ FINI':'À VENIR');
       const _cliRaw=(typeof cliMulti==='function'&&cliMulti())?'':((((document.getElementById('fClient')||{}).value)||''));   /* [L337 · audit] multi-clients : PAS de nom en tête de rangée (le client A s'affichait sur des réfs du client B) */
       const _cli=esc(String(_cliRaw).trim());
-      let _nbBob=0; try{ const _rk2=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k2=nrm(r.ref); _nbBob=ficheLines.filter(l=>l&&((_rk2&&l.refIdKey===_rk2)||nrm(l.ref)===_k2)).length; }catch(_){ }
+      let _nbBob=0; try{ const _rk2=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k2=nrm(r.ref); _nbBob=ficheLines.filter(l=>l&&_refMatchFn(_rk2,_k2)(l)).length; }catch(_){ }
       // [L353 · backlog n°10 · §2.21] ligne 3 = n bobines · CONFIG de la prochaine bobine à couper de cette réf (résumé, ellipsé ; paysage seulement — .foc-cfg)
-      let _cfg=''; try{ const _rk4=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k4=nrm(r.ref); const _mine=ficheLines.filter(l=>l&&((_rk4&&l.refIdKey===_rk4)||nrm(l.ref)===_k4)); const _fl=_mine.find(l=>{ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||_mine[0]; if(_fl){ _cfg=String((document.getElementById('flConf_'+_fl.id)||{}).value||'').replace(/\s*\+\s*/g,' + ').replace(/(\d)\s*[x×]\s*(?=\d)/gi,'$1×').trim(); } }catch(_){ }   // [fix audit] seul le « x » entre deux nombres devient × (texte libre intact)
+      let _cfg=''; try{ const _rk4=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k4=nrm(r.ref); const _mine=ficheLines.filter(l=>l&&_refMatchFn(_rk4,_k4)(l)); const _fl=_mine.find(l=>{ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||_mine[0]; if(_fl){ _cfg=String((document.getElementById('flConf_'+_fl.id)||{}).value||'').replace(/\s*\+\s*/g,' + ').replace(/(\d)\s*[x×]\s*(?=\d)/gi,'$1×').trim(); } }catch(_){ }   // [fix audit] seul le « x » entre deux nombres devient × (texte libre intact)
       oh+='<div class="fmm-order-row foc-'+_stCls+'" style="border-left:5px solid '+rc+';align-items:flex-start">'
         +'<span class="fmm-drag-handle" onpointerdown="fmmDragStart(event,'+r.idx+')" title="Glisser pour réordonner" aria-hidden="true">⠿</span>'
         +'<span class="fmm-order-num" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">'+(pos+1)+'</span>'
@@ -20398,7 +20419,7 @@ function renderFicheMachineBlocks(opts){
     const _hml=getMachineLabel(r.machine||'');
     const _hmc=({feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)'})[r.machine]||'#888';
     const _hmChip=(!validated&&_hml)?'<span class="frs-mch" style="--mc:'+_hmc+'">⚙ '+esc(_hml)+'</span>':'';
-    block.innerHTML='<div class="fmm-head">'+refChip+badge+_hmChip+'<span class="fmm-name">🎞 '+esc(refDispCtx(r.ref))+'</span>'+tagsHtml+'</div>'+body+hint;
+    block.innerHTML='<div class="fmm-head">'+refChip+badge+_hmChip+'<span class="fmm-name">🎞 '+esc(refDispCtx(r.ref,r.refKey))+'</span>'+tagsHtml+'</div>'+body+hint;
     try{ if(validated&&typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()){ const _hh=block.querySelector('.fmm-head'); if(_hh){ _hh.setAttribute('role','button'); _hh.tabIndex=0; _hh.setAttribute('aria-expanded','false'); } } }catch(e){}   // [L357 · fix audit a11y] bande validée = bouton clavier (Entrée/Espace) en paysage
     // [L236 · demande Esteban] RÉF 1 : sa carte de validation vit ENTRE le suivi « X/N coupées » et la
     // 1re bobine à couper (colonne des bobines) — l'opérateur voit suivi → réf à valider → bobines, d'un
@@ -21244,13 +21265,19 @@ function renumberFicheLines(){
   // Numérotation RELATIVE à la référence : la 3e bobine de KX1045-1 (qui en a 3) = 3/3,
   // pas 3/6. En mono-réf, le total de la réf = total global (comportement inchangé).
   const totalsByRef={};
-  ficheLines.forEach(l=>{const k=l.ref||'__';totalsByRef[k]=(totalsByRef[k]||0)+1;});
+  ficheLines.forEach(l=>{const k=_refKeyOf(l);totalsByRef[k]=(totalsByRef[k]||0)+1;});   /* [L500] par IDENTITE : deux KX1006-1 = 1/23 et 1/3, plus 23/26 */
   const seenByRef={};
   ficheLines.forEach(l=>{
-    const k=l.ref||'__';
+    const k=_refKeyOf(l);
     seenByRef[k]=(seenByRef[k]||0)+1;
     const el=document.getElementById('pos_'+l.id);
-    if(el) el.textContent=seenByRef[k]+'/'+totalsByRef[k];
+    if(el){ el.textContent=seenByRef[k]+'/'+totalsByRef[k];
+      /* [L500] repere sur la DERNIERE bobine de la reference (elle porte le solde). MR lisait « 23/26 » et
+         croyait qu il lui restait 3 bobines de SA ref — c etaient celles de l autre homonyme. */
+      const _last00=(seenByRef[k]===totalsByRef[k])&&(totalsByRef[k]>1);
+      el.title=_last00?'Dernière bobine de cette référence : le reste est un SOLDE à conserver (étiquette solde)':'';
+      el.classList.toggle('pos-last-ref',_last00);
+    }
   });
 }
 async function removeFicheLine(id){
@@ -21499,21 +21526,23 @@ function updateCoupeeStatus(){
   const done=countCoupees();   // [L85 · Audit #27]
   const allDone=done===total;
   // Détail par référence (multi-réf) : "FILM-A 1/2 · FILM-B 2/4"
-  const refs=[...new Set(ficheLines.map(l=>l.ref).filter(Boolean))];
+  const _byKey00={}; ficheLines.forEach(l=>{ if(l&&l.ref){ const k=_refKeyOf(l); if(!_byKey00[k]) _byKey00[k]=l.ref; } });   /* [L500] identite -> nom */
+  const refs=Object.keys(_byKey00);
   let perRefStr='';
   if(refs.length>1){
-    perRefStr=refs.map(r=>{
-      const lines=ficheLines.filter(l=>l.ref===r);
+    perRefStr=refs.map(rk00=>{
+      const r=_byKey00[rk00];
+      const lines=ficheLines.filter(l=>_refKeyOf(l)===rk00);
       const d=lines.filter(({id})=>document.getElementById(id)?.classList.contains('coupee')).length;
       const ok=d===lines.length;
       // Compteur dans la bande séparatrice de cette réf (évite que l'opérateur se mélange).
       document.querySelectorAll('.fiche-ref-sep').forEach(sep=>{
-        if(sep.dataset.ref===r){
+        if((sep.dataset.refKey&&sep.dataset.refKey===rk00)||(!sep.dataset.refKey&&sep.dataset.ref===r)){   /* [L500] par identite quand le separateur la porte */
           const c=sep.querySelector('.ref-sep-count');
           if(c){c.innerHTML=`✂ <strong>${d}/${lines.length}</strong>`;const _ncR=lines.some(({id})=>{const b=document.getElementById('badge_'+id);return b&&b.classList.contains('badge-red');});c.style.color=ok?'var(--green)':(_ncR?'#fca5a5':'var(--text2)');}   /* [L378 · A7] rouge réservé aux NC réelles */
         }
       });
-      return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(refDispCtx(r))} <strong>${d}/${lines.length}</strong></span>`;
+      return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(refDispCtx(r,rk00))} <strong>${d}/${lines.length}</strong></span>`;
     }).join(' · ');
   }
   const banner=document.getElementById('coupeeBanner');
@@ -22614,14 +22643,14 @@ function _l340SyncOrderStates(){ try{
     const idx=+m[1]; const r=refs.find(function(x){ return x.idx===idx; }); if(!r) return;
     let cut=0,tot=0;
     try{ const rk=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const k=nrm(r.ref);
-      ficheLines.forEach(function(l){ if(!l||!((rk&&l.refIdKey===rk)||nrm(l.ref)===k)) return; tot++; const el=document.getElementById(l.id); if(el&&el.classList.contains('coupee')) cut++; }); }catch(_){ }
+      ficheLines.forEach(function(l){ if(!l||!_refMatchFn(rk,k)(l)) return; tot++; const el=document.getElementById(l.id); if(el&&el.classList.contains('coupee')) cut++; }); }catch(_){ }
     if(!tot) return;   // réf sans bobine (stock) : l'état posé au rendu reste
     const done=(cut===tot); const cur=!done&&!curTaken; if(cur) curTaken=true;
     const cls=done?'done':(cur?'cur':'todo');
     row.classList.remove('foc-cur','foc-done','foc-todo'); row.classList.add('foc-'+cls);
     const st=row.querySelector('.foc-st'); if(st){ st.className='foc-st foc-st-'+cls; st.textContent=done?'✓ FINI':(cur?'EN COURS':'À VENIR'); }
     // [L353 · fix audit] la config « prochaine bobine » de la ligne 3 suit les coches (sinon figée au rendu → contradiction avec la carte en cours)
-    try{ const cf=row.querySelector('.foc-cfg'); if(cf){ const rk=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const k=nrm(r.ref); const mine=ficheLines.filter(function(l){ return l&&((rk&&l.refIdKey===rk)||nrm(l.ref)===k); }); const fl=mine.find(function(l){ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||mine[0]; const v=fl?String((document.getElementById('flConf_'+fl.id)||{}).value||'').replace(/\s*\+\s*/g,' + ').replace(/(\d)\s*[x×]\s*(?=\d)/gi,'$1×').trim():''; cf.textContent=v?' · ➜ '+v:''; } }catch(_){ }
+    try{ const cf=row.querySelector('.foc-cfg'); if(cf){ const rk=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const k=nrm(r.ref); const mine=ficheLines.filter(function(l){ return l&&_refMatchFn(rk,k)(l); }); const fl=mine.find(function(l){ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||mine[0]; const v=fl?String((document.getElementById('flConf_'+fl.id)||{}).value||'').replace(/\s*\+\s*/g,' + ').replace(/(\d)\s*[x×]\s*(?=\d)/gi,'$1×').trim():''; cf.textContent=v?' · ➜ '+v:''; } }catch(_){ }
   });
 }catch(e){} }
 // ============================================================
