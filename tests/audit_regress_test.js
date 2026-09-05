@@ -1384,7 +1384,7 @@ has(/collection « assist », champ « expireAt »/,'L494 : la cible de la regle
 
 console.log('── L496 : chrono a 28 h (signalement atelier JF, nuit 31/08 -> 01/09) ──');
 has(/began:_chronoRunBeganAt\|\|null\},   \/\* \[L496/,'L496 : l instant REEL du ▶ voyage avec le brouillon');
-has(/_chronoRunBeganAt = c\.began \|\| c\.runStart \|\| Date\.now\(\);/,'L496 CAUSE RACINE : la reprise EN MARCHE restaure le ▶ reel (sinon garde cross-day neutralisee)');
+has(/if\(c\.began\) _chronoRunBeganAt=c\.began; else if\(!_chronoRunBeganAt\) _chronoRunBeganAt=c\.runStart\|\|Date\.now\(\);/,'L496→L502 CAUSE RACINE : la reprise EN MARCHE restaure le ▶ reel SANS ecraser un repere connu (miroir/greffe/filet sans began)');
 has(/Ne JAMAIS écraser par null un « began » déjà stocké/,'L496 : la panne ne s auto-entretient plus (le 1er tick detruisait la copie durable)');
 has(/Réinjection REMONTÉE ICI/,'L496 : la reinjection couvre le cas NORMAL (un brouillon existe), plus seulement le repli');
 has(/function chronoCrossDaySec\(sec,runStart,virtualStart\)/,'L496 : 3e parametre optionnel — les 3 autres appelants restent inchanges');
@@ -1427,8 +1427,8 @@ absent(/prochain démarrage\)/,'L492→L501 : le referentiel est en TEMPS REEL d
 has(/tout de suite sur les autres postes/,'L501 : les messages du referentiel disent le temps reel');
 
 console.log('── L491 : chute ♻ en 1er par TOUS les chemins (precision Esteban 31/08) ──');
-has(/const _hasR91=k=>/,'L491 : hissage des refs porteuses de chute DANS la generation de la fiche');
-has(/_genOrder\.filter\(_hasR91\)\.concat\(_genOrder\.filter\(k=>!_hasR91\(k\)\)\)/,'L491 : chute d abord, ordre relatif des autres refs preserve');
+has(/_genOrder=_cutOrderChutesFirst\(_genOrder,computed,!!\(opts&&opts\.keepRefValidation\)\)/,'L491→L502 : hissage de la chute DANS la generation, via le helper unique, sans ecraser un reordonnancement manuel');
+has(/const o=order\.filter\(has\)\.concat\(order\.filter\(k=>!has\(k\)\)\);/,'L491→L502 : chute d abord, ordre relatif des autres refs preserve (helper _cutOrderChutesFirst)');
 has(/seul endroit traverse\s*\n?\s*par TOUS les chemins/,'L491 : couvre l import AUTO (retour Plan->Fiche), pas seulement « Commencer a couper »');
 has(/Une fiche ENGAGEE n arrive jamais ici en auto/,'L491 : le travail terrain deja engage reste intouche');
 
@@ -1934,6 +1934,27 @@ has(/Un seul métrage en modification/,'L498 : le multi-métrage passe par ⧉ D
 has(/details\[open\]\[data-cli\]/,'L498 : état ouvert des clients conservé au re-rendu (motif L367)');
 has(/_l486Esc\(r\)\+' — '\+d\.largeur\+' mm'/,'L498 : le NOM figure au libellé des options du datalist (rendu natif tablette)');
 
+console.log('── L502 : chrono (began sur TOUS les constructeurs) + ordre de coupe (helper unique) ──');
+has(/began:_chronoRunBeganAt\|\|null\};   \/\* \[L502\] la greffe transporte/,'L502 : la greffe (partage) transporte le ▶ reel');
+has(/began:live\.began\|\|null,   \/\* \[L502\] \*\//,'L502 : le filet (reprise sans brouillon) transporte le ▶ reel');
+has(/mir:_viewingSharedId,began:_chronoRunBeganAt\|\|null\}\)\);   \/\* \[L502\] le miroir persiste/,'L502 : la cle MIROIR persiste le ▶ reel');
+has(/chronoCrossDaySec\(0,lv\.began\|\|lv\.runStart,lv\.runStart\)/,'L502 : reouverture miroir — jour = ▶ reel, duree = origine virtuelle');
+has(/chronoCrossDaySec\(showSec,cRef\.began\|\|cRef\.runStart,cRef\.runStart\)/,'L502 : reprise AUTO d un brouillon gonfle — ramene, plus maximise');
+has(/chronoCrossDaySec\(c\.sec,c\.began\|\|c\.runStart,c\.runStart\)/,'L502 : reprise MANUELLE d un brouillon gonfle — ramene, plus maximise');
+has(/function _cutOrderChutesFirst\(order,computed,keep\)/,'L502 : UN helper pour « la chute passe en 1er » (import ET recalcul)');
+has(/_genOrderR=_cutOrderChutesFirst\(/,'L502 : le recalcul passe par le meme helper (keep=true : commande engagee jamais renumerotee)');
+console.log('── L503 : ISO (recalc, referentiel, ecran Clients, roles, retention) ──');
+has(/Hors-ligne : figeage REFUSÉ/,'L503 : figeage KPI REFUSE depuis le cache hors-ligne (12 mois ISO ne sont plus ecrases par un sous-ensemble)');
+has(/kpi\.figeAt=\(_old&&_old\.figeAt\)\|\|isoNow\(\);/,'L503 : la date de figeage D ORIGINE est preservee au recalcul (preuve chronologique ISO)');
+has(/kpi\.recalcN=\(Number\(_old\.recalcN\)\|\|0\)\+1;/,'L503 : chaque recalcul est compte et trace RECALCULE dans la piste d audit');
+has(/const _payload=JSON\.parse\(JSON\.stringify\(\{clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS\}\)\);/,'L503 : charge utile FIGEE avant tout await (un snapshot pendant la transaction n efface plus la saisie)');
+has(/if\(_baseAt===undefined&&snap\.exists\) throw new Error\('JAMAIS_LU'\);/,'L503 : garde fail-closed — un poste qui n a jamais recu le referentiel ne peut plus l ecraser');
+has(/if\(typeof ni==='string'\) return \(CLIENT_DATA&&Object\.prototype\.hasOwnProperty\.call\(CLIENT_DATA,ni\)\)\?ni:null;/,'L503 : boutons de l ecran Clients resolus par NOM, plus par position');
+absent(/onclick="_l489DelCli\(\+this\.dataset\.i,this\)"/,'L503 : plus aucun bouton Clients adresse par position');
+has(/\(active\.id==='tabClients'&&!\(typeof _l486CanEdit==='function'&&_l486CanEdit\(\)\)\)/,'L503 : applyRole rebascule hors de l onglet Clients pour un compte non habilite');
+has(/const REPORT_TTL_DAYS=180;/,'L503 : les signalements (mail) ont une date d expiration');
+has(/doc\.expireAt=new Date\(Date\.now\(\)\+REPORT_TTL_DAYS\*86400000\)/,'L503 : expireAt pose sur chaque signalement');
+
 console.log('── L501 : hors-ligne PARTOUT (audit 30 agents, pattern n°1 « correctif non propage aux jumeaux ») ──');
 has(/async function _bw\(p,ms\)/,'L501 : helper unique ecriture bornee, file = succes');
 absent(/await\s+logAudit\(/,'L501 : plus AUCUN await logAudit — une piste qui pend ne gele plus un flux deja ecrit');
@@ -1957,7 +1978,7 @@ has(/refIdKey:_refIdKey\(c\), refIdx:ci,/,'L500 : refIdx ENFIN renseigne (c.idx 
 absent(/refIdx:c\.idx/,'L500 : plus aucun refIdx:c.idx (undefined)');
 has(/lastByRef\[\(typeof fd\.refIdx==='number'\)\?\('i'\+fd\.refIdx\):_refKeyOf\(fd\)\]=i;/,'L500 : solde de chaque ref homonyme compte en CHUTE, plus en perte');
 has(/if\(refKey\) div\.dataset\.refKey=refKey;/,'L500 : le separateur porte l identite de sa ref (en plus du twin L497)');
-has(/try\{ ficheRefOrder=_genOrder\.slice\(\); window\._l432KeepOrder=true; \}catch\(e\)\{\}/,'L500 : le hissage L491 ecrit ficheRefOrder (le rail ne diverge plus)');
+has(/try\{ ficheRefOrder=o\.slice\(\); window\._l432KeepOrder=true; \}catch\(e\)\{\}/,'L500→L502 : le hissage ecrit ficheRefOrder + drapeau one-shot L432 (dans le helper)');
 has(/function refDispCtx\(ref,refKey\)/,'L500 : le metrage affiche sur une carte est celui de SA reference');
 has(/\(typeof fd\.refIdx==='number'&&f\.refGroups\[fd\.refIdx\]\)\n        \|\|\(fd\.refIdKey&&/,'L500 : bords resolus par identite avant le nom');
 

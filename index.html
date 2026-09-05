@@ -3230,7 +3230,8 @@ function _machineProfileOf(email){
 }
 // Destinataire du mail plan de découpe — changer ici uniquement (un seul endroit)
 // Rétention archives (réglable ici)
-const ASSIST_TTL_DAYS=90;         // [L494] rétention des fils 💬 (champ expireAt, purge auto par le TTL Firestore)
+const ASSIST_TTL_DAYS=90;
+const REPORT_TTL_DAYS=180;        // [L503] retention des signalements (collection mail, champ expireAt — meme regle TTL console que assist)         // [L494] rétention des fils 💬 (champ expireAt, purge auto par le TTL Firestore)
 const RETENTION_DRAFT_DAYS=45;    // brouillons / fiches NON validées : purge auto après 45 jours
 const RETENTION_VALID_DAYS=730;   // fiches VALIDÉES : conservées 2 ans (730 j) — qualité / ISO / réclamations
 const COLD_ARCHIVE_KEY='step_cold_archive'; // archivage froid local avant purge définitive
@@ -3290,7 +3291,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.05-L501';
+const APP_VERSION='2026.09.05-L503';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3459,7 +3460,8 @@ function _reportWrite(kind,texte,err){
       doc.shots=shots;
       doc.message.attachments=[]; if(shots.actuel) doc.message.attachments.push({filename:'ecran-au-signalement.jpg',path:shots.actuel}); if(shots.plan) doc.message.attachments.push({filename:'ecran-plan.jpg',path:shots.plan}); if(shots.fiche) doc.message.attachments.push({filename:'ecran-fiche.jpg',path:shots.fiche});   // [L388+L451] l'ecran ACTUEL d'abord — Trigger Email télécharge le path à l'envoi
     }
-    return boundedWrite(db.collection('mail').add(doc),10000).then(function(){return true;}).catch(function(e){ return !!(e&&e.queued); });
+    try{ doc.expireAt=new Date(Date.now()+REPORT_TTL_DAYS*86400000); }catch(_){ }   /* [L503 · audit #21] */
+     return boundedWrite(db.collection('mail').add(doc),10000).then(function(){return true;}).catch(function(e){ return !!(e&&e.queued); });
   }catch(e){ return Promise.resolve(false); }
 }
 // signalement MANUEL (bulle)
@@ -4322,7 +4324,7 @@ function applyRole(){
   // Si l'onglet actif n'est plus autorisé, rebascule sur Plans
   const active=document.querySelector('.tab-btn.active');
   if(active){
-    if((active.id==='tabFiches'&&currentRole==='operateur')||(active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
+    if((active.id==='tabFiches'&&currentRole==='operateur')||(active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabClients'&&!(typeof _l486CanEdit==='function'&&_l486CanEdit()))||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
   }
   // Pré-sélectionner l'opérateur connecté dans la fiche
   if(currentUser&&currentUser.ini){
@@ -4472,7 +4474,7 @@ document.addEventListener('keydown',function(e){
       // déconnexion sur un poste partagé → écran maintenu allumé et reprise proposée à
       // l'opérateur suivant. On le coupe explicitement ici.
       try{
-        chronoRunning=false; chronoRunStart=null;
+        chronoRunning=false; chronoRunStart=null; _chronoRunBeganAt=null;   /* [L502] */
         if(chronoInterval){ clearInterval(chronoInterval); chronoInterval=null; }
         releaseWakeLock();
         try{ localStorage.removeItem(CHRONO_LS_KEY); }catch(_){}
@@ -4974,13 +4976,21 @@ async function _l486Publish(btn,silencieux){
        et on REFUSE si la version a bouge depuis notre chargement — l operateur recharge et recommence
        plutot que d ecraser le travail d un collegue. boundedWrite : meme garde hors-ligne que les 30
        autres ecritures du fichier (sans lui, la promesse ne revenait jamais et le bouton restait fige). */
+    /* [L503 · audit #6] Depuis le temps reel (L493), un snapshot peut arriver PENDANT la transaction :
+       il remplace CLIENT_DATA ET _l486SeenAt -> tx.set relisait la globale apres l await (la saisie
+       disparaissait en silence avec un toast vert) et la garde comparait la version serveur a elle-meme.
+       On FIGE donc la charge utile et la version de base AVANT tout await. Et _l486SeenAt===undefined
+       (jamais lu : boot sur cache, Quitter, retry epuise) ne court-circuite plus la garde : fail-closed. */
+    const _payload=JSON.parse(JSON.stringify({clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS}));
+    const _baseAt=_l486SeenAt;
     const _ref92=db.collection('config').doc('clients');
     await boundedTx(db.runTransaction(async function(tx){
       const snap=await tx.get(_ref92);
       const _cur=(snap.exists&&snap.data())?snap.data():null;
       const _vu=(_cur&&_cur.updatedAt)||null;
-      if(_l486SeenAt!==undefined&&_vu&&_vu!==_l486SeenAt) throw new Error('CONCURRENCE');
-      tx.set(_ref92,{clientData:CLIENT_DATA,pkgClients:PKG_CLIENTS,
+      if(_baseAt===undefined&&snap.exists) throw new Error('JAMAIS_LU');
+      if(_vu&&_vu!==_baseAt) throw new Error('CONCURRENCE');
+      tx.set(_ref92,{clientData:_payload.clientData,pkgClients:_payload.pkgClients,
         updatedAt:isoNow(),updatedBy:(currentUser&&currentUser.ini)||'?'},{merge:false});
     }),10000);   /* [L492 · gardien L272#5] boundedTx et NON boundedWrite : une transaction qui expire n est PAS mise en file — dire « ne re-saisis pas » serait un mensonge, l action n a PAS eu lieu */
     /* [L493] plus de remise a null ici : l abonnement remet _l486SeenAt a la vraie version tout seul. La remettre a null faisait perdre la course a l echo du snapshot -> faux « CONCURRENCE » a la 2e publication de la meme session. */
@@ -4990,7 +5000,8 @@ async function _l486Publish(btn,silencieux){
     return true;
   }catch(e){
     var m=String((e&&e.code)||(e&&e.message)||e);
-    if(m.indexOf('CONCURRENCE')>=0) showToast('⚠ Un autre poste a modifié la liste entre-temps. Rien n’a été enregistré — recharge la page (ta modification n’est pas perdue à l’écran, re-saisis-la après le rechargement).','err');
+    if(m.indexOf('JAMAIS_LU')>=0) showToast('⚠ Le référentiel partagé n’a pas encore été reçu sur ce poste (réseau ?). Rien n’a été enregistré — attends quelques secondes et recommence.','err');
+    else if(m.indexOf('CONCURRENCE')>=0) showToast('⚠ Un autre poste a modifié la liste entre-temps. Rien n’a été enregistré — la liste vient d’être rechargée : re-saisis ta modification.','err');
     else if(m.indexOf('permission')>=0) showToast('🔒 Écriture refusée : la règle Firestore « config » est réservée à l’admin. Rien n’a été enregistré — à élargir en console (match /config/{id} : allow write si Dominique/pilotage).','err');
     else if(/hors.?ligne|offline|unavailable|delai|timeout/i.test(m)) showToast('📴 Pas de réseau — rien n’a été enregistré. Refais-le une fois reconnecté (ne re-saisis pas deux fois).','err');
     else showToast('Enregistrement impossible — rien n’a été enregistré : '+m,'err');
@@ -6269,6 +6280,21 @@ function isFicheUntouched(){
   return true;
 }
 
+/* [L502 · audit #3] LE seul endroit qui decide « la chute ♻ passe en 1er » a partir du MOTEUR (recutGroups),
+   applique par les generateurs (import auto, recalcul). keep=true (reordonnancement manuel ▲▼ / ⬆ Couper en
+   1er, ou commande engagee) : on ne touche a rien — le choix de l operateur gagne. L ordre est ECRIT dans
+   ficheRefOrder + drapeau one-shot L432, sinon le rail affiche l ancien ordre. Priorite validation-vs-chute
+   (une ref NON validee qui porte une chute) : decision metier laissee a Esteban, non tranchee ici. */
+function _cutOrderChutesFirst(order,computed,keep){
+  try{
+    if(keep||!Array.isArray(order)||!Array.isArray(computed)) return order;
+    const has=k=>{ const c=computed[k]; return !!(c&&Array.isArray(c.recutGroups)&&c.recutGroups.length); };
+    if(!order.some(has)||has(order[0])) return order;
+    const o=order.filter(has).concat(order.filter(k=>!has(k)));
+    try{ ficheRefOrder=o.slice(); window._l432KeepOrder=true; }catch(e){}
+    return o;
+  }catch(e){ return order; }
+}
 function importPlanToFiche(opts){
   // opts.auto === true : appelé automatiquement au passage Plan→Fiche (silencieux, pas de bascule, pas d'alerte bloquante)
   // sinon : clic explicite sur le bouton (confirmations + bascule + toast)
@@ -6447,13 +6473,7 @@ function importPlanToFiche(opts){
        reordonner des REFS ne change ni leur nombre ni leur ordre interne : les etiquettes deja tapees
        retombent sur leur bobine (cf. _l434SnapLabels). Une fiche ENGAGEE n arrive jamais ici en auto
        (isFicheUntouched garde plus haut) : le travail terrain reste intouche. */
-    try{
-      const _hasR91=k=>{ const c=computed[k]; return !!(c&&Array.isArray(c.recutGroups)&&c.recutGroups.length); };
-      if(_genOrder.some(_hasR91)&&!_hasR91(_genOrder[0])){
-        _genOrder=_genOrder.filter(_hasR91).concat(_genOrder.filter(k=>!_hasR91(k)));
-        try{ ficheRefOrder=_genOrder.slice(); window._l432KeepOrder=true; }catch(e){}   /* [L500 · audit] sinon le rail (fmmGenOrder lit fmmCutOrder) affichait l ancien ordre — meme geste que L490 */
-      }
-    }catch(e){}
+    try{ _genOrder=_cutOrderChutesFirst(_genOrder,computed,!!(opts&&opts.keepRefValidation)); }catch(e){}   /* [L502 · audit #3] helper UNIQUE ; un reordonnancement MANUEL (keepRefValidation) n est plus ecrase par un re-hissage */
     // [L497 · signalement MR 04/09 · atelier CEVENINI] refs HOMONYMES (meme nom, metrage
     // different — KX1006-1 en 1000 ml puis 700 ml) : l operateur voyait 26 cartes au libelle
     // IDENTIQUE, frontiere invisible (separateur masque depuis L382 hors changement de machine),
@@ -10924,7 +10944,7 @@ function chronoReset(force){
   try{ if(typeof trainingGuard!=='function'||!trainingGuard()) localStorage.removeItem(CHRONO_MIR_LS_KEY); }catch(e){}   // [L298 · revue ×2] reset CONFIRMÉ (manuel OU frontière force) : le temps miroir en attente est jeté aussi — un ↺ Reset en vue miroir ne doit JAMAIS ressusciter à la réouverture · [L384 · audit final] SAUF en entraînement : un reset/envoi d'EXERCICE ne jette pas un temps miroir RÉEL en attente (les resetAll d'entrée/sortie du mode tournent hors _trainingMode et restent couverts)
   chronoRunning=false;
   clearInterval(chronoInterval);
-  chronoSec=0;chronoStartTs=null;chronoRunStart=null;_chronoAutoStopOverride=null;
+  chronoSec=0;chronoStartTs=null;chronoRunStart=null;_chronoAutoStopOverride=null;_chronoRunBeganAt=null;   /* [L502] */
   document.getElementById('chronoDisplay').textContent='00:00:00';
   document.getElementById('chronoDisplay').className='chrono-display';
   document.getElementById('chronoStartBtn').classList.remove('hidden');
@@ -11038,7 +11058,7 @@ function persistChronoLive(){
     if(chronoRunning && chronoRunStart!=null && (typeof _viewingSharedId!=='undefined'&&_viewingSharedId)){
       // [L298 · revue P1] chrono d'une VUE MIROIR : clé DÉDIÉE (jamais la clé perso — sinon la reprise d'un
       // brouillon perso au boot la réécrivait mir:null et détruisait le temps du récepteur avant la réouverture).
-      localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',mir:_viewingSharedId}));
+      localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({runStart:chronoRunStart,startTs:chronoStartTs,override:_chronoAutoStopOverride||'',mir:_viewingSharedId,began:_chronoRunBeganAt||null}));   /* [L502] le miroir persiste le ▶ reel */
     }else if(chronoRunning && chronoRunStart!=null){
       /* [L496 · chrono 28 h] Ne JAMAIS écraser par null un « began » déjà stocké : quand _chronoRunBeganAt
          était perdu, le premier tick suivant détruisait la seule copie durable du vrai ▶ et la panne
@@ -11050,7 +11070,7 @@ function persistChronoLive(){
     }else if((typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof chronoSec==='number'&&chronoSec>0)){
       // [L298 · audit v2] miroir + chrono EN PAUSE (⏸ ou arrêt auto 16h15) : les autosaves sont neutralisés en
       // vue miroir → ce temps ne vivait NULLE PART. Clé MIR dédiée, identité du partage incluse.
-      localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({sec:chronoSec,startTs:chronoStartTs||null,override:_chronoAutoStopOverride||'',mir:_viewingSharedId,paused:true}));
+      localStorage.setItem(CHRONO_MIR_LS_KEY,JSON.stringify({sec:chronoSec,startTs:chronoStartTs||null,override:_chronoAutoStopOverride||'',mir:_viewingSharedId,paused:true,began:_chronoRunBeganAt||null}));
     }else if(!(typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof chronoSec==='number'&&chronoSec>0)&&chronoStartTs){
       // [L373 · audit chrono P4] chrono PERSO EN PAUSE : repli localStorage (avant, seul le write Firestore forcé
       // portait la pause — refus persistant + onglet tué = reprise EN MARCHE sur un vieux runStart).
@@ -11913,7 +11933,7 @@ function recalcEcartsFromFiche(opts){
     _machChgOrig=null;   // [L97 · relecture #23] la map « machines avant changement » pointe des ids détruits — l'appliquer après reconstruction écrasait les machines
     ficheLines=[];
     const recap=[]; let totalAdded=0; let _firstAddedId=null;   // [L87]
-    const _genOrderR=(typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k);
+    const _genOrderR=_cutOrderChutesFirst((typeof fmmGenOrder==='function')?fmmGenOrder(computed):computed.map((_,k)=>k),computed,true);   /* [L502] meme helper, keep=true : une commande ENGAGEE ne se renumerote jamais (regle L490) — l appel documente la decision */
     const doneKeys=new Set(), _riByBase={}, _rollConsByBase={};   // [L298] compteur d'étiquettes + conso rouleaux PAR CLÉ DE BASE (partagés entre blocs machine frères)
     let _prevMachR='';   // [L92 · Audit #15] même signalétique machine que l'import
     // [L497] meme detection d homonymes que la generation initiale (le recalcul d une commande
@@ -14441,14 +14461,19 @@ async function computeMonthAggregate(ym){
     db.collection('fiches').where('date','>=',_lo).where('date','<',_hi).get(),
     db.collection('temps').where('date','>=',_lo).where('date','<',_hi).get()
   ]);
+  /* [L503 · audit #4] Hors-ligne, Firestore sert le CACHE sans erreur : on aurait fige un sous-ensemble
+     par-dessus 12 mois ISO avec « ✓ recalcules » en vert. Meme garde que l export audit (L485). */
+  if((r[0].metadata&&r[0].metadata.fromCache)||(r[1].metadata&&r[1].metadata.fromCache)) throw new Error('Hors-ligne : figeage REFUSÉ (données servies depuis le cache, pas depuis le serveur)');
   const kpi=buildMonthlyKpi(ym,r[0].docs.map(d=>d.data()),r[1].docs.map(d=>d.data()));
-  kpi.figeAt=isoNow();
-  kpi.figeBy=currentUser?(currentUser.ini||currentUser.nom||'?'):'?';
+  const _old=(agregatsCache||[]).find(a=>a&&a.mois===ym)||null;   /* [L503] la date de figeage D ORIGINE est une preuve chronologique ISO : on la garde, on ajoute la trace du recalcul */
+  kpi.figeAt=(_old&&_old.figeAt)||isoNow();
+  kpi.figeBy=(_old&&_old.figeBy)||(currentUser?(currentUser.ini||currentUser.nom||'?'):'?');
+  if(_old){ kpi.recalcAt=isoNow(); kpi.recalcBy=currentUser?(currentUser.ini||currentUser.nom||'?'):'?'; kpi.recalcN=(Number(_old.recalcN)||0)+1; }
   await _bw(db.collection('agregats').doc(ym).set(kpi),15000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
   const i=agregatsCache.findIndex(a=>a.mois===ym);
   if(i>=0) agregatsCache[i]=kpi; else agregatsCache.push(kpi);
   agregatsCache.sort((a,b)=>a.mois<b.mois?1:-1);
-  logAudit('aggregate','agregats',ym,`KPI mensuel figé — ${kpi.nbFiches} fiches · ${kpi.totalBobines} bob · perte ${kpi.pertePct}%`).catch(function(){});
+  logAudit('aggregate','agregats',ym,(kpi.recalcN?`KPI mensuel RECALCULÉ (n°${kpi.recalcN}, figé le ${kpi.figeAt}) — `:`KPI mensuel figé — `)+`${kpi.nbFiches} fiches · ${kpi.totalBobines} bob · perte ${kpi.pertePct}%`).catch(function(){});
   return kpi;
 }
 async function loadAgregats(){
@@ -18572,7 +18597,7 @@ function _l498Editor(ni,idx,mode,btn){
   const row=btn.closest('.l498-ligne'); if(!row) return;
   const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
   const d=document.createElement('div');
-  d.className='l498-edit'; d.dataset.ni=ni; d.dataset.idx=idx; d.dataset.mode=mode;
+  d.className='l498-edit'; d.dataset.ni=nom; d.dataset.idx=idx; d.dataset.mode=mode;   /* [L503] on memorise le NOM, plus la position */
   d.dataset.ref=r.ref; d.dataset.la=String(r.largeur||0); d.dataset.lo=String(r.longueur||0);   /* l'empreinte */
   d.style.cssText='display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px;margin:4px 0;background:var(--bg);border:1px dashed var(--border2);border-radius:8px';
   d.innerHTML='<span style="width:100%;font-size:11.5px;color:var(--muted)">'
@@ -18589,7 +18614,7 @@ function _l498Editor(ni,idx,mode,btn){
 async function _l498Save(btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const d=btn.closest('.l498-edit'); if(!d) return;
-  const nom=_l486Nom(+d.dataset.ni);
+  const nom=_l486Nom(String(d.dataset.ni));   /* [L503] par nom */
   if(!nom){ showToast('La liste a changé entre-temps — elle vient d’être rechargée.','err'); renderClients(); return; }
   const arr=CLIENT_DATA[nom]||[];
   let idx=+d.dataset.idx;
@@ -18655,16 +18680,16 @@ function renderClients(){
       return '<div class="l498-ligne" style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13.5px">'   /* [L498] 13.5px + title + ✏️/⧉ (demande Céline : lignes lisibles, modifier sans supprimer, dupliquer en changeant le métrage) */
         +'<span title="'+_l486Esc(r.ref)+'" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_l486Esc(r.ref)+'</span>'
         +'<span style="color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums">'+(r.largeur||'—')+' mm × '+(r.longueur||'—')+' ml</span>'
-        +'<button class="btn btn-sm" data-i="'+ni+'" data-idx="'+i+'" onclick="_l498Edit(+this.dataset.i,+this.dataset.idx,this)" title="Modifier — nom, laize ou métrage, sans supprimer">✏️</button>'
-        +'<button class="btn btn-sm" data-i="'+ni+'" data-idx="'+i+'" onclick="_l498Dup(+this.dataset.i,+this.dataset.idx,this)" title="Dupliquer — même référence, autre métrage">⧉</button>'
-        +'<button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" data-idx="'+i+'" onclick="_l486DelRef(+this.dataset.i,+this.dataset.idx,this)" title="Retirer cette référence">✕</button>'
+        +'<button class="btn btn-sm" data-cli="'+_l486Esc(n)+'" data-idx="'+i+'" onclick="_l498Edit(this.dataset.cli,+this.dataset.idx,this)" title="Modifier — nom, laize ou métrage, sans supprimer">✏️</button>'
+        +'<button class="btn btn-sm" data-cli="'+_l486Esc(n)+'" data-idx="'+i+'" onclick="_l498Dup(this.dataset.cli,+this.dataset.idx,this)" title="Dupliquer — même référence, autre métrage">⧉</button>'
+        +'<button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-cli="'+_l486Esc(n)+'" data-idx="'+i+'" onclick="_l486DelRef(this.dataset.cli,+this.dataset.idx,this)" title="Retirer cette référence">✕</button>'
         +'</div>';
     }).join('')||'<div style="font-size:12px;color:var(--muted);padding:3px 0">aucune référence</div>';
     const pkg=(PKG_CLIENTS||{})[n];
     return '<details data-cli="'+_l486Esc(n)+'"'+(_l498Deplies.has(n)?' open':'')+' style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
       +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
       +'<div style="margin-top:6px">'+refs+'</div>'
-      +'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-i="'+ni+'" onclick="_l489DelCli(+this.dataset.i,this)" title="Supprimer ce client et toutes ses références">🗑 Supprimer ce client</button></div>'
+      +'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-cli="'+_l486Esc(n)+'" onclick="_l489DelCli(this.dataset.cli,this)" title="Supprimer ce client et toutes ses références">🗑 Supprimer ce client</button></div>'
       +'</details>';
   }).join('');
   const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
@@ -18776,7 +18801,13 @@ async function _l489DelCli(ni,btn){
   try{ _l488RefreshClientUI(); }catch(_){ }
   renderClients(); showToast('✔ Client « '+nom+' » supprimé (effectif tout de suite sur les autres postes).','ok');
 }
-function _l486Nom(ni){ return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni]; }   /* meme tri que le rendu */
+function _l486Nom(ni){
+  /* [L503 · audit #7] les boutons portaient une POSITION dans une liste qui bouge en direct (snapshot) : un
+     client ajoute au bureau decalait tout, le 🗑 visait un AUTRE client. Ils portent desormais le NOM, et
+     un nom disparu est refuse explicitement. L index numerique reste accepte (anciens appels). */
+  if(typeof ni==='string') return (CLIENT_DATA&&Object.prototype.hasOwnProperty.call(CLIENT_DATA,ni))?ni:null;
+  return Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); })[ni];
+}   /* meme tri que le rendu */
 async function _l486DelRef(ni,idx,btn){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
   const nom=_l486Nom(ni); if(!nom) return;
@@ -23423,7 +23454,7 @@ function openSharedCommand(id){
           // reprend d'un ▶ conscient ; le toast lui dit le temps restauré.
           let _sec=0;
           if(lv.runStart&&_dateKey(lv.runStart)===_dateKey(Date.now())) _sec=Math.max(0,Math.floor((Date.now()-lv.runStart)/1000));
-          else if(lv.runStart) _sec=chronoCrossDaySec(0,lv.runStart);
+          else if(lv.runStart) _sec=chronoCrossDaySec(0,lv.began||lv.runStart,lv.runStart);   /* [L502] jour = ▶ reel, duree = origine virtuelle */
           else if(lv.paused&&typeof lv.sec==='number') _sec=lv.sec;
           if(_sec>0) _liveChr={sec:_sec,wasRunning:false,runStart:null,startTs:lv.startTs||null};
         }
@@ -23517,7 +23548,7 @@ function _syncSharedApply(doc){
   }
   _viewingSharedRev=rev;
   // Préserver le chrono du destinataire (restoreFicheState le remettrait à zéro).
-  const _prevChrono={sec:chronoSec,startTs:chronoStartTs,wasRunning:chronoRunning,runStart:chronoRunStart};
+  const _prevChrono={sec:chronoSec,startTs:chronoStartTs,wasRunning:chronoRunning,runStart:chronoRunStart,began:_chronoRunBeganAt||null};   /* [L502] la greffe transporte le ▶ reel */
   const _sy=window.scrollY||0;   // préserver le défilement (reconstruction complète du DOM)
   const _fl0=document.getElementById('ficheLines'); const _flTop=_fl0?_fl0.scrollTop:0;   // [L343 · fix audit] en paysage c'est #ficheLines qui défile
   // [L168 · audit #14] préserver la SAISIE QUALITÉ EN COURS du destinataire (test2/NC/détail/action) : la
@@ -24397,7 +24428,7 @@ async function maybeResumeRunningChrono(){
         // postérieur à runStart, sinon minuit (week-end / heures supp démarrées après le cutoff).
         // Jamais recalé sur l'horloge d'aujourd'hui (POINT 4) ; jamais négatif (Math.max avec
         // le sec déjà écrit, et _fin > runStart par construction).
-        showSec=chronoCrossDaySec(showSec,cRef.runStart);   // helper partagé avec restoreChrono (reprise manuelle)
+        showSec=chronoCrossDaySec(showSec,cRef.began||cRef.runStart,cRef.runStart);   // helper partagé avec restoreChrono (reprise manuelle) · [L502] un brouillon deja gonfle est RAMENE, plus maximise
       }
       const _f=(d.state&&d.state.fiche)||{}, _p=(d.state&&d.state.plan)||{};
       const lbl=(_f.client||_p.client||'—')
@@ -24440,7 +24471,7 @@ async function maybeResumeRunningChrono(){
     // bobine) : on relance au moins le chrono là où il en était.
     if(live && live.runStart && _dateKey(live.runStart)===_dateKey(Date.now())){
       try{ if(live.began) _chronoRunBeganAt=live.began; }catch(e){}   /* [L440 · audit #21] */
-      restoreChrono({startTs:live.startTs, runStart:live.runStart, wasRunning:true,
+      restoreChrono({startTs:live.startTs, runStart:live.runStart, wasRunning:true, began:live.began||null,   /* [L502] */
         sec:Math.max(0,Math.floor((Date.now()-live.runStart)/1000))});
       if(live.override) _chronoAutoStopOverride=live.override;
       if(live.mir) _mirChronoDoc=live.mir;   // [L298] temps d'une vue MIROIR : mémorisé pour la réouverture du même partage (openSharedCommand le préserve)
@@ -24964,7 +24995,11 @@ function restoreChrono(c){
        de 16h15 ne tombe pas la nuit — le chrono repartait le lendemain matin en comptant depuis son départ
        VIRTUEL de la veille : 28 h affichées sur la commande Legrand 365356 (signalement JF du 01/09).
        Repli sur c.runStart : sûr, car _crossDay===false garantit qu'il date d'aujourd'hui. */
-    _chronoRunBeganAt = c.began || c.runStart || Date.now();
+    /* [L502 · audit #2] NON DESTRUCTIF : L496 ecrivait `c.began || c.runStart` — les objets chrono du
+       MIROIR, du filet et de la greffe n ont pas de began, donc chaque push du partage (~10 s) remplacait
+       le vrai ▶ par l origine virtuelle et rendait la garde cross-day aveugle. Un objet sans began ne
+       touche plus a un repere deja connu. */
+    if(c.began) _chronoRunBeganAt=c.began; else if(!_chronoRunBeganAt) _chronoRunBeganAt=c.runStart||Date.now();
     chronoRunStart=c.runStart;
     chronoSec=Math.max(0,Math.floor((Date.now()-chronoRunStart)/1000));
     chronoRunning=true;
@@ -24986,7 +25021,7 @@ function restoreChrono(c){
   // très périmé (chrono exclu de la signature d'autosave) — même recalcul que la reprise
   // AUTO (maybeResumeRunningChrono), sinon la reprise MANUELLE depuis Brouillons affichait
   // un temps différent (et sous-compté) pour la même commande.
-  chronoSec=(c.wasRunning&&c.runStart&&_crossDay)?chronoCrossDaySec(c.sec,c.runStart):(c.sec||0);
+  chronoSec=(c.wasRunning&&c.runStart&&_crossDay)?chronoCrossDaySec(c.sec,c.began||c.runStart,c.runStart):(c.sec||0);   /* [L502] idem : ramene a la fin de journee du ▶ reel */
   document.getElementById('chronoDisplay').textContent=fmtTime(chronoSec);
   document.getElementById('chronoDisplay').className='chrono-display paused';
   document.getElementById('chronoStartBtn').classList.remove('hidden');
