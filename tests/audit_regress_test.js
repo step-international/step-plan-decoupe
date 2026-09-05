@@ -650,13 +650,13 @@ has(/btn\.disabled=false; btn\.style\.opacity=\(n===0\)/,'L321 : « pas prêt »
 console.log('── L322 : REDESIGN LOT 20 — accueil 3 cartes + indice débutant (§2.19-4/5) ──');
 has(/function maybeWelcome/,'L322 : accueil une seule fois (step_welcome_v1), JAMAIS si chronoRunning, réaffichable via ?');
 absent(/welcomeHelpBtn/,'L322→L484 : bouton « ? » et son CSS PURGES (accueil retire L386)');
-has(/step_hint_cut_/,'L322 : indice « 1 tap = coupée + test OK » sur les 3 premières bobines de la VIE de l opérateur (par initiales)');
-has(/hintCoupeeCount/,'L322 : compté UNIQUEMENT sur coupe réussie (pas les refus)');
+absent(/_hintCutKey|hintCoupeeApply|hintCoupeeCount/,'L322→L506 : indice « 1 tap » entièrement purgé (clé, application, compteur) — le has() ne matchait plus que la ligne de ménage');
+absent(/hintCoupeeCount/,'L322→L506 : compteur de la bulle « 1 tap » PURGÉ (bulle retirée L402, il écrivait encore à chaque coupe)');
 
 console.log('── L323 : REDESIGN LOT 22 — mode APPRENTI (§2.19-6, interprétation minimale) ──');
-has(/step_appr_/,'L323 : apprenti par initiales, ON par défaut pour des initiales inconnues (compteur 5)');
-has(/_apprentiTick\(ncCount\)/,'L323 : extinction auto — décrément à chaque envoi validé SANS NC');
-absent(/apprentiRearm/,'L323→L484 : apprentiRearm PURGEE (seul appelant etait le corps mort de l accueil) — le mode apprenti reste vivant via _apprentiOn/_apprentiTick');
+absent(/function _apprentiKey\(|function _apprentiOn\(|function _apprentiTick\(/,'L323→L506 : mode apprenti SUPPRIMÉ (décision Esteban 05/09) — les 3 fonctions ont disparu');
+absent(/_apprentiTick\(/,'L323→L506 : plus de tick apprenti à l envoi');
+absent(/apprentiRearm|_apprentiOn|_apprentiKey/,'L323→L484→L506 : apprentiRearm purgé en L484, le reste du mode en L506 (décision Esteban)');
 absent(/step_appr.*firestore|collection\('step_appr/,'L323 : localStorage SEUL — jamais en base');
 
 console.log('── L324 : REDESIGN LOT 12 — gamification G1 série sans NC (§2.5) ──');
@@ -862,8 +862,8 @@ has(/animation:l353OverPulse 1\.8s ease-out infinite/,'L353 fix audit : halo rou
 has(/<span class="foc-cfg"> · ➜ '\+esc\(_cfg\)\+'<\/span>/,'L353 n°10 : ordre de coupe ligne 3 = n bobines · ➜ config à venir (§2.21)');
 has(/const cf=row\.querySelector\('\.foc-cfg'\); if\(cf\)\{/,'L353 fix audit : config de la ligne 3 rafraîchie à chaque coche (_l340SyncOrderStates)');
 has(/^\.foc-cfg\{display:none\}$/m,'L353 n°10 : config de la ligne 3 masquée en portrait (identique)');
-has(/document\.body\.classList\.toggle\('apprenti',!!apprenti\)/,'L353 n°12 : body.apprenti posé par hintCoupeeApply (mode apprenti visible)');
-has(/sous-texte retiré — juste DÉFAUT/,'L353 n°12 (retiré L402 — décision Esteban) : plus de sous-indice sous DÉFAUT');
+absent(/classList\.toggle\('apprenti'/,'L353→L506 : plus de classe apprenti posée sur le corps de page');
+has(/\[L506 · décision Esteban 05\/09\] mode apprenti SUPPRIMÉ : les 3 règles CSS/,'L353→L402→L506 : sous-indice sous DÉFAUT : la règle ET sa neutralisation sont parties avec le mode apprenti');
 
 console.log('── L354 : backlog n°16 · 17 · 19 (19/08) ──');
 has(/id="saveFilterToday" aria-pressed="false" onclick="toggleSaveFilterToday\(\)"/,'L354 n°16 : filtre 📅 Aujourd hui (n) dans Données › Plans (source _plnSpanIsos, lecture seule)');
@@ -1266,8 +1266,8 @@ has(/resolution tolerante extraite en helper partage/,'L401→L410 : packaging m
 has(/function _l402CliRecaps/,'L401 : « Sa commande » (bobineaux × laizes) sous chaque client');
 
 console.log('── L402 : NC compact + % + pédagogies retirées ──');
-has(/bulle « 1 TAP = COUPÉE \+ TEST OK » retirée/,'L402 : bulle 1-TAP retirée');
-has(/sous-texte retiré — juste DÉFAUT/,'L402 : « bobine non conforme ? → ici » retiré');
+has(/\[L506\] bulle « 1 tap » : CSS purgé/,'L402→L506 : bulle 1-TAP retirée L402, CSS et compteur purgés L506');
+absent(/bobine non conforme \? → ici/,'L402 : « bobine non conforme ? → ici » retiré (texte absent du fichier)');
 has(/panneau NC COMPACT : on voit encore l'écran derrière/,'L402 : panneau NC compact');
 has(/\(perdus\)<\/div><\/div>/,'L402 : tuiles déchet/chutes avec pourcentage');
 
@@ -1980,7 +1980,7 @@ has(/lastByRef\[\(typeof fd\.refIdx==='number'\)\?\('i'\+fd\.refIdx\):_refKeyOf\
 has(/if\(refKey\) div\.dataset\.refKey=refKey;/,'L500 : le separateur porte l identite de sa ref (en plus du twin L497)');
 has(/try\{ ficheRefOrder=o\.slice\(\); window\._l432KeepOrder=true; \}catch\(e\)\{\}/,'L500→L502 : le hissage ecrit ficheRefOrder + drapeau one-shot L432 (dans le helper)');
 has(/function refDispCtx\(ref,refKey\)/,'L500 : le metrage affiche sur une carte est celui de SA reference');
-has(/\(typeof fd\.refIdx==='number'&&f\.refGroups\[fd\.refIdx\]\)\n        \|\|\(fd\.refIdKey&&/,'L500 : bords resolus par identite avant le nom');
+has(/const g=_l506RefGroupFor\(f,fd\)\|\|f\.refGroups\[0\];/,'L500→L506 : bords résolus par la résolution unique (identité d abord), repli historique rg[0]');
 
 console.log('── L499 : métrage de la mère sur le PDF plan mono-réf (demande Céline 04/09) ──');
 has(/mono.longueur/,'L499 : l en-tête mono du PDF plan affiche le métrage de la mère (mono.longueur, absent avant ce lot) — Dominique l écrivait au stylo, le multi l avait déjà');
@@ -1990,10 +1990,10 @@ has(/const _mlOf=function\(c\)\{ const v=\(c&&c\.longueur!=null\)\?c\.longueur:'
 absent(/const ml=parseFloat\(String\(c\.longueur==null\?'':c\.longueur\)/,'L505 : plus aucune lecture brute du métrage dans computePlanAggregate (« 1 500 » valait 1 dans pertePctMl)');
 has(/const ml=_mlOf\(c\);   \/\* \[L505 · audit #8\] même lecture que la chute/,'L505 : pertePctMl passe par _mlOf');
 has(/const ml=_mlOf\(c\);   \/\* \[L505 · audit #8\] helper unique/,'L505 : chuteM2 passe par _mlOf');
-has(/upd\.pctMl=null;   \/\* \[L505 · audit #8\]/,'L505 : édition admin (mono-réf) invalide pctMl → les 3 lecteurs retombent sur le pct recalculé');
+has(/upd\.pctMl=\(_d\.pctMl==null\)\?null:_d\.pctMl\.toFixed\(2\);/,'L505→L506 : pctMl recalculé pondéré par le métrage de chaque réf (null si un métrage manque → repli pct)');
 has(/upd\.chuteM2=null;   \/\* \[L505 · audit #8\]/,'L505 : édition admin invalide chuteM2 → reconstruction depuis le ficheDetail édité');
 has(/const _lgOf=function\(ri,nom\)\{/,'L505 : _lgOf résout par INDEX puis par NOM');
-has(/if\(rg\.length>1\) return 0;\s+\/\* multi-réf sans métrage résolu : réf OMISE/,'L505 : multi-réf sans métrage → 0, jamais rg[0] ni f.longueur « 1500 / 2000 »');
+has(/if\(rg\.length>1\)\{ _l505Warn\('_lgOf·non-résolue',new Error\(String\(nom\|\|''\)\)\); return 0; \}/,'L505→L506 : multi-réf sans métrage résolu → 0 + trace, jamais rg[0] ni f.longueur « 1500 / 2000 »');
 absent(/const g=\(typeof ri==='number'&&rg\[ri\]\)\|\|rg\[0\];/,'L505 : le repli rg[0] a disparu de _lgOf');
 has(/lg=_lgOf\(e\.ri, e\.last&&e\.last\.ref\)/,'L505 : la reconstruction passe le NOM de la réf à _lgOf');
 has(/^function _l505HorsPlan\(fd\)\{/m,'L505 : règle HORS PLAN unique (_l505HorsPlan)');
@@ -2003,6 +2003,49 @@ has(/^function _l505Warn\(where,e\)\{/m,'L505 : catch muets de la chaîne ISO �
 has(/\}catch\(e\)\{ _l505Warn\('wasteOf',e\); return 0; \}/,'L505 : wasteOf trace son repli');
 has(/\}catch\(e\)\{ _l505Warn\('_l493ChuteFromDetail',e\); return 0; \}/,'L505 : _l493ChuteFromDetail trace son repli');
 has(/\}catch\(e\)\{ _l505Warn\('ncLoss·chute',e\); \}/,'L505 : NC → chute trace son repli');
-has(/window\._l505WarnN>0\)\?' · ⚠ '\+window\._l505WarnN\+' calcul\(s\) en repli \(console\)':''/,'L505 : la tuile Chutes gardées affiche le compteur de replis');
+has(/kpi\.calcWarn>0\)\?' · ⚠ '\+kpi\.calcWarn\+' calcul\(s\) en repli \(console\)':''/,'L505→L506 : la tuile Chutes gardées affiche le compteur de replis DE L AGRÉGAT (plus un cumul de session)');
+console.log('── L506 · décision Esteban 05/09 : mode apprenti + bulle « 1 tap » supprimés ──');
+has(/\[L506 · décision Esteban 05\/09\] MODE APPRENTI \(L323\) et INDICE « 1 tap » \(L322\) SUPPRIMÉS/,'L506 : pierre tombale documentée (pourquoi, quoi)');
+has(/k\.indexOf\('step_appr_'\)===0\|\|k\.indexOf\('step_hint_cut_'\)===0/,'L506 : ménage des anciennes clés localStorage sur les tablettes');
+absent(/body\.apprenti/,'L506 : plus aucune règle CSS body.apprenti (les 3 étaient neutralisées depuis L402)');
+absent(/\.hint-cut/,'L506 : plus aucune règle CSS .hint-cut');
+absent(/hintCoupeeApply\(\)/,'L506 : hintCoupeeApply (devenue no-op) retirée de la boucle de rendu');
+has(/if\(_armed\)\{ confirmCommande\(\); return; \}/,'L506 : envoi armé → envoi réel, sans détour');
+has(/_l505Warn\('_lgOf·homonymes'/,'L506 : homonymes de métrages différents sans refIdx → réf omise + trace (jamais la 1re trouvée)');
+console.log('── L506 · vérification adverse de L505 (workflow 28 agents, 8 confirmés) ──');
+has(/if\(f\.manqueMatiere\) return 0;/,'L506 : manque-matière → chute reconstruite 0 (même doctrine que la branche chiffrée L492 ; upd.chuteM2=null ne la contourne plus)');
+absent(/if\(f\.manqueMatiere&&fd\.coupee!==true\) return;/,'L506 : l ancienne demi-règle (lignes coupées créditées) a disparu');
+has(/const _riOf=function\(fd\)\{ try\{ const rg=Array\.isArray\(f\.refGroups\)\?f\.refGroups:null; if\(!rg\|\|rg\.length<=1\) return 0; const g=_l506RefGroupFor\(f,fd\); return g\?rg\.indexOf\(g\):-1; \}catch\(e\)\{ return -1; \} \};/,'L506 : un seul espace de seaux, index résolu par _l506RefGroupFor');
+has(/_l505Warn\('_lgOf·non-résolue'/,'L506 : multi-réf non résolue → 0 + trace (plus de 0 silencieux)');
+has(/rec\.forEach\(d=>\{ const b=bucket\(bk\(d\)\); const t=tot\(d\); b\.mat\+=d\.useful; b\.used\+=t; b\.reste\+=Math\.max\(0,d\.useful-t\); \}\);/,'L506 : édition admin : un ♻ compte pour SA largeur et son résidu n est pas une perte mère (source alignée)');
+has(/let cs=b\.phase; if\(b\.last&&!b\.last\.phaseEnd\) cs\+=Math\.max\(0,b\.last\.useful-tot\(b\.last\)\);/,'L506 : solde stock = dernière MÈRE de chaque réf + fins de phase (3e vérification : les fins de phase étaient requalifiées en perte)');
+has(/calcWarn:\(typeof window!=='undefined'\?\(window\._l505WarnN\|\|0\):0\)/,'L506 : compteur de replis stocké dans l agrégat');
+has(/if\(typeof window!=='undefined'\) window\._l505WarnN=0;/,'L506 : compteur remis à zéro à chaque agrégat');
+console.log('── L506 · 2e vérification adverse (21 agents, 5 confirmés) ──');
+has(/^function _l506GroupsFromDetail\(detail,useful,blade\)\{/m,'L506 : regroupement à la laize de CHAQUE ligne, marqueur ♻ conservé (fiche imprimée cohérente)');
+has(/const groups=_l506GroupsFromDetail\(plan,fu,fb\);/,'L506 : groups régénérés par la fonction unique (lignes du plan, laize de chaque ligne)');
+absent(/function groupsFromDetail\(/,'L506 : l ancien regroupement (laize de la mère pour tout, ♻ perdu) a disparu');
+has(/if\(!_multiEF\) _defs=\{useful:parseNum\(f\.useful\)\|\|0,blade:parseNum\(f\.blade\)\|\|0,ref:f\.ref\|\|'',refIdx:0\};/,'L506 : bobine AJOUTÉE par l admin (mono-réf) hérite laize/lame/réf de la fiche');
+has(/if\(nrm\(g\.ref\)!==_nn&&rg\.some\(function\(x\)\{ return x&&nrm\(x\.ref\)===_nn; \}\)\) g=null;/,'L506 : _lgOf rejette l index seulement si le nom désigne un AUTRE groupe (réf renommée : index gardé)');
+has(/^function _l506RefGroupFor\(f,fd\)\{ try\{/m,'L506 : résolution UNIQUE de la réf d une ligne (index fiable → refIdKey → nom unique → null)');
+{ const _n=(src.match(/_l506RefGroupFor\(f,fd\)\|\|\(_l505Warn\('ncLoss·ref'/g)||[]).length; console.log((_n===2?'✅ ':'❌ ')+'L506 : ncLoss ×2 passent par la résolution unique, repli rg[0] TRACÉ ('+_n+'/2)'); if(_n!==2) fail++; }
+has(/const _mono=!\(Array\.isArray\(f\.refGroups\)&&f\.refGroups\.length>1\);/,'L506 : wasteOf retombe sur la laize de la fiche en mono-réf (ligne sans laize)');
+has(/await _bw\(_ref\.update\(\{bls:FV\.arrayUnion\(\{ref:null, \.\.\.f\.bl\}, entry\), bl:FV\.delete\(\)\}\),10000\);/,'L506 : BL multi — écriture bornée (1/2)');
+has(/await _bw\(_ref\.update\(\{bls:FV\.arrayUnion\(entry\)\}\),10000\);/,'L506 : BL multi — écriture bornée (2/2)');
+{ const _n=(src.match(/await _bw\(ref\.set\(body\),10000\);/g)||[]).length; console.log((_n===2?'✅ ':'❌ ')+'L506 : restauration — ref.set(body) borné ×2 ('+_n+')'); if(_n!==2) fail++; }
+has(/await _bw\(f\.ref\.update\(f\._v\),10000\);/,'L506 : restauration — validations réappliquées, écriture bornée');
+absent(/await _ref\.update\(\{bls/,'L506 : plus d écriture BL sans borne');
+absent(/await ref\.set\(body\);/,'L506 : plus de ref.set(body) sans borne');
+console.log('── L506 · 3e vérification adverse (21 agents, 6 confirmés) : édition admin = UNE fonction ──');
+has(/^function _l506EditDerived\(f,newDetail\)\{/m,'L506 : tous les champs dérivés de l édition admin par UNE fonction aux définitions de la source');
+has(/const _d=_l506EditDerived\(f,newDetail\);/,'L506 : saveFicheConfigs l utilise');
+has(/nbFiche:newDetail\.length,totalBobines:_d\.totalBobines,/,'L506 : totalBobines = mères du plan (un ♻ n est plus une mère : m² +20 % après un Enregistrer à blanc)');
+has(/upd\.groups=_d\.groups;/,'L506 : groups régénérés aussi en multi-réf (laize de chaque ligne)');
+has(/if\(f\.hasEcart!==true\) upd\.nbPlan=_d\.nbPlan;/,'L506 : nbPlan = mères + ♻ du plan');
+has(/const plan=newDetail\.filter\(d=>d&&!_l505HorsPlan\(d\)\)/,'L506 : lignes HORS PLAN (RESTE-/OP2-) exclues du plan, du solde et des groups');
+absent(/const isMultiRef=Array\.isArray\(f\.refGroups\)&&f\.refGroups\.length>1;/,'L506 : la branche « multi-réf : on conserve groups/pct périmés » a disparu');
+absent(/totalBobines:newDetail\.length/,'L506 : plus de comptage des ♻ comme bobines mères');
+has(/if\(_efNewUnresolved\)\{ showToast\('❌ Fiche multi-référence : commence le libellé de chaque bobine AJOUTÉE par le nom de sa référence/,'L506 : multi-réf — bobine ajoutée sans référence reconnue = enregistrement REFUSÉ avec consigne (jamais la laize de la 1re réf)');
+has(/const uOf=d=>\(d&&d\.recut&&Number\(d\.rollW\)>0\)\?Number\(d\.rollW\):/,'L506 : regroupement — un ♻ prend sa largeur de rouleau même sans fd.useful');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

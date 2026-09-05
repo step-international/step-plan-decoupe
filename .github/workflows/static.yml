@@ -60,7 +60,11 @@ jobs:
           set -euo pipefail
           UNB=$(grep -n "db\.collection([^)]*)\(\.doc([^)]*)\)\?\.\(set\|update\|delete\|add\)(" index.html | grep -v "boundedWrite\|boundedTx\|raceTimeout\|_commitRace\|_bw(\|tx\.\|batch\." | grep "await " || true)
           [ -z "$UNB" ] || { echo "$UNB"; exit 1; }
-          [ "$(grep -c 'await logAudit(' index.html || true)" = "0" ]
+          UNB2=$(grep -nE "await [A-Za-z_$][A-Za-z0-9_$.]*\.(set|update|delete|add|commit)\(" index.html | grep -vE "_bw\(|boundedWrite|boundedTx|raceTimeout|refFromURL|\.add\(new |classList|searchParams|headers" || true)
+          [ -z "$UNB2" ] || { echo "$UNB2"; exit 1; }
+          UNB3=$(grep -n "runTransaction(" index.html | grep -vE "boundedTx|function boundedTx|Promise\.race\(|^[0-9]+:\s*//" || true)   # Promise.race([tx, delai]) = borne posee AVANT boundedTx (2 sites : doSave, saveFicheConfigs)
+          [ -z "$UNB3" ] || { echo "$UNB3"; echo "transaction(s) Firestore hors boundedTx"; exit 1; }
+          [ "$(grep -c 'await logAudit(' index.html || true)" = "0" ] || { grep -n 'await logAudit(' index.html; echo "await logAudit( interdit (L501 : logAudit ne doit jamais bloquer un flux)"; exit 1; }
   # Single deploy job since we're just deploying
   deploy:
     needs: verifier

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // shot.mjs — capture headless de l'app STEP (Chrome + CDP, zéro dépendance, Node ≥22)
-// Usage : node shot.mjs --scene plan|fiche|donnees|fiche-start --w 1180 --h 820 [--full] [--out out.png] [--js "expr"] [--json]
+// Usage : node shot.mjs --scene plan|fiche|donnees|analyse|fiche-start --w 1180 --h 820 [--full] [--out out.png] [--js "expr"] [--json]
 // Prérequis : serveur local http://127.0.0.1:8000 (python3 -m http.server dans ~/step-plan-decoupe)
 import { spawn } from 'node:child_process';
 import { writeFileSync, mkdtempSync } from 'node:fs';
@@ -25,6 +25,7 @@ async function waitPort() { for (let i = 0; i < 100; i++) { try { const r = awai
 const SETUP = {
   common: `
     window.confirm=function(){ return true; }; window.alert=function(){}; currentRole='operateur'; currentUser={role:'operateur',ini:'TB',nom:'Taïeb'}; applyRole();
+    try{ document.getElementById('bootOverlay')?.remove(); }catch(e){}   /* [L506 · verification adverse] le voile « Mise a jour des donnees » (8 s sans Firestore) couvrait TOUTES les captures : aucune smoke n a jamais photographie un ecran */
     startTraining();
     (function(){ const st=document.createElement('style'); st.id='__auditNoHatch'; st.textContent='body.training::before,body.training::after{display:none!important} #trainingBanner{display:none!important} .toast,#globalToast{display:none!important} body.training #sendPlanWrap{bottom:0!important} body.training #actionBar{bottom:0!important}'; document.head.appendChild(st); })();
     window.__set=(id,v)=>{const e=document.getElementById(id); if(e){e.value=v; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true}));}};
@@ -38,6 +39,7 @@ const SETUP = {
   'fiche-start': `showPage(1); __set('fNumLame','L-12'); chronoStart(); window.scrollTo(0,0);`,
   'fiche-cut': `showPage(1); __set('fNumLame','L-12'); chronoStart(); (function(){ const l=ficheLines[0]; const b=document.getElementById('coupeeBtn_'+l.id); b&&b.click(); })(); window.scrollTo(0,0);`,
   donnees: `stopTraining(); showPage(2); window.scrollTo(0,0);`,
+  analyse: `currentRole='admin'; currentUser={role:'admin',ini:'ER',nom:'Esteban'}; applyRole(); try{ document.getElementById('bootOverlay')?.remove(); }catch(e){} stopTraining(); showPage(2); switchTab('analyse'); window.scrollTo(0,0);`,   // [L506] role admin : pour un operateur switchTab('analyse') rebascule sur « saves » sans erreur (la smoke aurait photographie un autre ecran)   // [L506 · verification adverse] la scene n existait pas : la smoke « analyse » photographiait l ecran Donnees
   // [L352] en-tête DÉPLIÉE (tap sur les pastilles) — mono-réf
   'fiche-open': `showPage(1); __set('fNumLame','L-12'); toggleFicheHead(true); window.scrollTo(0,0);`,
   // [L352] MULTI-RÉF (2 références EPCO) — bloc « valider la bobine mère » de la réf 1 visible
@@ -69,6 +71,7 @@ const SETUP = {
   const evalJs = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result.exceptionDetails) return { error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }; return r.result.result?.value; };
   // attendre que l'app soit initialisée
   for (let i = 0; i < 40; i++) { const ok = await evalJs(`typeof applyRole==='function' && typeof recalcPlan==='function' && !!document.getElementById('planClient')`); if (ok === true) break; await sleep(250); }
+  if (scene !== 'common' && !Object.prototype.hasOwnProperty.call(SETUP, scene)) { console.error('❌ smoke ' + scene + ' : scene inconnue (SETUP) — une faute de frappe photographiait la scene par defaut en silence'); process.exit(1); }   // [L506]
   const setupErr = await evalJs(`(function(){ try { ${SETUP.common} ${SETUP[scene] || ''} return null; } catch(e){ return String(e && e.stack || e); } })()`);
   if (setupErr) console.error('SETUP ERROR:', setupErr);
   await sleep(700);
@@ -83,6 +86,16 @@ const SETUP = {
     console.log('PNG', out, extra !== null && !args.json ? JSON.stringify(extra).slice(0, 400) : '');
   }
   // [L504] verdict par le code de sortie : setup rate, erreur JS captee dans la page, ou exception CDP => 1
+  // [L506 · verification adverse] l ecran ANNONCE doit etre affiche (pas le voile, pas un onglet de repli) : sinon la smoke photographie autre chose en silence
+  const CHECKS = {
+    plan: "document.getElementById('page0').classList.contains('active')",
+    fiche: "document.getElementById('page1').classList.contains('active')",
+    'fiche-start': "document.getElementById('page1').classList.contains('active')",
+    donnees: "document.getElementById('page2').classList.contains('active')",
+    analyse: "document.getElementById('page2').classList.contains('active') && document.getElementById('tabAnalyse').classList.contains('active') && !document.getElementById('tabContentAnalyse').classList.contains('hidden')",
+  };
+  const screenOk = CHECKS[scene] ? await evalJs(`(function(){ try { return (!!(${CHECKS[scene]})) && !document.getElementById('bootOverlay') && document.getElementById('loginOverlay').classList.contains('hidden'); } catch(e){ return 'ERR ' + e; } })()`) : true;
+  if (screenOk !== true) cdpErrors.push('ECRAN ATTENDU NON AFFICHE (' + scene + ') : ' + JSON.stringify(screenOk));
   const pageErrs = await evalJs(`(function(){ return (window.__jsErrors||['CAPTEUR ABSENT']).slice(0,10); })()`);
   const allErrs = [].concat(Array.isArray(pageErrs) ? pageErrs : ['capteur illisible: ' + JSON.stringify(pageErrs)], cdpErrors);
   if (setupErr || allErrs.length) { console.error('❌ smoke ' + scene + ' : ' + (setupErr ? 'SETUP ERROR ; ' : '') + allErrs.length + ' erreur(s) : ' + allErrs.slice(0, 5).join(' | ')); ws.close(); chrome.kill(); process.exit(1); }
