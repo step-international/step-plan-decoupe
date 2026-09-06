@@ -36,8 +36,8 @@ const SETUP = {
   `,
   plan: `showPage(0); window.scrollTo(0,0);`,
   fiche: `showPage(1); __set('fNumLame','L-12'); window.scrollTo(0,0);`,
-  'fiche-start': `showPage(1); __set('fNumLame','L-12'); chronoStart(); window.scrollTo(0,0);`,
-  'fiche-cut': `showPage(1); __set('fNumLame','L-12'); chronoStart(); (function(){ const l=ficheLines[0]; const b=document.getElementById('coupeeBtn_'+l.id); b&&b.click(); })(); window.scrollTo(0,0);`,
+  'fiche-start': `document.querySelectorAll('#refBlocks .ref-block .rb-op-validate').forEach(b=>{ try{ b.click(); }catch(e){} }); showPage(1); __set('fNumLame','L-12'); chronoStart(); window.scrollTo(0,0);`,   // [L507] la PREPARATION de la ref doit etre validee (verrou L420, comme dans sim200) sinon chronoStart refuse en silence
+  'fiche-cut': `document.querySelectorAll('#refBlocks .ref-block .rb-op-validate').forEach(b=>{ try{ b.click(); }catch(e){} }); showPage(1); __set('fNumLame','L-12'); chronoStart(); (function(){ const l=ficheLines[0]; const b=document.getElementById('coupeeBtn_'+l.id); b&&b.click(); })(); window.scrollTo(0,0);`,   // [L507 · verification adverse] meme prealable que fiche-start (verrou L420)
   donnees: `stopTraining(); showPage(2); window.scrollTo(0,0);`,
   analyse: `currentRole='admin'; currentUser={role:'admin',ini:'ER',nom:'Esteban'}; applyRole(); try{ document.getElementById('bootOverlay')?.remove(); }catch(e){} stopTraining(); showPage(2); switchTab('analyse'); window.scrollTo(0,0);`,   // [L506] role admin : pour un operateur switchTab('analyse') rebascule sur « saves » sans erreur (la smoke aurait photographie un autre ecran)   // [L506 · verification adverse] la scene n existait pas : la smoke « analyse » photographiait l ecran Donnees
   // [L352] en-tête DÉPLIÉE (tap sur les pastilles) — mono-réf
@@ -90,7 +90,8 @@ const SETUP = {
   const CHECKS = {
     plan: "document.getElementById('page0').classList.contains('active')",
     fiche: "document.getElementById('page1').classList.contains('active')",
-    'fiche-start': "document.getElementById('page1').classList.contains('active')",
+    'fiche-start': "document.getElementById('page1').classList.contains('active') && chronoRunning===true && !!_chronoRunBeganAt",
+    'fiche-cut': "document.getElementById('page1').classList.contains('active') && chronoRunning===true && (typeof countCoupees==='function'?countCoupees()>=1:true)",   // [L507] chrono en route ET au moins une bobine coupee   // [L507] le chrono TOURNE et son repere reel (began) est pose : c est la zone du bug des 28 h
     donnees: "document.getElementById('page2').classList.contains('active')",
     analyse: "document.getElementById('page2').classList.contains('active') && document.getElementById('tabAnalyse').classList.contains('active') && !document.getElementById('tabContentAnalyse').classList.contains('hidden')",
   };

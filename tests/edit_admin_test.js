@@ -11,7 +11,17 @@ global.calcStats=eval('('+fnOf('calcStats')+')'); global.makeLabel=eval('('+fnOf
 global.nrm=v=>String(v==null?'':v).trim().toLowerCase();
 global._refIdKey=eval('('+fnOf('_refIdKey')+')');
 global._l505HorsPlan=eval('('+fnOf('_l505HorsPlan')+')');
+global._l505Warn=function(){ global.__warns=(global.__warns||0)+1; };
+global._l507Traced=new WeakSet();   // [L507] une trace par ligne (module-level dans index.html)
 global._l506RefGroupFor=eval('('+fnOf('_l506RefGroupFor')+')');
+global.refDisp=eval('('+fnOf('refDisp')+')');
+global.MAX_USEFUL_MM=cst('MAX_USEFUL_MM');
+global.clampUseful=eval('('+fnOf('clampUseful')+')');
+global._l507GroupUseful=eval('('+fnOf('_l507GroupUseful')+')');
+global._l507KeyOf=eval('('+fnOf('_l507KeyOf')+')');
+global._l507GroupIdxOf=eval('('+fnOf('_l507GroupIdxOf')+')');
+const M2=eval('('+fnOf('_l471FicheM2')+')');
+global._l507MatchRefByLabel=eval('('+fnOf('_l507MatchRefByLabel')+')');
 const G=eval('('+fnOf('_l506GroupsFromDetail')+')'); global._l506GroupsFromDetail=G;
 const D=eval('('+fnOf('_l506EditDerived')+')');
 const R=_l506RefGroupFor;
@@ -64,5 +74,55 @@ console.log('── _l506RefGroupFor ──');
   const h=[{ref:'KX',longueur:'1000'},{ref:'KX',longueur:'700'}];
   ok(R({refGroups:h},{ref:'KX'})===null&&R({refGroups:h},{ref:'KX',refIdx:1})===h[1],'homonymes : sans index → null (ambigu), avec index → l index'); }
 { const g=G([{conf:'1x285',recut:true,rollW:300}],1560,0); ok(parseNum(g[0].waste)===15&&/rouleau 300/.test(g[0].label),'♻ sans fd.useful : rollW fait foi (15 mm, « rouleau 300 mm »)'); }
+console.log('── L507 · _l507MatchRefByLabel (4e vérification : préfixes communs) ──');
+{ const rg=[{ref:'41313870 - TacFlex® KX1006-1'},{ref:'41313871 - TacFlex® KX1006-10'},{ref:'EPCO KX1045-1'}]; const M=_l507MatchRefByLabel;
+  ok(M('41313870 - TacFlex® KX1006-1 · B12',rg)===0,'nom EXACT en tête de libellé → son index même si un autre nom le prolonge (était bloqué)');
+  ok(M('41313871 - TacFlex® KX1006-10',rg)===1,'nom exact du 2e → 1');
+  ok(M('41313870',rg)===0,'préfixe UNIQUE (41313870 ne prolonge que le 1er) → 0');
+  ok(M('EPCO KX1045-1:B3',rg)===2,'séparateur « : » accepté → 2');
+  ok(M('',rg)===null&&M('ZZZ',rg)===null&&M('B12',rg)===null,'vide / inconnu / libellé sans référence → null (enregistrement refusé avec consigne)');
+  ok(M('kx1006',[{ref:'KX1006-1'},{ref:'KX1006-10'}])===null,'préfixe commun aux deux → ambigu → null'); 
+  ok(M('KX1006-1',[{ref:'KX1006-1'},{ref:'KX1006-10'}])===0,'KX1006-1 exact avec KX1006-10 présent → 0 (le cas bloquant)'); }
+{ global.__warns=0; const rg=[{ref:'A',longueur:'800'},{ref:'TacFlex',longueur:'2000'}]; const r=_l506RefGroupFor({refGroups:rg},{refIdx:1,ref:'TacFlex®'}); ok(r===rg[1]&&global.__warns===1,'réf renommée : l index gagne ET une trace est émise ('+global.__warns+')'); }
+console.log('── L507 · noms BRUTS du référentiel vs libellés COURTS de l app (vérification adverse) ──');
+{ const rg=[{ref:'41313870 - TacFlex® KX1006-1',longueur:'1000'},{ref:'41313871 - TacFlex® KX1045-1',longueur:'1000'},{ref:'TacFlex® DH1006 micro perf',longueur:'500'}]; const M=_l507MatchRefByLabel;
+  ok(M('KX1006-1 · BOB-003',rg)===0,'« KX1006-1 · BOB-003 » (forme affichée par l app) → 0 (était refusé)');
+  ok(M('KX1045-1 · RESTE-01',rg)===1,'« KX1045-1 · RESTE-01 » → 1');
+  ok(M('DH1006 micro perf · B2',rg)===2,'nom court sans n° de commande, marque retirée → 2');
+  ok(M('41313870 - TacFlex® KX1006-1 · B3',rg)===0,'nom brut complet → 0 (toujours accepté)');
+  ok(M('KX1006',rg)===0,'préfixe court unique → 0'); }
+{ const tw=[{ref:'41313870 - TacFlex® KX1006-1',longueur:'1000'},{ref:'41317395 - TacFlex® KX1006-1',longueur:'700'}]; const M=_l507MatchRefByLabel;
+  ok(M('KX1006-1 · 1000 ml · BOB-003',tw)===0&&M('KX1006-1 · 700 ml · BOB-001',tw)===1,'jumelles (même nom court) : départagées par « N ml » comme dans les libellés de l app → 0 / 1');
+  ok(M('KX1006-1 · BOB-003',tw)===null,'jumelles sans métrage → ambigu → null (consigne)'); }
+console.log('── L507 · groupes PERSISTÉS (mère/bords, sans useful) — 5e passe adverse ──');
+{ const f={useful:'1560 / 1300',blade:'0',refGroups:[{ref:'41313870 - TacFlex® KX1006-1',mother:'1570',edge:'10',longueur:'1500'},{ref:'41313871 - TacFlex® KX1045-1',mother:'1310',edge:'10',longueur:'1500'}]};
+  ok(_l507GroupUseful(f.refGroups[0])===1560&&_l507GroupUseful(f.refGroups[1])===1300,'laize utile recomposée mère − bords : 1560 / 1300');
+  ok(_l507GroupUseful({ref:'X',mother:'1570'})===1560,'bords absents → 10 mm par défaut (comme l.13286)');
+  ok(_l507GroupUseful({ref:'X',useful:1200,mother:'1570',edge:'10'})===1200,'useful présent (groupe vivant) → prioritaire');
+  const d=D(f,[{conf:'2x600',refIdx:0,ref:'41313870 - TacFlex® KX1006-1'},{conf:'2x600',refIdx:1,ref:'41313871 - TacFlex® KX1045-1'}]);
+  ok(parseNum(d.groups[0].waste)===360&&parseNum(d.groups[1].waste)===100&&d.totalMat===2860,'lignes sans laize sur groupes persistés : 1560/1300 recomposées (chutes 360/100, matière 2860)'); }
+console.log('── L507 · m² d une fiche en état MIXTE (6e passe adverse) ──');
+{ const rg=[{ref:'A',mother:'1560',edge:'10',longueur:'1000'},{ref:'B',mother:'1560',edge:'10',longueur:'1000'}];
+  const old=[{conf:'2x600',ref:'A'},{conf:'2x600',ref:'A'},{conf:'2x600',ref:'B'},{conf:'2x600',ref:'B'}];
+  ok(M2({refGroups:rg,totalBobines:4,ficheDetail:old})===6240,'archive pré-L500 (sans refIdx) : 4 × 1,56 × 1000 = 6240 m²');
+  ok(M2({refGroups:rg,totalBobines:5,ficheDetail:old.concat([{conf:'2x600',ref:'B',refIdx:1}])})===7800,'+ 1 bobine ajoutée AVEC refIdx : 5 bobines = 7800 m² (le mode global donnait 1560)');
+  ok(M2({refGroups:rg,totalBobines:2,ficheDetail:[{conf:'2x600',ref:'A',refIdx:0},{conf:'2x600',ref:'B',refIdx:1},{conf:'1x100',ref:'B',refIdx:1,recut:true}]})===3120,'fiche ≥ L500 : par index, ♻ exclu → 3120');
+  ok(_l507GroupIdxOf({refGroups:rg},{ref:'b'})===1&&_l507GroupIdxOf({refGroups:rg},{ref:'zz'})===-1&&_l507GroupIdxOf({refGroups:[{ref:'KX'},{ref:'KX'}]},{ref:'KX'})===0,'index par ligne : nom → 1, inconnu → −1, homonymes sans index → 1er (repli historique du comptage)'); }
+console.log('── L507 · identité (refIdKey) sur groupes PERSISTÉS — 7e passe adverse ──');
+{ // deux homonymes KX1006-1 : 1600×1000 ml et 1200×700 ml ; lignes SANS refIdx (pré-L500) mais AVEC refIdKey calculée sur le groupe VIVANT (useful = mère − bords)
+  const live=[{ref:'KX1006-1',film:'',veka:'',longueur:'1000',mother:1610,edge:10,useful:1600,blade:15},{ref:'KX1006-1',film:'',veka:'',longueur:'700',mother:1210,edge:10,useful:1200,blade:15}];
+  const persisted=live.map(g=>({ref:g.ref,longueur:g.longueur,film:g.film,veka:g.veka,mother:g.mother,edge:g.edge,blade:g.blade}));   // forme serializeRefGroups (sans useful)
+  const k0=_refIdKey(live[0]), k1=_refIdKey(live[1]);
+  ok(k0!==k1&&_l507KeyOf(persisted[0])===k0&&_l507KeyOf(persisted[1])===k1,'clé recomposée d un groupe persisté = clé du groupe vivant (les 2 homonymes distingués)');
+  const f={refGroups:persisted,totalBobines:4,ficheDetail:[{conf:'2x600',ref:'KX1006-1',refIdKey:k0},{conf:'2x600',ref:'KX1006-1',refIdKey:k0},{conf:'2x500',ref:'KX1006-1',refIdKey:k1},{conf:'2x500',ref:'KX1006-1',refIdKey:k1}]};
+  ok(_l506RefGroupFor(f,f.ficheDetail[2])===persisted[1],'ligne du 2e homonyme résolue par identité (était null → 1er homonyme)');
+  ok(M2(f)===4914,'m² = 2 × 1,61 × 1000 + 2 × 1,21 × 700 = 4914 (le 1er homonyme pour tout donnait 6440) → '+M2(f)); }
+console.log('── L507 · index décalé par un bloc homonyme à moitié saisi (8e passe adverse) ──');
+{ // plan calculé = [g0 (1000 ml), g2 (500 ml)] (g1 sans ligne valide filtré) → les lignes de g2 gelées avec refIdx=1 ; refGroups sérialisé = [g0,g1,g2]
+  const live=[{ref:'KX1006-1',film:'',veka:'',longueur:'1000',mother:1610,edge:10,useful:1600,blade:15},{ref:'KX1006-1',film:'',veka:'',longueur:'700',mother:1610,edge:10,useful:1600,blade:15},{ref:'KX1006-1',film:'',veka:'',longueur:'500',mother:1610,edge:10,useful:1600,blade:15}];
+  const persisted=live.map(g=>({ref:g.ref,longueur:g.longueur,film:g.film,veka:g.veka,mother:g.mother,edge:g.edge,blade:g.blade}));
+  const fd={conf:'2x600',ref:'KX1006-1',refIdx:1,refIdKey:_refIdKey(live[2])};   // gelée comme ligne du 500 ml, index 1 dans le plan filtré
+  ok(_l506RefGroupFor({refGroups:persisted},fd)===persisted[2],'ligne du 500 ml avec index décalé vers le 700 ml homonyme : l identité tranche → 500 ml (l index donnait 700)');
+  ok(_l506RefGroupFor({refGroups:persisted},{conf:'2x600',ref:'KX1006-1',refIdx:1})===persisted[1],'sans clé d identité (archive très ancienne) : l index reste la meilleure information → 700'); }
 console.log(fail?('\n💥 '+fail+' échec(s) sur '+total):'\n🏆 regroupement édition admin : '+total+'/'+total+' OK');
 process.exit(fail?1:0);

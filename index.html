@@ -3285,7 +3285,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.05-L506';
+const APP_VERSION='2026.09.06-L507';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -14384,19 +14384,11 @@ function buildMonthlyKpi(ym,fiches,temps){
            (meme code, machines/dims differentes) ne s ecrasent plus. Repli par NOM (deduplique) pour les
            fiches historiques sans refIdx — comportement L463 conserve. */
         const _keep63=fd=>fd&&!fd.recut&&(!f.manqueMatiere||fd.coupee===true);
-        const _hasIdx63=_dets63.some(fd=>fd&&typeof fd.refIdx==='number');
-        if(_hasIdx63){
-          f.refGroups.forEach((gr,gi)=>{
-            const nb=_dets63.filter(fd=>_keep63(fd)&&fd.refIdx===gi).length;
-            const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
-            if(mo>0&&lg>0&&nb>0){ m2Total+=mo/1000*lg*nb; _edg80+=Math.min(mo,Math.max(0,parseNum(gr.edge)))/1000*lg*nb; } });
-        } else {
-          const _seen63={};
-          f.refGroups.forEach(gr=>{ const k=nrm(gr.ref); if(_seen63[k]) return; _seen63[k]=1;
-            const nb=_dets63.filter(fd=>_keep63(fd)&&nrm(fd.ref)===k).length;
-            const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
-            if(mo>0&&lg>0&&nb>0){ m2Total+=mo/1000*lg*nb; _edg80+=Math.min(mo,Math.max(0,parseNum(gr.edge)))/1000*lg*nb; } });
-        }
+        const _gidx63=_dets63.map(fd=>_keep63(fd)?_l507GroupIdxOf(f,fd):-1);   /* [L507 · 6e passe adverse] résolution PAR LIGNE (voir _l507GroupIdxOf) : le mode global « par index » faisait tomber une fiche pré-L500 à la seule bobine ajoutée */
+        f.refGroups.forEach((gr,gi)=>{
+          const nb=_gidx63.filter(x=>x===gi).length;
+          const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
+          if(mo>0&&lg>0&&nb>0){ m2Total+=mo/1000*lg*nb; _edg80+=Math.min(mo,Math.max(0,parseNum(gr.edge)))/1000*lg*nb; } });
       } else {
         const mo=parseNum(f.mother)||0, lg=parseNum(f.longueur)||0;
         if(mo>0&&lg>0&&b>0){ m2Total+=mo/1000*lg*b; const _u80=parseNum(f.useful)||0; if(_u80>0&&_u80<mo) _edg80+=(mo-_u80)/1000*lg*b; }
@@ -17786,8 +17778,7 @@ function _resteGroupsFromFiche(f){
     // déduire le coupé DES DEUX → reste sous-dimensionné (sous-production silencieuse dans
     // le solde manque-matière ET le plan du reste). Mêmes règles de rattachement que le
     // recalcul (lineKey) : clé valide → elle-même ; sinon 1re clé du nom (fiches legacy).
-    const _gKeys=f.refGroups.map(g=>_refIdKey({ref:g.ref,film:g.film,veka:g.veka,longueur:g.longueur,
-      useful:parseNum(g.mother)-parseNum(g.edge),blade:parseNum(g.blade)}));
+    const _gKeys=f.refGroups.map(g=>_l507KeyOf(g));   /* [L507 · 8e passe adverse] UNE seule recomposition de la clé (laize clampée comme au gel) — une mère saisie > 4000 mm donnait une clé ≠ de celle des lignes, repli par nom sur homonymes */
     const _known=new Set(_gKeys);
     const _n2k={}; f.refGroups.forEach((g,i)=>{ const nm=nrm(g.ref); if(!(nm in _n2k)) _n2k[nm]=_gKeys[i]; });
     // [L195 · audit CRIT#2] RÉFS HOMONYMES legacy (refIdKey null) : NE PAS rattacher aveuglément à la
@@ -18396,12 +18387,45 @@ async function efRemoveBob(btn){
    désigne AUCUN groupe (réf renommée entre le gel et l archive : la garde-nom stricte de la vague 2 rejetait un index CORRECT et
    retombait sur rg[0] en silence) ; sinon refIdKey, puis nom UNIQUE ; homonymes sans index → null (l appelant décide : omission
    + trace, ou repli historique tracé). Mono-réf → le seul groupe. */
+/* [L507 · 4e vérification adverse] rattachement d une bobine AJOUTÉE (multi-réf) à sa référence par la tête de son libellé :
+   nom EXACT d abord (« KX1006-1 » ne doit pas être bloqué parce que « KX1006-10 » existe), sinon préfixe UNIQUE, sinon null.
+   Retourne l index du groupe ou null (aucun / ambigu). Fonction pure : testée dans tests/edit_admin_test.js. */
+function _l507MatchRefByLabel(label,refGroups){ try{
+  /* [L507 · vérification adverse] les libellés de l app portent le nom COURT (refDisp : sans n° de commande ni marque) et, pour deux
+     réfs jumelles, « · N ml » en 2e segment (_l497RefLbl) : on compare donc sur la forme courte ET brute, et on départage les jumelles
+     par le métrage — comparer au nom brut refusait « KX1006-1 · BOB-003 », l exemple même donné dans le message */
+  const rg=Array.isArray(refGroups)?refGroups:[]; const seg=String(label==null?'':label).split(/[·:]/).map(function(x){ return nrm(x); });
+  const head=seg[0]||''; if(!head) return null;
+  const key=function(x){ return nrm(typeof refDisp==='function'?refDisp(String(x==null?'':x)):String(x==null?'':x)); };
+  const hk=key(head);
+  const pick=function(ix){ if(ix.length===1) return ix[0]; if(ix.length<2) return null;
+    const mm=/^(\d+)\s*ml$/.exec(seg[1]||''); if(mm){ const n=+mm[1]; const w=ix.filter(function(i){ return (parseNum(rg[i].longueur)||0)===n; }); if(w.length===1) return w[0]; }
+    return null; };
+  const ex=[]; rg.forEach(function(x,i){ if(x&&(nrm(x.ref)===head||key(x.ref)===hk)) ex.push(i); }); if(ex.length) return pick(ex);
+  const pf=[]; rg.forEach(function(x,i){ if(!x) return; const n=key(x.ref), b=nrm(x.ref); if((n&&(n.indexOf(hk)===0||hk.indexOf(n)===0))||(b&&(b.indexOf(head)===0||head.indexOf(b)===0))) pf.push(i); });
+  return pick(pf);
+}catch(e){ return null; } }
+const _l507Traced=(typeof WeakSet==='function')?new WeakSet():{has:function(){ return false; },add:function(){}};   /* [L507] une trace par LIGNE, pas par appel (la résolution est appelée plusieurs fois par ligne) */
+/* [L507 · 5e passe adverse] laize UTILE d un groupe de référence PERSISTÉ : serializeRefGroups ne stocke ni useful ni largeur
+   (mère, bords, lame, métrage…) — la lecture directe de ces deux champs valait donc toujours 0. On recompose mère − bords
+   (bords 10 mm par défaut) comme partout ailleurs dans le fichier (l.13286, l.24954). */
+function _l507GroupUseful(g){ try{ if(!g) return 0; const u=Number(g.useful)||0; if(u>0) return u; const mo=parseNum(g.mother)||0; if(!(mo>0)) return parseNum(g.largeur)||0; const ed=(g.edge!=null&&g.edge!=='')?(parseNum(g.edge)||0):10; return (typeof clampUseful==='function')?clampUseful(mo-ed):Math.max(0,mo-ed); }catch(e){ return 0; } }
+/* [L507 · 6e passe adverse] index de groupe d une ligne pour les COMPTEURS de m² : résolution PAR LIGNE (index fiable → identité →
+   nom unique, puis 1er homonyme par nom comme le repli historique). Les deux lecteurs de m² basculaient en mode « par index » dès
+   qu UNE ligne portait un refIdx : une fiche archivée avant L500 (lignes sans refIdx) qui recevait une bobine ajoutée par l admin
+   tombait à la seule bobine ajoutée (m² −75 % sur la fiche imprimée, le CSV et le KPI du mois). */
+function _l507GroupIdxOf(f,fd){ try{ const rg=Array.isArray(f&&f.refGroups)?f.refGroups:null; if(!rg||!rg.length||!fd) return -1; const g=_l506RefGroupFor(f,fd); if(g) return rg.indexOf(g); const nn=nrm(fd.ref||''); if(!nn) return -1; for(let i=0;i<rg.length;i++){ if(rg[i]&&nrm(rg[i].ref)===nn) return i; } return -1; }catch(e){ return -1; } }
+/* [L507 · 7e passe adverse] clé d identité d un groupe PERSISTÉ : _refIdKey inclut la laize utile, absente de la sérialisation →
+   la clé d un groupe archivé ne pouvait JAMAIS égaler celle posée sur ses lignes (calculée sur le groupe vivant). On recompose la
+   laize (mère − bords) avant de hacher, comme _resteGroupsFromFiche le fait déjà. Groupe vivant (useful présent) : clé inchangée. */
+function _l507KeyOf(g){ try{ return _refIdKey(Object.assign({},g,{useful:_l507GroupUseful(g)})); }catch(e){ return ''; } }
 function _l506RefGroupFor(f,fd){ try{
   const rg=Array.isArray(f&&f.refGroups)?f.refGroups:null; if(!rg||!rg.length||!fd) return null; if(rg.length===1) return rg[0];
   const nn=nrm(fd.ref||''); const byName=nn?rg.filter(function(x){ return x&&nrm(x.ref)===nn; }):[];
+  if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey; }catch(_){ return false; } }); if(k) return k; }   /* [L507 · 8e passe adverse] l IDENTITÉ d abord quand la ligne en porte une (clé recomposée, laize comprise) : l index gelé est celui du plan CALCULÉ (blocs sans ligne valide filtrés) alors que refGroups est sérialisé sans filtre — un bloc homonyme à moitié saisi placé avant décalait l index vers le mauvais métrage, et le nom (identique) ne pouvait pas le voir */
   const gi=(typeof fd.refIdx==='number'&&rg[fd.refIdx])?rg[fd.refIdx]:null;
-  if(gi&&(!nn||nrm(gi.ref)===nn||byName.length===0)) return gi;
-  if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _refIdKey(x)===fd.refIdKey; }catch(_){ return false; } }); if(k) return k; }
+  if(gi&&(!nn||nrm(gi.ref)===nn)) return gi;
+  if(gi&&byName.length===0){ try{ if(!_l507Traced.has(fd)){ _l507Traced.add(fd); _l505Warn('ref·index-sans-nom',new Error(String(fd.ref||'')+' → '+String(gi.ref||''))); } }catch(_){ } return gi; }   /* [L507] l index gagne (réf renommée entre gel et archive) mais c est TRACÉ : si l index était aussi décalé, le chiffre serait celui d une autre réf */
   if(byName.length===1) return byName[0];
   return null;
 }catch(e){ return null; } }
@@ -18416,7 +18440,7 @@ function _l506EditDerived(f,newDetail){
   const rg=Array.isArray(f.refGroups)?f.refGroups:null, multi=!!(rg&&rg.length>1);
   const fu=parseNum(f.useful)||0, fb=parseNum(f.blade)||0;
   const grpOf=d=>_l506RefGroupFor(f,d);
-  const uOf=d=>{ if(!d) return 0; if(d.recut) return Number(d.rollW)||Number(d.useful)||0; if(d.useful!=null&&Number(d.useful)>0) return Number(d.useful); if(multi){ const g=grpOf(d); return g?(parseNum(g.useful)||parseNum(g.largeur)||0):0; } return fu; };
+  const uOf=d=>{ if(!d) return 0; if(d.recut) return Number(d.rollW)||Number(d.useful)||0; if(d.useful!=null&&Number(d.useful)>0) return Number(d.useful); if(multi){ const g=grpOf(d); return g?_l507GroupUseful(g):0; } return fu; };   /* [L507] laize recomposée mère − bords (les groupes persistés n ont pas de useful) */
   const bOf=d=>(d&&d.blade!=null&&d.blade!=='')?Number(d.blade):fb;
   const tot=d=>{ try{ const p=parseConf(String(d.conf||'')); return (p&&p.length)?calcStats(p,bOf(d)).total:0; }catch(_){ return 0; } };
   const plan=newDetail.filter(d=>d&&!_l505HorsPlan(d)).map(d=>Object.assign({},d,{useful:uOf(d),blade:bOf(d)}));
@@ -18474,15 +18498,15 @@ async function saveFicheConfigs(id){
     if(_nw){
       if(!_multiEF) _defs={useful:parseNum(f.useful)||0,blade:parseNum(f.blade)||0,ref:f.ref||'',refIdx:0};
       else { /* [L506 · 3e vérification] multi-réf : la bobine ajoutée doit NOMMER sa référence en tête de libellé (« KX1006-1 · B12 ») — sinon laize, lame et métrage seraient ceux de la 1re réf (260 mm de chute inventés) */
-        const _lab=String(r.querySelector('.ef-lab').value||''); const _head=nrm((_lab.split(/[·:]/)[0]||'')); 
-        const _m=_head?f.refGroups.map((x,i)=>({x,i})).filter(({x})=>x&&(nrm(x.ref)===_head||nrm(x.ref).indexOf(_head)===0||_head.indexOf(nrm(x.ref))===0)):[];
-        if(_m.length!==1){ _efNewUnresolved=(_efNewUnresolved||[]).concat([_lab||'(sans libellé)']); }
-        else { const g=_m[0].x; _defs={useful:parseNum(g.useful)||parseNum(g.largeur)||0,blade:(g.blade!=null&&g.blade!=='')?(parseNum(g.blade)||0):(parseNum(f.blade)||0),ref:g.ref||'',refIdx:_m[0].i}; try{ _defs.refIdKey=_refIdKey(g); }catch(_){ } }
+        const _lab=String(r.querySelector('.ef-lab').value||''); const _k=_l507MatchRefByLabel(_lab,f.refGroups);   /* [L507] nom exact d abord (KX1006-1 vs KX1006-10 bloquait l ajout) */
+        if(_k==null){ _efNewUnresolved=(_efNewUnresolved||[]).concat([_lab||'(sans libellé)']); }
+        else { const g=f.refGroups[_k]; _defs={useful:_l507GroupUseful(g),blade:(g.blade!=null&&g.blade!=='')?(parseNum(g.blade)||0):(parseNum(f.blade)||0),ref:g.ref||'',refIdx:_k}; try{ _defs.refIdKey=_l507KeyOf(g); }catch(_){ } }
       }
     }
     newDetail.push({..._defs,...base,label:r.querySelector('.ef-lab').value,conf:r.querySelector('.ef-cf').value,photo});   /* [L506 · vérification adverse] une ligne neuve (base={}) sans laize mettait la chute reconstruite de TOUTE la fiche à 0 m² après upd.chuteM2=null */
   });
   if(!newDetail.length){showToast('Il faut au moins une bobine.','err');return;}
+  if(_multiEF){ try{ const _rg=f.refGroups; newDetail.forEach(d=>{ if(!d||typeof d.refIdx==='number') return; const g=_l506RefGroupFor(f,d); if(g){ d.refIdx=_rg.indexOf(g); if(!d.refIdKey){ try{ d.refIdKey=_l507KeyOf(g); }catch(_){ } } } }); }catch(_){ } }   /* [L507 · 6e passe adverse] une fiche éditée ne reste pas en état MIXTE (lignes anciennes sans refIdx + ligne neuve avec) : l identité est renseignée sur toutes les lignes résolubles */
   if(_efNewUnresolved){ showToast('❌ Fiche multi-référence : commence le libellé de chaque bobine AJOUTÉE par le nom de sa référence (ex. « KX1006-1 · B12 ») — laize, lame et métrage en dépendent. Non reconnu : '+_efNewUnresolved.join(', '),'err'); return; }
   // [L73 · Lot 5 · B53] Trace ISO : l'écart terrain/plan d'origine est CONSERVÉ tel quel
   // (une édition admin ne l'efface plus) et recopié dans la piste d'audit plus bas.
@@ -19260,7 +19284,7 @@ function computePerteChute(f){
   const edgeForFd=(fd)=>{
     if(Array.isArray(f.refGroups)&&f.refGroups.length){
       /* [L500] identite d abord (refIdx, puis refIdKey), nom en dernier — deux homonymes prenaient les bords de la PREMIERE. Meme ordre que ncLoss. */
-      const g=_l506RefGroupFor(f,fd)||f.refGroups[0];   /* [L500→L506] identité d abord (index fiable, refIdKey, nom unique) via la résolution UNIQUE ; repli historique rg[0] */
+      const g=_l506RefGroupFor(f,fd)||(_l505Warn('edge·ref',new Error(String(fd.ref||''))),f.refGroups[0]);   /* [L507] repli TRACÉ comme ncLoss · [L500→L506] identité d abord (index fiable, refIdKey, nom unique) via la résolution UNIQUE ; repli historique rg[0] */
       if(g) return Math.max(0,parseNum(g.edge));
     }
     return Math.max(0,parseNum(f.mother)-parseNum(f.useful));
@@ -19931,18 +19955,11 @@ function _l471FicheM2(f){ try{
   let m2=0;
   if(Array.isArray(f.refGroups)&&f.refGroups.length){
     const keep=fd=>fd&&!fd.recut&&(!f.manqueMatiere||fd.coupee===true);
-    if(dets.some(fd=>fd&&typeof fd.refIdx==='number')){
-      f.refGroups.forEach((gr,gi)=>{
-        const nb=dets.filter(fd=>keep(fd)&&fd.refIdx===gi).length;
-        const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
-        if(mo>0&&lg>0&&nb>0) m2+=mo/1000*lg*nb; });
-    } else {
-      const seen={};
-      f.refGroups.forEach(gr=>{ const k=nrm(gr.ref); if(seen[k]) return; seen[k]=1;
-        const nb=dets.filter(fd=>keep(fd)&&nrm(fd.ref)===k).length;
-        const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
-        if(mo>0&&lg>0&&nb>0) m2+=mo/1000*lg*nb; });
-    }
+    const gidx=dets.map(fd=>keep(fd)?_l507GroupIdxOf(f,fd):-1);   /* [L507 · 6e passe adverse] résolution PAR LIGNE, plus de mode global « par index dès qu une ligne en a » (voir _l507GroupIdxOf) */
+    f.refGroups.forEach((gr,gi)=>{
+      const nb=gidx.filter(x=>x===gi).length;
+      const mo=parseNum(gr.mother)||0, lg=parseNum(gr.longueur)||0;
+      if(mo>0&&lg>0&&nb>0) m2+=mo/1000*lg*nb; });
   } else {
     const mo=parseNum(f.mother)||0, lg=parseNum(f.longueur)||0;
     if(mo>0&&lg>0&&b>0) m2=mo/1000*lg*b;

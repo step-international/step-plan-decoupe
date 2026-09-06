@@ -7,6 +7,12 @@ const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf
 function fnOf(n){let i=src.indexOf('function '+n+'(');if(i<0)throw new Error('introuvable '+n);let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}
 global.MACHINE_LABELS=['FEBA','MAVEG','CEVENINI'];
 global.parseNum=v=>{const n=parseFloat(String(v==null?'':v).replace(',','.'));return isNaN(n)?0:n;};
+global.nrm=v=>String(v==null?'':v).trim().toLowerCase();
+global._l505Warn=function(){};
+global._l507Traced=new WeakSet();
+global._refIdKey=eval('('+fnOf('_refIdKey')+')');
+global._l506RefGroupFor=eval('('+fnOf('_l506RefGroupFor')+')');
+global._l507GroupIdxOf=eval('('+fnOf('_l507GroupIdxOf')+')');   // [L507] résolution par ligne des m²
 global._localYM=eval('('+fnOf('_localYM')+')');
 global.tempsShareParts=eval('('+fnOf('tempsShareParts')+')');
 const buildMonthlyKpi=eval('('+fnOf('buildMonthlyKpi')+')');

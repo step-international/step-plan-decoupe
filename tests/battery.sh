@@ -39,6 +39,7 @@ step "4b. meta-gardien : sur la version PRECEDENTE, le gardien doit etre ROUGE (
 # [L506 · 3e verification] la reference est CHAQUE base dont index.html differe : origin/main (la prod) ET HEAD (un lot committe
 # non pousse) — sinon deux lots committes d affilee laissaient le 2e passer sur le rouge du 1er.
 _BASES="HEAD"; git rev-parse -q --verify origin/main >/dev/null 2>&1 && _BASES="origin/main HEAD"
+[ "$(git rev-parse origin/main 2>/dev/null)" = "$(git rev-parse HEAD)" ] && _BASES="origin/main"   # [L507] memes commits : une seule base (le gardien tournait 2 fois pour rien)
 _DONE=0
 for _B in $_BASES; do
   if git diff --quiet "$_B" -- index.html 2>/dev/null; then echo "index.html identique a $_B : rien a discriminer sur cette base"; continue; fi
@@ -80,7 +81,7 @@ node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if
 tail -1 /tmp/_bat_$$.log
 
 step "7. smokes (le capteur doit EXISTER : 0 erreur ne vaut rien si rien ne compte)"
-for s in plan fiche donnees analyse; do
+for s in plan fiche fiche-start fiche-cut donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
   # [L506 · verification adverse] le CODE DE SORTIE juge (le || true le jetait : une smoke rouge passait verte) ; le grep n est qu un 2e filet, sentinelles de shot.mjs comprises (il echoue en francais)
   if ! node tests/shot.mjs --scene "$s" --out "/tmp/_bat_${s}_$$.png" --json >"/tmp/_bat_${s}_$$.log" 2>&1; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : shot.mjs sort en erreur"; exit 1; fi
   if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_bat_${s}_$$.log"; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : sentinelle d erreur dans la sortie"; exit 1; fi

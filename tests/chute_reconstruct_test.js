@@ -10,6 +10,7 @@ global.parseConf=eval('('+fnOf('parseConf')+')');
 global.calcStats=eval('('+fnOf('calcStats')+')');
 global._l505HorsPlan=eval('('+fnOf('_l505HorsPlan')+')');
 global._refIdKey=eval('('+fnOf('_refIdKey')+')');
+global._l507Traced=new WeakSet();   // [L507] une trace par ligne (module-level dans index.html)
 global._l506RefGroupFor=eval('('+fnOf('_l506RefGroupFor')+')');
 let warns=0; global._l505Warn=function(){ warns++; };
 const chute=eval('('+fnOf('_l493ChuteFromDetail')+')');
@@ -50,7 +51,7 @@ ok(chute({refGroups:[{ref:'A',longueur:'800'},{ref:'B',longueur:'2000'}],longueu
 ok(chute({refGroups:[{ref:'A',longueur:'800'},{ref:'B',longueur:'2000'}],longueur:'800 / 2000',ficheDetail:[L('2x500',{refIdx:0,ref:'A'}),{conf:'1x900',coupee:true}]})===160&&warns===1,'multi-réf, ligne ajoutée sans laize ni réf : omise + trace, la réf A garde son solde (160)'); warns=0;
 console.log('── L506 · 3e vérification adverse ──');
 warns=0;
-ok(chute({refGroups:[{ref:'A',longueur:'800'},{ref:'TacFlex',longueur:'2000'}],longueur:'800 / 2000',ficheDetail:[L('1x900',{refIdx:1,ref:'TacFlex®'})]})===600&&warns===0,'réf RENOMMÉE entre gel et archive (« TacFlex® » vs « TacFlex ») : l index reste fiable → 300 mm × 2000 m = 600 (la garde-nom stricte donnait 0 + trace)');
+ok(chute({refGroups:[{ref:'A',longueur:'800'},{ref:'TacFlex',longueur:'2000'}],longueur:'800 / 2000',ficheDetail:[L('1x900',{refIdx:1,ref:'TacFlex®'})]})===600&&warns===1,'réf RENOMMÉE entre gel et archive (« TacFlex® » vs « TacFlex ») : l index reste fiable → 600, ET une trace (L507 : l index a gagné sans nom concordant)'); warns=0;
 ok(chute({refGroups:[{ref:'A',longueur:'800'},{ref:'B',longueur:'2000'}],longueur:'800 / 2000',ficheDetail:[L('1x900',{refIdx:0,ref:'B'})]})===600&&warns===0,'index qui désigne un AUTRE groupe existant : le nom tranche → 600');
 console.log(fail?('\n💥 '+fail+' échec(s) sur '+total):'\n🏆 reconstruction chute : '+total+'/'+total+' OK');
 process.exit(fail?1:0);

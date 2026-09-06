@@ -1980,7 +1980,7 @@ has(/lastByRef\[\(typeof fd\.refIdx==='number'\)\?\('i'\+fd\.refIdx\):_refKeyOf\
 has(/if\(refKey\) div\.dataset\.refKey=refKey;/,'L500 : le separateur porte l identite de sa ref (en plus du twin L497)');
 has(/try\{ ficheRefOrder=o\.slice\(\); window\._l432KeepOrder=true; \}catch\(e\)\{\}/,'L500→L502 : le hissage ecrit ficheRefOrder + drapeau one-shot L432 (dans le helper)');
 has(/function refDispCtx\(ref,refKey\)/,'L500 : le metrage affiche sur une carte est celui de SA reference');
-has(/const g=_l506RefGroupFor\(f,fd\)\|\|f\.refGroups\[0\];/,'L500→L506 : bords résolus par la résolution unique (identité d abord), repli historique rg[0]');
+has(/const g=_l506RefGroupFor\(f,fd\)\|\|\(_l505Warn\('edge·ref',new Error\(String\(fd\.ref\|\|''\)\)\),f\.refGroups\[0\]\);/,'L500→L507 : bords résolus par la résolution unique (identité d abord), repli historique rg[0] TRACÉ');
 
 console.log('── L499 : métrage de la mère sur le PDF plan mono-réf (demande Céline 04/09) ──');
 has(/mono.longueur/,'L499 : l en-tête mono du PDF plan affiche le métrage de la mère (mono.longueur, absent avant ce lot) — Dominique l écrivait au stylo, le multi l avait déjà');
@@ -2028,6 +2028,25 @@ absent(/function groupsFromDetail\(/,'L506 : l ancien regroupement (laize de la 
 has(/if\(!_multiEF\) _defs=\{useful:parseNum\(f\.useful\)\|\|0,blade:parseNum\(f\.blade\)\|\|0,ref:f\.ref\|\|'',refIdx:0\};/,'L506 : bobine AJOUTÉE par l admin (mono-réf) hérite laize/lame/réf de la fiche');
 has(/if\(nrm\(g\.ref\)!==_nn&&rg\.some\(function\(x\)\{ return x&&nrm\(x\.ref\)===_nn; \}\)\) g=null;/,'L506 : _lgOf rejette l index seulement si le nom désigne un AUTRE groupe (réf renommée : index gardé)');
 has(/^function _l506RefGroupFor\(f,fd\)\{ try\{/m,'L506 : résolution UNIQUE de la réf d une ligne (index fiable → refIdKey → nom unique → null)');
+has(/if\(gi&&byName\.length===0\)\{ try\{ if\(!_l507Traced\.has\(fd\)\)\{ _l507Traced\.add\(fd\); _l505Warn\('ref·index-sans-nom'/,'L507 : l index qui gagne sans nom concordant est TRACÉ (une fois par ligne)');
+has(/^function _l507MatchRefByLabel\(label,refGroups\)\{ try\{/m,'L507 : matcher de référence par libellé, pur et testé (KX1006-1 vs KX1006-10)');
+has(/^function _l507GroupUseful\(g\)\{ try\{/m,'L507 : laize utile d un groupe persisté recomposée mère − bords (serializeRefGroups n a pas de useful)');
+has(/^function _l507GroupIdxOf\(f,fd\)\{ try\{/m,'L507 : index de groupe PAR LIGNE pour les compteurs de m² (index fiable → identité → nom)');
+has(/^function _l507KeyOf\(g\)\{ try\{ return _refIdKey\(Object\.assign\(\{\},g,\{useful:_l507GroupUseful\(g\)\}\)\); \}/m,'L507 : clé d identité d un groupe persisté recomposée (laize) — l étage identité était inerte sur toute archive');
+has(/return _l507KeyOf\(x\)===fd\.refIdKey;/,'L507 : _l506RefGroupFor compare sur la clé recomposée');
+has(/const _gKeys=f\.refGroups\.map\(g=>_l507KeyOf\(g\)\);/,'L507 : le plan du reste recompose la clé par la même fonction (mère > 4000 mm : clé alignée sur le gel)');
+{ const _a=src.indexOf("if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey;"), _b=src.indexOf("const gi=(typeof fd.refIdx==='number'&&rg[fd.refIdx])?rg[fd.refIdx]:null;"); console.log((_a>0&&_b>_a?'✅ ':'❌ ')+'L507 : dans _l506RefGroupFor l étage IDENTITÉ précède l étage INDEX (bloc homonyme à moitié saisi = index décalé)'); if(!(_a>0&&_b>_a)) fail++; }
+{ const _n=(src.match(/_l507KeyOf\(g\)/g)||[]).length; console.log((_n>=2?'✅ ':'❌ ')+'L507 : les clés écrites à l édition (bobine ajoutée, remplissage) sont recomposées ('+_n+'/2)'); if(_n<2) fail++; }
+has(/const gidx=dets\.map\(fd=>keep\(fd\)\?_l507GroupIdxOf\(f,fd\):-1\);/,'L507 : _l471FicheM2 résout chaque ligne (plus de mode global « par index »)');
+has(/const _gidx63=_dets63\.map\(fd=>_keep63\(fd\)\?_l507GroupIdxOf\(f,fd\):-1\);/,'L507 : buildMonthlyKpi résout chaque ligne (plus de mode global « par index »)');
+absent(/const _hasIdx63=/,'L507 : le mode « par index dès qu une ligne en a » a disparu du KPI');
+absent(/dets\.some\(fd=>fd&&typeof fd\.refIdx==='number'\)/,'L507 : … et de la fiche imprimée / CSV');
+has(/if\(_multiEF\)\{ try\{ const _rg=f\.refGroups; newDetail\.forEach\(d=>\{ if\(!d\|\|typeof d\.refIdx==='number'\) return; const g=_l506RefGroupFor\(f,d\);/,'L507 : à l édition, refIdx renseigné sur toutes les lignes résolubles (plus d état mixte)');
+has(/_defs=\{useful:_l507GroupUseful\(g\),blade:/,'L507 : la bobine ajoutée en multi-réf reçoit une laize réelle, plus 0');
+absent(/parseNum\(g\.useful\)\|\|parseNum\(g\.largeur\)\|\|0/,'L507 : plus de lecture de champs qui n existent pas dans les groupes persistés');
+has(/const key=function\(x\)\{ return nrm\(typeof refDisp==='function'\?refDisp\(String\(x==null\?'':x\)\):String\(x==null\?'':x\)\); \};/,'L507 : le matcher compare sur le nom COURT (refDisp) comme les libellés de l app, jumelles départagées par « N ml »');
+has(/const _l507Traced=\(typeof WeakSet==='function'\)\?new WeakSet\(\)/,'L507 : une trace « index sans nom » par ligne, pas par appel');
+has(/_l506RefGroupFor\(f,fd\)\|\|\(_l505Warn\('edge·ref'/,'L507 : bords — repli rg[0] tracé comme ncLoss');
 { const _n=(src.match(/_l506RefGroupFor\(f,fd\)\|\|\(_l505Warn\('ncLoss·ref'/g)||[]).length; console.log((_n===2?'✅ ':'❌ ')+'L506 : ncLoss ×2 passent par la résolution unique, repli rg[0] TRACÉ ('+_n+'/2)'); if(_n!==2) fail++; }
 has(/const _mono=!\(Array\.isArray\(f\.refGroups\)&&f\.refGroups\.length>1\);/,'L506 : wasteOf retombe sur la laize de la fiche en mono-réf (ligne sans laize)');
 has(/await _bw\(_ref\.update\(\{bls:FV\.arrayUnion\(\{ref:null, \.\.\.f\.bl\}, entry\), bl:FV\.delete\(\)\}\),10000\);/,'L506 : BL multi — écriture bornée (1/2)');
@@ -2045,6 +2064,7 @@ has(/if\(f\.hasEcart!==true\) upd\.nbPlan=_d\.nbPlan;/,'L506 : nbPlan = mères +
 has(/const plan=newDetail\.filter\(d=>d&&!_l505HorsPlan\(d\)\)/,'L506 : lignes HORS PLAN (RESTE-/OP2-) exclues du plan, du solde et des groups');
 absent(/const isMultiRef=Array\.isArray\(f\.refGroups\)&&f\.refGroups\.length>1;/,'L506 : la branche « multi-réf : on conserve groups/pct périmés » a disparu');
 absent(/totalBobines:newDetail\.length/,'L506 : plus de comptage des ♻ comme bobines mères');
+has(/const _k=_l507MatchRefByLabel\(_lab,f\.refGroups\);/,'L506→L507 : multi-réf — la bobine ajoutée est rattachée par _l507MatchRefByLabel (nom exact d abord)');
 has(/if\(_efNewUnresolved\)\{ showToast\('❌ Fiche multi-référence : commence le libellé de chaque bobine AJOUTÉE par le nom de sa référence/,'L506 : multi-réf — bobine ajoutée sans référence reconnue = enregistrement REFUSÉ avec consigne (jamais la laize de la 1re réf)');
 has(/const uOf=d=>\(d&&d\.recut&&Number\(d\.rollW\)>0\)\?Number\(d\.rollW\):/,'L506 : regroupement — un ♻ prend sa largeur de rouleau même sans fd.useful');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
