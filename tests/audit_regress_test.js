@@ -2067,5 +2067,13 @@ absent(/totalBobines:newDetail\.length/,'L506 : plus de comptage des ♻ comme b
 has(/const _k=_l507MatchRefByLabel\(_lab,f\.refGroups\);/,'L506→L507 : multi-réf — la bobine ajoutée est rattachée par _l507MatchRefByLabel (nom exact d abord)');
 has(/if\(_efNewUnresolved\)\{ showToast\('❌ Fiche multi-référence : commence le libellé de chaque bobine AJOUTÉE par le nom de sa référence/,'L506 : multi-réf — bobine ajoutée sans référence reconnue = enregistrement REFUSÉ avec consigne (jamais la laize de la 1re réf)');
 has(/const uOf=d=>\(d&&d\.recut&&Number\(d\.rollW\)>0\)\?Number\(d\.rollW\):/,'L506 : regroupement — un ♻ prend sa largeur de rouleau même sans fd.useful');
+console.log('── L508 : Harmoniser les noms de références (couleur / impression / MP) — demande Céline+Dominique 07/09 ──');
+has(/function _l508Harmoniser/,'L508 : bouton Harmoniser — aperçu de TOUS les avant→après avant application');
+has(/async function _l508Apply/,'L508 : application groupée via _l486Publish (transactionnelle)');
+has(/a\.r\.ref=a\.from/,'L508 CRITIQUE : rollback — les noms d origine sont remis si la publication échoue');
+has(/onclick="_l508Harmoniser\(\)"/,'L508 : le bouton est présent dans l écran Clients');
+has(/"41313870":"blanc Profilé"/,'L508 : table n° B+K → attribut (référentiel Excel)');
+has(/KX1045\(\?!\[-0-9\]\)/,'L508 : KX1045 sans -1 → KX1045-1 noir blanc (décision Dominique)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

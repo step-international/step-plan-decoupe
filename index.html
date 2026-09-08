@@ -3285,7 +3285,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.06-L507';
+const APP_VERSION='2026.09.08-L508';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -18748,6 +18748,96 @@ async function _l498Save(btn){
   showToast('✔ '+add.length+' référence(s) créée(s) chez '+nom+' : '+add.join(' · ')+(deja.length?' · déjà présent : '+deja.join(' · '):'')+' — visible tout de suite sur les autres postes.','ok');
 }
 
+/* [L508 · demande Celine/Dominique 07/09/2026] Harmonisation des noms de references.
+   Ajoute couleur / impression / micro-perfore au nom (garde le n° B+K, jamais l'epaisseur),
+   d'apres le referentiel Excel STEP (mai 2026) + reponses Dominique. Reservee admin/DC.
+   Un seul geste : apercu de TOUS les avant->apres, puis application groupee via _l486Publish
+   (transactionnelle, rollback si echec) — meme voie sure que _l498Save et _l486DelRef. */
+(function(root){
+  var NUM={"41116289":"transparent","41116775":"transparent","41116850":"transp MP","41116929":"transparent","41117489":"transparent","41117500":"transparent","41117715":"transp MP","41117866":"transparent vert","41117882":"noir blanc","41117930":"transparent","41118237":"transparent","41312799":"noir blanc","41312806":"noir blanc","41312809":"noir blanc","41313870":"blanc Profilé","41314107":"transp imprimé","41315237":"transparent","41315627":"blanc all/anglais","41315709":"transp imprimé","41317239":"blanc FR/anglais","41319051":"transp imprimé","41319080":"bleu","41319391":"noir blanc","41319504":"noir blanc","41319526":"transparent","41319829":"transparent","41319831":"vert","41319832":"bleu","41319834":"transp imprimé","41319987":"transparent","41319389/41319054":"noir blanc"};
+  var NONUM={"TacFlex® DH1006-2 100m":"transp MP","TacFlex® KX1045-1 166m":"noir blanc"};
+  var KX45={100:'41312799',250:'41312806',500:'41312809'};
+  function norm(s){ return String(s==null?'':s).replace(/\s+/g,' ').trim(); }
+  function hasAttr(name,attr){
+    var n=name.toLowerCase(), a=attr.toLowerCase();
+    if(/\bmp\b|micro/.test(a)) return /\bmp\b|micro/.test(n);
+    return a.split(/\s+/).filter(function(w){return w.length>2;}).every(function(w){ return n.indexOf(w)>=0; });
+  }
+  function firstNum(name){ var m=norm(name).match(/^([0-9]{5,}(?:\s*\/\s*[0-9]{5,})?)/); return m?m[1].replace(/\s+/g,''):''; }
+  function enrich(ref, la, lo){
+    var name=norm(ref);
+    if(/^41319504\b/.test(name) && /KX1045-1/i.test(name)){ return (KX45[lo]||'41312809')+' - TacFlex® KX1045-1 noir blanc'; }
+    if(/KX1045(?![-0-9])/i.test(name)){ var n=KX45[lo]||''; return (n?n+' - ':'')+'TacFlex® KX1045-1 noir blanc'; }
+    if(NONUM[name]){ return hasAttr(name,NONUM[name])?name:name+' '+NONUM[name]; }
+    var num=firstNum(name);
+    if(num && NUM[num]){ return hasAttr(name,NUM[num])?name:name+' '+NUM[num]; }
+    return name;
+  }
+  root._l508Enrich=enrich;
+})(typeof window!=='undefined'?window:globalThis);
+
+// Le geste : calcule les renommages sur les VRAIES donnees, montre l'apercu, applique en un coup.
+function _l508Harmoniser(){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
+  var changes=[];
+  Object.keys(CLIENT_DATA||{}).forEach(function(nom){
+    (CLIENT_DATA[nom]||[]).forEach(function(r,idx){
+      var nv=_l508Enrich(r.ref, r.largeur, r.longueur);
+      if(nv && nv!==r.ref) changes.push({client:nom, idx:idx, from:r.ref, to:nv});
+    });
+  });
+  if(!changes.length){ showToast('✔ Tous les noms sont déjà harmonisés.','ok'); return; }
+  var groups={};
+  changes.forEach(function(c){ var k=c.from+String.fromCharCode(10)+c.to; (groups[k]=groups[k]||{from:c.from,to:c.to,n:0}).n++; });   /* separateur = saut de ligne (jamais present dans un nom de ref) ; ecrit sans antislash ni octet special : un NUL rendait index.html « binaire » pour grep et cassait le recensement Firestore de battery.sh */
+  var lignes=Object.keys(groups).map(function(k){return groups[k];}).sort(function(a,b){return a.to.localeCompare(b.to,'fr');});
+  var th='text-align:left;padding:6px 9px;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--border2)';
+  var td='padding:5px 9px;border-bottom:1px solid var(--border2)';
+  var rows=lignes.map(function(g){
+    return '<tr><td style="'+td+';color:var(--muted)">'+_l486Esc(g.from)+'</td>'
+      +'<td style="'+td+';color:var(--blue);font-weight:700">→</td>'
+      +'<td style="'+td+'"><b>'+_l486Esc(g.to)+'</b></td>'
+      +'<td style="'+td+';text-align:right;color:var(--muted);font-variant-numeric:tabular-nums">'+g.n+'</td></tr>';
+  }).join('');
+  var ov=document.createElement('div');
+  ov.className='l508-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9200;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML='<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;max-width:820px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:18px 20px">'
+    +'<div style="font-size:16px;font-weight:800">🔤 Harmoniser les noms de références</div>'
+    +'<div style="font-size:12.5px;color:var(--muted);margin:4px 0 12px"><b>'+changes.length+'</b> ligne(s) seront renommées ('+lignes.length+' nom(s) distinct(s)). Le n° B+K est conservé, l\'épaisseur n\'est pas ajoutée. Les noms déjà complets et les références hors référentiel (GHX173A, KX1056…) ne bougent pas. Vérifie avant d\'appliquer.</div>'
+    +'<div style="overflow:auto;border:1px solid var(--border2);border-radius:10px;flex:1"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>'
+      +'<th style="'+th+'">Nom actuel</th><th style="'+th+'"></th><th style="'+th+'">Nom harmonisé</th><th style="'+th+';text-align:right">clients</th></tr></thead>'
+      +'<tbody>'+rows+'</tbody></table></div>'
+    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">'
+      +'<button class="btn" onclick="this.closest(&quot;.l508-ov&quot;).remove()">Annuler</button>'
+      +'<button class="btn btn-blue" onclick="_l508Apply(this)">✔ Appliquer '+changes.length+' renommage(s)</button>'
+    +'</div></div>';
+  ov._changes=changes;
+  document.body.appendChild(ov);
+}
+async function _l508Apply(btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return; }
+  var ov=btn.closest('.l508-ov'); if(!ov) return;
+  var changes=ov._changes||[];
+  if(!changes.length){ ov.remove(); return; }
+  // Application sur les VRAIES donnees, en re-resolvant par CONTENU (l'index peut avoir bouge
+  // depuis l'apercu) — meme prudence que _l498Save. On garde de quoi annuler si la publication echoue.
+  var applied=[];
+  changes.forEach(function(c){
+    var arr=CLIENT_DATA[c.client]; if(!arr) return;
+    var r=(arr[c.idx] && arr[c.idx].ref===c.from) ? arr[c.idx] : arr.find(function(x){return x.ref===c.from;});
+    if(r && r.ref===c.from){ applied.push({r:r, from:c.from}); r.ref=c.to; }
+  });
+  if(!applied.length){ ov.remove(); showToast('La liste a changé entre-temps — rien appliqué, elle vient d\'être rechargée.','err'); renderClients(); return; }
+  btn.disabled=true; btn.textContent='⏳ Publication…';
+  var ok=await _l486Publish(null,true);
+  btn.disabled=false;
+  if(!ok){ applied.forEach(function(a){ a.r.ref=a.from; }); ov.remove(); renderClients(); return; }   // rollback : rien n'est publie, on remet les noms d'origine
+  ov.remove();
+  try{ _l488RefreshClientUI(); }catch(_){ }
+  renderClients();
+  showToast('✔ '+applied.length+' référence(s) harmonisée(s) — les autres postes l\'auront à leur prochain démarrage.','ok');
+}
+
 function renderClients(){
   const c=document.getElementById('tabContentClients'); if(!c) return;
   const _l498Deplies=new Set(); try{ c.querySelectorAll('details[open][data-cli]').forEach(function(x){ _l498Deplies.add(x.dataset.cli); }); }catch(_){ }   /* [L498] état ouvert conservé au re-rendu (motif L367) — sans ça, chaque ✏️/⧉ refermait tous les clients */
@@ -18784,6 +18874,7 @@ function renderClients(){
   c.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding-bottom:20px">'
     +'<datalist id="l487Clis">'+noms.map(function(n){ return '<option value="'+_l486Esc(n)+'"></option>'; }).join('')+'</datalist>'
     +'<datalist id="l488Refs">'+refsAll.map(function(r){ const d=_l488RefDims[r]; return '<option value="'+_l486Esc(r)+'">'+_l486Esc(r)+' — '+d.largeur+' mm'+(d.longueur?' × '+d.longueur+' ml':'')+'</option>';   /* [L498] le NOM dans le libellé : le rendu natif tablette n'affiche que le texte d'option, pas la value */ }).join('')+'</datalist>'
+    +'<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn btn-sm" onclick="_l508Harmoniser()" title="Ajoute couleur, impression, micro-perforé aux noms d après le référentiel — aperçu avant application">🔤 Harmoniser les noms</button></div>'   /* [L508] harmonisation groupee des noms (Celine/Dominique 07/09) */
     +'<div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:14px 16px">'
       +'<div style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">👥 Ajouter un client et ses références</div>'
       +'<div style="font-size:12.5px;color:var(--muted);margin:3px 0 10px">Client nouveau ou déjà connu, et autant de références que tu veux (bouton +). Enregistré pour tous les postes — les autres tablettes le voient tout de suite (temps réel).</div>'
