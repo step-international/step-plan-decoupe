@@ -2075,5 +2075,8 @@ has(/onclick="_l508Harmoniser\(\)"/,'L508 : le bouton est présent dans l écran
 has(/"41313870":"blanc Profilé"/,'L508 : table n° B+K → attribut (référentiel Excel)');
 has(/KX1045\(\?!\[-0-9\]\)/,'L508 : KX1045 sans -1 → KX1045-1 noir blanc (décision Dominique)');
 
+console.log('── L509 : le 🎯 « dernière bobine de sa référence » (L500) ne masque plus « 1×55 + 33 » sur la carte en cours (signalement Céline 08/09) ──');
+has(/fl-current:has\(\.fl-pos\.pos-last-ref\)[^{]*flConf_[^{]*\{padding-left:210px/,'L509 : réserve gauche 210 px quand le badge n/T porte le 🎯 (mesuré : badge 198 px en atelier 22px, débordement 33 px → marge 12 px) — paysage uniquement');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
