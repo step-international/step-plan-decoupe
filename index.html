@@ -1692,6 +1692,7 @@ body.atelier .stat-tile b{font-size:36px}
   /* — laizes : qté 92px · largeur large · ✕ discret — */
   .order-row input[data-type="qty"]{min-width:92px;text-align:center}
   .order-row input[data-type="width"]{flex:1;min-width:140px;max-width:none!important;text-align:left!important;padding-left:14px!important}   /* !important : le text-align inline du template */
+  .order-row input[data-type="numcmd"]{flex:0 0 190px;max-width:190px!important;text-align:left!important}   /* [L512] N° cde a cote de Qte x Larg. */
   .order-row .btn-red{background:transparent!important;border-color:transparent!important;color:var(--text3)!important;font-size:18px;box-shadow:none;min-width:48px;min-height:48px}
   .order-row .btn-red:active{color:var(--red)!important}
   .order-row{position:relative}
@@ -3295,7 +3296,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.09-L511';
+const APP_VERSION='2026.09.09-L512';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -7072,7 +7073,7 @@ function cliBuildQueues(rows){
   const q={};
   (rows||[]).forEach(r=>{
     if(!(r.qty>0&&r.width>0)) return;
-    (q[r.width]=q[r.width]||[]).push({cli:r.cli||'A',left:r.qty});
+    (q[r.width]=q[r.width]||[]).push({cli:r.cli||'A',left:r.qty,numCmd:r.numCmd||''});
   });
   return q;
 }
@@ -7378,12 +7379,13 @@ function getOrderRows(){
     const carton=cEl?clampQ(parseNum(cEl.value),999):0;
     const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
     const cli=(row.querySelector('[data-type="cli"]')?.value||'A').trim();   // [L64 · Lot 6]
-    if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
+    const numCmd=(row.querySelector('[data-type="numcmd"]')?.value||'').trim().slice(0,40);   /* [L512] cle ABSENTE si vide (jamais undefined : convention Firestore) */
+    if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;if(numCmd)o.numCmd=numCmd;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
   });
   return rows;
 }
 // Crée le HTML d'une ligne de découpe (sans l'insérer).
-function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli='A'){
+function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli='A',numCmd=''){   /* [L512 · demande Dominique via Celine 09/09] numCmd = N° de commande CLIENT de cette ligne (facultatif) */
   const div=document.createElement('div');
   div.className='order-row';
   if(rattrapage){div.dataset.rattrapage='1';div.style.borderLeft='3px solid var(--orange)';div.style.paddingLeft='6px';}
@@ -7392,6 +7394,8 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli=
     <span class="order-lbl">× Larg.</span>
     <input type="text" data-type="width" placeholder="80" value="${esc(width)}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));_maybeAutoRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:80px;text-align:center">
     <span class="order-lbl">mm</span><!-- [L104] steppers −/+ retirés (item L) : ils faisaient wrapper chaque largeur sur 3-4 lignes en mobile. Saisie clavier directe conservée ; Qté en inputmode numeric (pas de point décimal parasite) -->
+    <span class="order-lbl l512-cell">· N° cde</span>
+    <input type="text" data-type="numcmd" class="l512-cell" placeholder="4501945512" value="${esc(numCmd)}" maxlength="40" autocomplete="off" spellcheck="false" style="max-width:150px" aria-label="N° de commande client de cette ligne (facultatif)"><!-- [L512] pas d oninput : rien a recalculer, et _maybeAutoRow ne regarde que Qte+Largeur ; le brouillon capte l input en delegue -->
     <span class="order-lbl carton-cell" style="display:none">· Carton</span>
     <input type="text" data-type="carton" placeholder="3" value="${esc(carton)}" inputmode="numeric" oninput="debouncedRecalcPlan()" class="carton-cell" style="max-width:70px;display:none">
     <span class="order-lbl mandrin-cell" style="display:none">· Mandrin</span>
@@ -7404,9 +7408,9 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli=
 // Incrémente/décrémente le champ numérique adjacent (steppers Qté/Largeur, tablette).
 // [L104] stepField supprimée avec les steppers −/+ des largeurs (item L) : saisie clavier directe.
 // Ajoute une ligne au premier bloc réf (rétro-compat appels existants).
-function addOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli='A'){
+function addOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli='A',numCmd=''){
   const first=document.querySelector('.ref-block .rb-rows');
-  if(first){first.appendChild(makeOrderRow(qty,width,carton,rattrapage,mandrin,cli));updateCartonVisibility();}
+  if(first){first.appendChild(makeOrderRow(qty,width,carton,rattrapage,mandrin,cli,numCmd));updateCartonVisibility();}
 }
 // [L314 · LOT 4 · §2.4] LIGNE SUIVANTE AUTO : quand la DERNIÈRE ligne de SON bloc a Qté ET Largeur remplies,
 // une ligne vide s'ajoute toute seule (le bouton « + Ajouter une ligne » reste le plan B). Aucun texte d'aide (§2.20).
@@ -8031,8 +8035,9 @@ function getRefGroups(){
         const carton=cEl?clampQ(parseNum(cEl.value),999):0;
         const mandrin=(row.querySelector('[data-type="mandrin"]')?.value||'').trim();
         const cli=(row.querySelector('[data-type="cli"]')?.value||'A').trim();   // [L64 · Lot 6]
-        if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
-        else { const _rq=(row.querySelector('[data-type="qty"]')?.value||'').trim(), _rw=(row.querySelector('[data-type="width"]')?.value||'').trim(); if(_rq||_rw){ const _rc=(row.querySelector('[data-type="carton"]')?.value||'').trim(), _rm=(row.querySelector('[data-type="mandrin"]')?.value||'').trim(), _rcli=(row.querySelector('[data-type="cli"]')?.value||'A').trim(); rawRows.push({q:_rq,w:_rw,carton:_rc,mandrin:_rm,cli:_rcli}); } }   // [L271 · audit #2 + revue L272] ligne mal saisie NON parsée : on garde son TEXTE BRUT + carton/mandrin/client (sinon le client B/mandrin était perdu au restore → bobineau réattribué au mauvais client)
+    const numCmd=(row.querySelector('[data-type="numcmd"]')?.value||'').trim().slice(0,40);   /* [L512] cle ABSENTE si vide (jamais undefined : convention Firestore) */
+        if(qty>0&&w>=1){const o={qty,width:w};if(carton>0)o.carton=carton;if(mandrin)o.mandrin=mandrin;if(cli&&cli!=='A')o.cli=cli;if(numCmd)o.numCmd=numCmd;rows.push(o);}   // [L201 · audit #23] largeur ≥ 1 mm : une pièce sub-millimétrique arrondissait à 0 slot dans bestPattern → perdue en silence
+        else { const _rq=(row.querySelector('[data-type="qty"]')?.value||'').trim(), _rw=(row.querySelector('[data-type="width"]')?.value||'').trim(); if(_rq||_rw){ const _rc=(row.querySelector('[data-type="carton"]')?.value||'').trim(), _rm=(row.querySelector('[data-type="mandrin"]')?.value||'').trim(), _rcli=(row.querySelector('[data-type="cli"]')?.value||'A').trim(); rawRows.push({q:_rq,w:_rw,carton:_rc,mandrin:_rm,cli:_rcli,numCmd:(row.querySelector('[data-type="numcmd"]')?.value||'').trim()}); } }   // [L271 · audit #2 + revue L272] ligne mal saisie NON parsée : on garde son TEXTE BRUT + carton/mandrin/client (sinon le client B/mandrin était perdu au restore → bobineau réattribué au mauvais client)
       });
       // Chutes en stock saisies pour cette réf : bobineaux déjà à la bonne largeur.
       // [L287 · enquête brouillon] filet TEXTE BRUT (miroir exact de rawRows, correctif L271 #2) : une ligne
@@ -8217,8 +8222,8 @@ function _restoreRefGroupsBody(arr){
   if(g0.machine) setRb('machine',g0.machine);
   const refSel=document.querySelector('.ref-block [data-rb="ref"]'); applySavedRef(refSel,g0.ref,client);
   const cont0=document.querySelector('.ref-block .rb-rows');
-  (g0.rows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
-  (g0.rawRows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A')));   // [L271 · audit #2 + revue L272] restaure texte brut + carton/mandrin/client → la bannière re-signale ET aucun attribut perdu
+  (g0.rows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A',r.numCmd||'')));
+  (g0.rawRows||[]).forEach(r=>cont0.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A',r.numCmd||'')));   // [L271 · audit #2 + revue L272] restaure texte brut + carton/mandrin/client → la bannière re-signale ET aucun attribut perdu
   const chutes0=document.querySelector('.ref-block .rb-chutes');
   if(chutes0){ chutes0.innerHTML=''; (g0.chutes||[]).forEach(ch=>chutes0.appendChild(makePlanChuteRow(ch.width,ch.qty))); (g0.rawChutes||[]).forEach(ch=>chutes0.appendChild(makePlanChuteRow(ch.w,ch.q))); }   // [L287] texte brut restauré → la ligne mi-saisie redevient visible au lieu de disparaître
   const recuts0=document.querySelector('.ref-block .rb-recuts');
@@ -8235,8 +8240,8 @@ function _restoreRefGroupsBody(arr){
     const rs=bl.querySelector('[data-rb="ref"]'); applySavedRef(rs,gi.ref,client);
     const cont=bl.querySelector('.rb-rows');
     cont.querySelectorAll('.order-row').forEach(r=>r.remove()); // addRefBlock met 2 lignes vides
-    (gi.rows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A')));
-    (gi.rawRows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A')));   // [L271 · audit #2 + revue L272] idem blocs suivants (texte brut + carton/mandrin/client)
+    (gi.rows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A',r.numCmd||'')));
+    (gi.rawRows||[]).forEach(r=>cont.appendChild(makeOrderRow(r.q,r.w,r.carton||'',false,r.mandrin||'',r.cli||'A',r.numCmd||'')));   // [L271 · audit #2 + revue L272] idem blocs suivants (texte brut + carton/mandrin/client)
     const chutesC=bl.querySelector('.rb-chutes');
     if(chutesC){ chutesC.innerHTML=''; (gi.chutes||[]).forEach(ch=>chutesC.appendChild(makePlanChuteRow(ch.width,ch.qty))); (gi.rawChutes||[]).forEach(ch=>chutesC.appendChild(makePlanChuteRow(ch.w,ch.q))); }   // [L287] filet texte brut, idem bloc #1
     const recutsC=bl.querySelector('.rb-recuts');
@@ -9761,6 +9766,15 @@ function _migrateOldNotes(t){
   if(/Cerclage : automatique \(film KX/.test(out)) out=out.replace(/\n?🔵 Film KX détecté → cerclage automatique quelle que soit la largeur\./,'');
   return out;
 }
+/* [L512 · demande Dominique via Celine 09/09] N° de commande CLIENT par ligne nb x laize -> colonne « N° commande »
+   du tableau par laize, agregee par (laize, n°). Ligne sans n° = n° d en-tete (o.numCmdHead). Colonne ABSENTE si aucune
+   ligne n en porte (plans anciens : papier byte-identique). Le moteur ne voit jamais r.numCmd (expandDemand ne lit que
+   qty/width). Besoin : un client peut avoir plusieurs commandes regroupees (meme livraison) — le BL exige le lien
+   n° de commande <-> nb de bobineaux x laize. */
+function _l512ByW(rows,head){ const m={}; (rows||[]).forEach(r=>{ const w=Number(r.width)||0,q=Number(r.qty)||0; if(!(w>0&&q>0)) return; const n=String(r.numCmd||head||'').trim(); const a=m[w]||(m[w]=[]); const e=a.find(x=>x.n===n); if(e) e.q+=q; else a.push({n:n,q:q}); }); return m; }
+function _l512Has(rows){ return (rows||[]).some(r=>String(r.numCmd||'').trim()!==''); }
+function _l512Cell(list){ if(!list||!list.length) return '—'; if(list.length===1) return list[0].n?esc(list[0].n):'—'; return list.map(x=>x.q+' × '+(x.n?esc(x.n):'—')).join('<br>'); }
+
 function buildPlanPrintHTML(o){
   // Récap "bobines à couper" d'une référence : total + détail qty×largeur.
   // Source prioritaire : la commande (rows) ; repli : reconstitution depuis les patterns.
@@ -9859,6 +9873,7 @@ function buildPlanPrintHTML(o){
         [c.planGroups,c.recutGroups].forEach(arr=>(arr||[]).forEach(g=>{ const cnt=Math.max(1,parseInt(g.count)||1); (g.pattern||[]).forEach(pw=>{ const w=Number(pw&&pw.width!==undefined?pw.width:pw)||0,q=Number(pw&&pw.qty!==undefined?pw.qty:1)||1; if(w>0&&q>0) _cmdW[w]=(_cmdW[w]||0)+cnt*q; }); }));
         Object.entries(_chutesSrc||{}).forEach(([w,q])=>{ const n=Number(q)||0; if(n>0) _cmdW[w]=(_cmdW[w]||0)+n; });
       }
+      const _l512On=_l512Has(_rowsSrc); const _l512M=_l512On?_l512ByW(_rowsSrc,o.numCmdHead):null;   /* [L512] apres le if/else de _rowsSrc (repli vieux plans) */
       const _stW={}; Object.entries(_chutesSrc||{}).forEach(([w,q])=>{ const n=Number(q)||0; if(n>0) _stW[w]=n; });
       const _ws=Object.keys(_cmdW).map(Number).sort((a,b)=>b-a);   // grandes laizes d'abord (règle atelier)
       const _rws=[];
@@ -9868,10 +9883,10 @@ function buildPlanPrintHTML(o){
         // et ligne « Total » SUPPRIMÉES (feuille annotée ×2) : Laize | Commandé | ✂ En stock, rien d'autre.
         // [L295 · demande Esteban 30/07] colonne « Bobines coupées final » : case VIDE à remplir AU STYLO par
         // l'opérateur (résultat réel de sa coupe) — uniquement sur le papier fiche (o.coupeCol), pas l'onglet Plan.
-        _rws.push('<tr><td style="font-size:15px;font-weight:800">'+fmt(w)+' mm</td><td style="text-align:right;font-weight:700">'+cmd+'</td><td style="text-align:right;color:#b45309;font-weight:700">'+(st>0?st:'—')+'</td>'+(o.coupeCol?'<td style="min-width:30mm;height:9mm"></td>':'')+'</tr>');
+        _rws.push('<tr><td style="font-size:15px;font-weight:800">'+fmt(w)+' mm</td><td style="text-align:right;font-weight:700">'+cmd+'</td><td style="text-align:right;color:#b45309;font-weight:700">'+(st>0?st:'—')+'</td>'+(_l512On?'<td style="font-weight:700;white-space:nowrap">'+_l512Cell(_l512M[w])+'</td>':'')+(o.coupeCol?'<td style="min-width:30mm;height:9mm"></td>':'')+'</tr>');
       });
       if(_rws.length){
-        _laizeTable='<table style="width:auto;min-width:46%;margin:8px 0 2px"><tr><th>Laize</th><th style="text-align:right">Commandé</th><th style="text-align:right">✂ En stock</th>'+(o.coupeCol?'<th style="text-align:center">✍ Bobines coupées final</th>':'')+'</tr>'
+        _laizeTable='<table style="width:auto;min-width:46%;margin:8px 0 2px"><tr><th>Laize</th><th style="text-align:right">Commandé</th><th style="text-align:right">✂ En stock</th>'+(_l512On?'<th>N° commande</th>':'')+(o.coupeCol?'<th style="text-align:center">✍ Bobines coupées final</th>':'')+'</tr>'
           +_rws.join('')+'</table>';
       }
     }catch(e){ _laizeTable=''; }
@@ -9959,6 +9974,7 @@ function getPlanHTML(){
     groups,
     mandrinGroups:autoGroups,   // mandrins lus depuis la saisie (rows), même en plan manuel
     mn:getMachineLabel(_planHeadMachine()),   // [L97 · relecture #6]
+    numCmdHead:numCmd,   /* [L512] */
     client:document.getElementById('planClient').value||'—',
     refLabelFallback:document.getElementById('planRef').value||'—',
     motherFallback:parseNum(document.getElementById('motherWidth').value),
@@ -10004,6 +10020,7 @@ function printSavedPlan(id){
     groups,
     mandrinGroups:autoGroups,   // mandrins lus depuis les rows, même si plan manuel sauvegardé
     mn:getMachineLabel(s.machine||currentMachine),
+    numCmdHead:s.numCmd||'',   /* [L512] */
     client:s.client||'—',
     refLabelFallback:s.ref||'—',
     motherFallback:parseNum(s.mother),
@@ -10722,7 +10739,7 @@ async function doLoad(){
       document.querySelectorAll('.order-row').forEach(r=>r.remove());
       applySavedRef(G('planRef'),s.ref,s.client);
       onRefChange();
-      (s.rows||[]).forEach(r=>addOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A'));
+      (s.rows||[]).forEach(r=>addOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A',r.numCmd||''));
     }
   }catch(e){ console.warn('doLoad refs:',e); }
 
@@ -17902,7 +17919,7 @@ function _resteGroupsFromFiche(f){
     // le stock [L67] puis le coupé servent les PREMIERS clients de la file ; ce qui reste
     // garde son client (row.cli). Le plan du reste ne repart plus tout en client A
     // (mauvais packaging / n° de commande / livraison — traçabilité ISO).
-    const q=cliBuildQueues((g.rows||[]).map(r=>({qty:Number(r.qty)||0,width:Number(r.width)||0,cli:r.cli||'A'})));
+    const q=cliBuildQueues((g.rows||[]).map(r=>({qty:Number(r.qty)||0,width:Number(r.width)||0,cli:r.cli||'A',numCmd:r.numCmd||''})));   /* [L512] */
     widthOrder.forEach(w=>{
       const tot=(q[w]||[]).reduce((s,it)=>s+it.left,0);
       const stk=Math.min(stockLeft[w]||0,tot);
@@ -17914,7 +17931,7 @@ function _resteGroupsFromFiche(f){
     widthOrder.forEach(w=>{
       (q[w]||[]).forEach(it=>{
         if(!(it.left>0)) return;
-        const o={qty:it.left, width:w};
+        const o={qty:it.left, width:w}; if(it.numCmd) o.numCmd=it.numCmd;   /* [L512] le n° suit le solde */
         const ex=extra[w]||{};
         if(ex.carton) o.carton=ex.carton;
         if(ex.mandrin) o.mandrin=ex.mandrin;
@@ -20963,6 +20980,7 @@ function _buildFichePlanPrintHTML(){
     groups,
     mandrinGroups:(typeof _l444Pal==='function')?_l444Pal(refG).filter(c=>c.rows.length):[],   // mandrins depuis la saisie
     mn:getMachineLabel((typeof _planHeadMachine==='function')?_planHeadMachine():(ficheMachine||currentMachine)),
+    numCmdHead:numCmd,   /* [L512] */
     client:document.getElementById('fClient')?.value||document.getElementById('planClient')?.value||'—',
     refLabelFallback:document.getElementById('fRef')?.value||document.getElementById('planRef')?.value||'—',
     motherFallback:parseNum(document.getElementById('fMother')?.value||document.getElementById('motherWidth')?.value),
@@ -25058,7 +25076,7 @@ function restoreFicheState(st){
     const setRb1=(sel,v)=>{const el=document.querySelector('.ref-block [data-rb="'+sel+'"]');if(el&&v!=null&&v!=='')el.value=v;};
     if(st.plan.machine) setRb1('machine',st.plan.machine);
     setRb1('mother',st.plan.mother); setRb1('edge',st.plan.edge); setRb1('blade',st.plan.blade);
-    (st.plan.rows||[]).forEach(r=>addOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A'));
+    (st.plan.rows||[]).forEach(r=>addOrderRow(r.qty,r.width,r.carton||'',false,r.mandrin||'',r.cli||'A',r.numCmd||''));
   }
   commandePhoto='';commandeFiles=readCommandeFiles(st.plan);refreshCommandePhotoZone();
   // [L64 · Lot 6] multi-clients : restaurer les clients B/C/D AVANT le recalc

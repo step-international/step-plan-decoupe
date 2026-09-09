@@ -2094,5 +2094,16 @@ has(/_defOld=_old\?MACHINE_DEFAULTS\[_old\]:MACHINE_DEFAULTS\.feba/,'L511 CRITIQ
 has(/pill\('MACHINE À CHOISIR','fh-m fh-m-ko'\)/,'L511 : pastille « MACHINE À CHOISIR » sur la fiche quand aucune machine');
 has(/content:"MACHINE À CHOISIR — calcul provisoire FEBA"/,'L511 : libellé rouge sous le select machine du Plan (paysage)');
 
+console.log('── L512 : N° de commande client par ligne nb×laize (demande Dominique via Céline 09/09) ──');
+const eqN=(n,k,m)=>{const ok=n===k;console.log((ok?'✅ ':'❌ ')+m+(ok?'':' (trouvé '+n+', attendu '+k+')'));if(!ok)fail++;};   /* [L512] compte exact d occurrences (jumeaux, rejouages) */
+has(/function makeOrderRow\(qty='',width='',carton='',rattrapage=false,mandrin='',cli='A',numCmd=''\)\{/,'L512 : makeOrderRow porte un 7e paramètre numCmd');
+has(/data-type="numcmd"/,'L512 : la ligne porte un input N° cde');
+eqN((src.match(/if\(numCmd\)o\.numCmd=numCmd;rows\.push\(o\);\}/g)||[]).length,2,'L512 : jumeaux getOrderRows + getRefGroups lisent le n° (clé absente si vide)');
+eqN((src.match(/r\.cli\|\|'A',r\.numCmd\|\|''\)/g)||[]).length,6,'L512 : les 6 rejouages (rows/rawRows bloc 1 et suivants, plan enregistré, repli fiche) restaurent le n°');
+has(/function _l512ByW\(/,'L512 : agrégation papier par (laize, n°)');
+has(/'<th>N° commande<\/th>'/,'L512 : colonne conditionnelle sur le tableau par laize (absente si aucun n°)');
+eqN((src.match(/numCmdHead:/g)||[]).length,3,'L512 : ligne sans n° = n° d en-tête (les 3 appelants de buildPlanPrintHTML : Plan, plan enregistré, fiche)');
+has(/left:r\.qty,numCmd:r\.numCmd\|\|''\}/,'L512 : le n° suit le plan du reste (files FIFO)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
