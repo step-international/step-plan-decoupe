@@ -2056,6 +2056,11 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   .cumul-box{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}   /* [L409] volets des bobines coupees aussi : tuiles cote a cote */                       /* n°3 : cumul secondaire sur une rangée */
   .fiche-line.fl-current .fiche-grid>.field:has([id^="flConf_"]){padding-left:165px;padding-right:210px}
   .fiche-line.fl-current:has(.fl-pos.pos-last-ref) .fiche-grid>.field:has([id^="flConf_"]){padding-left:210px}   /* [L509 · signalement Celine 08/09] le 🎯 « derniere bobine de sa reference » (L500) elargit le badge n/T de 37 px (198 px mesures en atelier 22px) : sur la carte EN COURS, dont l en-tete est pose SUR la rangee de config, il masquait « 1x55 + 33 ». La reserve gauche passe a 210 px quand le badge porte le picto — picto conserve, paysage uniquement */ /* [L458] recalibre pour la police systeme (L456) : pastille BOBINE n/T ~150px, CHUTE ~95px + ✕ 48 — les mesures Barlow Condensed (130/145) faisaient chevaucher MODIFIER/CHUTE et BOBINE/config (photos Esteban) */
+  #ficheMain #fichePkgLine{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:6px 0 8px;padding:8px 14px;border-radius:9px;background:rgba(255,212,94,.10);border:1px solid rgba(255,212,94,.35);font:600 15px/1.35 var(--f-body);color:var(--text);word-break:break-word}   /* [L510 · Celine 08/09] emballage / cerclage / consignes de Dominique visibles par l operateur (lecture seule, 3 lignes max). Deux ids : gagne sur la regle globale #fichePkgLine{display:none} (placee plus loin dans le fichier) quel que soit l ordre */
+  #ficheMain #fichePkgLine.l510-vide{display:none}
+  #fichePkgLine .l510-p{font-weight:800}
+  #fichePkgLine .l510-sep{color:var(--text3)}
+  #fichePkgLine .l510-n{color:#ffd45e;font-weight:700}
   #ficheRight>.fmm-inline-block.active .fmm-hint,#ficheLines .fmm-inline-block.active .fmm-hint{display:none}   /* n°5 : 0 phrase explicative (le bouton le dit) */
   .fmm-inline-block .fmm-btn-ref{display:none}                                                             /* n°5 : la réf est déjà dans la bande */
   #ficheRight>#sendPlanWrap>#sendPlanHint:empty{display:none!important}                                   /* n°6 : hint vide = 0px (inline display:block) */
@@ -2079,6 +2084,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
    les ré-affiche. Badges OUTILS = entrées visibles (JS). Portrait inchangé.
    ============================================================ */
 .outils-recorr{display:none}
+#fichePkgLine{display:none}   /* [L510] portrait = layout historique (regle 3) : la ligne emballage n existe qu en paysage, voir le bloc @media(min-width:1100px) */
 @media(min-width:1100px){
   body:not(.show-ref-bands) #ficheRight>.fmm-inline-block:not(.active),body:not(.show-ref-bands) #ficheLines .fmm-inline-block:not(.active){display:none}
   body.show-ref-bands .fmm-inline-block:has(.fmm-badge.val) .fmm-valsum{display:flex!important}
@@ -3286,7 +3292,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.08-L509';
+const APP_VERSION='2026.09.08-L510';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -22463,6 +22469,31 @@ function renderSoldeSummary(list){ try{
   s.classList.add('has-solde');
 }catch(e){} }
 // Rangée de pastilles : CLIENT · RÉF (nom court L293) · [MACHINE] · MÈRE · BORDS · LAME N° · JOUR · OP + état repli/déplié
+/* [L510 · demande Celine 08/09/2026, option B] EMBALLAGE / CERCLAGE LISIBLES PAR L OPERATEUR.
+   Les regles d emballage (palette, type, etiquetage, cerclage) et les consignes libres de Dominique (« Instructions
+   specifiques client » : nb de palettes, cartons, piles par carton, laizes a cercler, ne pas filmer...) n existaient
+   que sur le PAPIER : la section « 📦 Conditionnement » de la fiche est masquee depuis L79 (champs conserves pour la
+   serialisation et l impression). Or l operateur — qui conditionne les commandes — ne lit que la tablette : le plan
+   imprime est perime des que des chutes s ajoutent ou que le plan est recalcule (le papier est le document de
+   Dominique, l appli celui de l operateur). Cas concret : un operateur est venu demander au bureau quelles laizes
+   cercler. Ici : UNE ligne LECTURE SEULE sous les pastilles d en-tete, construite depuis les champs existants
+   (aucune saisie possible sur la fiche — l intention L79 est respectee), rafraichie par renderFicheHeadPills,
+   affichee en PAYSAGE uniquement (regle 3 : portrait inchange). Aucune ecriture, aucun impact calcul ni papier. */
+function _l510PkgLine(){
+  try{
+    const row=document.getElementById('ficheHeadPills'); if(!row) return;
+    let el=document.getElementById('fichePkgLine');
+    if(!el){ el=document.createElement('div'); el.id='fichePkgLine'; el.className='l510-vide'; el.setAttribute('aria-live','polite'); row.insertAdjacentElement('afterend',el); }
+    const v=function(id,alt){ let e=document.getElementById(id); let s=e?String(e.value||'').trim():''; if(!s&&alt){ e=document.getElementById(alt); s=e?String(e.value||'').trim():''; } return s; };
+    const parts=[v('fPalette','planPalette'),v('fType','planType'),v('fEtiquetage','planEtiquetage'),v('fCerclage','planCerclage')].filter(Boolean);
+    const notes=v('fNotesEmballage','planNotesEmballage').split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean);
+    if(!parts.length&&!notes.length){ el.textContent=''; el.classList.add('l510-vide'); return; }
+    let h='<b>📦</b> '+parts.map(function(p){ return '<span class="l510-p">'+esc(p)+'</span>'; }).join('<span class="l510-sep"> · </span>');
+    if(notes.length) h+=(parts.length?'<span class="l510-sep"> — </span>':'')+'<span class="l510-n">⚡ '+esc(notes.join(' · '))+'</span>';
+    el.innerHTML=h; el.classList.remove('l510-vide');
+  }catch(_){ }
+}
+
 function renderFicheHeadPills(){ try{
   const main=document.getElementById('ficheMain'); if(!main) return;
   let row=document.getElementById('ficheHeadPills');
@@ -22475,6 +22506,7 @@ function renderFicheHeadPills(){ try{
   }
   const v=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; };
   const cli=v('fClient'), lame=v('fNumLame'), ini=v('fInitiales');
+    try{ _l510PkgLine(); }catch(_){ }   /* [L510] ligne emballage/cerclage lecture seule, rafraichie avec l en-tete */
   const ref=v('fRef').split(/\s\+\s/).map(function(x){ return refDisp(x); }).filter(Boolean).join(' + ');   // [L340 · fix audit] multi-réf : chaque réf raccourcie
   const m=(typeof ficheMachine==='string')?ficheMachine:'';
   const mLbl=m==='feba'?'FEBA':m==='maveg'?'MAVEG':m==='cevenini'?'CEVENINI':'';

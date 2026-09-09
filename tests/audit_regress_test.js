@@ -2078,5 +2078,12 @@ has(/KX1045\(\?!\[-0-9\]\)/,'L508 : KX1045 sans -1 → KX1045-1 noir blanc (déc
 console.log('── L509 : le 🎯 « dernière bobine de sa référence » (L500) ne masque plus « 1×55 + 33 » sur la carte en cours (signalement Céline 08/09) ──');
 has(/fl-current:has\(\.fl-pos\.pos-last-ref\)[^{]*flConf_[^{]*\{padding-left:210px/,'L509 : réserve gauche 210 px quand le badge n/T porte le 🎯 (mesuré : badge 198 px en atelier 22px, débordement 33 px → marge 12 px) — paysage uniquement');
 
+console.log('── L510 : emballage / cerclage / consignes lisibles par l opérateur sur la fiche (demande Céline 08/09, option B) ──');
+has(/function _l510PkgLine/,'L510 : la ligne emballage lecture seule existe');
+has(/try\{ _l510PkgLine\(\); \}catch\(_\)\{ \}/,'L510 : rafraîchie par renderFicheHeadPills (chargement, partage, changement de machine, coupées)');
+has(/^#fichePkgLine\{display:none\}/m,'L510 : masquée par défaut → portrait inchangé (règle 3)');
+has(/#ficheMain #fichePkgLine\{display:-webkit-box;-webkit-line-clamp:3/,'L510 : affichée en paysage, 3 lignes max');
+has(/v\('fNotesEmballage','planNotesEmballage'\)/,'L510 : les consignes libres de Dominique (Instructions spécifiques) sont reprises, avec repli sur le Plan');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
