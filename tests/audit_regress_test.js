@@ -2085,5 +2085,14 @@ has(/^#fichePkgLine\{display:none\}/m,'L510 : masquée par défaut → portrait 
 has(/#ficheMain #fichePkgLine\{display:-webkit-box;-webkit-line-clamp:3/,'L510 : affichée en paysage, 3 lignes max');
 has(/v\('fNotesEmballage','planNotesEmballage'\)/,'L510 : les consignes libres de Dominique (Instructions spécifiques) sont reprises, avec repli sur le Plan');
 
+console.log('── L511 : la machine se choisit à chaque commande (décision Céline + Dominique 09/09, incident FEBA/MAVEG du 08/09) ──');
+has(/if\(p&&MACHINE_KEYS\.indexOf\(p\)>=0\) return p; return '';/,'L511 : poste de pilotage → plus de « dernière machine » pré-choisie (les tablettes gardent la leur)');
+has(/if\(_dm\) selectMachine\(_dm\); else currentMachine='feba';/,'L511 : nouvelle commande → selects sur « — choisir — », repli interne inchangé');
+has(/function _l511Propagate/,'L511 : la machine choisie est proposée aux autres réfs encore vides');
+has(/_l511InheritMachine\(block\)/,'L511 : un bloc ajouté hérite de la machine du 1er bloc');
+has(/_defOld=_old\?MACHINE_DEFAULTS\[_old\]:MACHINE_DEFAULTS\.feba/,'L511 CRITIQUE : le filet tablette remplace la géométrie FEBA implicite d un plan sans machine (plus d étiquette MAVEG sur des bords FEBA)');
+has(/pill\('MACHINE À CHOISIR','fh-m fh-m-ko'\)/,'L511 : pastille « MACHINE À CHOISIR » sur la fiche quand aucune machine');
+has(/content:"MACHINE À CHOISIR — calcul provisoire FEBA"/,'L511 : libellé rouge sous le select machine du Plan (paysage)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

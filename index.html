@@ -2061,6 +2061,9 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   #fichePkgLine .l510-p{font-weight:800}
   #fichePkgLine .l510-sep{color:var(--text3)}
   #fichePkgLine .l510-n{color:#ffd45e;font-weight:700}
+  .ref-block:has(select[data-rb="machine"] option[value=""]:checked) select[data-rb="machine"]{outline:2px solid var(--red);outline-offset:1px}   /* [L511] Plan : machine non choisie = visible (outline : n est pas ecrase par les regles de bordure existantes) */
+  .ref-block:has(select[data-rb="machine"] option[value=""]:checked) .field:has(select[data-rb="machine"])::after{content:"MACHINE À CHOISIR — calcul provisoire FEBA";display:block;color:var(--red);font:800 11.5px/1.2 var(--f-head);letter-spacing:.06em;margin-top:4px}
+  .fh-pill.fh-m-ko{background:var(--red);color:#fff;font-weight:800;letter-spacing:.04em}   /* [L511] fiche : pastille rouge tant que la machine n est pas fixee */
   #ficheRight>.fmm-inline-block.active .fmm-hint,#ficheLines .fmm-inline-block.active .fmm-hint{display:none}   /* n°5 : 0 phrase explicative (le bouton le dit) */
   .fmm-inline-block .fmm-btn-ref{display:none}                                                             /* n°5 : la réf est déjà dans la bande */
   #ficheRight>#sendPlanWrap>#sendPlanHint:empty{display:none!important}                                   /* n°6 : hint vide = 0px (inline display:block) */
@@ -3292,7 +3295,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.08-L510';
+const APP_VERSION='2026.09.09-L511';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6721,6 +6724,13 @@ function selectMachine(m){
 }
 // Machine choisie pour UNE référence (multi-réf) : applique les défauts
 // bords/lame de cette machine à CE bloc uniquement, puis recalcule.
+/* [L511 · decision Celine + Dominique 09/09] La machine choisie sur une reference est proposee aux autres
+   references de la MEME commande tant qu elles sont sur « — choisir — » (jamais par-dessus un choix). Un bloc
+   ajoute apres coup herite de la machine du 1er bloc. Bords/lame suivent MACHINE_DEFAULTS comme au choix manuel. */
+function _l511Apply(block,m){ try{ const ms=block.querySelector('[data-rb="machine"]'); if(!ms||ms.value||!m) return false; ms.value=m; const d=MACHINE_DEFAULTS[m]; if(d){ const e=block.querySelector('[data-rb="edge"]'); if(e) e.value=d.edge; const b=block.querySelector('[data-rb="blade"]'); if(b) b.value=d.blade; } return true; }catch(e){ return false; } }
+function _l511Propagate(fromBlock,m){ document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){ if(b!==fromBlock) _l511Apply(b,m); }); }
+function _l511InheritMachine(block){ const first=document.querySelector('#refBlocks .ref-block [data-rb="machine"]'); const m=first?String(first.value||'').trim():''; if(m&&first.closest('.ref-block')!==block) _l511Apply(block,m); }
+
 function onRefMachineChange(sel){
   const block=sel.closest('.ref-block');
   if(!block) return;
@@ -6730,6 +6740,7 @@ function onRefMachineChange(sel){
     const eEl=block.querySelector('[data-rb="edge"]'); if(eEl) eEl.value=def.edge;
     const bEl=block.querySelector('[data-rb="blade"]'); if(bEl) bEl.value=def.blade;
   }
+  try{ if(sel.value) _l511Propagate(block,sel.value); }catch(e){}   /* [L511] meme machine proposee aux autres refs encore vides */
   recalcPlan();
 }
 // ── Garde-fous moteur (M4 / MOT-1), APPLIQUÉS EN AMONT DU MOTEUR ──────────────
@@ -7556,6 +7567,7 @@ function addRefBlock(){
   // La machine reste à choisir (choix obligatoire). Les défauts perte bords/lame
   // seront appliqués par onRefMachineChange au moment du choix de la machine.
   const mEl=block.querySelector('[data-rb="machine"]'); if(mEl) mEl.value='';
+  try{ _l511InheritMachine(block); }catch(e){}   /* [L511] le nouveau bloc herite de la machine du 1er bloc */
   // 2 lignes vides par défaut sur le nouveau bloc
   const cont=block.querySelector('.rb-rows');
   cont.appendChild(makeOrderRow());cont.appendChild(makeOrderRow());
@@ -12787,7 +12799,7 @@ function resetAll(){
   // (c'est le même défaut qu'au boot ; la fiche hérite via L359). Sans poste ni mémoire : comme avant (selects vides).
   window._l363PkgTouched=false; window._l363PkgClient=''; window._l377MachinePrep=null;   // [L363 · B5] nouvelle commande = la règle reprend la main · [L377 · B2] trace machine remise à zéro
   try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] chips « Habituelles » vidées (client/réf vides) — plus de laize fantôme sur plan vierge
-  { const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; selectMachine(_dm||'feba'); document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value=_dm||'';}); }
+  { const _dm=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; if(_dm) selectMachine(_dm); else currentMachine='feba';   /* [L511] pilotage : selects laisses sur « — choisir — », repli interne inchange */ document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value=_dm||'';}); }
   initDefaultRows();
   
   recalcPlan();
@@ -22521,7 +22533,7 @@ function renderFicheHeadPills(){ try{
   let cliCourt=cli; try{ const cut=cliCourt.search(/\s+pour\s+le\s+\d/i); if(cut>2) cliCourt=cliCourt.slice(0,cut); }catch(e){}   /* [L471 · photo tablette Esteban] la date + n° de commande sortent de la pastille (tout est dans l'en-tete deplie) : « Legrand France » suffit — [audit] \d : ne coupe que le suffixe date/n° (« pour le 02 09 26… »), pas une raison sociale contenant « pour le » */
   h+=pill(esc(cliCourt||'CLIENT ?'),cli?'':'fh-miss');
   if(ref) h+=pill(esc(ref));
-  if(mLbl) h+=pill(mLbl,'fh-m fh-m-'+m);
+  if(mLbl) h+=pill(mLbl,'fh-m fh-m-'+m); else h+=pill('MACHINE À CHOISIR','fh-m fh-m-ko');   /* [L511] l absence de machine doit se voir (elle calculait comme FEBA en silence) */
   try{ if(window._l377MachinePrep&&window._l377MachinePrep!==mLbl) h+=pill('prép. '+window._l377MachinePrep,'fh-prep'); }catch(e){}   // [L377 · B2] trace « préparé X → coupé Y » visible
   h+=pill(lbl('OP',ini||'?'),ini?'':'fh-miss');
   if(!lame) h+=pill(lbl('LAME N°','?'),'fh-miss');
@@ -22660,7 +22672,7 @@ function _l376PostMachineSwap(withFiche){ try{
   const _vals=[...new Set(_sels.map(el=>String(el.value||'').trim()).filter(Boolean))];
   if(!_sels.length||_vals.length>1||_vals[0]===_post) return null;
   const _old=_vals[0]||'', _was=_old?getMachineLabel(_old):'';
-  const _defOld=_old?MACHINE_DEFAULTS[_old]:null, _defNew=MACHINE_DEFAULTS[_post];
+  const _defOld=_old?MACHINE_DEFAULTS[_old]:MACHINE_DEFAULTS.feba, _defNew=MACHINE_DEFAULTS[_post];   /* [L511] plan SANS machine = bords/lame FEBA poses par le repli silencieux : on les remplace comme un defaut, pas comme une personnalisation (incident 08/09 : etiquette MAVEG, geometrie FEBA) */
   _sels.forEach(function(el){ el.value=_post; const blk=el.closest('.ref-block'); if(!blk||!_defNew) return;
     const eEl=blk.querySelector('[data-rb="edge"]'), bEl=blk.querySelector('[data-rb="blade"]');
     if(eEl&&(!String(eEl.value).trim()||(_defOld&&parseNum(eEl.value)===parseNum(_defOld.edge)))) eEl.value=_defNew.edge;
@@ -22692,7 +22704,7 @@ function _l376PostMachineSwap(withFiche){ try{
   }
   try{ recalcPlan(); }catch(e){}
   try{ if(_was) window._l377MachinePrep=_was; }catch(e){}   // [L377 · B2] trace durable « préparé X → coupé Y » (pastille + archive)
-  try{ showToast('⚙ Commande passée sur '+getMachineLabel(_post)+(_was?' (préparée '+_was+')':'')+(_mixCut&&_was?' — les bobines déjà coupées restent attribuées à '+_was:'')+' — bords/lame personnalisés conservés.'); }catch(e){}
+  try{ showToast('⚙ Commande passée sur '+getMachineLabel(_post)+(_was?' (préparée '+_was+')':'')+(_mixCut&&_was?' — les bobines déjà coupées restent attribuées à '+_was:'')+(_old?' — bords/lame personnalisés conservés.':' — le plan n\'avait pas de machine : réglages '+getMachineLabel(_post)+' appliqués, plan recalculé.')); }catch(e){}
   return {swapped:true,was:_was};
 }catch(e){ return null; } }
 // [L377 · A9] réseau : pastille 📡 HORS-LIGNE dans la nav + flush du repli brouillon et re-render de la barre miroir au retour
@@ -22728,7 +22740,7 @@ function _l370HabitualWidths(){ try{ if(typeof planManual!=='undefined'&&planMan
   box.innerHTML='<span class="l370-l">Habituelles</span>'+ws.map(w=>'<button type="button" class="l370-w" onclick="_l370FillWidth('+w+')">'+fmt(w)+' mm</button>').join(''); }catch(e){} }
 function _l370FillWidth(w){ try{ const blk=document.querySelector('.ref-block[data-ref-idx="0"]'); if(!blk) return; const rows=blk.querySelector('.rb-rows'); let target=Array.from(rows.querySelectorAll('.order-row')).find(r=>{ const i=r.querySelector('input[data-type="width"]'); return i&&!String(i.value||'').trim(); }); if(!target){ target=makeOrderRow(); rows.appendChild(target); } const i=target.querySelector('input[data-type="width"]'); if(i){ i.value=String(w); i.dispatchEvent(new Event('input',{bubbles:true})); const q=target.querySelector('input[data-type="qty"]'); if(q&&!q.value){ try{ q.focus({preventScroll:true}); }catch(e){} } } }catch(e){} }
 // [L363 · B3] machine par défaut : compte machine « Poste FEBA/MAVEG/CEVENINI » > dernière machine choisie sur ce poste > '' (comme avant)
-function _l363DefaultMachine(){ try{ const p=(typeof _machinePostName==='function')?String(_machinePostName()||'').toLowerCase():''; if(p&&MACHINE_KEYS.indexOf(p)>=0) return p; let lm=''; try{ lm=localStorage.getItem('step_last_machine')||''; }catch(e){} return (lm&&MACHINE_KEYS.indexOf(lm)>=0)?lm:''; }catch(e){ return ''; } }
+function _l363DefaultMachine(){ try{ const p=(typeof _machinePostName==='function')?String(_machinePostName()||'').toLowerCase():''; if(p&&MACHINE_KEYS.indexOf(p)>=0) return p; return ''; }catch(e){ return ''; } }   /* [L511 · decision Celine + Dominique 09/09] sur le POSTE DE PILOTAGE, plus de « derniere machine » pre-choisie : une commande s ouvre sur « — choisir — » (incident 08/09 : plan FEBA herite de la commande precedente, decoupe sur MAVEG). Les tablettes « Poste X » gardent leur machine. */
 function _l352Restore(n){ try{
   if(!n) return;
   const ph=n._l352Home; n._l352Home=null;
