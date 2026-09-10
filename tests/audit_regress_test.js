@@ -2202,5 +2202,23 @@ has(/^function _l515Date\(d\)\{/m,'L515 : dates en français clair (« 1 sept. �
 has(/\.lb-cols\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\);gap:10px\}/,'L515 : 4 colonnes en paysage, 2×2 en portrait');
 has(/lb-legend">Chaque lame suit le même chemin/,'L515 : la légende dit le cycle en une phrase');
 absent(/const card=\(m,l,action,dateLbl\)=>/,'L515 : l ancienne carte (pictos « ➜🏭 » et dates cryptiques) a disparu du rendu des sections');
+console.log('── L516 : PERTE de laize dite à l opérateur (demande DG via Céline 10/09/2026, cas VEKA 152×50 / KX1006-1) ──');
+has(/^const PERTE_LAIZE_ALERTE_MM=20;/m,'L516 : seuil unique (20 mm), constante modifiable en UN point');
+has(/^function _l516EstSolde\(l\)\{ try\{/m,'L516 : SOLDE décidé par identité de réf (_refKeyOf) et fin de phase, jamais par la classe pos-last-ref (totalsByRef>1)');
+has(/^function _l516ChipEtat\(waste,solde,seuil\)\{/m,'L516 : état de la pastille = fonction PURE testée (over > solde > perte >= seuil > neutre)');
+has(/if\(waste<-0\.5\) return \{cls:'over',label:'⚠ DÉPASSE '\+mm\};/,'L516 : ⚠ DÉPASSE (L353) reste prioritaire et inchangé');
+has(/chip\.textContent=_e\.label;/,'L516 : la pastille dit PERTE ou SOLDE (plus jamais « CHUTE »)');
+absent(/\?'⚠ DÉPASSE ':'CHUTE '\)\+fmt\(Math\.abs\(waste\)\)/,'L516 : l ancien libellé « CHUTE n mm » a disparu');
+has(/chip\.classList\.toggle\('perte',_e\.cls==='perte'\);/,'L516 : rouge UNIQUEMENT sur une perte >= seuil (un solde n est jamais rouge)');
+has(/VOIR DOMINIQUE : laize réutilisable \?/,'L516 : consigne visible « ⚠ PERTE N mm · VOIR DOMINIQUE : laize réutilisable ? » (formulation choisie par Céline)');
+has(/note\.className='l516-note'; const fld=cur\.querySelector\('\.fiche-grid>\.field:has\(\[id\^="flConf_"\]\)'\); if\(fld\) fld\.appendChild\(note\);/,'L516 : la consigne vit sur sa propre ligne SOUS la configuration (jamais dans la pastille nowrap : budget 150 px, leçon L509 ; jamais après le header absolu : chevauchement BOBINE n/T)');
+has(/\.fl-current \.fl-chute\.perte\{color:var\(--red\)\}/,'L516 : rouge sans cadre ni halo (le cadre de .over coûte 22 px)');
+has(/\.fl-current \.fl-chute:not\(\.over\):not\(\.perte\):not\(\.solde\)\{color:var\(--text2\)\}/,'L516 : le gris B1 n écrase plus le rouge PERTE (piège de cascade)');
+has(/^\.l516-note\{display:none\}/m,'L516 : portrait strictement inchangé — la consigne n existe qu en paysage');
+has(/body\.atelier \.fl-current \.l516-note\{font-size:17px\}/,'L516 : mode atelier (gros caractères) respecté');
+has(/if\(st\.plan\.machine\) selectMachine\(st\.plan\.machine\); else currentMachine='feba';/,'L516 : un brouillon sans machine ne force plus FEBA dans les selects à l ouverture (poste de pilotage, complément L511)');
+absent(/selectMachine\(st\.plan\.machine\|\|'feba'\);/,'L516 : l ancien repli « feba » qui remplissait les selects vides a disparu');
+has(/if\(_pilot&&_pc!==undefined&&_nc&&_pc&&_nc!==_pc\)\{ let _rz=0; document\.querySelectorAll\('#refBlocks \[data-rb="machine"\]'\)\.forEach\(function\(el\)\{ if\(el\.value\)\{ el\.value=''; _rz\+\+; \} \}\);/,'L516 : poste de pilotage, changement de client = nouvelle commande = machine « — choisir — » (jamais au 1er passage, jamais sur une tablette machine)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

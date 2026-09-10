@@ -1586,6 +1586,7 @@ body.atelier .stat-tile b{font-size:36px}
    Tout est scopé ≥1100px — portrait/téléphone STRICTEMENT identiques à L339.
    ============================================================ */
 .fh-pills,#soldeSummary,.fl-chute{display:none}   /* portrait : pastilles, résumé solde et chip CHUTE n'existent pas (sections visibles comme avant) */
+.l516-note{display:none}   /* [L516] portrait = layout historique : la consigne PERTE n existe qu en paysage (meme patron que .fl-chute juste au-dessus) */
 @media(min-width:1100px){
   /* — sections repliées par défaut (déplier = tap sur les pastilles, ⚙ OUTILS → 🔧, ou toute garde qui y défile) — */
   #ficheHeadSec:not(.reveal),#ficheChgSec:not(.reveal){display:none}
@@ -1655,6 +1656,10 @@ body.atelier .stat-tile b{font-size:36px}
   .fiche-line.fl-current>.fiche-line-header>button[aria-label="Retirer cette bobine"]:active{opacity:1;color:var(--red)!important}
   .fl-current .fl-chute{display:inline-flex;align-items:center;font:700 13.5px/1 var(--f-head);letter-spacing:.02em;color:#ffd45e;white-space:nowrap;margin-left:auto;margin-right:8px}   /* [L458] 15->13.5px : police systeme plus large */
   .fl-chute.over{color:#ff8a8f}
+  .fl-current .fl-chute.perte{color:var(--red)}   /* [L516] perte >= PERTE_LAIZE_ALERTE_MM : ROUGE, sans cadre ni halo (le cadre de .over coute 22 px, budget L509) */
+  .fl-current .fl-chute.solde{color:#f5b301}      /* [L516] solde = meme ambre que .badge-solde du plan */
+  .fl-current .l516-note{display:block;font:700 15px/1.25 var(--f-head);letter-spacing:.02em;color:var(--red);margin:6px 0 0}   /* [L516] consigne visible sous la configuration de la bobine en cours */
+  body.atelier .fl-current .l516-note{font-size:17px}
   .fl-current .fiche-chute-note{position:static;margin:4px 0 0}   /* la note « pris dans chute stock » revient dans le flux (le coin est pris par CHUTE + ✕) */
   /* — ⚠ DÉFAUT lisible (24px), indice « 1 tap » et sous-libellés au plancher 13px (constats design 8-9) — */
   .fl-current .fl-more>summary,body.atelier .fl-current .fl-more>summary{font-size:24px}   /* [fix audit] body.atelier .fl-more>summary (15px) battait la règle en atelier (défaut opérateur) */
@@ -2149,7 +2154,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   .fl-current .fl-pos{background:transparent;border:1.5px solid #b8860b;color:#ffd45e}
   .fiche-line.fl-current:has(.fl-badge.badge-red) .fl-pos{color:#ff8a8f;border-color:#8a2b2f}
   .fl-current .fl-edit-chip:not(.need-recalc){display:none}   /* [L459 · demande Esteban 28/08] MODIFIER retire : on tape directement la barre de chiffres ; le bouton ne reapparait que devenu « APPLIQUER LES CHANGEMENTS » (need-recalc), indispensable au recalcul */
-  .fl-current .fl-chute:not(.over){color:var(--text2)}
+  .fl-current .fl-chute:not(.over):not(.perte):not(.solde){color:var(--text2)}   /* [L516] le gris ne doit plus ecraser le rouge PERTE / l ambre SOLDE (cette regle est PLUS BAS dans la cascade que celle de .perte) */
   .fl-current .cumul-card{border-color:var(--border2);background:#1a1a18}
   .fl-current .cc-t{color:var(--text2)}
   .fp-streak.s25{border-color:#b8860b;box-shadow:none}
@@ -3340,7 +3345,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.10-L515';
+const APP_VERSION='2026.09.10-L516';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5170,6 +5175,7 @@ const MACHINE_KEYS=['feba','maveg','cevenini'];            // [L98 · simpl.8] l
 const MACHINE_LABELS=['FEBA','MAVEG','CEVENINI'];          // [L98 · simpl.8] libellés majuscules (KPI, exports)
 const normConf=c=>(c||'').replace(/x/gi,'×').replace(/\*/g,'×').replace(/(\d)\s+,(\d)/g,'$1.$2').replace(/(\d),(\d)/g,'$1.$2').replace(/\s*×\s*/g,'×').trim();   // [L92 · Audit #17] normalisation UNIQUE alignée sur parseConf : ×/x/*, virgule décimale → point, espaces autour de × — « 4×92,5 » ≡ « 4x92.5 » ≡ « 4 * 92,5 » sur TOUTES les comparaisons (isLineFrozen, NC, cumuls…)
 const PERTE_SEUIL_ORANGE=2.5;   // [L315 · LOT 15 · §2.17-B] seuil VALIDÉ par Esteban (03/08) : au-delà, le % de perte passe ORANGE (signal « revoir les laizes avant de lancer »)
+const PERTE_LAIZE_ALERTE_MM=20;   /* [L516 · demande DG via Celine 10/09/2026, cas VEKA 152×50 sur KX1006-1 : 40 mm perdus sur chacune des 6 bobines pleines] SEUIL UNIQUE (mm) : la laize restante NON gardee d une bobine intermediaire passe en ROUGE sur la fiche operateur a partir de cette valeur (« exploitable : voir Dominique »). Point de reglage unique, ne jamais recopier 20 en dur. */
 const pctCls=p=>p<PERTE_SEUIL_ORANGE?'pct-green':p<8?'pct-orange':'pct-red';   // [L87 · simpl.9, seuil L315] couleur perte partagée
 const _ESC_MAP={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 function esc(v){
@@ -6882,6 +6888,12 @@ function updateVekaVisibility(fromClientChange){
 
 function onClientChange(){
   const client=document.getElementById('planClient').value;
+  /* [L516 · signalement Celine 10/09] poste de PILOTAGE (aucun compte machine) : changer de client = nouvelle commande -> la machine
+     de la commande precedente ne doit pas rester choisie en silence. Selects remis sur « — choisir — » (contour rouge + pastille
+     « MACHINE A CHOISIR » de L511), toast honnete. Jamais au premier passage (restauration d un brouillon) ni sur une tablette machine. */
+  try{ const _pc=window._l516PrevClient, _nc=String(client||'').trim(); const _pilot=!((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine());
+    if(_pilot&&_pc!==undefined&&_nc&&_pc&&_nc!==_pc){ let _rz=0; document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(function(el){ if(el.value){ el.value=''; _rz++; } }); if(_rz){ try{ showToast('Nouvelle commande : machine à choisir ('+_rz+' référence'+(_rz>1?'s':'')+').','ok'); }catch(_){ } } }
+    window._l516PrevClient=_nc; }catch(_){ }
   const refs=_l454CatalogRefs(client);   /* [L454] tolere le client texte libre */
   /* [L487] data-ci = index dans le catalogue : deux entrees de MEME reference a metrages differents
      ne se confondent plus (la value reste la reference — rien ne change pour les plans archives). */
@@ -23090,7 +23102,28 @@ function _l345EditChip(id){ try{
 function _l353Overflow(id){ try{ const l=(typeof ficheLines!=='undefined')?ficheLines.find(function(x){ return x&&x.id===id; }):null; const conf=(document.getElementById('flConf_'+id)||{}).value||''; const useful=(l&&l.useful>0)?l.useful:((typeof getUseful==='function')?getUseful():0); const blade=(l&&typeof l.blade==='number')?l.blade:((typeof getBlade==='function')?getBlade():0); if(!(useful>0)||!conf.trim()) return 0; const pieces=parseConf(conf); if(!pieces.length) return 0; const w=useful-calcStats(pieces,blade).total; return w<-0.5?-w:0; }catch(e){ return 0; } }   // [fix audit L353] tolérance 0,5 mm = seuil du moteur (_confIllisible) : plus de « dépasse de 0 mm » (flottants / arrondi des slots)
 // [L340 · fix audit design · maquette 17] chip « CHUTE n mm » sur la carte EN COURS = utile − (Σ laizes + lames), lecture seule
 // (calcStats en lecture, aucun calcul moteur modifié) ; recalculée au changement de config (fin de updateAllCumuls) et au hub.
+/* [L516 · decisions Celine 10/09] La pastille de la bobine EN COURS dit ce que la regle L513 fait de la laize restante :
+   SOLDE (chute gardee) = fin de phase OU derniere bobine de SA reference (identite _refKeyOf, l.8108) ; un rouleau ♻ recoupe
+   n est jamais un solde ; tout le reste = PERTE (matiere perdue), en ROUGE a partir de PERTE_LAIZE_ALERTE_MM avec la consigne
+   « VOIR DOMINIQUE : laize reutilisable ? ». NE PAS deriver de .pos-last-ref (exige totalsByRef>1, l.21606 : une ref a une seule
+   bobine serait dite PERTE alors que son reste est bien un solde etiquete). « ⚠ DEPASSE » (L353) reste prioritaire et inchange. */
+function _l516EstSolde(l){ try{
+  if(!l||l.recut) return false;
+  if(l.phaseEnd) return true;
+  const k=_refKeyOf(l); let last=null;
+  (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(x){ if(x&&_refKeyOf(x)===k) last=x; });
+  return !!last&&last.id===l.id;
+}catch(e){ return false; } }
+/* Etat de la pastille (pur, testable) : over > solde > perte (>= seuil) > neutre. label = texte affiche. */
+function _l516ChipEtat(waste,solde,seuil){
+  const S=(typeof seuil==='number'&&isFinite(seuil))?seuil:PERTE_LAIZE_ALERTE_MM; const mm=fmt(Math.abs(waste))+' mm';
+  if(waste<-0.5) return {cls:'over',label:'⚠ DÉPASSE '+mm};
+  if(solde) return {cls:'solde',label:'SOLDE '+mm};
+  if(waste>=S) return {cls:'perte',label:'PERTE '+mm};
+  return {cls:'',label:'PERTE '+mm};
+}
 function _l340RenderChuteChip(){ try{
+  document.querySelectorAll('.l516-note').forEach(function(x){ if(!x.closest('.fl-current')) x.remove(); });   /* [L516] la note suit la carte en cours, comme la pastille */
   document.querySelectorAll('.fl-chute').forEach(function(x){ if(!x.closest('.fl-current')) x.remove(); });
   const cur=document.querySelector('.fiche-line.fl-current'); if(!cur) return;
   const id=cur.id; const l=(typeof ficheLines!=='undefined')?ficheLines.find(function(x){ return x&&x.id===id; }):null;
@@ -23102,8 +23135,17 @@ function _l340RenderChuteChip(){ try{
   const pieces=parseConf(conf); if(!pieces.length){ if(chip) chip.remove(); return; }
   const waste=useful-calcStats(pieces,blade).total;
   if(!chip){ chip=document.createElement('span'); chip.className='fl-chute'; const hd=cur.querySelector('.fiche-line-header'); if(hd) hd.appendChild(chip); else cur.appendChild(chip); }
-  chip.textContent=(waste<-0.5?'⚠ DÉPASSE ':'CHUTE ')+fmt(Math.abs(waste))+' mm';   // [fix audit L353] même tolérance 0,5 mm que _l353Overflow (chip et confirm disent la même chose)
-  chip.classList.toggle('over',waste<-0.5);
+  const _solde=_l516EstSolde(l); const _e=_l516ChipEtat(waste,_solde,PERTE_LAIZE_ALERTE_MM);   /* [L516] PERTE / SOLDE / ⚠ DÉPASSE — même tolérance 0,5 mm que _l353Overflow (chip et confirm disent la même chose) */
+  chip.textContent=_e.label;
+  chip.title=(_e.cls==='over')?'La configuration dépasse la laize utile':(_e.cls==='solde')?'Chute GARDÉE : dernière bobine de cette référence ou fin de phase — étiquette solde':(_e.cls==='perte')?'PERTE : laize restante non gardée — VOIR DOMINIQUE : laize réutilisable ?':'PERTE : laize restante non gardée';
+  chip.classList.toggle('over',_e.cls==='over');
+  chip.classList.toggle('solde',_e.cls==='solde');
+  chip.classList.toggle('perte',_e.cls==='perte');
+  /* [L516 · formulation retenue par Celine] la consigne VISIBLE (pas seulement une infobulle) vit sur une ligne sous la CONFIGURATION :
+     la pastille est nowrap avec ~150 px de budget (lecon L509), le texte y aurait masque la configuration. */
+  let note=cur.querySelector('.l516-note');
+  if(_e.cls==='perte'){ if(!note){ note=document.createElement('div'); note.className='l516-note'; const fld=cur.querySelector('.fiche-grid>.field:has([id^="flConf_"])'); if(fld) fld.appendChild(note); else cur.appendChild(note); }   /* sous la configuration (le header est en position:absolute : apres lui, la note chevauchait la pastille BOBINE n/T) */ note.textContent='⚠ PERTE '+fmt(Math.abs(waste))+' mm · VOIR DOMINIQUE : laize réutilisable ?'; }
+  else if(note) note.remove();
   /* [L514 · signalements JF 08/09 « le logiciel dit 1000 mm de découpé, en réalité 920 » / « si je change à la main cela écrit défaut »]
      le chiffre que l opérateur ne retrouvait pas sur son rouleau = la PERTE DE LAME du plan (5 mm × 15 coupes = 75 mm), paramètre
      caché du formulaire. On l écrit noir sur blanc sous la config : Σ laizes + n lames × perte = total / laize. */
@@ -25255,7 +25297,7 @@ function restoreFicheState(st){
   loadedSaveId=st.loadedSaveId||null;
   window._l377MachinePrep=null;   // [L379 · n°12] la reprise repart proprement (le swap de passation re-posera la valeur s'il a lieu)
   try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] brouillon restauré : chips du bon couple client+réf
-  selectMachine(st.plan.machine||'feba');
+  if(st.plan.machine) selectMachine(st.plan.machine); else currentMachine='feba';   /* [L516 · signalement Celine 10/09] brouillon SANS machine (poste de pilotage depuis L511) : on ne force plus FEBA dans les selects vides a chaque ouverture — repli interne inchange, l ecran reste sur « — choisir — » */
   if(g('motherWidth'))g('motherWidth').value=st.plan.mother;
   if(g('bladeWidth'))g('bladeWidth').value=st.plan.blade;
   if(g('edgeLoss'))g('edgeLoss').value=st.plan.edge;
