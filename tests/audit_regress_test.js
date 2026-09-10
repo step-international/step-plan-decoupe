@@ -1358,7 +1358,7 @@ has(/UN tableau par machine remplace les 5/,'L481 : les 5 graphiques lames rempl
 has(/Bobineaux par lame \(moyenne\)/,'L481 : bobineaux moyens par lame dans le tableau');
 
 console.log('── L480 : fixes audit verification + style compact ──');
-has(/_edg80/,'L480 : bords TOUJOURS dans la perte m² (le % archive est en base utile)');
+has(/const _m13=_l513MatiereOf\(f\);/,'L480→L513 : perte m² du mois via la SOURCE UNIQUE (bords + lames + laize restante non gardee), plus de triangulation bords + m² utiles × %');
 has(/pertePctMl/,'L480 : % pondere par ml pour le m² multi-ref');
 has(/parsing AUTONOME : computePlanAggregate/,'L480b : P11 reparee (parseNum hors bac a sable)');
 has(/#sendPlanWrap\{padding:6px 8px !important\}/,'L480 : la VRAIE barre du bas compactee (actionBar etait invisible >=1100)');
@@ -1417,8 +1417,8 @@ has(/boundedTx\(db\.runTransaction/,'L492 CRITIQUE : referentiel clients ecrit e
 has(/CONCURRENCE/,'L492 : refus explicite si un autre poste a modifie entre-temps');
 has(/_l486SeenAt/,'L492 : version du referentiel memorisee a la lecture');
 has(/replace\(\/\[Oo\]\/g,'0'\)/,'L492 : chuteM2 normalise le metrage comme parseNum (« 6OO » ne vaut plus 6)');
-has(/f\.chuteM2>0&&!f\.manqueMatiere/,'L492 : manque-matiere ne credite plus une chute jamais montee');
-has(/_pm92=parseFloat\(f\.pctMl\)/,'L492 : CSV par commande utilise le % pondere metrage (comme la fiche et le KPI)');
+has(/chuteM2\+=_m13\.chutesM2;/,'L492→L513 : chute gardee du mois depuis la source unique (manque-matiere : lignes coupees seules, solde de la derniere COUPEE)');
+has(/return m\.ok\?m\.perteM2:'';/,'L492→L513 : CSV par commande : Perte m² depuis la source unique (en-tete inchange)');
 has(/piste d..audit inaccessible, RIEN n/,'L492 : l export audit ne dit plus « vide » a un auditeur hors-ligne');
 has(/le BOM doit rester a l offset 0 du FICHIER/,'L492 : accents du CSV audit repares pour Excel');
 has(/la liste des REFERENCES aussi/,'L492 : une reference ajoutee a un client deja selectionne apparait sans changer de client');
@@ -1468,7 +1468,7 @@ has(/_l486LoadClients\(\); \}catch\(e\)\{\}/,'L486 : chargement branche a chaque
 console.log('── L485 : fix audit adversarial L482/L483 (chute a la source) ──');
 has(/CHUTE GARDÉE en m², calculée À LA SOURCE et par RÉF/,'L485 : chuteM2 calcule par computePlanAggregate (1 solde par ref + fins de phase, ♻ exclus)');
 has(/chuteM2:_agg80\.chuteM2/,'L485 : chute gardee persistee sur la fiche a l archivage');
-has(/typeof f\.chuteM2==='number'&&f\.chuteM2>0/,'L485 : le KPI mensuel lit le champ persiste avant tout repli');
+has(/f\.mat\.regleVer==='L513'&&f\.mat\.ok\)\?f\.mat:_l513Matiere\(f\)/,'L485→L513 : le KPI mensuel lit l instantane persiste (f.mat) avant tout calcul vif');
 has(/fd\.actChutes===true&&!fd\.recut/,'L485 : NC en chutes sur rouleau ♻ exclue (hors m² coupes)');
 has(/refGroups\[last\], pas f\.longueur|_rg9\[_rg9\.length-1\]\.longueur/,'L485 : PDF fiche — longueur de la BONNE ref pour le solde');
 has(/v>0&&v<1\) return v\.toLocaleString/,'L485 : une barre a 0,4 m² n affiche plus « 0 »');
@@ -1493,7 +1493,7 @@ console.log('── L482 : diagramme matiere mensuel ISO (perte / dechet / chute
 has(/chuteM2=0;/,'L482 : accumulateur chuteM2 dans buildMonthlyKpi');
 has(/chuteM2:Math\.round\(chuteM2\*10\)\/10/,'L482 : chuteM2 dans le retour du KPI mensuel (voyage dans les agregats figes)');
 has(/fd\.actChutes===true&&!fd\.recut&&typeof ncLoss/,'L482→L485 : NC partie en ✂ Chutes comptee en CHUTE gardee (hors rouleaux ♻)');
-has(/un solde par RÉF \+ fins de phase, ♻ exclus/,'L482→L485 : chute gardee calculee a la source (la lecture de groups\[last\] etait fausse en multi-ref)');
+has(/if\(fd\.actChutes\|\|fd\.phaseEnd\|\|lastIdx\.has\(i\)\) chutes\+=w\*k; else perte\+=w\*k;/,'L482→L485→L513 : chute gardee = solde de la derniere bobine de chaque ref + fins de phase + ✂ Chutes, sinon PERTE (ancre sur le CODE de la source unique)');
 has(/{f:'perte',lbl:'Perte',c:'#f87171'}/,'L482 : serie Perte du diagramme');
 has(/{f:'chute',lbl:'Chutes gardées',c:'#5eead4'}/,'L482 : serie Chutes gardees du diagramme');
 has(/✂ chutes gardées<\/span>/,'L482 : chutes gardees du mois dans la ligne de tete');
@@ -1501,7 +1501,7 @@ has(/'Chutes gardées m²'/,'L482 : colonne Chutes gardees m² dans le CSV mensu
 has(/JAMAIS un faux 0/,'L482 : mois non couvert affiche « — », jamais un faux zero');
 
 console.log('── L477 : regles pertes/dechets/chutes ACTEES (mail Esteban 29/08) ──');
-has(/PERTE = totale − client − chutes gardees/,'L477 : perteM2 + dechetM2 dans buildMonthlyKpi');
+has(/perte\+=lames\*k;/,'L477→L513 : les traits de lame sont dans la PERTE (definition actee par Celine le 09/09 — ancre sur le CODE de la source unique, pas sur un commentaire)');
 has(/fd\.actDechet===true&&typeof ncLoss/,'L477→L479 : dechet = ncLoss des SEULS bobineaux 🗑 Dechet (NC en chutes = matiere stockee)');
 has(/déchet \(NC\)<\/span>/,'L477→L480 : carte matiere Perte + Dechet en m² SANS % (ligne compacte)');
 has(/Matière — par mois \(m²\)/,'L477→L480→L482 : la courbe perte seule est devenue le diagramme mensuel (supersede L482)');
@@ -1512,7 +1512,7 @@ has(/\.fp-num\{font-size:20px\}/,'L475 : compteur COUPEES reduit');
 
 console.log('── L474 : correctifs audit final (19 confirmes) ──');
 has(/TOUJOURS charger le cache \(≤24 docs\)/,'L474#1 : agregatsCache charge a chaque lancement');
-has(/attribution PAR GROUPE via fd\.refIdx/,'L474#2 : m² multi-ref par groupe (homonymes corrects)');
+has(/if\(multi\)\{ const g=_l506RefGroupFor\(f,fd\); if\(!g\)\{ warn\('ref'/,'L474#2→L513 : m² multi-ref resolus LIGNE PAR LIGNE par _l506RefGroupFor (identite, index valide, nom) — homonymes corrects, ligne irresolue TRACEE');
 has(/PRORATA : mois en cours PARTIEL vs N-1/,'L474#3 : vs N-1 proratise et « a date »');
 has(/feries exclus \*\//,'L474#4 : prevision sans jours feries');
 has(/calcule APRES le rendu partiel/,'L474#5 : KPI live plus jete au rendu partiel');
@@ -1990,8 +1990,8 @@ has(/const _mlOf=function\(c\)\{ const v=\(c&&c\.longueur!=null\)\?c\.longueur:'
 absent(/const ml=parseFloat\(String\(c\.longueur==null\?'':c\.longueur\)/,'L505 : plus aucune lecture brute du métrage dans computePlanAggregate (« 1 500 » valait 1 dans pertePctMl)');
 has(/const ml=_mlOf\(c\);   \/\* \[L505 · audit #8\] même lecture que la chute/,'L505 : pertePctMl passe par _mlOf');
 has(/const ml=_mlOf\(c\);   \/\* \[L505 · audit #8\] helper unique/,'L505 : chuteM2 passe par _mlOf');
-has(/upd\.pctMl=\(_d\.pctMl==null\)\?null:_d\.pctMl\.toFixed\(2\);/,'L505→L506 : pctMl recalculé pondéré par le métrage de chaque réf (null si un métrage manque → repli pct)');
-has(/upd\.chuteM2=null;   \/\* \[L505 · audit #8\]/,'L505 : édition admin invalide chuteM2 → reconstruction depuis le ficheDetail édité');
+absent(/upd\.pctMl=/,'L505→L513 : pctMl n est PLUS reecrit a l edition (champ historique ; la valeur vivante est f.mat)');
+has(/upd\.mat=_m1;/,'L505→L513 : édition admin → l instantané matière est recalculé depuis le ficheDetail ÉDITÉ (quand la signature matière change), chuteM2 n est plus touché');
 has(/const _lgOf=function\(ri,nom\)\{/,'L505 : _lgOf résout par INDEX puis par NOM');
 has(/if\(rg\.length>1\)\{ _l505Warn\('_lgOf·non-résolue',new Error\(String\(nom\|\|''\)\)\); return 0; \}/,'L505→L506 : multi-réf sans métrage résolu → 0 + trace, jamais rg[0] ni f.longueur « 1500 / 2000 »');
 absent(/const g=\(typeof ri==='number'&&rg\[ri\]\)\|\|rg\[0\];/,'L505 : le repli rg[0] a disparu de _lgOf');
@@ -2002,7 +2002,7 @@ has(/if\(_l505HorsPlan\(fd\)\) return;\s+\/\* \[L505 · audit #8\] RESTE-\/OP2-\
 has(/^function _l505Warn\(where,e\)\{/m,'L505 : catch muets de la chaîne ISO → console.warn + compteur');
 has(/\}catch\(e\)\{ _l505Warn\('wasteOf',e\); return 0; \}/,'L505 : wasteOf trace son repli');
 has(/\}catch\(e\)\{ _l505Warn\('_l493ChuteFromDetail',e\); return 0; \}/,'L505 : _l493ChuteFromDetail trace son repli');
-has(/\}catch\(e\)\{ _l505Warn\('ncLoss·chute',e\); \}/,'L505 : NC → chute trace son repli');
+has(/\}catch\(e\)\{ try\{ _l505Warn\('l513·matiere',e\); \}catch\(_\)\{ \} R\.calcWarn\+\+; return R; \}/,'L505→L513 : NC → chute (et toute la matière) trace son repli : _l513Matiere ne retourne jamais un 0 sur exception (calcWarn + _l505Warn)');
 has(/kpi\.calcWarn>0\)\?' · ⚠ '\+kpi\.calcWarn\+' calcul\(s\) en repli \(console\)':''/,'L505→L506 : la tuile Chutes gardées affiche le compteur de replis DE L AGRÉGAT (plus un cumul de session)');
 console.log('── L506 · décision Esteban 05/09 : mode apprenti + bulle « 1 tap » supprimés ──');
 has(/\[L506 · décision Esteban 05\/09\] MODE APPRENTI \(L323\) et INDICE « 1 tap » \(L322\) SUPPRIMÉS/,'L506 : pierre tombale documentée (pourquoi, quoi)');
@@ -2038,7 +2038,7 @@ has(/const _gKeys=f\.refGroups\.map\(g=>_l507KeyOf\(g\)\);/,'L507 : le plan du r
 { const _a=src.indexOf("if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey;"), _b=src.indexOf("const gi=(typeof fd.refIdx==='number'&&rg[fd.refIdx])?rg[fd.refIdx]:null;"); console.log((_a>0&&_b>_a?'✅ ':'❌ ')+'L507 : dans _l506RefGroupFor l étage IDENTITÉ précède l étage INDEX (bloc homonyme à moitié saisi = index décalé)'); if(!(_a>0&&_b>_a)) fail++; }
 { const _n=(src.match(/_l507KeyOf\(g\)/g)||[]).length; console.log((_n>=2?'✅ ':'❌ ')+'L507 : les clés écrites à l édition (bobine ajoutée, remplissage) sont recomposées ('+_n+'/2)'); if(_n<2) fail++; }
 has(/const gidx=dets\.map\(fd=>keep\(fd\)\?_l507GroupIdxOf\(f,fd\):-1\);/,'L507 : _l471FicheM2 résout chaque ligne (plus de mode global « par index »)');
-has(/const _gidx63=_dets63\.map\(fd=>_keep63\(fd\)\?_l507GroupIdxOf\(f,fd\):-1\);/,'L507 : buildMonthlyKpi résout chaque ligne (plus de mode global « par index »)');
+has(/const c=ctx\(fd\); if\(!c\|\|!\(c\.ml>0\)\)\{ ok=false;/,'L507→L513 : la source unique résout CHAQUE ligne (ctx par ligne : réf, métrage, bords) ; métrage absent → ok=false, jamais un faux 0');
 absent(/const _hasIdx63=/,'L507 : le mode « par index dès qu une ligne en a » a disparu du KPI');
 absent(/dets\.some\(fd=>fd&&typeof fd\.refIdx==='number'\)/,'L507 : … et de la fiche imprimée / CSV');
 has(/if\(_multiEF\)\{ try\{ const _rg=f\.refGroups; newDetail\.forEach\(d=>\{ if\(!d\|\|typeof d\.refIdx==='number'\) return; const g=_l506RefGroupFor\(f,d\);/,'L507 : à l édition, refIdx renseigné sur toutes les lignes résolubles (plus d état mixte)');
@@ -2104,6 +2104,42 @@ has(/function _l512ByW\(/,'L512 : agrégation papier par (laize, n°)');
 has(/'<th>N° commande<\/th>'/,'L512 : colonne conditionnelle sur le tableau par laize (absente si aucun n°)');
 eqN((src.match(/numCmdHead:/g)||[]).length,3,'L512 : ligne sans n° = n° d en-tête (les 3 appelants de buildPlanPrintHTML : Plan, plan enregistré, fiche)');
 has(/left:r\.qty,numCmd:r\.numCmd\|\|''\}/,'L512 : le n° suit le plan du reste (files FIFO)');
+
+console.log('── L513 : UNE seule matière en m² (décisions Céline, responsable qualité, 09/09/2026) ──');
+has(/^function _l513Matiere\(f\)\{/m,'L513 : la source unique existe');
+has(/^function _l513MatiereOf\(f\)\{/m,'L513 : un seul point de lecture (instantané f.mat sinon calcul vif)');
+has(/^function _l513MatSig\(f,det\)\{/m,'L513 : signature matière à l édition');
+has(/^function _l513FicheFromPlan\(computed\)\{/m,'L513 : adaptateur plan auto (volet de clôture)');
+has(/^function _l513FicheFromManual\(\)\{/m,'L513 : adaptateur plan manuel (chip + volet)');
+has(/ficheEntry\.mat=_l513Matiere\(ficheEntry\);/,'L513 : instantané posé à l ENVOI, avant la copie ficheSafe');
+has(/return \{mois:ym,regleVer:'L513',/,'L513 : l agrégat porte sa règle de calcul');
+has(/_l505Warn\('l513·mois'/,'L513 : une fiche sans matière est TRACÉE, jamais omise en silence (règle 7)');
+absent(/perteM2\+=_edg80/,'L513 : plus de triangulation bords + m² utiles × % dans le mois');
+absent(/^  upd\.pct=/m,'L513 : pct n est PLUS réécrit à l édition (décision A)');
+absent(/^  upd\.chuteM2=null;/m,'L513 : chuteM2 n est PLUS remis à null à l édition');
+has(/const _sigOld=_l513MatSig\(f,f\.ficheDetail\), _sigNew=_l513MatSig\(f,newDetail\);/,'L513 : f.mat recalculé UNIQUEMENT si la matière change (garde-fou B)');
+has(/Matière recalculée \(règle L513\)/,'L513 : delta m² journalisé à l édition');
+absent(/\$\{f\.pct\}%<\/b><i>perte<\/i>/,'L513 : carte de fiche sans %');
+absent(/\$\{s\.pertePct\.toFixed\(1\)\}%/,'L513 : chip du plan manuel sans mm ni %');
+absent(/_lastPertePct\.toFixed\(1\)\.replace/,'L513 : volet de clôture sans % (m², auto ET manuel)');
+absent(/>Rendement matière<\/div>/,'L513 : tuile « Rendement matière » retirée');
+absent(/Rendement matière<\/td>/,'L513 : ligne PDF « Rendement matière / Perte moyenne % » retirée');
+absent(/Perte moy\. <span/,'L513 : tuile « Perte moy. % » retirée');
+absent(/\.badge-pct\{/,'L513 : badge % de la fiche imprimée retiré (classe jamais posée)');
+has(/Le déchet \(NC\) baisse-t-il \?/,'L513 : la courbe suit le DÉCHET NC en m² (la perte % n est plus suivie)');
+has(/ancienne définition \(avant L513\)/,'L513 : un mois figé sous l ancienne règle est marqué (note de statut, Évolution, diagramme)');
+absent(/parseFloat\(String\(f\.pct\|\|''\)/,'L513 : plus aucun écran ne lit f.pct (seul le CSV le garde)');
+has(/return \(typeof m\.dechetM2==='number'\)\?m\.dechetM2:'';/,'L513 : CSV par commande : Déchet m² depuis la source unique (rendu même quand la perte est incalculable)');
+has(/const bucket=fd=>\{ if\(!multi\) return 'mono';/,'L513 · revue adversariale : UN seul espace de seaux (mono = un seau ; multi = résolution unique) — plus de 2e solde sur une fiche ancienne rééditée');
+has(/if\(!keep\(fd\)\|\|fd\.recut\|\|!lisible\(fd\)\) return;/,'L513 · revue adversariale : une ligne illisible ne porte jamais le solde ; la derniere ligne lisible de la ref le porte, quel que soit son libelle (terrain)');
+has(/if\(!ok\)\{ R\.dechetM2=Math\.round\(dechet\*10\)\/10; return R; \}/,'L513 · revue adversariale : le déchet NC est rendu même quand perte/chutes sont incalculables');
+has(/\(prevKpi&&prevKpi\.regleVer==='L513'\)\?_delta\(kpi\.perteM2/,'L513 · revue adversariale : Δ perte vs mois préc. seulement entre deux mois de la même règle');
+has(/const keepNc=fd=>!!fd&&\(!f\.manqueMatiere\|\|fd\.coupee===true\);/,'L513 · revue adversariale (tranche) : perimetre matiere = le TERRAIN, toute ligne coupee non ♻ est une mere (RESTE-/OP2- comprises : recalcPlan re-empaquette le reliquat ainsi) ; manque-matiere = coupees seules');
+has(/warn\('conf',new Error\(raw\|\|'pattern vide'\)\)/,'L513 · revue adversariale : une configuration illisible rend la fiche incalculable + trace (jamais effacée en silence)');
+has(/else if\(fd\.coupee===true\)\{ ok=false; warn\('conf-vide'/,'L513 · synthèse de la revue : une ligne vide pointée coupée rend la fiche incalculable (bobine réelle sans configuration)');
+has(/if\(!\(u>0\)\)\{ ok=false; warn\('useful'/,'L513 · synthèse de la revue : laize utile inconnue = fiche incalculable, jamais un reste calculé sur 0');
+has(/useful:\(typeof _l507GroupUseful==='function'\)\?_l507GroupUseful\(g\)/,'L513 · revue adversariale : laize de SA réf en multi-réf (jamais la chaîne « 2090 / 1240 » de l en-tête)');
+has(/window\._l505WarnN=\(window\._l505WarnN\|\|0\)\+_m13\.calcWarn;/,'L513 · revue adversariale : les replis de l instantané persisté rejoignent le compteur du mois');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
