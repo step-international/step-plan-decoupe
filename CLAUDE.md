@@ -44,6 +44,7 @@ et vérifier la prod : `curl -s "https://step-international.github.io/step-plan-
 4. **Ancre = signature complète en début de ligne, `async` compris, comptée == 1 avant d'écrire.** `function X(){` matche
    l'intérieur de `async function X(){` et coupe le mot-clé (arrivé en L486). Jamais de numéro de ligne dans une édition :
    un numéro calculé avant une suppression plus haut a écrasé une accolade 43 lignes plus loin (L484).
+5bis. **Début de session (consigne Esteban 10/09/2026) — AVANT de lire un bug ou de patcher** : `git fetch -q origin && git log --format='%h %ad | %s' --date=short HEAD..origin/main` ; résumer à l'utilisateur les lots poussés par l'AUTRE poste (Mac d'Esteban / PC de Céline) en une ligne chacun ; arbre propre → `git pull --ff-only origin main` + copie du miroir `~/Documents/step/code plan de découpe/index.html` ; vérifier que Pages sert la version de `origin/main` et que les derniers runs CI sont verts ; puis `bash tests/battery.sh` avant tout nouveau lot. Jamais de force, jamais de rebase sur un travail local non commité : le dire.
 5. **Tout `git push` commence par `git fetch origin && git log HEAD..origin/main`** : deux postes poussent sur `main`
    (Mac + Windows de Céline). Push refusé = repartir de `origin/main` et ré-appliquer par ancrage, jamais de force.
 6. **Changer la nature d'une donnée** (lecture unique → temps réel, position → identité, lectrice → écrivaine d'un global)

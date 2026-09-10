@@ -137,6 +137,8 @@ label{font-size:13.5px;color:var(--muted);display:block;margin-bottom:4px}
    qu'aucune saisie manuelle ne puisse la fausser. La rangée mère+bords passe en 2 colonnes. L'outil
    d'estimation (#est_blade, sans data-rb/data-fmm) n'est PAS concerné. */
 .row3 .field:has([data-rb="blade"]),.row3 .field:has(#fBlade),.row3 .field:has(#fBlade2),.row3 .field:has([data-fmm="blade"]){display:none}
+body.show-blade .row3 .field:has([data-rb="blade"]){display:block}   /* [L514] révélé par ⚙ Outils → « Perte de lame » */
+.fl-kerf{font-size:12px;color:var(--muted);margin-top:3px;letter-spacing:.2px}.fl-kerf.over{color:var(--red)}@media (max-width:1099px){.fl-kerf{display:none}}   /* [L514] perte de lame écrite sous la config (paysage) */
 .row3:has([data-rb="blade"]),.row3:has(#fBlade),.row3:has(#fBlade2),.row3:has([data-fmm="blade"]){grid-template-columns:1fr 1fr}
 button{cursor:pointer;font-family:inherit}
 /* K1 — focus clavier visible partout (les border:none neutralisaient l'indice natif) */
@@ -2673,6 +2675,7 @@ html.theme-light .fp-num small{color:#8a8a84}
           <button type="button" class="chg-ok-btn" id="chgOkLame" onclick="_l435ChgValider('lame')">✓ Validé</button><!-- [L435 · demande Esteban] valide SUR LA MEME LIGNE : met a jour Donnees > Lame sans ressaisie -->
         </div>
         <div class="chg-done" id="chgDoneLame"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="chgUndoLame" style="display:none;margin-top:6px" onclick="_l514LameUndo()">↩ Annuler cette pose (erreur de n°)</button><!-- [L514] -->
       </div>
     </div>
     <!-- [L65] Changement de MACHINE en cours de commande (op. 1) — même logique que la lame -->
@@ -3108,6 +3111,7 @@ html.theme-light .fp-num small{color:#8a8a84}
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');outilsReveal('#cliSection');try{ if(typeof cliMulti==='function'&&!cliMulti()&&typeof cliAdd==='function') cliAdd(); }catch(e){}">👥 Multi-clients — ＋ 2ᵉ client</button><!-- [L351 · audit] 2 taps au lieu de 3 : dévoile ET ajoute le 2ᵉ client -->
       <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');addRefBlock()">＋ Ajouter une référence</button>
+      <button class="btn" onclick="closeOutilsDlg('outilsPlanDlg');_l514ShowBlade()">🔪 Perte de lame par coupe (mm) — voir / corriger</button><!-- [L514] paramètre caché qui pilote « DÉPASSE » et la chute affichée -->
       <button class="btn" id="outilsPmBtn" onclick="closeOutilsDlg('outilsPlanDlg');togglePlanManual()">✏️ Modifier le plan à la main</button><!-- [L339 · audit] libellé dynamique : dit « revenir en auto » quand le plan manuel est actif -->
       <!-- [L442 · demande Esteban 27/08] « 💾 Sauvegarder le plan » et « ↺ Réinitialiser » RETIRES du tiroir : les boutons existent deja dans la page (💾 #planSaveBtn dans la barre de stats, ↺ en tete de page) — doublons. -->
     </div>
@@ -3296,7 +3300,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.09-L513';
+const APP_VERSION='2026.09.10-L514';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6506,7 +6510,7 @@ function importPlanToFiche(opts){
             addFicheLine({label:lbl, conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci,   /* [L500] c.idx n a JAMAIS existe (undefined) : l anti-homonymes L379/L474 tournait sur le repli par nom. ci = index dans computed = getRefGroups */ useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
-              chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm'});
+              chuteNote:'♻ ROULEAU CHUTE · laize '+fmt(g.rollW)+' mm'});
             bi++;
           }
         });
@@ -6537,7 +6541,7 @@ function importPlanToFiche(opts){
             addFicheLine({label:lbl, conf:(function(){ const _r=(_a15&&typeof _l415Conf==='function')?_l415Conf(g.pattern,_a15[_i15],null):null; _i15++; return _r||g.pattern.map(p=>p.qty+'×'+p.width).join(' + '); })(),   /* [L415] contigue par client */
               ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci,   /* [L500] c.idx n a JAMAIS existe (undefined) : l anti-homonymes L379/L474 tournait sur le repli par nom. ci = index dans computed = getRefGroups */ useful:g.rollW, blade:c.blade, machine:c.machine||'',
               recut:true, rollW:g.rollW,
-              chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm'});
+              chuteNote:'♻ ROULEAU CHUTE · laize '+fmt(g.rollW)+' mm'});
             bi++;
           }
         });
@@ -6727,7 +6731,7 @@ function selectMachine(m){
 /* [L511 · decision Celine + Dominique 09/09] La machine choisie sur une reference est proposee aux autres
    references de la MEME commande tant qu elles sont sur « — choisir — » (jamais par-dessus un choix). Un bloc
    ajoute apres coup herite de la machine du 1er bloc. Bords/lame suivent MACHINE_DEFAULTS comme au choix manuel. */
-function _l511Apply(block,m){ try{ const ms=block.querySelector('[data-rb="machine"]'); if(!ms||ms.value||!m) return false; ms.value=m; const d=MACHINE_DEFAULTS[m]; if(d){ const e=block.querySelector('[data-rb="edge"]'); if(e) e.value=d.edge; const b=block.querySelector('[data-rb="blade"]'); if(b) b.value=d.blade; } return true; }catch(e){ return false; } }
+function _l511Apply(block,m){ try{ const ms=block.querySelector('[data-rb="machine"]'); if(!ms||ms.value||!m) return false; ms.value=m; const d=MACHINE_DEFAULTS[m]; if(d){ const _net=_l514NetTyped(block); const e=block.querySelector('[data-rb="edge"]'); if(e&&!_net) e.value=d.edge; const b=block.querySelector('[data-rb="blade"]'); if(b) b.value=d.blade; } return true; }catch(e){ return false; } }   /* [L514b] bords par défaut seulement sans laize nette saisie (même règle qu onRefMachineChange) */
 function _l511Propagate(fromBlock,m){ document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){ if(b!==fromBlock) _l511Apply(b,m); }); }
 function _l511InheritMachine(block){ const first=document.querySelector('#refBlocks .ref-block [data-rb="machine"]'); const m=first?String(first.value||'').trim():''; if(m&&first.closest('.ref-block')!==block) _l511Apply(block,m); }
 
@@ -6737,7 +6741,11 @@ function onRefMachineChange(sel){
   if(sel.value){ try{localStorage.setItem('step_last_machine',sel.value);}catch(e){} }   // mémorise la dernière machine choisie
   const def=MACHINE_DEFAULTS[sel.value];
   if(def){
-    const eEl=block.querySelector('[data-rb="edge"]'); if(eEl) eEl.value=def.edge;
+    /* [L514b · audit familles, MAJEUR] la « Laize utilisable » saisie (L421) pose mère = laize et bords = 0 ; remettre les bords
+       par défaut de la machine APRÈS la saisie retirait 10 ou 20 mm de laize utile en silence (JF : 1240 → 1230). Les bords
+       par défaut ne s appliquent que si aucune laize nette n a été saisie. La lame, elle, suit toujours la machine. */
+    const _netTyped=_l514NetTyped(block);   /* [L514c · vérification adverse] la case « laize utilisable » est REMPLIE par le miroir mère−bords (_l421SyncUseful) : tester sa valeur était toujours vrai → bords par défaut morts. Critère fiable : bords à 0 avec une mère > 0, état que SEULE la saisie manuelle produit (ou marqueur de frappe) */
+    const eEl=block.querySelector('[data-rb="edge"]'); if(eEl&&!_netTyped) eEl.value=def.edge;
     const bEl=block.querySelector('[data-rb="blade"]'); if(bEl) bEl.value=def.blade;
   }
   try{ if(sel.value) _l511Propagate(block,sel.value); }catch(e){}   /* [L511] meme machine proposee aux autres refs encore vides */
@@ -6870,6 +6878,14 @@ function _localDay(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getM
 /* [L421 · demande Esteban] la case unique ecrit mother=valeur, edge=0 (useful = mother − edge partout
    ailleurs — moteur, fiche, papier : rien d'autre ne change). La resync AFFICHE mother−edge (machine choisie,
    restauration, vieux plans mere 2100/bords 10 -> case 2090), jamais sous le doigt (garde focus). */
+/* [L514c] « une laize NETTE a été saisie à la main sur ce bloc » : bords = 0 et mère > 0, état produit UNIQUEMENT par _l421UsefulInput
+   (les défauts machine valent 10 ou 20, jamais 0). Le miroir _l421SyncUseful ne remplit que la CASE, jamais cet état. [L514d · vérification
+   adverse] aucun marqueur DOM : un booléen collant sur le bloc 1 (statique, jamais recréé) survivait à « ↺ Nouveau plan » et tuait les bords
+   par défaut de la commande suivante. resetAll remet mère='' et bords=10/20 → le critère redevient faux tout seul. */
+/* [L514d · vérification adverse] la mère REELLE du catalogue vient d écraser une laize nette tapée (bords 0) : les bords redeviennent ceux de la
+   machine du bloc (sinon « mère 2100 / bords 0 » passait pour une saisie nette et la laize utile valait 2100 au lieu de 2080). */
+function _l514EdgeAfterCatalog(motherEl){ try{ const blk=motherEl&&motherEl.closest?motherEl.closest('.ref-block'):null; if(!blk) return; const ed=blk.querySelector('[data-rb="edge"]'); if(!ed) return; if((parseNum(ed.value)||0)!==0) return; const mk=String((blk.querySelector('[data-rb="machine"]')||{}).value||'').trim(); const d=(typeof MACHINE_DEFAULTS!=='undefined')?(MACHINE_DEFAULTS[mk]||MACHINE_DEFAULTS.feba):null; if(d) ed.value=d.edge; }catch(e){} }
+function _l514NetTyped(block){ try{ if(!block) return false; const mo=parseNum((block.querySelector('[data-rb="mother"]')||{}).value)||0, ed=parseNum((block.querySelector('[data-rb="edge"]')||{}).value); return mo>0&&ed===0; }catch(e){ return false; } }
 function _l421UsefulInput(inp){ try{
   const blk=inp.closest('.ref-block'); if(!blk) return;
   const v26=String(inp.value||'').trim();
@@ -7004,7 +7020,7 @@ function onRefChange(){
     document.getElementById('planLargeur').value=found.largeur||'';
     document.getElementById('planLongueur').value=found.longueur||'';
     if(found.largeur>0){
-      document.getElementById('motherWidth').value=found.largeur;
+      document.getElementById('motherWidth').value=found.largeur; try{ _l514EdgeAfterCatalog(document.getElementById('motherWidth')||m); }catch(_){ };
     }
   }
   // Re-appliquer packaging pour détecter KX dans la nouvelle réf
@@ -7614,7 +7630,7 @@ function onRefChangeBlock(sel){
   const client=document.getElementById('planClient')?.value||'';
   const found=_l487Picked(sel,_l454CatalogRefs(client));   /* [L454] · [L487] */
   if(found){
-    if(found.largeur>0){const m=block.querySelector('[data-rb="mother"]');if(m)m.value=found.largeur;}
+    if(found.largeur>0){const m=block.querySelector('[data-rb="mother"]');if(m)m.value=found.largeur; try{ _l514EdgeAfterCatalog(m); }catch(_){ };}
     const lg=block.querySelector('[data-rb="longueur"]');if(lg)lg.value=found.longueur||'';
   }
   block.querySelectorAll('.order-row').forEach(autofillLegrandRow);
@@ -9141,6 +9157,7 @@ function recalcPlan(){
     <div class="stat-tile"><b>${totalBobines}</b><i>bobine${totalBobines>1?'s':''} mère${totalBobines>1?'s':''}</i></div><!-- [L336 · maquette 18] 3 TUILES verticales en tête (chiffre 32px + libellé dessous) — mêmes données, présentation §2.14 · [L191] chip « ⚙ N configs » retiré (demande Esteban) -->
 <!-- [L457 · demande Esteban 28/08] tuile « % de perte globale » retiree du Plan (la perte se lit dans l'Analyse) -->
     ${chutesPieces>0?`<div class="stat-tile"><b>${chutesPieces}</b><i>en stock ✂${chutesChipLabel?' · '+chutesChipLabel:''}</i></div>`:''}
+    ${(()=>{ try{ const _bl=[...new Set(computed.filter(c=>c&&(c.rows||[]).length).map(c=>fmt(c.blade)))]; return _bl.length?`<div class="stat-tile" title="perte de lame par coupe — ⚙ Outils → « Perte de lame » pour voir / corriger"><b>${_bl.join(' / ')}</b><i>mm de lame / coupe</i></div>`:''; }catch(e){ return ''; } })()}<!-- [L514 · signalement JF] le parametre cache qui explique « DEPASSE » et la chute : visible sur TOUS les plans (mono-ref compris, la bande Ref N n existe qu en multi-ref) -->
     ${cliMulti()?`<div class="stat-chip">👥 <span>${cliIds().length}</span> clients</div>`:''}
     ${multi?'':`<div class="stat-chip sc-utile">utile <span>${fmt((computed.find(c=>(c.rows||[]).length)||computed[0]).useful)} mm</span></div>`}<!-- [L457 · demande Esteban 28/08] chip « n references » retiree (les cartes Ref dessous disent deja tout) -->
 <!-- [L459 · demande Esteban 28/08] chip « Reste rouleaux » retiree : deja lisible sur les rangees ♻ du plan (zero repetition) -->
@@ -9189,7 +9206,7 @@ function recalcPlan(){
         ${mLbl?`<span class="rb-mch">⚙ ${esc(mLbl)}</span>`:''}
         <span class="rb-name">🎞 ${esc(refLbl)}</span>
         <span class="rb-meta">
-          <span class="rb-m">laize ${fmt(useful)} mm</span>${mlPart}${filmPart}${vekaPart}
+          <span class="rb-m">laize ${fmt(useful)} mm</span><span class="rb-m" title="perte de lame par coupe (paramètre du plan — ⚙ Outils)">lame ${fmt(c.blade)} mm</span>${mlPart}${filmPart}${vekaPart}
           <span class="rb-m">${c.stats.totalBobines} bobine${c.stats.totalBobines>1?'s':''}</span>
           ${(c.recutBobines||[]).length?`<span class="rb-m" style="color:#5eead4">♻ ${c.recutBobines.length} rouleau${c.recutBobines.length>1?'x':''}</span>`:''}
           <!-- [L457 · demande Esteban 28/08] chip « perte X% » retiree de la carte Ref -->
@@ -12034,7 +12051,7 @@ function recalcEcartsFromFiche(opts){
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
               ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:pb, machine:pm,   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
               recut:true, rollW:g.rollW,
-              chuteNote:'♻ ROULEAU CHUTE '+fmt(g.rollW)+' mm'});
+              chuteNote:'♻ ROULEAU CHUTE · laize '+fmt(g.rollW)+' mm'});
             if(!_firstAddedId&&ficheLines.length) _firstAddedId=ficheLines[ficheLines.length-1].id;   // [L87]
             ri++; recutAdded++;
           }
@@ -12747,6 +12764,7 @@ function resetSiteConfirm(){
 function resetAll(){
   try{ clearCmdLive(); }catch(e){}   /* [L435] site vierge : la photo locale de la commande part avec l'ecran */
   try{ ficheRefOrder=[]; window._l432KeepOrder=false; }catch(e){}   /* [L440 · audit #16] l'ordre de coupe (et son drapeau one-shot non consomme) ne FUIT plus vers la commande suivante */
+  try{ window._l514LastInstall=null; window._l514Undone=null; window._l514InstallArm=null; const _ub=document.getElementById('chgUndoLame'); if(_ub) _ub.style.display='none'; }catch(e){}   /* [L514b] le ↩ ne survit pas à la commande */
   try{ window._l440LamePosed=null; ['chgLame','chgMach','chgOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.remove('chg-ok'); }); ['chgDoneLame','chgDoneMach','chgDoneOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.textContent=''; }); }catch(e){}   /* [L440 · audit #9] le ✓ vert et le resume « registre a jour » d'une commande PRECEDENTE ne survivent plus au reset/envoi */
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
@@ -15822,6 +15840,64 @@ function lameBobineauxSince(machine,sinceIso){
 }
 // Crée un event d'installation de lame. Ouvert à tous les connectés.
 // opts.dateInstall : ISO de la date de pose (antidatable). Défaut = maintenant.
+/* [L514 · signalement JF 08/09 « la lame 9 sur la FEBA n existe pas, impossible de la supprimer »] CAUSE RACINE : la fiche
+   acceptait N IMPORTE QUEL numéro de lame pour la machine en cours, sans regarder le registre. JF a tapé 9 — la lame MONTÉE sur
+   la MAVEG — et l app a créé une pose puis un démontage fantômes de la 9 sur la FEBA ; un opérateur ne peut pas retirer une
+   trace (pilotage/admin). UNE vérification, partagée par le ✓ Validé de la fiche et par la détection à l envoi. Fonction pure
+   (cache en paramètre) : tests/lame_check_test.js. */
+function _l514LameCheck(mk,num,cache){ try{
+  const n=nrm(num); const mkn=nrm(mk||''); if(!n) return {status:'vide'};
+  const src=cache||(typeof maintenanceCache!=='undefined'?maintenanceCache:[]);
+  const evts=(src||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&nrm(r.lameNum)===n);
+  const key=r=>String(r.dateInstall||r.date||r.createdAt||'');
+  const byM={}; evts.forEach(r=>{ const m=nrm(r.machine||''); if(!byM[m]||key(r)>key(byM[m])) byM[m]=r; });
+  const LBL={installation:'montée',demonte:'à affûter',affutage:'à l affûtage',stock:'en stock',rebut:'jetée'};
+  if(!evts.length&&!(src&&src.length)&&typeof maintLoaded!=='undefined'&&!maintLoaded) return {status:'indispo'};   /* [L514b · vérification adverse] cache VIDE parce que le registre n est PAS chargé ≠ lame inconnue : on ne conclut rien */
+  if(byM[mkn]) return byM[mkn].categorie==='rebut'?{status:'jetee',quand:key(byM[mkn])}:(byM[mkn].categorie==='affutage'?{status:'affutage',quand:key(byM[mkn])}:{status:'ok'});   /* [L514c] partie chez l affûteur : 2e tap (« de retour ? »), pas une re-pose silencieuse */   /* [L514b · règle Esteban : n° PAR machine] connue sur CETTE machine → ok (un 23 CEVENINI et un 23 FEBA sont deux lames), sauf jetée à la benne */
+  const ailleurs=[];
+  Object.keys(byM).forEach(m=>{ if(m===mkn||!m) return; const r=byM[m]; if(r.categorie==='rebut') return;
+    let etat=LBL[r.categorie]||r.categorie;
+    if(r.categorie==='installation'){ try{ const a=_activeLameIn(src,r.machine); etat=(a&&nrm(a.lameNum)===n)?'montée':'à affûter'; }catch(_){ } }
+    ailleurs.push({machine:r.machine,label:(typeof getMachineLabel==='function'?getMachineLabel(r.machine):r.machine)||r.machine,etat}); });
+  if(ailleurs.length) return {status:'autre-machine',ailleurs};
+  return {status:'inconnue'};
+}catch(e){ return {status:'ok'}; } }
+/* [L514b · audit familles] le message et le 2e tap sont les MÊMES quel que soit l écran (fiche, envoi, Données > Lame) : une seule fonction. */
+function _l514LameMsg(mk,num,chk){ try{ const lbl=getMachineLabel(mk)||mk; const sug=_l514LameStockees(mk); const st=sug.length?('\n\nLames '+lbl+' en stock : '+sug.join(', ')):'';
+  if(chk.status==='indispo') return '📡 Registre des lames NON chargé (réseau) : impossible de vérifier la lame '+num+'. Rien n est enregistré — réessaie dans un instant, ou la pose sera vérifiée à l ENVOI de la fiche.';
+  if(chk.status==='jetee') return '🗑 La lame '+num+' de '+lbl+' a été jetée à la BENNE'+(chk.quand?(' le '+String(chk.quand).slice(0,10)):'')+'. Elle ne peut plus être posée — vérifie le n° gravé.'+st;
+  if(chk.status==='autre-machine'){ const where=chk.ailleurs.map(a=>a.label+' ('+a.etat+')').join(', '); return '⚠ Le n° '+num+' est connu sur '+where+' et JAMAIS sur '+lbl+'. Vérifie le n° gravé sur la lame. Si c est bien une AUTRE lame '+lbl+' portant aussi le n° '+num+', retape le bouton dans les 8 s pour confirmer.'+st; }
+  if(chk.status==='inconnue') return '❓ Lame '+num+' inconnue du registre pour '+lbl+'. Si c est une lame NEUVE, retape le bouton dans les 8 s pour confirmer.'+st;
+  if(chk.status==='affutage') return '🛠 La lame '+num+' de '+lbl+' est partie chez l AFFÛTEUR'+(chk.quand?(' le '+String(chk.quand).slice(0,10)):'')+' et n est pas revenue au registre. Si elle est bien de retour, retape le bouton dans les 8 s (pense à « 📦 Reçue de l affûteur » dans Données > Lame).'+st;
+  return ''; }catch(e){ return ''; } }
+function _l514Arm(key){ const a=window._l514InstallArm; if(a&&a.key===key&&(Date.now()-a.at)<8000){ window._l514InstallArm=null; return true; } window._l514InstallArm={key:key,at:Date.now()}; return false; }   /* doute technique → comportement d avant, on ne bloque pas l atelier */
+function _l514LameStockees(mk){ try{ const st=lameClasseurEtat(maintenanceCache); const g=st&&st.parMachine&&st.parMachine[mk]; return g?g.stockees.map(x=>x.num):[]; }catch(e){ return []; } }
+/* [L514] ANNULER une pose déclarée par erreur depuis la fiche (même opérateur, moins de 2 h) : les traces créées (pose + démontage)
+   partent à la corbeille (soft-delete, récupérables 45 j). L opérateur n avait aucun moyen de corriger sa propre erreur. */
+async function _l514LameUndo(mkArg){ try{
+  const btn=document.getElementById('chgUndoLame');
+  /* [L514b] mémo le plus récent : pose depuis la fiche ou Données > Lame (_l514LastInstall), ou envoi affûtage / retour stock / benne (_l514LastTrace) ; [L514c] depuis une carte machine : celui de CETTE machine */
+  const cands=[window._l514LastInstall,window._l514LastTrace].filter(x=>x&&x.ids&&x.ids.length&&(!mkArg||nrm(x.mk)===nrm(mkArg))); cands.sort((a,b)=>(b.at||0)-(a.at||0)); const li=cands[0];
+  if(!li){ showToast('Rien à annuler.','err'); if(btn) btn.style.display='none'; return; }
+  if(!currentUser||nrm(li.by)!==nrm(currentUser.ini)){ showToast('🔒 Seul l opérateur qui a déclaré la pose peut l annuler (sinon pilotage/admin dans Données > Lame).','err'); return; }
+  if(Date.now()-li.at>2*3600000){ showToast('⏱ Plus de 2 h : demande à pilotage/admin de retirer la lame '+li.num+' dans Données > Lame.','err'); return; }
+  const _what=li.what||('la pose de la lame '+li.num+' sur '+getMachineLabel(li.mk));
+  if(!(await confirmDlg('Annuler '+_what+' ?\n\nLes traces créées partent à la corbeille (pilotage/admin peut les restaurer 45 j).'))) return;
+  let n=0,enFile=0;
+  for(const id of li.ids){ try{ await boundedWrite(db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow(),deletedBy:currentUser.ini,motif:'annulation depuis la fiche'}),10000); n++; }
+    catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ n++; enFile++; } else { showToast('Erreur : '+e.message,'err'); return; } }
+    const r=(maintenanceCache||[]).find(x=>x&&x.id===id); if(r) r.deleted=true; }
+  logAudit('delete','maintenance',li.ids.join(','),'Pose lame '+li.num+' ('+getMachineLabel(li.mk)+') ANNULÉE depuis la fiche par '+currentUser.ini+' — '+n+' trace(s) à la corbeille').catch(function(){});
+  if(li===window._l514LastInstall) window._l514LastInstall=null; else window._l514LastTrace=null;
+  window._l440LamePosed=null; if(li.what==null) window._l514Undone={mk:li.mk,num:li.num,at:Date.now()};   /* [L514b/c] seule une POSE annulée est retenue : annuler un envoi à l affûtage ne doit pas bloquer une pose légitime */
+  try{ const c=document.getElementById('fLameChg'); if(c&&li.what==null){ c.checked=false; const n=document.getElementById('fLameNew'); if(n) n.value=''; const b=document.getElementById('fLameChgBob'); if(b) b.value=''; try{ if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }catch(_){ } try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(_){ } } }catch(e){}   /* [L514b · vérification adverse] la fiche ne dit plus « lame changée → 9 » après l annulation */
+  const done=document.getElementById('chgDoneLame'); if(done) done.textContent='↩ '+_what+' : annulé — registre rétabli';
+  const sec=document.getElementById('chgLame'); if(sec) sec.classList.remove('chg-ok');
+  if(btn) btn.style.display='none';
+  showToast(enFile?'📡 Hors-ligne : annulation enregistrée, elle partira au retour du réseau.':('↩ Annulé : '+_what+' — Données > Lame rétabli.'),'ok');
+  try{ if(typeof renderLameAlertBanner==='function') renderLameAlertBanner(); }catch(e){}
+  try{ if(typeof renderMaintenance==='function'&&_isDataTabVisible&&_isDataTabVisible('maintenance')) renderMaintenance(); }catch(e){}
+}catch(e){ showToast('Erreur : '+e.message,'err'); } }
 async function lameInstall(machine,lameNum,opts){
   opts=opts||{};
   const num=String(lameNum||'').trim();
@@ -15842,6 +15918,13 @@ async function lameInstall(machine,lameNum,opts){
   // à sa date de pose (le signalement d'Esteban). On RAFRAÎCHIT le registre juste avant (borné 4 s : hors-ligne,
   // la persistance rend le cache local instantanément ; en ligne lent, on n'attend pas indéfiniment).
   try{ await Promise.race([loadMaintenance(), new Promise(r=>setTimeout(r,4000))]); }catch(e){}
+  /* [L514b · audit familles, CRITIQUE] la vérification vivait dans 2 chemins sur 4 (fiche ✓ Validé, envoi) : Données > Lame
+     « Changer la lame » et « Enregistrer une nouvelle lame » reproduisaient mot pour mot le bug de JF. Ici = le point de
+     passage UNIQUE de toute pose ; les chemins qui ont déjà obtenu le 2e tap / le confirm passent opts.armed (la vérification est rejouée quand même). */
+  { const chk=_l514LameCheck(machine,num);   /* [L514c] rejouée ICI sur le cache RAFRAÎCHI même pour les chemins déjà confirmés (opts.armed) : une pose faite depuis une autre tablette entre-temps est vue */
+    if(chk.status==='indispo'||chk.status==='jetee'){ showToast(_l514LameMsg(machine,num,chk),'err'); return false; }
+    if(chk.status==='autre-machine'||chk.status==='inconnue'||chk.status==='affutage'){ const covered=!!opts.armed&&(!opts.armedFor||opts.armedFor===chk.status);   /* [L514d] le 2e tap confirmé ne couvre que le statut qu il a confirmé : un statut apparu au rafraîchissement redemande un tap */
+      if(!covered&&!_l514Arm('pose|'+nrm(machine)+'|'+nrm(num)+'|'+chk.status)){ showToast(_l514LameMsg(machine,num,chk),'err'); return false; } } }
   let _prevLame=null;
   try{ const _p=(typeof lameActiveForMachine==='function')?lameActiveForMachine(machine):null; if(_p&&String(_p.lameNum||'').trim()&&nrm(_p.lameNum)!==nrm(num)) _prevLame=String(_p.lameNum).trim(); }catch(e){}
   const rec={ type:'lame', categorie:'installation', machine,
@@ -15867,6 +15950,7 @@ async function lameInstall(machine,lameNum,opts){
     catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ try{ showToast('📡 Hors-ligne : pose enregistrée, elle partira au retour du réseau.','ok'); }catch(_){} } else throw e; }   /* [L441 · audit lame #11] un timeout hors-ligne = ecriture EN FILE, pas un echec : le message « Erreur » poussait a re-saisir -> doublon au retour du reseau */
     rec.id=iRef.id; maintenanceCache.unshift(rec);
     if(dRec){ dRec.id=dRef.id; maintenanceCache.unshift(dRec); }
+    window._l514LastInstall={ids:[iRef.id].concat(dRef?[dRef.id]:[]),mk:machine,num:num,prev:_prevLame,by:(currentUser?currentUser.ini:''),at:Date.now()};   /* [L514] pour « ↩ Annuler » (même opérateur, 2 h) */
     logAudit('create','maintenance',iRef.id,`Pose lame ${num} sur ${getMachineLabel(machine)} (posée le ${(function(){try{return new Date(pose).toLocaleDateString('fr-FR');}catch(e){return String(pose).slice(0,10);}})()})`).catch(function(){});   // [L272 · audit #17] date locale — [L441 · audit lame #10] plus d'await : la piste qui pend gelait le retour de lameInstall (et le verrou du bloc Changements avec) ; la trace part en arriere-plan comme TOUTES les autres
     if(dRef) logAudit('create','maintenance',dRef.id,`Démontage — lame ${_prevLame} remplacée par ${num} (${getMachineLabel(machine)})`).catch(function(){});
     showToast('✓ Lame '+num+' enregistrée sur '+getMachineLabel(machine),'ok');
@@ -15911,6 +15995,14 @@ async function lameDetectOnFiche(machineKey,lameNum){
   const cur=lameActiveForMachine(machineKey);
   const curNum=cur?String(cur.lameNum||'').trim():'';
   if(curNum.toLowerCase()===num.toLowerCase()) return; // déjà la lame en place
+  /* [L514] même vérification qu au ✓ Validé : une lame connue sur une AUTRE machine n est jamais posée ici */
+  var _l514Pre='', _l514St='ok';
+  { try{ const _ud=window._l514Undone; if(_ud&&nrm(_ud.mk)===nrm(machineKey)&&nrm(_ud.num)===nrm(num)&&(Date.now()-_ud.at)<2*3600000) return; }catch(e){}   /* [L514b] pose ANNULÉE depuis la fiche : on ne la repropose pas à l envoi */
+    const chk=_l514LameCheck(machineKey,num); _l514St=chk.status;
+    if(chk.status==='indispo'||chk.status==='jetee'){ showToast(_l514LameMsg(machineKey,num,chk),'err'); return; }
+    if(chk.status==='autre-machine') _l514Pre='⚠ Le n° '+num+' est connu sur '+chk.ailleurs.map(a=>a.label+' ('+a.etat+')').join(', ')+' et JAMAIS sur '+getMachineLabel(machineKey)+'. Une AUTRE lame '+getMachineLabel(machineKey)+' portant aussi le n° '+num+' ? Vérifie le n° gravé.\n\n';
+    else if(chk.status==='inconnue') _l514Pre='❓ Lame '+num+' INCONNUE du registre (lame NEUVE ?)\n\n';
+    else if(chk.status==='affutage') _l514Pre='🛠 Lame '+num+' partie chez l AFFÛTEUR et pas revenue au registre — bien de retour ?\n\n'; }
   /* [L440 · audit #8] la lame ACTIVE est celle posee par le ✓ Valide de CETTE commande : si la fiche envoyee
      porte encore l'ancien n° (changement decoche apres coup, champ non resaisi), ne pas proposer de REPOSER
      l'ancienne lame par-dessus la pose toute fraiche. */
@@ -15919,10 +16011,10 @@ async function lameDetectOnFiche(machineKey,lameNum){
        &&nrm(num)===nrm(_lp.prev||'')) return;   /* [L441 · audit lame #17] on ne bloque QUE la re-pose de l'ANCIENNE lame (le cas retrograde) : une NOUVELLE lame saisie apres le ✓ (L-16 apres L-15) repasse par le confirm normal — l'early return L440 l'avalait */
   }catch(e){}
   const machLbl=getMachineLabel(machineKey);
-  const msg=cur
+  const msg=_l514Pre+(cur
     ? `🔪 Nouvelle lame détectée sur ${machLbl}.\n\nLame courante : ${curNum||'—'}\nLame saisie : ${num}\n\nConfirmer la pose de la lame ${num} sur ${machLbl} ?`
-    : `🔪 Première lame déclarée sur ${machLbl}.\n\nEnregistrer la pose de la lame ${num} sur ${machLbl} ?`;
-  if(confirm(msg)){ await lameInstall(machineKey,num,{description:'Pose détectée à la validation de fiche'}); }
+    : `🔪 Première lame déclarée sur ${machLbl}.\n\nEnregistrer la pose de la lame ${num} sur ${machLbl} ?`);   /* [L514] */
+  if(confirm(msg)){ await lameInstall(machineKey,num,{description:'Pose détectée à la validation de fiche',armed:true,armedFor:_l514St}); }   /* [L514b/c/d] confirmée ici POUR CE statut ; la vérification est rejouée dans lameInstall */
 }
 // Seuils d'âge d'une lame, PAR MACHINE (en jours). 'change' = à remplacer ;
 // pré-alerte 'soon' = 2 jours avant le seuil. PURE (testable hors DOM).
@@ -16086,7 +16178,7 @@ function renderLameEtat(){
       <div class="u-meta" style="margin-top:6px;color:${ageColor}">Installée depuis <b>${ageTxt}</b>${flag}</div>
       <div class="u-meta">Le ${esc(String(since).slice(0,10))}${cur.responsable?' · '+esc(cur.responsable):''}</div>
       <div class="u-meta" style="margin-top:6px"><b>${bob}</b> bobineau${bob>1?'x':''} coupé${bob>1?'s':''} depuis${bobNote}</div>
-      <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="lameInstallPrompt('${m}')">🔄 Changer la lame</button>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="lameInstallPrompt('${m}')">🔄 Changer la lame</button>${(()=>{ try{ const c=[window._l514LastInstall,window._l514LastTrace].filter(x=>x&&x.ids&&x.ids.length&&nrm(x.mk)===nrm(m)&&currentUser&&nrm(x.by)===nrm(currentUser.ini)&&(Date.now()-x.at)<2*3600000).sort((a,b)=>b.at-a.at)[0]; return c?`<button class="btn btn-ghost btn-sm" style="margin-top:6px;color:var(--orange)" onclick="_l514LameUndo('${m}')">↩ Annuler ${esc(c.what||('la pose de la lame '+c.num))} (erreur de n°)</button>`:''; }catch(e){ return ''; } })()}<!-- [L514b · audit familles] l auteur d une trace peut l annuler 2 h, ici aussi -->
       <button class="btn btn-ghost btn-sm" style="margin-top:6px;min-height:34px;padding:3px 10px;font-size:12px;border-color:#6b2020;color:var(--red);opacity:.85" data-mch="${esc(m)}" data-num="${esc(String(cur.lameNum||''))}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)" title="Plus affûtable : la lame sort du cycle, la machine reste sans lame jusqu'à la prochaine pose">Benne</button><!-- [L441 audit data-* — L442 · demande Esteban : petit et discret, sans gros logo -->
     </div>`;
   }).join('');
@@ -16139,10 +16231,8 @@ async function confirmLameInstall(){
   if(cur&&String(cur.lameNum||'').trim().toLowerCase()===n.toLowerCase()){
     showToast('Cette lame est déjà déclarée comme courante.','err'); return;
   }
-  document.getElementById('lameInstallModal').classList.remove('open');
-  _lameInstallMachine=null;
   const ok=await lameInstall(machine,n,{description:'Pose manuelle depuis l\'encart État des lames'});
-  if(ok) renderMaintenance();
+  if(ok){ document.getElementById('lameInstallModal').classList.remove('open'); _lameInstallMachine=null; renderMaintenance(); }   /* [L514c · vérification adverse] la modale restait fermée AVANT la pose : le « 2e tap dans les 8 s » n existait plus */
 }
 // [L83 · Audit #24] maintRespOpts supprimée (morte — le formulaire « Installer/déclarer une lame » a été retiré au L79)
 function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${m}">${getMachineLabel(m)}</option>`).join('');
@@ -16244,6 +16334,7 @@ async function _lameEvent(categorie,machine,num,description,dateIso){
   try{ await boundedWrite(ref.set(rec),10000); }
   catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ rec._enFile=true; } else throw e; }
   rec.id=ref.id; maintenanceCache.unshift(rec);
+  try{ if(!/^Seed/.test(String(description||''))) window._l514LastTrace={ids:[ref.id],mk:machine||'',num:String(num).trim(),by:(currentUser?currentUser.ini:''),at:Date.now(),what:(categorie==='affutage'?'l envoi à l affûtage':(categorie==='stock'?'le retour en stock':categorie))+' de la lame '+String(num).trim()+' ('+(getMachineLabel(machine)||'hors machine')+')'}; }catch(_){ }   /* [L514b · audit familles] ↩ pour l auteur (2 h) */
   logAudit('create','maintenance',ref.id,(MAINT_CAT_LABEL[categorie]||categorie)+' — lame '+rec.lameNum+' ('+getMachineLabel(machine)+')').catch(function(){});
   return rec;
 }
@@ -16374,6 +16465,7 @@ async function lameJeter(machine,num,btn){
     try{ await boundedWrite(ref.set(doc),10000); }
     catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ try{ showToast('📡 Hors-ligne : le rebut est enregistré, il partira au retour du réseau.','ok'); }catch(_){} } else throw e; }   /* [L441 · audit lame #11] */
     doc.id=ref.id; maintenanceCache.unshift(doc);
+    try{ window._l514LastTrace={ids:[ref.id],mk:machine||'',num:String(num).trim(),by:who,at:Date.now(),what:'la mise à la benne de la lame '+String(num).trim()+' ('+lbl+')'}; }catch(_){ }   /* [L514b] ↩ pour l auteur (2 h) */
     logAudit('create','maintenance',ref.id,'Lame '+num+' jetée à la benne ('+lbl+') — plus affûtable').catch(function(){});
     showToast('🗑 Lame '+num+' marquée JETÉE — trace conservée dans le registre.','ok');
     renderMaintenance();
@@ -21207,6 +21299,7 @@ function applyOpOfDay(){
   }catch(e){}
 }
 function selectIni2(v){
+  try{ const o1=String((document.getElementById('fInitiales')||{}).value||'').trim(); if(o1&&nrm(o1)===nrm(v)){ showToast('👤 '+v+' est déjà l opérateur 1 de cette commande — le 2ᵉ opérateur est celui qui a REPRIS la commande.','err'); return; } }catch(e){}   /* [L514b · audit familles] un « relais JF → JF » fantôme partait dans le PDF et l archive */
   document.getElementById('fInitiales2').value=v;
   document.querySelectorAll('#initBtns2 .ini-btn').forEach(b=>b.classList.toggle('sel2',b.textContent===v));
 }
@@ -22512,6 +22605,12 @@ function _l361ShowRefBands(){ try{
   if(first){ first.classList.add('ref-open'); try{ first.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} try{ first.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); }catch(e){} }
   else { try{ showToast('Aucune bobine mère validée à recorriger.'); }catch(e){} }
 }catch(e){} }
+function _l514ShowBlade(){ try{ document.body.classList.add('show-blade');
+  /* [L514b · audit familles] le champ vit dans un .field masqué EN LIGNE (style="display:none", miroirs data-rb) : une règle CSS ne suffit pas */
+  document.querySelectorAll('[data-rb="blade"],#fBlade,#fBlade2').forEach(function(el){ try{ const f=el.closest('.field')||el.parentElement; if(!f) return; f.style.display=''; f.classList.add('l514-blade-shown');
+    if(!f.querySelector('label.l514-lbl')){ const lb=document.createElement('label'); lb.className='l514-lbl'; lb.textContent='Perte de lame par coupe (mm) — mère / bords / lame'; f.insertBefore(lb,f.firstChild); }
+    el.style.display=''; el.title='perte de lame par coupe (mm)'; }catch(_){ } });
+  outilsReveal('[data-rb="blade"]'); showToast('🔪 Champ « perte de lame » révélé : mère · bords · lame (mm). Corrige puis recalcule.','ok'); }catch(e){} }   /* [L514/L514b] */
 function outilsReveal(sel,alt){ try{
   let el=document.querySelector(sel);
   const _hidden=function(n){ return !n||n.getClientRects().length===0; };   /* [L339 · audit] détecte AUSSI le masquage par ancêtre */
@@ -22961,12 +23060,24 @@ function _l340RenderChuteChip(){ try{
   const useful=(l&&l.useful>0)?l.useful:((typeof getUseful==='function')?getUseful():0);
   const blade=(l&&typeof l.blade==='number')?l.blade:((typeof getBlade==='function')?getBlade():0);
   let chip=cur.querySelector('.fl-chute');
-  if(!(useful>0)||!conf.trim()){ if(chip) chip.remove(); return; }
-  const pieces=parseConf(conf); if(!pieces.length){ if(chip) chip.remove(); return; }
+  const _killKerf=function(){ try{ document.querySelectorAll('.fl-kerf').forEach(function(x){ x.remove(); }); }catch(_){ } };   /* [L514b] la ligne d explication ne survit pas à une config vidée / illisible */
+  if(!(useful>0)||!conf.trim()){ if(chip) chip.remove(); _killKerf(); return; }
+  const pieces=parseConf(conf); if(!pieces.length){ if(chip) chip.remove(); _killKerf(); return; }
   const waste=useful-calcStats(pieces,blade).total;
   if(!chip){ chip=document.createElement('span'); chip.className='fl-chute'; const hd=cur.querySelector('.fiche-line-header'); if(hd) hd.appendChild(chip); else cur.appendChild(chip); }
   chip.textContent=(waste<-0.5?'⚠ DÉPASSE ':'CHUTE ')+fmt(Math.abs(waste))+' mm';   // [fix audit L353] même tolérance 0,5 mm que _l353Overflow (chip et confirm disent la même chose)
   chip.classList.toggle('over',waste<-0.5);
+  /* [L514 · signalements JF 08/09 « le logiciel dit 1000 mm de découpé, en réalité 920 » / « si je change à la main cela écrit défaut »]
+     le chiffre que l opérateur ne retrouvait pas sur son rouleau = la PERTE DE LAME du plan (5 mm × 15 coupes = 75 mm), paramètre
+     caché du formulaire. On l écrit noir sur blanc sous la config : Σ laizes + n lames × perte = total / laize. */
+  try{ const _st=calcStats(pieces,blade), _nb=pieces.reduce(function(s,p){ return s+p.qty; },0), _sum=pieces.reduce(function(s,p){ return s+p.width*p.qty; },0), _ng=Math.max(0,_nb-1);
+    const _txt='Σ laizes '+fmt(_sum)+' mm + '+_ng+' lame'+(_ng>1?'s':'')+' × '+fmt(blade)+' mm = '+fmt(_st.total)+' / '+fmt(useful)+' mm';
+    chip.title=_txt;
+    document.querySelectorAll('.fl-kerf').forEach(function(x){ if(!x.closest('.fl-current')) x.remove(); });
+    let k=cur.querySelector('.fl-kerf');
+    if(!k){ k=document.createElement('div'); k.className='fl-kerf'; const ta=document.getElementById('flConf_'+id); const host=(ta&&ta.parentElement&&ta.parentElement.parentElement)||cur; host.appendChild(k); }
+    k.textContent=_txt; k.classList.toggle('over',waste<-0.5);
+  }catch(_){ }
 }catch(e){} }
 // [L340 · fix multi-réf] états de l'ORDRE DE COUPE (rail) resynchronisés à chaque coche : ✓ FINI = toutes les bobines de la
 // réf coupées · EN COURS = 1re réf (dans l'ordre) non finie · À VENIR = les suivantes. Même règle que le rendu
@@ -25059,7 +25170,7 @@ function restoreFicheLineFromData(ld){
     cliParts:Array.isArray(ld.cliParts)?ld.cliParts:null,   // [L71 · Audit B14] snapshot figé restauré (brouillon/partage)
     recut:!!ld.recut, rollW:ld.rollW||0,
     // La note turquoise des bobines rouleau est reconstruite (déterministe depuis rollW).
-    chuteNote:ld.recut?('♻ ROULEAU CHUTE '+fmt(ld.rollW||ld.useful||0)+' mm'):''});
+    chuteNote:ld.recut?('♻ ROULEAU CHUTE · laize '+fmt(ld.rollW||ld.useful||0)+' mm'):''});
   const id=ficheLines[ficheLines.length-1].id;
   if(ld.photo){ficholinePhotos[id]=ld.photo;refreshPhotoZone(id);}
   const setCk=(k,val)=>{const el=document.getElementById('nc_'+k+'_'+id);const cb=el&&el.querySelector('input');if(cb)cb.checked=!!val;};
@@ -25500,6 +25611,7 @@ async function _l435ChgValider(kind){
       if(!V('fMachChgBob')){ showToast('⚙ Indique à partir de quelle bobine.','err'); return; }
     } else {
       if(!V('fInitiales2')){ showToast('👤 Choisis les initiales de l\'opérateur 2 avant de valider.','err'); return; }
+      if(nrm(V('fInitiales2'))===nrm(V('fInitiales'))){ showToast('👤 Le 2ᵉ opérateur ne peut pas être '+V('fInitiales')+' (déjà opérateur 1).','err'); return; }   /* [L514b] brouillons restaurés compris */
       if(!V('fOp2Bobine')){ showToast('👤 Indique à partir de quelle bobine il a repris.','err'); return; }
     }
     if(sec) sec.classList.add('chg-ok');
@@ -25534,17 +25646,25 @@ async function _l435ChgValider(kind){
       showToast('✓ Changement de lame noté sur la fiche.\n\n⚠ La MACHINE n\'est pas renseignée : le registre Données > Lame n\'a PAS été mis à jour. Choisis la machine, puis retape ✓ Validé.','err');
       if(done) done.textContent='⚠ '+_l435ChgResume(kind)+' · registre NON mis à jour (machine manquante)';
       return; }
+    /* [L514/L514b] registre CHARGÉ d abord (sinon « inconnue » serait un mensonge), puis la lame doit être une lame de CETTE
+       machine — ou une lame neuve / un homonyme confirmé par un 2e tap. Mêmes messages que Données > Lame (_l514LameMsg). */
+    if(typeof maintLoaded!=='undefined'&&!maintLoaded){ try{ await Promise.race([loadMaintenance(), new Promise(r=>setTimeout(r,6000))]); }catch(e){} }
+    var _l514Status='ok';
+    { const chk=_l514LameCheck(mk,num); _l514Status=chk.status;
+      if(chk.status==='indispo'||chk.status==='jetee'){ showToast(_l514LameMsg(mk,num,chk),'err'); if(done) done.textContent=(chk.status==='indispo'?'📡 registre non chargé — pose vérifiée à l envoi':'🗑 lame '+num+' jetée — registre NON mis à jour'); if(sec) sec.classList.remove('chg-ok'); return; }
+      if(chk.status==='autre-machine'||chk.status==='inconnue'||chk.status==='affutage'){ if(!_l514Arm('fiche|'+nrm(mk)+'|'+nrm(num)+'|'+chk.status)){ showToast(_l514LameMsg(mk,num,chk),'err'); if(done) done.textContent=(chk.status==='inconnue'?'❓ lame '+num+' inconnue — retape ✓ Validé pour confirmer une lame NEUVE':'⚠ n° '+num+' connu sur une autre machine — retape ✓ Validé pour confirmer'); if(sec) sec.classList.remove('chg-ok'); return; } } }
     if(typeof lameActiveForMachine==='function'){
       try{ const cur=lameActiveForMachine(mk); if(cur&&String(cur.lameNum||'').trim().toLowerCase()===num.toLowerCase()){
         window._l440LamePosed={mk:mk,num:num,at:Date.now(),prev:V('fNumLame')||''};   /* [L441 · audit lame #19] memo pose AUSSI ici, sinon le popup retrograde revenait a l'envoi */
         showToast('✓ Lame '+num+' — déjà enregistrée sur '+getMachineLabel(mk)+', rien à ressaisir.','ok'); return; } }catch(e){}
     }
     if(typeof lameInstall!=='function'){ showToast('✓ Changement de lame pris en compte.','ok'); return; }
-    const ok=await lameInstall(mk,num,{description:'Lame changée en cours de commande — à partir de la bobine '+(V('fLameChgBob')||'?')});
+    const ok=await lameInstall(mk,num,{description:'Lame changée en cours de commande — à partir de la bobine '+(V('fLameChgBob')||'?'),armed:true,armedFor:_l514Status});   /* [L514b/c/d] 2e tap déjà obtenu ici POUR CE statut ; la vérification est rejouée dans lameInstall sur le cache frais */
     if(ok){
       window._l440LamePosed={mk:mk,num:num,at:Date.now(),prev:V('fNumLame')||''};   /* [L440 · audit #8 — L441 #17 : prev = l'ancienne lame, la SEULE dont la re-pose est bloquee a l'envoi */
       showToast('✓ Lame '+num+' posée sur '+getMachineLabel(mk)+' — Données > Lame est à jour, rien à ressaisir.','ok');
       if(done) done.textContent='✓ '+_l435ChgResume(kind)+' · registre à jour';
+      try{ const _u=document.getElementById('chgUndoLame'); if(_u){ _u.style.display=''; _u.textContent='↩ Annuler la pose de la lame '+num+' sur '+getMachineLabel(mk)+' (erreur de n°)'; } }catch(e){}   /* [L514] l opérateur peut annuler sa propre pose — libellé explicite (L514b) */
       try{ if(typeof renderLameAlertBanner==='function') renderLameAlertBanner(); }catch(e){}
       try{ if(typeof renderMaintenance==='function'&&_isDataTabVisible&&_isDataTabVisible('maintenance')) renderMaintenance(); }catch(e){}
     } else {
