@@ -275,7 +275,7 @@ absent(/Recalcul BLOQUÉ — config illisible/,'L269 : plus AUCUN blocage au rec
 has(/Arrêt manque matière.*confirmDlg|confirmDlg\('⚠ Config illisible sur/,'L269 : arrêt manque matière = CONFIRMATION explicite au lieu d\'un blocage (solde reprenable → l\'opérateur décide)');
 has(/const batch=db\.batch\(\); batch\.set\(iRef,rec\); if\(dRef\) batch\.set\(dRef,dRec\);/,'L269 : pose + démontage lame en UN batch ATOMIQUE (la trace demonte ne peut plus se perdre seule → plus de « démontée le » à la date de pose)');
 has(/aAffuter\.push\(\{\.\.\.item,viaPose:true\}\)/,'L269 : à-affûter sans trace demonte marquée viaPose (classeur)');
-has(/'posée le ⚠':dateLbl/,'L269 : carte lame honnête — « posée le ⚠ » quand le démontage n\'a pas été tracé (plus de « démontée le » mensonger)');
+has(/when=\(l\.viaPose\?'posée le ⚠ ':'démontée le '\)\+_l515Date\(l\.date\); sub=l\.viaPose\?'démontage non tracé \(date de pose\)'/,'L269→L515 : carte lame honnête — « posée le ⚠ » + « démontage non tracé » quand le démontage n a pas été tracé');
 
 console.log('── L270→L281 : étiquette solde — N° de référence (case au feutre → saisie digitale) ──');
 has(/N° de référence saisi DIGITALEMENT/,'L270→L281 : étiquette solde — N° de référence saisi DIGITALEMENT (repli case vide si non saisi)');
@@ -855,9 +855,10 @@ has(/^#ficheHeadSide\{display:none\}$/m,'L352 : slot inerte hors paysage (portra
 console.log('── L353 : backlog améliorations n°8 · 9 · 10 · 12 (19/08) ──');
 has(/_ln\.classList\.toggle\('conf-long',String\(el\.value\|\|''\)\.replace\(\/\\s\+\/g,''\)\.length>17\)/,'L353 n°8 : config longue → classe conf-long (police réduite en paysage au lieu de 2 lignes) — seuil 22→17 en L360 (mesuré)');
 has(/function _l353Overflow\(id\)/,'L353 n°9 : dépassement calculé comme le chip CHUTE (lecture calcStats)');
-has(/Marquer quand même cette bobine COUPÉE \?'\)\)\{/,'L353 n°9 : confirmation de sécurité NATIVE synchrone au ✂ quand la config dépasse (jamais un blocage sec) — fix audit : halo après refus');
+absent(/Marquer quand même cette bobine COUPÉE \?/,'L353→L515 (décision Esteban 10/09) : plus de question au ✂ quand la config dépasse — rouge, jamais bloquant');
+// [L515] (ancien marqueur L353 n°9 remplacé) ('L353 n°9 : confirmation de sécurité NATIVE synchrone au ✂ quand la config dépasse (jamais un blocage sec) — fix audit : halo après refus');
 has(/return w<-0\.5\?-w:0; \}catch\(e\)\{ return 0; \} \}/,'L353 fix audit : tolérance 0,5 mm (seuil moteur) — plus de « dépasse de 0 mm »');
-has(/const _dm=Date\.now\(\)-_lastCoupeeMarkMs; if\(_dm>=0&&_dm<700\) return;/,'L353 fix audit : anti-rebond B40 AVANT le dialogue de dépassement');
+absent(/const _dm=Date\.now\(\)-_lastCoupeeMarkMs; if\(_dm>=0&&_dm<700\) return; \}   \/\/ \[fix audit\] même fenêtre anti-rebond B40 que toggleCoupee, appliquée AVANT le dialogue/,'L353→L515 : plus de dialogue de dépassement au ✂, donc plus d anti-rebond dédié (toggleCoupee garde le sien)');
 has(/animation:l353OverPulse 1\.8s ease-out infinite/,'L353 fix audit : halo rouge dédié sur DÉPASSE (plus arcadePulse ambre)');
 has(/<span class="foc-cfg"> · ➜ '\+esc\(_cfg\)\+'<\/span>/,'L353 n°10 : ordre de coupe ligne 3 = n bobines · ➜ config à venir (§2.21)');
 has(/const cf=row\.querySelector\('\.foc-cfg'\); if\(cf\)\{/,'L353 fix audit : config de la ligne 3 rafraîchie à chaque coche (_l340SyncOrderStates)');
@@ -1274,7 +1275,7 @@ has(/\(perdus\)<\/div><\/div>/,'L402 : tuiles déchet/chutes avec pourcentage');
 console.log('── L403 : pré-vol chrono, série retirée, recharger direct ──');
 has(/le pré-vol est devenu un POP au tap ▶/,'L403→L408 : le rappel pré-vol existe toujours (devenu pop au tap du chrono, décision Esteban L408)');
 has(/gamification retirée de l'écran/,'L403 : badge SÉRIE retiré');
-has(/Départ affûtage/,'L403 : libellé « Départ affûtage »');
+has(/\['aAffuter','DÉPART AFFÛTAGE','démontée, à envoyer chez l affûteur'\]/,'L403→L515 : libellé « Départ affûtage » d Esteban conservé comme nom de l étape 2');
 has(/Recharger s'applique DIRECT/,'L403 : mise à jour sans confirm');
 
 console.log('── L405 : pré-vol sans pop-up ──');
@@ -1708,7 +1709,7 @@ has(/chiffre JAUNE seul, sans cadre ni fond/,'L442 : solde = chiffre jaune sans 
 has(/CONFIRMATION EN DEUX TEMPS PAR BOUTON/,'L442 : la benne se confirme par un 2e tap sur le bouton');
 has(/ENREGISTRER UNE NOUVELLE LAME/,'L442 : formulaire nouvelle lame (n° + machine) sous l etat des lames');
 has(/function l442RegisterLame/,'L442 : pose par le meme chemin que la modale (demontage auto)');
-has(/canDel&&!\/lameJeter\/\.test\(action\)/,'L442 : la poubelle grise disparait des cartes qui ont Benne');
+has(/const minis=\(etat==='jetees'\)\?retirer\(m,l\):\(etat==='montees'\?'':benne\(m,l\)\);/,'L442→L515 : la poubelle grise (retirer) ne cohabite pas avec Benne — elle vit sur les jetées');
 
 console.log('── L441 : page Lame — degel + jetee a la benne ──');
 has(/audit lame #2\] meme boucle infinie que renderMaintenance/,'L441 : renderLameStats ne reboucle plus sur echec');
@@ -2143,13 +2144,14 @@ has(/window\._l505WarnN=\(window\._l505WarnN\|\|0\)\+_m13\.calcWarn;/,'L513 · r
 
 console.log('── L514 · signalements JF 08/09 : lame d une autre machine, perte de lame invisible ──');
 has(/^function _l514LameCheck\(mk,num,cache\)\{ try\{/m,'L514 : UNE vérification « la lame est-elle connue ailleurs ? » (fonction pure, testée)');
-has(/if\(chk\.status==='autre-machine'\|\|chk\.status==='inconnue'\|\|chk\.status==='affutage'\)\{ if\(!_l514Arm\('fiche\|'/,'L514b/c : ✓ Validé — homonyme d une autre machine, lame inconnue ou partie chez l affûteur = 2e tap explicite (n° PAR machine, règle Esteban)');
+has(/if\(chk\.status==='autre-machine'\|\|chk\.status==='inconnue'\|\|chk\.status==='affutage'\|\|chk\.status==='jetee'\)\{ if\(!_l514Arm\('fiche\|'/,'L514b/c/L515 : ✓ Validé — homonyme, inconnue, chez l affûteur ou jetée (pilotage) = 2e tap explicite');
 has(/if\(typeof maintLoaded!=='undefined'&&!maintLoaded\)\{ try\{ await Promise\.race\(\[loadMaintenance\(\), new Promise\(r=>setTimeout\(r,6000\)\)\]\); \}catch\(e\)\{\} \}\n    var _l514Status='ok';\n    \{ const chk=_l514LameCheck\(mk,num\); _l514Status=chk\.status;/,'L514b/d : ✓ Validé charge le registre AVANT de juger et retient le statut confirmé');
 has(/if\(chk\.status==='autre-machine'\) _l514Pre='⚠ Le n° '\+num\+' est connu sur '/,'L514b : la détection à l ENVOI explique l homonyme avant le confirm (même règle)');
 has(/window\._l514LastInstall=\{ids:\[iRef\.id\]\.concat\(dRef\?\[dRef\.id\]:\[\]\)/,'L514 : la pose mémorise ses traces pour l annulation');
 has(/^async function _l514LameUndo\(mkArg\)\{ try\{/m,'L514 : ↩ annuler sa propre pose (2 h, même opérateur, soft-delete)');
 has(/id="chgUndoLame"/,'L514 : bouton ↩ Annuler sur la fiche');
-has(/const _txt='Σ laizes '\+fmt\(_sum\)\+' mm \+ '\+_ng\+' lame'/,'L514 : la perte de lame est écrite sous la config (Σ laizes + n lames × perte = total / laize)');
+absent(/className='fl-kerf'/,'L514→L515 (demande Esteban) : plus de ligne d explication sous la config — l explication reste en info-bulle du chip');
+has(/chip\.title=_txt;   \/\* \[L515 · demande Esteban 10\/09\]/,'L515 : info-bulle du chip conservée');
 has(/chuteNote:'♻ ROULEAU CHUTE · laize '\+fmt\(g\.rollW\)\+' mm'/,'L514 : « ROULEAU CHUTE · laize N mm » (N n est pas une longueur découpée)');
 has(/title="perte de lame par coupe \(paramètre du plan — ⚙ Outils\)">lame \$\{fmt\(c\.blade\)\} mm/,'L514 : la carte du plan affiche la perte de lame');
 has(/^function _l514ShowBlade\(\)\{/m,'L514 : ⚙ Outils révèle le champ perte de lame (caché depuis L?)');
@@ -2169,7 +2171,7 @@ has(/window\._l514LastTrace=\{ids:\[ref\.id\],mk:machine\|\|'',num:String\(num\)
 has(/what:'la mise à la benne de la lame '/,'L514b : benne annulable par son auteur (2 h)');
 has(/↩ Annuler \$\{esc\(c\.what\|\|\('la pose de la lame '\+c\.num\)\)\} \(erreur de n°\)/,'L514b : le ↩ existe aussi sur la carte machine de Données > Lame');
 has(/window\._l514LastInstall=null; window\._l514Undone=null; window\._l514InstallArm=null;/,'L514b : le ↩ ne survit pas à la commande (resetAll)');
-has(/const _killKerf=function\(\)\{/,'L514b : la ligne perte de lame disparaît avec une config vidée / illisible');
+absent(/_killKerf/,'L514b→L515 : plus de ligne à nettoyer');
 has(/chuteNote:ld\.recut\?\('♻ ROULEAU CHUTE · laize '/,'L514b : 4e site « ROULEAU CHUTE · laize » (reprise de brouillon)');
 has(/f\.classList\.add\('l514-blade-shown'\);/,'L514b : le champ perte de lame est révélé en JS (masqué en ligne)');
 has(/est déjà l opérateur 1 de cette commande/,'L514b : opérateur 2 ≠ opérateur 1 (relais fantôme JF → JF)');
@@ -2185,5 +2187,20 @@ has(/if\(!\/\^Seed\/\.test\(String\(description\|\|''\)\)\) window\._l514LastTra
 has(/^function _l514EdgeAfterCatalog\(motherEl\)\{/m,'L514d : la mère du catalogue remet les bords de la machine (une laize nette tapée avant n a plus de sens)');
 has(/const covered=!!opts\.armed&&\(!opts\.armedFor\|\|opts\.armedFor===chk\.status\);/,'L514d : le 2e tap confirmé ne couvre que le statut confirmé');
 { const _n=(src.match(/armedFor:_l514St(atus)?\}/g)||[]).length; console.log((_n===2?'✅ ':'❌ ')+'L514d : les 2 chemins confirmés transmettent le statut confirmé ('+_n+')'); if(_n!==2) fail++; }
+console.log('── L515 · décisions Esteban 10/09 : dépassement jamais bloquant, lame jetée récupérable par pilotage ──');
+has(/if\(_ov\.length&&false\)\{   \/\* \[L515 · décision Esteban 10\/09\] l ENVOI N EST PLUS BLOQUÉ/,'L515 : l envoi n est plus bloqué par un dépassement de laize');
+has(/showToast\('🔴 DÉPASSE selon la perte de lame réglée : '\+_ot\+'\. La fiche est générée telle que saisie/,'L515 : import du plan manuel — rouge, généré tel que saisi (plus de confirm)');
+absent(/Cette bobine est physiquement impossible à couper \(dépasse la mère\)\. Générer la fiche quand même \?/,'L515 : plus de confirm « physiquement impossible » à l import');
+has(/showToast\('🔴 Dépasse de '\+fmt\(_ov\)\+' mm selon la perte de lame réglée — coupée telle que saisie\.','err'\)/,'L515 : ✂ — halo + toast rouge, bobine coupée sans question');
+has(/'🔴 motif '\+fmt\(x\.total\)\+' mm > laize utile '\+fmt\(x\.useful\)\+' mm selon la perte de lame réglée'/,'L515 : bannière du plan en rouge, formulation « selon la perte de lame réglée »');
+has(/chk\.status==='jetee'&&!\(typeof canManageData==='function'&&canManageData\(\)\)/,'L515 : lame jetée — refus opérateur, 2e tap pilotage/admin pour la remettre en service');
+console.log('── L515 · écran Lame refait (tableau par machine, colonnes = étapes du cycle) ──');
+has(/^function renderAffutageList\(\)\{\n  const el=document\.getElementById\('lameSections'\); if\(!el\) return;\n  const \{parMachine\}=lameClasseurEtat\(maintenanceCache\);/m,'L515 : le rendu Lame lit toujours la machine à états PURE (inchangée)');
+has(/const COLS=\[\['montees','MONTÉE','sur la machine'\],\['aAffuter','DÉPART AFFÛTAGE'/,'L515 : colonnes = étapes du cycle');
+has(/^function _l515Date\(d\)\{/m,'L515 : dates en français clair (« 1 sept. »)');
+{ const _n=['lameEnvoyerAffutage','lameRetourStock','lameMonterDepuisStock','lameJeter','lameRetirerDuSuivi','lameInstallPrompt'].filter(f=>new RegExp('onclick="'+f+'\\(').test(src)).length; console.log((_n===6?'✅ ':'❌ ')+'L515 : les 6 actions du cycle sont câblées dans le nouveau rendu ('+_n+'/6)'); if(_n!==6) fail++; }
+has(/\.lb-cols\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\);gap:10px\}/,'L515 : 4 colonnes en paysage, 2×2 en portrait');
+has(/lb-legend">Chaque lame suit le même chemin/,'L515 : la légende dit le cycle en une phrase');
+absent(/const card=\(m,l,action,dateLbl\)=>/,'L515 : l ancienne carte (pictos « ➜🏭 » et dates cryptiques) a disparu du rendu des sections');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
