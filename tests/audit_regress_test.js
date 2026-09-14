@@ -2240,5 +2240,32 @@ has(/;Règle;Matière';/,'L517 (10/09) : Règle (L513 ou vide) + Matière (« ca
 has(/\(\(f&&f\.mat&&f\.mat\.regleVer==='L513'\)\?'L513':''\)/,'L517 : la colonne Règle lit f.mat DIRECTEMENT (via _l513MatiereOf elle serait toujours « L513 »)');
 absent(/f\.totalBobines,_l471FicheM2\(f\),f\.pct,/,'L517 pt.1 : l ancienne colonne « Perte % » (f.pct, base utile) a quitté la ligne');
 
+console.log('── L518 : papier du plan imprime (demandes Celine 10/09/2026, feuille de Dominique) ──');
+has(/<th>Bobines<\/th><th>Configuration<\/th><th>Perte \/ Solde<\/th>/,'L518 pt.1 : titre « Perte / Solde » — « Chute » disait perte ET chute gardee (vocabulaire L513/L516)');
+absent(/<th>Bobines<\/th><th>Configuration<\/th><th>Chute<\/th>/,'L518 pt.1 : plus aucun « Chute » en tete de la table des bobines (table + repli plan vide)');
+has(/_isL\?'Solde '\+fmt\(waste\)\+' mm':'Perte '\+fmt\(waste\)\+' mm'/,'L518 pt.1 : le mot devant le nombre — la photocopie N&B perd l italique et le fond creme');
+has(/^const _L518_X=' x ';/m,'L518 pt.2 : separateur « x » choisi par Celine, en UN seul endroit');
+has(/^function _l518Conf\(pattern\)\{/m,'L518 pt.2 : formateur PAPIER dedie — makeLabel est GELEE (engine_identity BASELINE) et relue par parseConf');
+has(/^function _l518SegPapier\(txt\)\{/m,'L518 pt.2 : conf multi-clients reformatee a l IMPRESSION (_l415Conf alimente aussi le champ conf des fiches)');
+has(/if\(!chute\) return '<strong>'\+esc\(_l518Conf\(pattern\)\)\+'<\/strong>';/,'L518 pt.2 : chutePrintConfig (papier pur) passe au format « 9 x 500 mm + 1 x 300 mm »');
+has(/esc\(_l518Conf\(g\.pattern\)\)\}<\/b> — À RECOUPER EN 1ER/,'L518 pt.2 : la ligne ♻ rouleau aussi (recutPrintRows, papier pur)');
+has(/\(dont la derni.re : solde\)/,'L518 pt.3 : groupe refusionne cote fiche — « dont la derniere : solde », jamais « 1 bobine » sur 5');
+has(/\(derni.re : solde\)<\/span>/,'L518 pt.3 : la bobine isolee par _palSplitSolde dit POURQUOI elle est seule');
+console.log('── L518+ : ecrans (tablette + cartes du Plan) et fiche imprimee (demande Celine 14/09 : « fais tablette et imprime ») ──');
+has(/^function _l518Label\(label\)\{/m,'L518+ : formateur TEXTE — l archive groups[].label (makeLabel GELEE) est REFORMATEE a l impression, jamais reecrite');
+has(/^function _l518Ecran\(v\)\{/m,'L518+ : ecrans — un texte libre (« Non réalisée - manque matière ») reste intact (garde parseConf)');
+has(/<th>Total<\/th><th>Perte \/ Solde<\/th>/,'L518+ : fiche imprimee — « Chute » disait perte ET solde conserve');
+absent(/<th>Total<\/th><th>Chute<\/th>/,'L518+ : plus aucun « Chute » en tete de la fiche imprimee');
+has(/\?'Solde ':'Perte '\}\$\{g\.waste\} mm/,'L518+ : le MOT devant le nombre, sous le MEME predicat que [SOLDE] (isLast&&k===g.count-1)');
+has(/esc\(_l518Label\(labelLegrand\(g\.label\)\)\)/,'L518+ : Legrand aussi — reformatage AVANT esc, texte brut vers texte brut');
+has(/<div class="card-config">\$\{esc\(_l518Conf\(g\.pattern\)\)\}<\/div>/,'L518+ : carte rouleau ♻ du Plan au format atelier');
+has(/const confHtml=hasChute\?configHtmlWithChute\(g\.pattern,g\.chute\):_l518Conf\(g\.pattern\);/,'L518+ : carte bobine du Plan au format atelier (makeLabel reste la cle de regroupement)');
+has(/id="flConfLong_\$\{id\}"/,'L518+ : le format long est un ECHO lecture seule — le champ flConf_ reste canonique (isLineFrozen, _frozenLike, _l345ConfDirty comparent des CHAINES)');
+absent(/data-conf0="\$\{esc\(\(data\.conf0!==undefined\?data\.conf0:_l518/,'L518+ : garde-fou — personne n a fait descendre le format long dans conf0/origConf (= faux gel de ligne en atelier)');
+has(/_lg\.textContent=_l518Ecran\(el\.value\|\|''\);/,'L518+ : l echo suit le champ par le point de synchro unique _confAutoH');
+has(/cf\.textContent=v\?' · ➜ '\+_l518Ecran\(v\):'';/,'L518+ : rail d ordre de coupe au meme format que la carte (jumeau de synchro)');
+has(/_cfg=_l518Ecran\(_cfg\);/,'L518+ : rail d ordre de coupe au rendu (1er jumeau)');
+has(/^const normConf=c=>\(c\|\|''\)\.replace\(\/x\/gi,'×'\)/m,'L518+ : normConf NON etendue dans ce lot — sa sortie est PERSISTEE dans origConf (brouillons, partage, ficheDetail)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

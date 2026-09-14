@@ -1587,6 +1587,7 @@ body.atelier .stat-tile b{font-size:36px}
    ============================================================ */
 .fh-pills,#soldeSummary,.fl-chute{display:none}   /* portrait : pastilles, résumé solde et chip CHUTE n'existent pas (sections visibles comme avant) */
 .l516-note{display:none}   /* [L516] portrait = layout historique : la consigne PERTE n existe qu en paysage (meme patron que .fl-chute juste au-dessus) */
+.fl-conf-long{display:none}   /* [L518] portrait = layout historique : l echo « 24 x 50 mm » n existe qu en paysage */
 @media(min-width:1100px){
   /* — sections repliées par défaut (déplier = tap sur les pastilles, ⚙ OUTILS → 🔧, ou toute garde qui y défile) — */
   #ficheHeadSec:not(.reveal),#ficheChgSec:not(.reveal){display:none}
@@ -1659,6 +1660,8 @@ body.atelier .stat-tile b{font-size:36px}
   .fl-current .fl-chute.perte{color:var(--red)}   /* [L516] perte >= PERTE_LAIZE_ALERTE_MM : ROUGE, sans cadre ni halo (le cadre de .over coute 22 px, budget L509) */
   .fl-current .fl-chute.solde{color:#f5b301}      /* [L516] solde = meme ambre que .badge-solde du plan */
   .fl-current .l516-note{display:block;font:700 15px/1.25 var(--f-head);letter-spacing:.02em;color:var(--red);margin:6px 0 0}   /* [L516] consigne visible sous la configuration de la bobine en cours */
+  .fl-current .fl-conf-long{display:block;font:700 15px/1.25 var(--f-head);letter-spacing:.02em;color:var(--text2);margin:4px 0 0}   /* [L518] echo lecture seule sous la configuration de la bobine en cours */
+  body.atelier .fl-current .fl-conf-long{font-size:17px}
   body.atelier .fl-current .l516-note{font-size:17px}
   .fl-current .fiche-chute-note{position:static;margin:4px 0 0}   /* la note « pris dans chute stock » revient dans le flux (le coin est pris par CHUTE + ✕) */
   /* — ⚠ DÉFAUT lisible (24px), indice « 1 tap » et sous-libellés au plancher 13px (constats design 8-9) — */
@@ -3345,7 +3348,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.11-L517';
+const APP_VERSION='2026.09.14-L518';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5570,7 +5573,7 @@ document.getElementById('photoFileInput').addEventListener('change',async functi
 })();
 let _efPhotoUploads=0;   // [L169 · audit #17] uploads photo en cours en ÉDITION de fiche archivée
 // [L230] hauteur AUTO du champ conf (Nb bob. × Largeur) : 1 ligne par défaut, passe sur 2+ lignes quand le texte déborde.
-function _confAutoH(el){ if(!el) return; try{ const _ln=el.closest&&el.closest('.fiche-line'); if(_ln) _ln.classList.toggle('conf-long',String(el.value||'').replace(/\s+/g,'').length>17);   /* [L360] seuil 22→17 : mesuré, 3 laizes passaient encore sur 2 lignes */ }catch(e){}   /* [L353 · backlog n°8] config longue → police réduite sur la carte en cours (paysage) au lieu de passer sur 2 lignes */ el.style.height='auto'; el.style.height=Math.max(44,el.scrollHeight)+'px'; }
+function _confAutoH(el){ if(!el) return; try{ const _lg=document.getElementById('flConfLong_'+String(el.id||'').replace(/^flConf_/,'')); if(_lg) _lg.textContent=_l518Ecran(el.value||''); }catch(_){ }   /* [L518] l echo suit le champ */ try{ const _ln=el.closest&&el.closest('.fiche-line'); if(_ln) _ln.classList.toggle('conf-long',String(el.value||'').replace(/\s+/g,'').length>17);   /* [L360] seuil 22→17 : mesuré, 3 laizes passaient encore sur 2 lignes */ }catch(e){}   /* [L353 · backlog n°8] config longue → police réduite sur la carte en cours (paysage) au lieu de passer sur 2 lignes */ el.style.height='auto'; el.style.height=Math.max(44,el.scrollHeight)+'px'; }
 function refreshPhotoZone(lineId){
   const zone=document.getElementById('photoZone_'+lineId);
   if(!zone) return;
@@ -7979,13 +7982,13 @@ function groupBobinesWithChutes(list){
 }
 // Libellé HTML d'une config avec annotation chute « avant → après » (option B).
 function configHtmlWithChute(pattern,chute){
-  if(!chute) return esc(makeLabel(pattern));
+  if(!chute) return esc(_l518Conf(pattern));   /* [L518] */
   const parts=pattern.map(p=>{
     if(chute[p.width]){
       const before=p.qty+chute[p.width];
-      return `<span class="chute-strike">${before}×${p.width}</span><span class="chute-arrow">→</span><span class="chute-note">${p.qty}×${p.width}</span>`;
+      return `<span class="chute-strike">${before}${_L518_X}${fmt(p.width)} mm</span><span class="chute-arrow">→</span><span class="chute-note">${p.qty}${_L518_X}${fmt(p.width)} mm</span>`;   /* [L518] */
     }
-    return esc(p.qty>1?p.qty+'×'+p.width:p.width+'mm');
+    return esc(_l518Conf([p]));   /* [L518] toujours le nombre + l unite */
   });
   return parts.join(' + ');
 }
@@ -9287,7 +9290,7 @@ function recalcPlan(){
       html+=`<div class="bobine-card recut${mc}">
         <div class="bc-count">♻ ${g.count>1?g.count+' rouleaux':'1 rouleau'}</div>
         <div class="bc-body">
-          <div class="card-config">${esc(makeLabel(g.pattern))}</div>
+          <div class="card-config">${esc(_l518Conf(g.pattern))}</div><!-- [L518] format atelier -->
           <div class="card-sub">♻ rouleau chute ${fmt(g.rollW)} mm · ${fmt(st.total)} / ${fmt(g.rollW)} mm</div>
           ${cliSub}
         </div>
@@ -9308,7 +9311,7 @@ function recalcPlan(){
         :`<span class="badge bc-waste${waste<useful*0.08?'':' bc-waste-hi'}">${fmt(waste)} mm</span>`;   /* [L336] chute neutre — [L442 · demande Esteban] le solde n'est plus qu'un CHIFFRE en jaune (le cadre + le mot SOLDE mangeaient la rangée) */
       const bEnd=bGlobal+g.count-1;
       bGlobal=bEnd+1;
-      const confHtml=hasChute?configHtmlWithChute(g.pattern,g.chute):makeLabel(g.pattern);
+      const confHtml=hasChute?configHtmlWithChute(g.pattern,g.chute):_l518Conf(g.pattern);   /* [L518] format atelier « 9 x 500 mm + 1 x 300 mm » (makeLabel GELEE reste la cle de regroupement) */
       const chuteNote=hasChute?`<div class="card-sub"><span class="chute-note">✂ ${Object.entries(g.chute).map(([w,q])=>q+'×'+fmt(Number(w))).join(' + ')} mm pris dans chute stock (non coupés ici)</span></div>`:'';
       if(!_cliAllocs){
         html+=`<div class="${cls}">
@@ -9758,14 +9761,47 @@ function packagingRecapHTML(groups){
     +'<table><tr>'+head+'</tr>'+rows+'</table>';
 }
 // Config imprimable avec annotation chute (option B) : avant barré → après.
+/* [L518 · demande Celine 10/09/2026 — le PAPIER est son domaine] CONFIGURATION PAPIER : l unite ET toujours le nombre
+   (« 9 x 500 mm + 1 x 300 mm »). makeLabel est GELEE (tests/engine_identity.js, BASELINE), relue par parseConf (props_test P4)
+   et sert de CLE de regroupement a groupBobines : intouchable. Ce formateur ne vit que sur le plan imprime (chutePrintConfig et
+   recutPrintRows ne sont appelees que par buildPlanPrintHTML). Ecrans, fiche BOB-xxx, etiquettes et archives Firestore restent
+   byte-identiques. PUR (pas de DOM) -> testable dans Node (tests/papier_l518_test.js). */
+const _L518_X=' x ';   /* decision Celine : « 9 x 500 mm » — UN seul endroit a changer */
+function _l518Conf(pattern){
+  return (pattern||[]).map(function(p){
+    var q=Math.max(1,parseInt(p&&p.qty)||1), w=Number(p&&p.width)||0;
+    return q+_L518_X+fmt(w)+' mm';
+  }).join(' + ');
+}
+/* Meme regle sur un texte DEJA segmente par client (« 6×100 + 4×120 », sortie de _l415Conf) : reformate au seul point d impression. */
+function _l518SegPapier(txt){
+  return String(txt==null?'':txt).replace(/(\d+)\s*×\s*(\d+(?:[.,]\d+)?)/g,function(_,q,w){ return q+_L518_X+w+' mm'; });
+}
+/* [L518 · demande Celine 14/09 « fais tablette et imprime »] TEXTE -> TEXTE : reformate une configuration ARCHIVEE (groups[].label =
+   makeLabel, GELEE) ou SAISIE au format atelier « 9 x 500 mm + 1 x 300 mm ». L archive n est jamais reecrite : reformatage a l AFFICHAGE.
+   Prefixe « REF · », « ♻ » et suffixe « (rouleau N mm) » isoles avant traitement (un nom de ref peut contenir « 300mm »). Pur -> Node. */
+function _l518Label(label){
+  const s=String(label==null?'':label);
+  const iSep=s.lastIndexOf(' · ');
+  const pre=iSep>=0?s.slice(0,iSep+3):''; let body=iSep>=0?s.slice(iSep+3):s;
+  let rec=''; if(body.slice(0,2)==='♻ '){ rec='♻ '; body=body.slice(2); }
+  let suf=''; const mR=body.match(/\s*\(rouleau\s[^)]*\)\s*$/); if(mR){ suf=mR[0]; body=body.slice(0,mR.index); }
+  body=body.replace(/(\d+)\s*×\s*(\d+(?:[.,]\d+)?)(?:\s*mm)?/g,function(m,q,w){ return q+_L518_X+w+' mm'; })
+           .replace(/(^|[^\d.,])(\d+(?:[.,]\d+)?)mm\b/g,function(m,p,w){ return p+'1'+_L518_X+w+' mm'; });
+  return pre+rec+body+suf;
+}
+/* Ecrans : meme regle sur le texte du champ, mais un texte LIBRE (« Non réalisée - manque matière ») reste intact (garde parseConf).
+   Le champ flConf_ lui-meme garde sa valeur canonique « 24×50 » : isLineFrozen, _frozenLike, _l345ConfDirty et _l513MatSig comparent
+   des CHAINES — ecrire le format long dans le champ creerait de faux ecarts / un faux gel de ligne. L echo est en lecture seule. */
+function _l518Ecran(v){ const s=String(v==null?'':v); try{ const p=parseConf(s); return p.length?_l518Conf(p):s; }catch(e){ return s; } }   /* depuis la STRUCTURE lue par parseConf : « 2×612 + 157 » → « 2 x 612 mm + 1 x 157 mm » */
 function chutePrintConfig(pattern,chute){
-  if(!chute) return '<strong>'+esc(makeLabel(pattern))+'</strong>';
+  if(!chute) return '<strong>'+esc(_l518Conf(pattern))+'</strong>';   /* [L518] format papier */
   const parts=pattern.map(p=>{
     if(chute[p.width]){
       const before=p.qty+chute[p.width];
-      return '<s style="color:#767676">'+before+'×'+p.width+'</s> <b style="color:#b45309">&rarr; '+p.qty+'×'+p.width+'</b>';/* [L163 · sweep a11y] #999→#767676 : lisible sur le PDF (fond blanc) — 4,54:1 en gardant l'effet grisé barré */
+      return '<s style="color:#767676">'+before+_L518_X+fmt(p.width)+' mm</s> <b style="color:#b45309">&rarr; '+p.qty+_L518_X+fmt(p.width)+' mm</b>';/* [L163 · sweep a11y] #999→#767676 : lisible sur le PDF (fond blanc) — 4,54:1 en gardant l'effet grisé barré · [L518] format papier */
     }
-    return esc(p.qty>1?p.qty+'×'+p.width:p.width+'mm');
+    return esc(_l518Conf([p]));   /* [L518] toujours le nombre + l unite */
   });
   return '<strong>'+parts.join(' + ')+'</strong>';
 }
@@ -9796,7 +9832,7 @@ function recutPrintRows(c,blade,recutAllocs,chk){
     out+=`<tr style="background:#e6fffa">
       ${chk?`<td style="text-align:center;font-size:14px;background:#e6fffa">${_chkBoxes(g.count)}</td>`:''}
       <td style="border-left:4px solid #0d9488;font-weight:700;color:#0f766e">♻ ${g.count>1?g.count+' rouleaux chute':'1 rouleau chute'}</td>
-      <td><b>${esc(makeLabel(g.pattern))}</b> — À RECOUPER EN 1ER${cliNote}</td>
+      <td><b>${esc(_l518Conf(g.pattern))}</b> — À RECOUPER EN 1ER${cliNote}</td>
       <td>reste ${fmt(rest)} mm</td></tr>`;
   });
   return out;
@@ -9919,9 +9955,9 @@ function buildPlanPrintHTML(o){
         const _isL=isLast&&ri===_subRows.length-1;
         tRows+=`<tr style="${_isL?'background:#fffbea;font-style:italic':''}">
           ${o.coupeCol?`<td style="text-align:center;font-size:14px">${_chkBoxes(r.count)}</td>`:''}
-          <td>${r.count>1?r.count+' bobines':'1 bobine'}</td>
-          <td>${(function(){ try{ if(!g.chute&&typeof _l415Conf==='function'){ const _t=_l415Conf(g.pattern,r.alloc,null); if(_t) return '<strong>'+esc(_t)+'</strong>'; } }catch(e){} return chutePrintConfig(g.pattern,g.chute); })()}${r.note||''}</td>
-          <td>${_isL?'Solde '+fmt(waste)+' mm':fmt(waste)+' mm'}</td></tr>`;
+          <td>${r.count>1?r.count+' bobines':'1 bobine'}${_isL?(r.count>1?' <span style="white-space:nowrap">(dont la dernière : solde)</span>':' <span style="white-space:nowrap">(dernière : solde)</span>'):''}</td>   /* [L518 · question Celine « 4 bobines + 1 bobine meme configuration : bug ? »] non : la derniere bobine de la ref est isolee (_palSplitSolde) parce que sa laize restante est le SOLDE a garder ; on le dit. Cote fiche, _grp peut refusionner 4+1 -> « 5 bobines (dont la derniere : solde) » */
+          <td>${(function(){ try{ if(!g.chute&&typeof _l415Conf==='function'){ const _t=_l415Conf(g.pattern,r.alloc,null); if(_t) return '<strong>'+esc(_l518SegPapier(_t))+'</strong>'; } }catch(e){} return chutePrintConfig(g.pattern,g.chute); })()}${r.note||''}</td>
+          <td>${_isL?'Solde '+fmt(waste)+' mm':'Perte '+fmt(waste)+' mm'}</td></tr>`;   /* [L518] le mot devant le nombre : la photocopie N&B perd l italique et le fond creme */
       });
     });
     if(multi){
@@ -9965,12 +10001,12 @@ function buildPlanPrintHTML(o){
     // doublon de la colonne ✂ EN STOCK du tableau par laize (qui liste désormais AUSSI les laizes 100 % stock).
     const _nbTot=(c.planGroups||[]).reduce((s2,g)=>s2+Math.max(1,parseInt(g.count)||1),0)+(c.recutGroups||[]).reduce((s2,g)=>s2+Math.max(1,parseInt(g.count)||1),0);
     const _nbMeres=(c.planGroups||[]).reduce((s2,g)=>s2+Math.max(1,parseInt(g.count)||1),0);
-    sections+=`<table><tr>${o.coupeCol?'<th style="width:12mm;text-align:center">✂</th>':''}<th>Bobines</th><th>Configuration</th><th>Chute</th></tr>${tRows}</table>`
+    sections+=`<table><tr>${o.coupeCol?'<th style="width:12mm;text-align:center">✂</th>':''}<th>Bobines</th><th>Configuration</th><th>Perte / Solde</th></tr>${tRows}</table>`   /* [L518 · decision Celine] « Chute » disait perte ET chute gardee ; vocabulaire L513/L516 */
       +(o.coupeCol?`<div style="margin:2px 0 8px;font-size:13px;font-weight:800">✂ Coupées : <span style="display:inline-block;min-width:22mm;border-bottom:2px solid #000">&nbsp;</span> / ${_nbTot} bobine${_nbTot>1?'s':''}</div>`:'')
       +(_nbMeres?`<div style="margin:2px 0 8px;font-size:13px">🧾 <b>${_nbMeres}</b> bobine${_nbMeres>1?'s':''} mère${_nbMeres>1?'s':''} à monter${(c.recutGroups||[]).length?` + rouleau${(c.recutGroups||[]).length>1?'x':''} chute`:''}</div>`:'')
       +_laizeTable+recutPrintRecap(c)+_dechetLine;
   });
-  if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Chute</th></tr></table>';
+  if(!groups.length) sections='<table><tr><th>Bobines</th><th>Configuration</th><th>Perte / Solde</th></tr></table>';   /* [L518] */
 
   const metaTech=multi
     ? `Machine : ${o.mn} · Date : ${today()}`   /* [L293] « N références » supprimé (violet) */
@@ -19879,7 +19915,7 @@ function buildFichePrintHTML(d){
     <div class="card-title">Plan de découpe — bobine par bobine</div>
     <table>
       <thead><tr>
-        <th>N°</th><th>Découpe</th>${cliCol?'<th>Clients</th>':''}<th>Total</th><th>Chute</th>
+        <th>N°</th><th>Découpe</th>${cliCol?'<th>Clients</th>':''}<th>Total</th><th>Perte / Solde</th><!-- [L518 · decision Celine] meme vocabulaire que le plan imprime -->
         <th>Étiquette</th><th>Photo</th><th>Test 2ème bob.</th><th>Non-conformité</th><th>État</th>${shareCol?'<th>Coupé par</th>':''}
       </tr></thead>
       <tbody>${planRows}${horsPlanRows}</tbody>
@@ -20034,10 +20070,10 @@ function showFicheDetail(id,autoPrint,cliFilter){
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
       rows.push(machBand+lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:12px">[SOLDE]</span>':''}</td>
-        <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(labelLegrand(g.label)):esc(g.label)}</td>
+        <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(_l518Label(labelLegrand(g.label))):esc(_l518Label(g.label))}</td><!-- [L518] archive intacte, reformatee a l impression -->
         ${multiCli?`<td style="padding:10px 12px;font-size:12px">${cliCellPdf(fd)}</td>`:''}
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
-        <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${g.waste} mm</td>
+        <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${(isLast&&k===g.count-1)?'Solde ':'Perte '}${g.waste} mm</td><!-- [L518] meme predicat que [SOLDE] -->
         <td style="padding:10px 12px">${etiq}</td>
         <td style="padding:10px 12px">${photoCell}</td>
         <td style="padding:10px 12px">${test2}</td>
@@ -20072,7 +20108,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
     const op2Band=(op2RelayAt&&bn===op2RelayAt)?op2BandHtml():'';
     return lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
         <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:11px;background:#3d2a00;color:#f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
-        <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${isLegrandFr?esc(labelLegrand(fd.conf)):esc(fd.conf||'—')}</td>
+        <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${isLegrandFr?esc(_l518Label(labelLegrand(fd.conf))):esc(_l518Ecran(fd.conf||'—'))}</td><!-- [L518] -->
         ${multiCli?`<td style="padding:10px 12px;font-size:12px">${cliCellPdf(fd)}</td>`:''}
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
@@ -20913,7 +20949,7 @@ function renderFicheMachineBlocks(opts){
       const _cli=esc(String(_cliRaw).trim());
       let _nbBob=0; try{ const _rk2=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k2=nrm(r.ref); _nbBob=ficheLines.filter(l=>l&&_refMatchFn(_rk2,_k2)(l)).length; }catch(_){ }
       // [L353 · backlog n°10 · §2.21] ligne 3 = n bobines · CONFIG de la prochaine bobine à couper de cette réf (résumé, ellipsé ; paysage seulement — .foc-cfg)
-      let _cfg=''; try{ const _rk4=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k4=nrm(r.ref); const _mine=ficheLines.filter(l=>l&&_refMatchFn(_rk4,_k4)(l)); const _fl=_mine.find(l=>{ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||_mine[0]; if(_fl){ _cfg=String((document.getElementById('flConf_'+_fl.id)||{}).value||'').replace(/\s*\+\s*/g,' + ').replace(/(\d)\s*[x×]\s*(?=\d)/gi,'$1×').trim(); } }catch(_){ }   // [fix audit] seul le « x » entre deux nombres devient × (texte libre intact)
+      let _cfg=''; try{ const _rk4=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const _k4=nrm(r.ref); const _mine=ficheLines.filter(l=>l&&_refMatchFn(_rk4,_k4)(l)); const _fl=_mine.find(l=>{ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||_mine[0]; if(_fl){ _cfg=String((document.getElementById('flConf_'+_fl.id)||{}).value||'').trim(); _cfg=_l518Ecran(_cfg); } }catch(_){ }   // [fix audit] texte libre intact (garde parseConf) · [L518] format atelier « 24 x 50 mm »
       oh+='<div class="fmm-order-row foc-'+_stCls+'" style="border-left:5px solid '+rc+';align-items:flex-start">'
         +'<span class="fmm-drag-handle" onpointerdown="fmmDragStart(event,'+r.idx+')" title="Glisser pour réordonner" aria-hidden="true">⠿</span>'
         +'<span class="fmm-order-num" style="background:'+rc+'26;color:'+rc+';border:1.5px solid '+rc+'">'+(pos+1)+'</span>'
@@ -21765,6 +21801,7 @@ function addFicheLine(data){
             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(data.conf||'')}</textarea>
           <button type="button" class="fl-edit-chip" onclick="_l345EditChip('${id}')">✎ MODIFIER</button><!-- [L345 · demande Esteban] MODIFIER et ÉCARTS = UN bouton : tap = éditer la config ; config modifiée → il devient « ♻ RECALCULER » (le ✂ refuse tant que ce n'est pas fait) --><!-- [L334 · maquette 17] affordance d'édition de la config (le tap va dans le textarea) — visible sur la carte EN COURS ≥1100px ; le ♻ Écarts a rejoint le titre CUMUL (maquette) -->
         </div>
+        <div class="fl-conf-long" id="flConfLong_${id}">${esc(_l518Ecran(data.conf||''))}</div><!-- [L518] echo lecture seule « 24 x 50 mm » : le champ garde « 24×50 » -->
         ${data.chuteNote?`<div class="fiche-chute-note">${esc(data.chuteNote)}</div>`:''}
       </div>
       <details class="fl-more" id="flMore_${id}"><!-- [L107 · Phase 1 · F] zone Défaut REPLIÉE par défaut (aucune place prise) ; s'ouvre au tap, ou AUTO si NC / action requise (syncFlMore, toggleCoupee) -->
@@ -22309,7 +22346,7 @@ function renderNowBar(){
     const pos=(document.getElementById('pos_'+id)?.textContent||'').trim();
     const conf=(document.getElementById('flConf_'+id)?.value||'').trim();
     const t=document.getElementById('nowTxt');
-    if(t) t.textContent='Coupe la bobine '+(pos?pos.split('/')[0]:'')+(conf?' : '+conf:'');
+    if(t) t.textContent='Coupe la bobine '+(pos?pos.split('/')[0]:'')+(conf?' : '+_l518Ecran(conf):'');   /* [L518] */
     bar.style.display='flex';
   }catch(e){}
 }
@@ -23288,7 +23325,7 @@ function _l340SyncOrderStates(){ try{
     row.classList.remove('foc-cur','foc-done','foc-todo'); row.classList.add('foc-'+cls);
     const st=row.querySelector('.foc-st'); if(st){ st.className='foc-st foc-st-'+cls; st.textContent=done?'✓ FINI':(cur?'EN COURS':'À VENIR'); }
     // [L353 · fix audit] la config « prochaine bobine » de la ligne 3 suit les coches (sinon figée au rendu → contradiction avec la carte en cours)
-    try{ const cf=row.querySelector('.foc-cfg'); if(cf){ const rk=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const k=nrm(r.ref); const mine=ficheLines.filter(function(l){ return l&&_refMatchFn(rk,k)(l); }); const fl=mine.find(function(l){ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||mine[0]; const v=fl?String((document.getElementById('flConf_'+fl.id)||{}).value||'').replace(/\s*\+\s*/g,' + ').replace(/(\d)\s*[x×]\s*(?=\d)/gi,'$1×').trim():''; cf.textContent=v?' · ➜ '+v:''; } }catch(_){ }
+    try{ const cf=row.querySelector('.foc-cfg'); if(cf){ const rk=r.refKey||((typeof _refIdKey==='function')?_refIdKey(r):null); const k=nrm(r.ref); const mine=ficheLines.filter(function(l){ return l&&_refMatchFn(rk,k)(l); }); const fl=mine.find(function(l){ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); })||mine[0]; const v=fl?String((document.getElementById('flConf_'+fl.id)||{}).value||'').trim():''; cf.textContent=v?' · ➜ '+_l518Ecran(v):'';   /* [L518] meme format que la carte */ } }catch(_){ }
   });
 }catch(e){} }
 // ============================================================
