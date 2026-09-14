@@ -3,15 +3,22 @@
 ## Contexte (à lire avant toute modification)
 - L'application est **UN seul fichier** : `index.html` (~25 000 lignes au 05/09/2026 — chiffre à ne pas recopier : `wc -l index.html`, JS vanilla + Firebase compat, une lib html2canvas minifiée embarquée en tête). Elle est servie par **GitHub Pages** depuis ce repo, branche `main`.
 - **Un push sur `main` = mise en production immédiate** (~2 min). Les 3 tablettes de l'atelier voient alors une bannière « Recharger ».
-- Atelier ISO 9001 : 3 machines (FEBA, MAVEG, CEVENINI), 3 tablettes Galaxy Tab A9+ (paysage 1280×800), comptes machine `feba@/maveg@/cevenini@step-international.com`. Administrateur : **Esteban**.
-- L'utilisateur de cette session peut être **NON TECHNIQUE** (la mère d'Esteban assure les modifications simples : clients, références, petits correctifs). Dans ce cas : parle simplement, sans jargon, ne montre pas de code, fais tout toi-même, vérifie tout, et dis clairement quand c'est en ligne.
+- Atelier ISO 9001 : 3 machines (FEBA, MAVEG, CEVENINI), 3 tablettes Galaxy Tab A9+ (paysage 1280×800), comptes machine `feba@/maveg@/cevenini@step-international.com`. **Deux administrateurs à parité : Esteban et Céline** (décision d'Esteban du 15/09/2026, voir « Qui décide quoi »).
+- L'utilisateur de cette session peut être **NON TECHNIQUE** (Céline, responsable qualité, sur le PC Windows). Dans ce cas : parle simplement, sans jargon, ne montre pas de code, fais tout toi-même, vérifie tout, et dis clairement quand c'est en ligne. **Ne jamais répondre « c'est à Esteban de décider »** : Céline décide seule, tout est tracé et réversible.
+
+## Qui décide quoi (décision d'Esteban, 15/09/2026)
+- **Céline a exactement les mêmes droits qu'Esteban.** Elle n'attend l'accord de personne : elle demande, Claude construit, teste (batterie) et publie. Le décalage horaire (Esteban à l'étranger) ne doit jamais bloquer l'atelier.
+- Répartition PAR DÉFAUT (qui s'en occupe d'habitude, pas une frontière d'autorisation) — Céline : écrans atelier et bureau, papier (plan, fiche, étiquettes), données clients / références / emballage, calculs déchets / NC / indicateurs qualité, demandes de l'atelier (JF, MR, Dominique, DG). Esteban : moteur, sécurité, Firebase, tests, infrastructure, comptes.
+- Les **règles absolues** ci-dessous protègent l'outil, pas une personne : elles s'appliquent aux deux (moteur gelé, batterie avant tout push, écritures bornées, jamais de force).
+- **Deux lots des deux postes sur le même écran** (arrivé le 10/09 et le 15/09) : Claude ne défait JAMAIS en silence le lot de l'autre poste. Il expose les deux décisions aux deux admins (message + mail) et laisse la version en place jusqu'à leur accord. Exemples ouverts au 15/09 : l'écho de configuration sous le champ (L518 Céline) qu'Esteban trouve « marqué en deux fois » ; la pastille PERTE / SOLDE (L516 Céline) qu'Esteban voulait appeler « laize restante ».
+- Console Firebase et règles Firestore : seuls les **propriétaires du projet** (Esteban, Christian) peuvent y publier. Claude prépare `firestore.rules` et les étapes en console ; il n'y touche jamais lui-même.
 
 ## Règles absolues — une violation = NE PAS POUSSER
 1. **Moteur de calcul intouchable** : 11 fonctions gelées byte-identiques. `node tests/engine_identity.js` doit rester 🏆. Ne jamais les modifier, même « pour améliorer ».
-2. **Sorties papier / PDF / étiquettes : format strictement inchangé** (documents qualité ISO).
+2. **Sorties papier / PDF / étiquettes : aucun changement de format sans demande explicite d'un admin** (Céline ou Esteban — documents qualité ISO). Jamais « en passant » dans un autre lot ; un changement demandé passe par la batterie et son commit dit ce qui change sur le papier.
 3. **Portrait (tablette verticale) = layout historique.** Tout changement visuel se scope en `@media(min-width:1100px)` (paysage).
 4. **Les `confirm()` de sécurité restent** (dé-marquage d'une bobine coupée, reset chrono, suppressions). Seuls les dialogues « conservateurs » ont été retirés sur décision d'Esteban (L390). **L434** : le confirm de l'ordre de coupe et celui de ↺ Réinitialiser sont retirés sur demande explicite d'Esteban — règle de remplacement : ne jamais retirer un garde-fou sans **supprimer la perte** qu'il protégeait (étiquettes préservées à travers la régénération) ou sans offrir une **annulation** (bandeau « ↩ Annuler » 15 s).
-5. **Jamais de suppression de données de production. Jamais toucher à la console Firebase / aux règles Firestore** — c'est le domaine d'Esteban.
+5. **Jamais de suppression de données de production. Jamais toucher à la console Firebase / aux règles Firestore** — Claude ne les modifie jamais lui-même : il prépare `firestore.rules` et les étapes, un propriétaire du projet (Esteban ou Christian) publie en console.
 6. Un lot de modifications = **APP_VERSION bumpé** (`'AAAA.MM.JJ-LNNN'`, LNNN incrémenté) + un **marqueur** dans `tests/audit_regress_test.js` pour tout correctif important.
 7. Écrire dans le fichier via des scripts : attention aux commentaires `//` qui avalent la fin de ligne — toujours re-vérifier la syntaxe (étape 1 ci-dessous).
 
@@ -90,7 +97,7 @@ Un clone Windows existe (`K:\STEP INTERNATIONAL\ESTEBAN Alternance 2025 2026\cla
 Si un push est rejeté (« fetch first » / non fast-forward) : `git pull --rebase` puis re-pousser —
 les fichiers des deux machines ne se recouvrent pas.
 - **Catalogue clients** : `CLIENT_DATA` dans `index.html`. **Règles d'emballage par client** : `PKG_CLIENTS`. Pour ajouter un client/une référence : copier la structure d'une entrée existante similaire.
-- **Assistant IA de la bulle 💬** : `functions/index.js` (Cloud Function `assistReply`). **Règles Firestore** : `firestore.rules` (publication en console = Esteban uniquement).
+- **Assistant IA de la bulle 💬** : `functions/index.js` (Cloud Function `assistReply`). **Règles Firestore** : `firestore.rules` (publication en console = un propriétaire du projet, Esteban ou Christian).
 - **Tests et outils** : dossier `tests/` (batterie, simulateur `sim200.mjs`, captures `shot.mjs` — serveur local `python3 -m http.server 8000` requis pour shot).
 - **Journal du chantier** : messages de commit `git log --oneline` (marqueurs LNNN).
 
@@ -102,7 +109,7 @@ les fichiers des deux machines ne se recouvrent pas.
 5. **Après une grosse journée de lots, lancer un audit adversarial multi-agents** sur le diff cumulé (6 zones, mission « casser, pas défendre ») : le 24/08 il a trouvé 19 signalements dont 13 vrais bugs, tous corrigés en L412.
 
 ## En cas de doute
-- Un test échoue, un comportement surprend, une demande touche le moteur / le papier / Firebase → **NE POUSSE PAS**. Explique simplement le problème et propose d'appeler Esteban.
+- Un test échoue, un comportement surprend, une demande touche le moteur gelé ou Firebase → **NE POUSSE PAS**. Explique simplement le problème et propose une décision à l'admin présent (Céline ou Esteban) — sans attendre l'autre. Le papier et les calculs sont modifiables (Céline en est responsable) : ils passent par la batterie comme tout le reste.
 - **Revenir en arrière** (urgence) : `git revert <commit fautif>` puis la checklist ci-dessus (jamais de `reset --hard` forcé sur le remote).
 - Une seule demande à la fois ; après chaque mise en ligne, dire à l'utilisateur de recharger la page pour vérifier.
 

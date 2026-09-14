@@ -2267,5 +2267,21 @@ has(/cf\.textContent=v\?' · ➜ '\+_l518Ecran\(v\):'';/,'L518+ : rail d ordre d
 has(/_cfg=_l518Ecran\(_cfg\);/,'L518+ : rail d ordre de coupe au rendu (1er jumeau)');
 has(/^const normConf=c=>\(c\|\|''\)\.replace\(\/x\/gi,'×'\)/m,'L518+ : normConf NON etendue dans ce lot — sa sortie est PERSISTEE dans origConf (brouillons, partage, ficheDetail)');
 
+console.log('── L519 : demandes Esteban 15/09/2026 (chip NC, pastille changement 5 s, initiales non pre-cochees pour admin/pilotage, graine VEKA 700 ml) ──');
+has(/'✗ OBJECTIF NON TENU'/,'L519 : le chip NC dit « NON TENU » (le mot d avant se lisait comme une bonne nouvelle)');
+absent(/'✗ OBJECTIF D.PASS.'/,'L519 : l ancien libelle du chip NC a disparu du code');
+has(/^const L519_CHG_OFF_MS=5000;/m,'L519 : delai unique d extinction de la pastille CHANGEMENT EN COURS (5 s)');
+has(/^function _l519ChgEtat\(checked,ok,okAt,now,delayMs\)\{/m,'L519 : predicat PUR (tests/chg_l519_test.js) : coche + valide depuis >= delai = eteinte');
+has(/^function _l519ChgPill\(\)\{/m,'L519 : lecture DOM du predicat (case cochee + section chg-ok + horodatage)');
+has(/const chg=\(typeof _l519ChgPill==='function'\)\?_l519ChgPill\(\):/,'L519 : la rangee de pastilles lit le predicat avec delai');
+has(/const on=\(typeof _l519ChgPill==='function'\)\?_l519ChgPill\(\):_l79ChgActive\(\);/,'L519 : le bouton 🔧 Changements suit la meme regle');
+has(/try\{ _l519ChgDone\(kind\); \}catch\(e\)\{\}/,'L519 : ✓ Valide horodate et programme l extinction');
+has(/try\{ _l519ChgRefresh\(\); \}catch\(e\)\{\}   \/\* \[L519\] un refus/,'L519 : un refus de pose (lame jetee, inconnue, autre machine) rallume la pastille tout de suite (finally)');
+has(/^function _l519PreselIni\(\)\{ try\{ return \(typeof currentRole!=='undefined'\)&&currentRole==='operateur'; \}/m,'L519 : initiales pre-cochees pour un compte OPERATEUR seulement (enquete Taieb : fiches FEBA signees ER)');
+has(/if\(currentUser&&currentUser\.ini&&_l519PreselIni\(\)\)\{\n    const h=document\.getElementById\('fInitiales'\);if\(h\)h\.value=currentUser\.ini;/,'L519 : applyRole — pre-selection gardee par le role');
+has(/if\(currentUser&&currentUser\.ini&&_l519PreselIni\(\)\)\{\n    document\.getElementById\('fInitiales'\)\.value=currentUser\.ini;/,'L519 : reset de fiche — pre-selection gardee par le role (admin/pilotage tombent dans le else = initiales videes)');
+has(/try\{ _l435ChgTouch\(id==='fLameChg'\?'lame':\(id==='fMachChg'\?'mach':'op2'\)\); \}catch\(e\)\{\}/,'L519 : (de)cocher une case de changement = retouche (chg-ok + horodatage purges) — passe adverse : re-cochee, la pastille restait eteinte');
+has(/\{ref:"41317395 - TacFlex® KX1006-1",largeur:1260,longueur:700\}/,'L519 : graine de repli VEKA KX1006-1 700 ml alignee sur le referentiel Firestore');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

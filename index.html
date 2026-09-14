@@ -3348,7 +3348,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.14-L518';
+const APP_VERSION='2026.09.15-L519';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4383,8 +4383,8 @@ function applyRole(){
   if(active){
     if((active.id==='tabFiches'&&currentRole==='operateur')||(active.id==='tabAnalyse'&&!canViewAnalyse()&&!canManageData())||(active.id==='tabAudit'&&!canViewAudit())||(active.id==='tabClients'&&!(typeof _l486CanEdit==='function'&&_l486CanEdit()))||(active.id==='tabMaintenance'&&!canAccessMaintenance())||((active.id==='tabCorbeille'||active.id==='tabNc')&&!canManageData())) switchTab('saves');   // [L131 · #24] le pilotage garde l'accès à l'onglet (Temps)
   }
-  // Pré-sélectionner l'opérateur connecté dans la fiche
-  if(currentUser&&currentUser.ini){
+  // Pré-sélectionner l'opérateur connecté dans la fiche — [L519] compte OPERATEUR seulement (cf. _l519PreselIni)
+  if(currentUser&&currentUser.ini&&_l519PreselIni()){
     const h=document.getElementById('fInitiales');if(h)h.value=currentUser.ini;
     document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===currentUser.ini));
   }
@@ -4847,6 +4847,7 @@ var CLIENT_DATA = {
   ],
   "VEKA": [
     {ref:"41313870 - TacFlex® KX1006-1",largeur:1260,longueur:1000},
+    {ref:"41317395 - TacFlex® KX1006-1",largeur:1260,longueur:700},
     {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
     {ref:"41315627 - TacFlex® KX1075",largeur:1050,longueur:500},
     {ref:"41317239 - TacFlex® KX1075",largeur:1050,longueur:500}
@@ -5119,6 +5120,12 @@ function applyPackagingRules(clientName){
 function canManageData(){
   return currentRole==='admin' || currentRole==='pilotage';
 }
+/* [L519 · enquete Esteban 15/09/2026 « pourquoi je ne vois pas le temps de Taieb ? »] Les fiches FEBA de septembre sont signees
+   ER avec de vrais temps de coupe alors qu Esteban n est pas a l atelier : la tablette etait connectee avec son compte ADMIN et
+   ses initiales etaient PRE-COCHEES — l operateur ne les changeait pas, et le temps de Taieb partait sur ER. Un compte
+   admin/pilotage sur une tablette partagee ne pre-selectionne plus rien : l operateur touche SES initiales (le chrono
+   l exige deja : ficheParamMissing). Seul un compte OPERATEUR personnel (JF, TB, MR) garde ses initiales pre-cochees. */
+function _l519PreselIni(){ try{ return (typeof currentRole!=='undefined')&&currentRole==='operateur'; }catch(e){ return false; } }
 // Onglet Maintenance : ouvert à tous les connectés (lecture du registre +
 // encart « État des lames » + saisie d'entrées, opérateurs inclus).
 // La suppression d'entrées reste réservée à canManageData().
@@ -12969,8 +12976,8 @@ function resetAll(){
   const u2=document.getElementById('fUtile2');if(u2)u2.textContent='—';
   refreshEtiquetteSolde();
 
-  // Re-sélectionner l'opérateur connecté
-  if(currentUser&&currentUser.ini){
+  // Re-sélectionner l'opérateur connecté — [L519] compte OPERATEUR seulement ; admin/pilotage tombent dans le else (initiales VIDEES comme un compte machine)
+  if(currentUser&&currentUser.ini&&_l519PreselIni()){
     document.getElementById('fInitiales').value=currentUser.ini;
     document.querySelectorAll('#initBtns .ini-btn').forEach(function(b){b.classList.toggle('sel',b.textContent===currentUser.ini);});
   } else {
@@ -14301,7 +14308,7 @@ function buildFicheAnalytics(){
   const NC_CIBLE=3;
   const ncOk=globalNcRate<=NC_CIBLE, ncEcart=Math.round((globalNcRate-NC_CIBLE)*10)/10;
   const ncObjHTML=totBob?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px">
-        <span style="background:${ncOk?'#14371f':'#3a1414'};color:${ncOk?'#4ade80':'#f87171'};font-weight:800;padding:3px 9px;border-radius:20px">${ncOk?'✓ OBJECTIF TENU':'✗ OBJECTIF DÉPASSÉ'}</span>
+        <span style="background:${ncOk?'#14371f':'#3a1414'};color:${ncOk?'#4ade80':'#f87171'};font-weight:800;padding:3px 9px;border-radius:20px">${ncOk?'✓ OBJECTIF TENU':'✗ OBJECTIF NON TENU'}</span>
         <span style="color:#aaa">Cible ≤ <strong>${NC_CIBLE}%</strong> · réel <strong style="color:${ncOk?'#4ade80':'#f87171'}">${globalNcRate}%</strong> <span style="color:#777">(${ncEcart>0?'+':''}${ncEcart} pt)</span></span>
       </div>`:'';
 
@@ -22912,7 +22919,7 @@ function renderFicheHeadPills(){ try{
   const ref=v('fRef').split(/\s\+\s/).map(function(x){ return refDisp(x); }).filter(Boolean).join(' + ');   // [L340 · fix audit] multi-réf : chaque réf raccourcie
   const m=(typeof ficheMachine==='string')?ficheMachine:'';
   const mLbl=m==='feba'?'FEBA':m==='maveg'?'MAVEG':m==='cevenini'?'CEVENINI':'';
-  const chg=(typeof _l79ChgActive==='function')&&_l79ChgActive();
+  const chg=(typeof _l519ChgPill==='function')?_l519ChgPill():((typeof _l79ChgActive==='function')&&_l79ChgActive());   /* [L519 · demande Esteban 15/09/2026] la pastille s eteint L519_CHG_OFF_MS apres « ✓ Valide » (elle restait allumee toute la commande) */
   const planKo=(typeof fichePlanValidated!=='undefined')&&!fichePlanValidated&&!(typeof fmmIsMulti==='function'&&fmmIsMulti())&&ficheLines.length>0;   // [L340 · fix audit] « Changement plan » requis (mono-réf) : dit sur la rangée, pas seulement dans le bloc replié
   const open=ficheHeadRevealed();
   const pill=function(t,cls){ return '<span class="fh-pill'+(cls?' '+cls:'')+'">'+t+'</span>'; };
@@ -25796,14 +25803,30 @@ function _l79SetupChangements(){
     // « Voir les bobines coupées » rapproché à côté du bouton Changements (demande atelier).
     const hc=document.getElementById('hideCoupeesBtn'), row=document.getElementById('chgBtnRow');
     if(hc&&row){ hc.style.flex='1'; row.appendChild(hc); }
-    CHG_IDS.forEach(function(id){ const c=document.getElementById(id); if(c) c.addEventListener('change',_l79SyncChgBtn); });
+    CHG_IDS.forEach(function(id){ const c=document.getElementById(id); if(!c) return; c.addEventListener('change',function(){
+      /* [L519 · passe adverse] (de)cocher la case = changement NOUVEAU : le ✓ precedent et son horodatage ne survivent pas, sinon la
+         pastille restait ETEINTE pour un changement re-coche et vide (les restaurations de brouillon appellent toggle* sans evenement change). */
+      try{ _l435ChgTouch(id==='fLameChg'?'lame':(id==='fMachChg'?'mach':'op2')); }catch(e){}
+      try{ _l79SyncChgBtn(); }catch(e){} }); });
     _l79SyncChgBtn();
   }catch(e){ console.warn('setupChangements',e); }
 }
 function _l79ChgActive(){ return CHG_IDS.some(function(id){ const c=document.getElementById(id); return c&&c.checked; }); }
+/* [L519 · demande Esteban 15/09/2026] « je veux que la pastille s eteigne apres le changement au bout de 5 secondes ».
+   La case reste la source de verite du CHANGEMENT (fiche, envoi, registre) ; seul l AFFICHAGE « EN COURS » (pastille de la
+   rangee + bouton 🔧) s eteint L519_CHG_OFF_MS apres « ✓ Valide ». Retoucher le changement (_l435ChgTouch retire chg-ok) le rallume. */
+const L519_CHG_OFF_MS=5000;   /* delai unique (ms) — ne jamais recopier 5000 en dur */
+window._l519ChgOkAt={};        /* id de case → Date.now() du « ✓ Valide » */
+function _l519ChgEtat(checked,ok,okAt,now,delayMs){ if(!checked) return false; if(!ok) return true; const t=Number(okAt)||0; if(!t) return false; return (Number(now)-t)<Number(delayMs); }   /* PURE (tests/chg_l519_test.js) : validee sans horodatage = eteinte, jamais allumee pour toujours */
+function _l519ChgPill(){ try{ const now=Date.now(); const secOf={fLameChg:'chgLame',fMachChg:'chgMach',fOp2Active:'chgOp2'};
+  return CHG_IDS.some(function(id){ const c=document.getElementById(id); if(!(c&&c.checked)) return false; const sec=document.getElementById(secOf[id]); const ok=!!(sec&&sec.classList.contains('chg-ok')); return _l519ChgEtat(true,ok,(window._l519ChgOkAt||{})[id],now,L519_CHG_OFF_MS); });
+}catch(e){ return _l79ChgActive(); } }
+function _l519ChgDone(kind){ try{ const id=(kind==='lame'?'fLameChg':(kind==='mach'?'fMachChg':'fOp2Active')); window._l519ChgOkAt=window._l519ChgOkAt||{}; window._l519ChgOkAt[id]=Date.now();
+  setTimeout(function(){ try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){} try{ if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }catch(e){} },L519_CHG_OFF_MS+200); }catch(e){} }
+function _l519ChgRefresh(){ try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){} try{ if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }catch(e){} }
 function _l79SyncChgBtn(){
   const b=document.getElementById('chgBtn'); if(!b) return;
-  const on=_l79ChgActive();
+  const on=(typeof _l519ChgPill==='function')?_l519ChgPill():_l79ChgActive();   /* [L519] meme regle que la pastille */
   b.classList.toggle('btn-orange',on);
   b.textContent=(on?'🔧 Changements EN COURS ●':'🔧 Changements');
 }
@@ -25842,6 +25865,7 @@ async function _l435ChgValider(kind){
       if(!V('fOp2Bobine')){ showToast('👤 Indique à partir de quelle bobine il a repris.','err'); return; }
     }
     if(sec) sec.classList.add('chg-ok');
+    try{ _l519ChgDone(kind); }catch(e){}   /* [L519] horodatage du ✓ + extinction programmee de la pastille */
     if(done) done.textContent='✓ '+_l435ChgResume(kind);
     try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){}
     try{ if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn(); }catch(e){}
@@ -25897,11 +25921,11 @@ async function _l435ChgValider(kind){
     } else {
       showToast('✓ Changement pris en compte sur la fiche — le registre des lames sera mis à jour à l\'envoi.','ok');
     }
-    }finally{ window._l440ChgBusy=false; if(_btn41){ _btn41.textContent=_txt41||'✓ Validé'; _btn41.disabled=false; } }   /* [L440 · audit #10 — L441 : bouton rendu */
+    }finally{ window._l440ChgBusy=false; if(_btn41){ _btn41.textContent=_txt41||'✓ Validé'; _btn41.disabled=false; } try{ _l519ChgRefresh(); }catch(e){}   /* [L519] un refus (lame jetee, inconnue, autre machine…) a retire chg-ok : la pastille se rallume tout de suite */ }   /* [L440 · audit #10 — L441 : bouton rendu */
   }catch(e){ window._l440ChgBusy=false; console.warn('_l435ChgValider:',e); try{ showToast('Changement pris en compte.','ok'); }catch(_){ } }
 }
 /* une modification apres coup re-ouvre la ligne : le ✓ ne doit jamais mentir */
-function _l435ChgTouch(kind){ try{ const sec=document.getElementById(kind==='lame'?'chgLame':(kind==='mach'?'chgMach':'chgOp2')); if(sec) sec.classList.remove('chg-ok'); }catch(e){} }
+function _l435ChgTouch(kind){ try{ const sec=document.getElementById(kind==='lame'?'chgLame':(kind==='mach'?'chgMach':'chgOp2')); if(sec) sec.classList.remove('chg-ok'); }catch(e){} try{ if(window._l519ChgOkAt) delete window._l519ChgOkAt[kind==='lame'?'fLameChg':(kind==='mach'?'fMachChg':'fOp2Active')]; }catch(e){} try{ _l519ChgRefresh(); }catch(e){}   /* [L519] retouche = horodatage purge + la pastille se rallume */ }
 (function _l435ChgWatch(){ try{
   const map={fLameNew:'lame',fLameChgBob:'lame',fMachChgTo:'mach',fMachChgBob:'mach',fInitiales2:'op2',fOp2Bobine:'op2'};
   Object.keys(map).forEach(function(id){ const el=document.getElementById(id); if(el) ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ _l435ChgTouch(map[id]); }); }); });

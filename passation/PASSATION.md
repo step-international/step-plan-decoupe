@@ -20,11 +20,15 @@ En ligne à `step-international.github.io/step-plan-decoupe`.
 
 ---
 
+> ✅ **Depuis le 15/09/2026 (décision d'Esteban) : Céline a les mêmes droits qu'Esteban.** Les zones verte / rouge
+> ci-dessous ne sont PLUS une frontière d'autorisation : c'est un simple guide de prudence. La seule frontière est la batterie de
+> tests (`bash tests/battery.sh`) : ce qui passe se publie, sans attendre Esteban. Détail dans `CLAUDE.md`, « Qui décide quoi ».
+
 ## Les 3 règles d'or
 
 1. **Une seule demande à la fois** — vérifier que la première marche avant d'enchaîner.
 2. **Jamais pendant une découpe** — publier le matin tôt, à midi ou en fin de journée.
-3. **Dans le doute, on ne publie pas** — hors zone verte, on appelle Esteban.
+3. **Dans le doute, on ne publie pas** — on décrit le doute à Claude, qui teste et explique ; Céline tranche (depuis le 15/09/2026, elle n'a plus besoin de l'accord d'Esteban).
 
 ---
 
@@ -38,13 +42,13 @@ Ces modifications ne touchent qu'à des listes, jamais au calcul.
 - Corriger un texte, un libellé, une faute
 - Ajouter quelqu'un aux mails de signalement
 
-## 🔴 Zone rouge — appeler Esteban
+## 🔴 Zone rouge — prudence : faire tester et expliquer par Claude avant de publier
 
 - Le calcul du plan et la perte matière (11 fonctions gelées, vérifiées)
 - Les impressions, PDF et étiquettes — documents qualité ISO
 - L'affichage tablette en position verticale (portrait)
 - Les `confirm()` de sécurité
-- Les comptes, les droits, Firebase
+- Les comptes, les droits, Firebase — seuls les propriétaires du projet (Esteban, Christian) publient en console
 
 **Repère :** si la demande contient *calcul, perte matière, impression, étiquette, PDF,
 portrait, sécurité, compte, droits* → rouge.
