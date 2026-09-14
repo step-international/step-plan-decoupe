@@ -1419,7 +1419,7 @@ has(/CONCURRENCE/,'L492 : refus explicite si un autre poste a modifie entre-temp
 has(/_l486SeenAt/,'L492 : version du referentiel memorisee a la lecture');
 has(/replace\(\/\[Oo\]\/g,'0'\)/,'L492 : chuteM2 normalise le metrage comme parseNum (« 6OO » ne vaut plus 6)');
 has(/chuteM2\+=_m13\.chutesM2;/,'L492→L513 : chute gardee du mois depuis la source unique (manque-matiere : lignes coupees seules, solde de la derniere COUPEE)');
-has(/return m\.ok\?m\.perteM2:'';/,'L492→L513 : CSV par commande : Perte m² depuis la source unique (en-tete inchange)');
+has(/const _m17=_l513MatiereOf\(f\);/,'L492→L513→L517 : CSV par commande — UN seul appel a la SOURCE UNIQUE par fiche, dans la ligne PURE _l517FicheRow');
 has(/piste d..audit inaccessible, RIEN n/,'L492 : l export audit ne dit plus « vide » a un auditeur hors-ligne');
 has(/le BOM doit rester a l offset 0 du FICHIER/,'L492 : accents du CSV audit repares pour Excel');
 has(/la liste des REFERENCES aussi/,'L492 : une reference ajoutee a un client deja selectionne apparait sans changer de client');
@@ -1536,7 +1536,7 @@ console.log('── L471 : en-tete fiche compacte + CSV visibles ──');
 has(/cliCourt=cliCourt\.slice\(0,cut\)/,'L471 : pastille client COURTE (sans « pour le ... n° »)');
 has(/pastilles compactes : la rangee/,'L471 : pastilles atelier 14px, une seule ligne tablette');
 has(/function _l471FicheM2/,'L471 : m² par fiche dans l export commande');
-has(/;m²;Perte %;Perte m²;Déchet m²;Temps;/,'L471→L480 : colonnes m², Perte m² et Dechet m² dans le CSV fiches (regles actees)');
+has(/;m²;Perte % \(m²\);Perte m²;Déchet m²;Déchet %;Chutes gardées m²;m² découpés et livrés;Temps;/,'L471→L480→L517 (decision Celine 26/08 + 10/09) : bloc matiere du CSV fiches — % en base MERE (perte m² / m² coupes), l ancien pct base utile est archive mais plus exporte');
 has(/une seule ligne de liens discrets/,'L471→L480 : exports CSV + piste d audit en liens discrets tout en bas');
 
 console.log('── L470 : module Stock supprime ──');
@@ -2004,7 +2004,7 @@ has(/^function _l505Warn\(where,e\)\{/m,'L505 : catch muets de la chaîne ISO �
 has(/\}catch\(e\)\{ _l505Warn\('wasteOf',e\); return 0; \}/,'L505 : wasteOf trace son repli');
 has(/\}catch\(e\)\{ _l505Warn\('_l493ChuteFromDetail',e\); return 0; \}/,'L505 : _l493ChuteFromDetail trace son repli');
 has(/\}catch\(e\)\{ try\{ _l505Warn\('l513·matiere',e\); \}catch\(_\)\{ \} R\.calcWarn\+\+; return R; \}/,'L505→L513 : NC → chute (et toute la matière) trace son repli : _l513Matiere ne retourne jamais un 0 sur exception (calcWarn + _l505Warn)');
-has(/kpi\.calcWarn>0\)\?' · ⚠ '\+kpi\.calcWarn\+' calcul\(s\) en repli \(console\)':''/,'L505→L506 : la tuile Chutes gardées affiche le compteur de replis DE L AGRÉGAT (plus un cumul de session)');
+has(/_l517ReplisToggle\('\$\{ym\}'\)/,'L505→L506→L517 : la tuile Chutes gardées affiche le compteur de replis DE L AGRÉGAT, désormais CLIQUABLE (liste fiche / date / client / cause)');
 console.log('── L506 · décision Esteban 05/09 : mode apprenti + bulle « 1 tap » supprimés ──');
 has(/\[L506 · décision Esteban 05\/09\] MODE APPRENTI \(L323\) et INDICE « 1 tap » \(L322\) SUPPRIMÉS/,'L506 : pierre tombale documentée (pourquoi, quoi)');
 has(/k\.indexOf\('step_appr_'\)===0\|\|k\.indexOf\('step_hint_cut_'\)===0/,'L506 : ménage des anciennes clés localStorage sur les tablettes');
@@ -2129,8 +2129,8 @@ absent(/Perte moy\. <span/,'L513 : tuile « Perte moy. % » retirée');
 absent(/\.badge-pct\{/,'L513 : badge % de la fiche imprimée retiré (classe jamais posée)');
 has(/Le déchet \(NC\) baisse-t-il \?/,'L513 : la courbe suit le DÉCHET NC en m² (la perte % n est plus suivie)');
 has(/ancienne définition \(avant L513\)/,'L513 : un mois figé sous l ancienne règle est marqué (note de statut, Évolution, diagramme)');
-absent(/parseFloat\(String\(f\.pct\|\|''\)/,'L513 : plus aucun écran ne lit f.pct (seul le CSV le garde)');
-has(/return \(typeof m\.dechetM2==='number'\)\?m\.dechetM2:'';/,'L513 : CSV par commande : Déchet m² depuis la source unique (rendu même quand la perte est incalculable)');
+absent(/parseFloat\(String\(f\.pct\|\|''\)/,'L513→L517 : plus aucun écran NI le CSV ne lit f.pct (il reste écrit à l envoi pour buildMonthlyKpi)');
+has(/\(\(typeof _m17\.dechetM2==='number'\)\?_l517Num\(_m17\.dechetM2\):''\)/,'L513→L517 : Déchet m² rendu MEME quand la perte est incalculable (seul indicateur ISO), virgule FR');
 has(/const bucket=fd=>\{ if\(!multi\) return 'mono';/,'L513 · revue adversariale : UN seul espace de seaux (mono = un seau ; multi = résolution unique) — plus de 2e solde sur une fiche ancienne rééditée');
 has(/if\(!keep\(fd\)\|\|fd\.recut\|\|!lisible\(fd\)\) return;/,'L513 · revue adversariale : une ligne illisible ne porte jamais le solde ; la derniere ligne lisible de la ref le porte, quel que soit son libelle (terrain)');
 has(/if\(!ok\)\{ R\.dechetM2=Math\.round\(dechet\*10\)\/10; return R; \}/,'L513 · revue adversariale : le déchet NC est rendu même quand perte/chutes sont incalculables');
@@ -2219,6 +2219,26 @@ has(/body\.atelier \.fl-current \.l516-note\{font-size:17px\}/,'L516 : mode atel
 has(/if\(st\.plan\.machine\) selectMachine\(st\.plan\.machine\); else currentMachine='feba';/,'L516 : un brouillon sans machine ne force plus FEBA dans les selects à l ouverture (poste de pilotage, complément L511)');
 absent(/selectMachine\(st\.plan\.machine\|\|'feba'\);/,'L516 : l ancien repli « feba » qui remplissait les selects vides a disparu');
 has(/if\(_pilot&&_pc!==undefined&&_nc&&_pc&&_nc!==_pc\)\{ let _rz=0; document\.querySelectorAll\('#refBlocks \[data-rb="machine"\]'\)\.forEach\(function\(el\)\{ if\(el\.value\)\{ el\.value=''; _rz\+\+; \} \}\);/,'L516 : poste de pilotage, changement de client = nouvelle commande = machine « — choisir — » (jamais au 1er passage, jamais sur une tablette machine)');
+
+console.log('── L517 : CSV de pilotage DG (12 points Céline 26/08 + ajouts 10/09) + liste des fiches en repli ──');
+has(/^function _l517FicheRow\(f\)\{/m,'L517 : une ligne du CSV fiches = fonction PURE, testable hors DOM (tests/csv_l517_test.js)');
+has(/const rows=fiches\.map\(f=>_l517FicheRow\(f\)\.map\(csvCell\)\.join\(';'\)\)/,'L517 : exportFiches ne construit plus la ligne (csvCell conservé : anti-injection Excel L83 #18)');
+has(/^function _l517Num\(x,d\)\{/m,'L517 : virgule décimale FR — Excel lisait « 185.5 » comme du TEXTE (le DG ne pouvait ni sommer ni trier)');
+has(/^function _l517ClientNom\(v\)\{/m,'L517 pt.3 : nom client SANS le texte libre « pour le 02 09 2026 n°… » (colonne Client brute conservée)');
+has(/^function _l517LivIso\(f\)\{/m,'L517 pt.10/11 : date de livraison ISO (repli fr-FR obligatoire : f.dateLivIso n existe pas sur l historique)');
+has(/^function _l517SansSec\(t\)\{/m,'L517 pt.6 : Temps sans les secondes — « 45s » d une découpe < 1 min reste INTACT');
+has(/^function _l517Blade\(f\)\{/m,'L517 pt.7 : Perte lame (mm) multi-réf lue dans refGroups[].blade (f.blade est scalaire = 1re réf)');
+has(/^function _l517Bobineaux\(f\)\{/m,'L517 pt.5 : bobineaux découpés = Σ des qty des configurations lisibles (vide si aucune : jamais un faux 0)');
+has(/^function _l517Cause\(f\)\{/m,'L517 (10/09) : cause LISIBLE d une fiche non calculable, sans dupliquer ni modifier _l513Matiere');
+has(/window\._l505Warn=prev; window\._l505WarnN=prevN;/,'L517 : le rejeu de _l513Matiere restaure le traceur ET le compteur (la tuile du mois ne voit rien)');
+has(/^async function _l517ReplisToggle\(ym\)\{/m,'L517 (10/09) : drill-down des fiches en repli (mois figé = requête datée, comme _kpiFichesToggle)');
+has(/id="kpiReplisList"/,'L517 : conteneur DISTINCT de kpiFichesList (sinon les deux drill-downs s écrasent)');
+has(/;Client \(nom seul\);N° commande;Livraison;Mois livraison;/,'L517 pt.3+10+11 : identification commerciale du DG, en colonnes propres');
+has(/;Largeur bobine mère \(mm\);Utile;Perte lame \(mm\);Longueur bobine mère \(m\);/,'L517 pt.7/8/9 : libellés qui disent ce que la colonne VAUT (5 = FEBA, 0 = MAVEG/CEVENINI)');
+has(/;Total bobines mères;Bobines mères coupées;Bobineaux découpés;/,'L517 pt.4/5 : « Total bobines » était une demi-vérité (bobines du PLAN) — la colonne « coupées » le dit');
+has(/;Règle;Matière';/,'L517 (10/09) : Règle (L513 ou vide) + Matière (« calculée » / « non calculable : cause ») en fin de ligne');
+has(/\(\(f&&f\.mat&&f\.mat\.regleVer==='L513'\)\?'L513':''\)/,'L517 : la colonne Règle lit f.mat DIRECTEMENT (via _l513MatiereOf elle serait toujours « L513 »)');
+absent(/f\.totalBobines,_l471FicheM2\(f\),f\.pct,/,'L517 pt.1 : l ancienne colonne « Perte % » (f.pct, base utile) a quitté la ligne');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

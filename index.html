@@ -3345,7 +3345,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.10-L516';
+const APP_VERSION='2026.09.11-L517';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -14822,10 +14822,11 @@ function kpiMoisInnerHTML(ym){
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">🗑 Perte</div>${(typeof kpi.perteM2==='number')?`<div style="font-size:24px;font-weight:800;color:var(--orange)">${_l513M2(kpi.perteM2)} m²</div><div style="font-size:11px;color:#999;margin-top:3px">bords + lames + laize restante</div>${(prevKpi&&prevKpi.regleVer==='L513')?_delta(kpi.perteM2,prevKpi.perteM2,' m²',true):(prevKpi?'<div style="font-size:11px;color:#777;margin-top:3px">mois préc. sous l ancienne définition — ♻ Recalculer</div>':'')}`:_naTile}</div><!-- [L513 · décision Céline 09/09] m² depuis la source unique ; Δ seulement entre deux mois de la MÊME règle (revue adversariale) -->
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">🗑 Déchet (NC)</div>${(typeof kpi.dechetM2==='number')?`<div style="font-size:24px;font-weight:800;color:${kpi.dechetM2>0?'#f87171':'var(--green)'}">${_l513M2(kpi.dechetM2)} m²</div><div style="font-size:11px;color:#999;margin-top:3px">bobineaux jetés — indicateur ISO</div>${_delta(kpi.dechetM2,prevKpi&&prevKpi.dechetM2,' m²',true)}`:_naTile}</div><!-- [L513] vert 0 / rouge > 0 -->
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chutes gardées</div>${(typeof kpi.chuteM2==='number')?`<div style="font-size:24px;font-weight:800;color:#5eead4">${_l513M2(kpi.chuteM2)} m²</div>`:_naTile}<div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)${(kpi.calcWarn>0)?' · ⚠ '+kpi.calcWarn+' calcul(s) en repli (console)':''}</div></div><!-- [L493 · décision Esteban] était une somme de LARGEURS en mm affichée en mètres (« 6 m » ne veut rien dire) : passe en m², même source que le diagramme et la ligne « Matière ce mois » -->
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chutes gardées</div>${(typeof kpi.chuteM2==='number')?`<div style="font-size:24px;font-weight:800;color:#5eead4">${_l513M2(kpi.chuteM2)} m²</div>`:_naTile}<div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)${(kpi.calcWarn>0)?` · <span onclick="event.stopPropagation();_l517ReplisToggle('${ym}')" style="cursor:pointer;text-decoration:underline;color:#fbbf24" title="Voir les fiches concernées et la cause">⚠ ${kpi.calcWarn} calcul(s) en repli</span>`:''}</div></div><!-- [L493 · décision Esteban] était une somme de LARGEURS en mm affichée en mètres (« 6 m » ne veut rien dire) : passe en m², même source que le diagramme et la ligne « Matière ce mois » -->
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>${r3Tiles}
     </div>
     <div id="kpiFichesList" style="display:none"></div><!-- [L249 · R4b] drill-down fiches du mois -->
+    <div id="kpiReplisList" style="display:none"></div><!-- [L517] drill-down fiches en repli (conteneur DISTINCT : sinon les deux tuiles s ecrasent) -->
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Par machine</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px">${machCard('FEBA','#4f9df2')}${machCard('MAVEG','#2fb85f')}${machCard('CEVENINI','#9b7cf0')}</div>
     ${(kpi.autresBobines>0)?`<div style="font-size:12px;color:var(--orange);margin:-8px 0 14px">⚠ ${Number(kpi.autresBobines).toLocaleString('fr-FR')} bobine(s) sur machine hors FEBA/MAVEG/CEVENINI — comptées dans le total, non ventilées ci-dessus.</div>`:''}
@@ -17107,6 +17108,51 @@ async function _kpiFichesToggle(ym){
     // hors-ligne, get() répond depuis le CACHE LOCAL sans erreur → liste possiblement partielle. On le DIT.
     if(snap.metadata&&snap.metadata.fromCache) el2.insertAdjacentHTML('afterbegin','<div style="padding:8px 10px;margin-bottom:8px;font-size:12px;font-weight:700;color:#fbbf24;background:rgba(245,158,11,.08);border:1px solid #6b5416;border-radius:8px">⚠ Hors-ligne : liste servie par le cache local de ce poste — possiblement PARTIELLE pour un mois ancien.</div>');
   }catch(e){ const el2=document.getElementById('kpiFichesList')||el; el2.innerHTML='<div style="padding:12px;color:var(--red);font-size:13px">Erreur de chargement : '+esc(e.message||String(e))+'</div>'; }
+}
+/* [L517 · demande Celine 10/09] « ⚠ N calcul(s) en repli (console) » ne servait a rien a une non-technicienne : la tuile devient
+   cliquable et ouvre la LISTE des fiches du mois en repli, avec la CAUSE lisible (_l517Cause), meme patron que « Fiches ▾ ».
+   Le compteur de la tuile reste celui de l AGREGAT (au gel) ; la liste est recalculee aujourd hui : on affiche les deux. */
+function _l517ReplisRowHTML(f,c){
+  const d=new Date(f.date); const dTxt=isNaN(d)?'—':d.toLocaleDateString('fr-FR');
+  const dech=(c&&c.mat&&typeof c.mat.dechetM2==='number'&&c.mat.dechetM2>0)?' · <span style="color:var(--red);font-weight:700">🗑 '+_l513M2(c.mat.dechetM2)+' m² NC</span>':'';
+  const txt=c.ok?('⚠ calculée avec repli tracé : '+esc((c.tags||[]).map(t=>_L517_CAUSES[t]||t).join(', ')||'—')):('❌ non calculable : '+esc(c.cause||'—'));
+  const btn=f._id?'<button class="btn btn-sm" style="padding:2px 8px;font-size:11px" onclick="showFicheDetail(\''+esc(String(f._id))+'\',false)" title="Ouvrir la fiche">👁</button>':'';   /* un mois fige vient de snap.docs.map(d=>d.data()) : pas de _id, pas de bouton */
+  return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-bottom:1px solid #2a2a28;font-size:12.5px;flex-wrap:wrap;align-items:center">
+    <span style="color:var(--muted);font-variant-numeric:tabular-nums">${dTxt}</span>
+    <span style="font-weight:700;color:var(--text)">${esc(_l517ClientNom(f.client)||f.client||'—')}</span>
+    <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;max-width:220px;white-space:nowrap">${esc(f.ref||'—')}</span>
+    <span style="color:${c.ok?'#fbbf24':'var(--red)'};font-weight:700;flex:1 1 240px">${txt}${dech}</span>${btn}
+  </div>`;
+}
+function _l517ReplisRender(el,ym,list,kpiWarn){
+  const _ymL=d=>{ const x=new Date(d); return isNaN(x)?String(d||'').slice(0,7):x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'); };
+  const F=(list||[]).filter(f=>f&&!f.deleted&&f.valide!==false&&_ymL(f.date)===ym).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));   /* MEME filtre que buildMonthlyKpi */
+  const items=F.map(f=>({f:f,c:_l517Cause(f)}));
+  const ko=items.filter(x=>!x.c.ok), wr=items.filter(x=>x.c.ok&&x.c.tags&&x.c.tags.length);
+  const CAP=250; const rows=ko.slice(0,CAP).map(x=>_l517ReplisRowHTML(x.f,x.c)).join('')+wr.slice(0,CAP).map(x=>_l517ReplisRowHTML(x.f,x.c)).join('');
+  const capNote=(ko.length+wr.length>CAP)?`<div style="padding:8px 10px;font-size:12px;color:var(--orange)">⚠ liste limitée à ${CAP} fiches — l'export CSV (colonne « Matière ») donne tout.</div>`:'';
+  el.innerHTML=`<div style="background:#111;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:14px">
+    <div style="padding:8px 10px;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border2)">⚠ Fiches en repli — ${monthLabelFr(ym)} : ${ko.length} non calculable(s) · ${wr.length} calculée(s) avec repli tracé — recalculé aujourd'hui${(typeof kpiWarn==='number')?` · compteur de la tuile : ${kpiWarn} alerte(s) (une fiche peut en produire plusieurs)`:''}</div>
+    <div style="max-height:340px;overflow-y:auto">${rows||'<div style="padding:10px;color:var(--muted);font-size:12px">Aucune fiche en repli ce mois : toutes les fiches sont calculées sans réserve.</div>'}</div>${capNote}
+  </div>`;
+}
+async function _l517ReplisToggle(ym){
+  const el=document.getElementById('kpiReplisList'); if(!el) return;
+  if(el.style.display!=='none'){ el.style.display='none'; return; }
+  el.style.display='block';
+  const fr=(typeof agregatsCache!=='undefined'&&Array.isArray(agregatsCache))?agregatsCache.find(a=>a&&a.mois===ym):null; const kw=(fr&&typeof fr.calcWarn==='number')?fr.calcWarn:undefined;
+  if(ym===currentMonthYM()){ _l517ReplisRender(el,ym,fichesCache,undefined); return; }
+  el.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">⏳ Chargement des fiches de '+monthLabelFr(ym)+'…</div>';
+  if(!db){ el.innerHTML='<div style="padding:12px;color:var(--red);font-size:13px">Base indisponible — impossible de charger un mois ancien hors ligne.</div>'; return; }
+  try{
+    const next=nextYM(ym);
+    const _lo=new Date(new Date(ym+'-01T00:00:00Z').getTime()-2*86400000).toISOString();
+    const _hi=new Date(new Date(next+'-01T00:00:00Z').getTime()+2*86400000).toISOString();
+    const snap=await db.collection('fiches').where('date','>=',_lo).where('date','<',_hi).get();
+    const el2=document.getElementById('kpiReplisList')||el; el2.style.display='block';   /* re-lookup du noeud VIVANT apres l await (lecon L253) */
+    _l517ReplisRender(el2,ym,snap.docs.map(d=>d.data()),kw);
+    if(snap.metadata&&snap.metadata.fromCache) el2.insertAdjacentHTML('afterbegin','<div style="padding:8px 10px;margin-bottom:8px;font-size:12px;font-weight:700;color:#fbbf24;background:rgba(245,158,11,.08);border:1px solid #6b5416;border-radius:8px">⚠ Hors-ligne : liste servie par le cache local de ce poste — possiblement partielle.</div>');
+  }catch(e){ const el2=document.getElementById('kpiReplisList')||el; el2.innerHTML='<div style="padding:12px;color:var(--red);font-size:13px">Erreur de chargement : '+esc(e.message||String(e))+'</div>'; }
 }
 // [L249 · R4b] DRILL-DOWN NC : ouvre le Registre NC (bloc repliable ncBox, pilotage/admin).
 // [L252 · R4b reporté] DRILL-DOWN Débit : ouvre le bloc Relevés de temps (tempsBox, même modèle que ncBox).
@@ -19596,6 +19642,84 @@ function _l513Matiere(f){
 function _l513MatiereOf(f){ return (f&&f.mat&&f.mat.regleVer==='L513'&&f.mat.ok)?f.mat:_l513Matiere(f); }
 /* Affichage m² : au plus un dixieme (78,5 reste 78,5 : le dechet NC est l indicateur ISO, on ne l arrondit pas a 79), « — » si inconnu (jamais un 0 a la place d un inconnu). */
 function _l513M2(v){ if(typeof v!=='number'||isNaN(v)) return '—'; return v.toLocaleString('fr-FR',{maximumFractionDigits:1}); }
+/* [L517 · 12 points Celine 26/08 + ajouts 10/09] CSV de pilotage DG : helpers PURS, testes hors DOM (tests/csv_l517_test.js).
+   Aucun calcul matiere ici — la SOURCE UNIQUE reste _l513MatiereOf (L513). */
+function _l517Num(x,d){ const v=Number(x); if(!isFinite(v)) return ''; const p=Math.pow(10,(d==null?1:d)); return String(Math.round(v*p)/p).replace('.',','); }   /* virgule FR : sans elle Excel FR lit « 185.5 » comme du TEXTE (le DG ne peut ni sommer ni trier) */
+function _l517NoAcc(s){ return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase(); }
+function _l517ClientNom(v){ try{
+  const raw=String(v==null?'':v).trim(); if(!raw||raw==='—') return '';
+  const n=_l517NoAcc(raw); let best='';
+  const bnd=(s,i)=>s.length===i||!/[a-z0-9]/.test(s.charAt(i));   /* limite de mot : « AS » ne resout pas KOHLERWOODCAP */
+  if(typeof CLIENT_DATA!=='undefined'&&CLIENT_DATA) Object.keys(CLIENT_DATA).forEach(k=>{ const kn=_l517NoAcc(k); if(kn.length>=3&&n.indexOf(kn)===0&&bnd(n,kn.length)&&kn.length>best.length) best=k; });
+  if(best) return best;
+  const cut=raw.search(/\s+pour\s+le\s+\d|\s*n\s*°\s*\d/i);   /* meme regle que la pastille fiche : « pour le » suivi d un chiffre, jamais une raison sociale */
+  return (cut>2)?raw.slice(0,cut).trim():raw;   /* jamais de perte d information : a defaut le texte brut */
+}catch(e){ return String(v==null?'':v); } }
+function _l517NumCmd(f){ try{ if(f&&f.numCmd&&f.numCmd!=='—') return String(f.numCmd);
+  const m=String((f&&f.client)||'').match(/n\s*°\s*([A-Za-z0-9][A-Za-z0-9\-\/_.]*)/i); return m?m[1]:''; }catch(e){ return ''; } }
+function _l517Iso(v){ const s=String(v==null?'':v).trim(); if(!s||s==='—') return '';
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+  return ''; }
+function _l517LivIso(f){ try{ const d=[_l517Iso(f&&f.dateLivIso),_l517Iso(f&&f.dateLiv)];   /* dateLivIso n existe pas sur l historique : le repli fr-FR est obligatoire */
+  if(f&&Array.isArray(f.clients)) f.clients.forEach(c=>{ if(c) d.push(_l517Iso(c.dateLiv)); });
+  const ok=d.filter(Boolean).sort(); return ok.length?ok[0]:''; }catch(e){ return ''; } }
+function _l517SansSec(t){ const s=String(t==null?'':t);
+  return s.replace(/^(\d+h\s*)?(\d{1,2}min)\s*\d{1,2}s/,function(_,h,mn){ return (h?h.trim()+' ':'')+mn; }); }   /* ancre ^ + minutes obligatoires : « 45s (…) » d une decoupe < 1 min reste INTACT */
+function _l517Blade(f){ try{ if(Array.isArray(f.refGroups)&&f.refGroups.length>1)
+    return f.refGroups.map(g=>(g&&g.blade!=null&&g.blade!=='')?String(g.blade):'?').join(' / ');   /* f.blade est SCALAIRE (1re ref) : en multi-ref il mentirait */
+  return (f&&f.blade!=null)?f.blade:''; }catch(e){ return ''; } }
+function _l517NbMeres(f){ try{ const d=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+  const n=d.filter(x=>x&&!x.recut&&x.coupee===true).length;
+  if(n>0) return n; return f.manqueMatiere?'':(Number(f.totalBobines)||''); }catch(e){ return ''; } }   /* jamais un faux 0 */
+function _l517Bobineaux(f){ try{ const d=Array.isArray(f.ficheDetail)?f.ficheDetail:[]; let n=0,vu=0;
+  d.forEach(function(fd){ if(!fd) return; if(f.manqueMatiere&&!(fd.coupee===true)) return;   /* manque-matiere : bobineaux des lignes COUPEES seulement */
+    const p=Array.isArray(fd.pattern)?fd.pattern:parseConf(fd.conf||'');
+    if(p.length){ vu++; n+=p.reduce(function(s,x){ return s+(Number(x.qty)||0); },0); } });
+  return vu?n:''; }catch(e){ try{ _l505Warn('l517·bobineaux',e); }catch(_){ } return ''; } }   /* bobineaux PRODUITS (♻ compris, NC jetees comprises : leur m² est dans « Dechet m² ») */
+/* Cause LISIBLE d une fiche non calculable : rejeu de _l513Matiere avec un collecteur de traces, puis restauration du traceur
+   ET du compteur (la tuile du mois ne voit rien). Sert au TEXTE seulement : tout chiffre vient de _l513MatiereOf. */
+const _L517_CAUSES={'l513·ref':'référence non rattachée à sa bobine mère','l513·ml':'métrage de la bobine mère absent',
+  'l513·conf':'configuration de bobine illisible','l513·conf-vide':'bobine pointée coupée sans configuration',
+  'l513·useful':'laize utile inconnue','l513·detail':'bobines archivées sans configuration lisible',
+  'l513·matiere':'erreur de calcul (voir console)','l513·edge':'bords non renseignés (comptés 0)',
+  'ncLoss·ref':'référence du bobineau NC non résolue','ref·index-sans-nom':'référence renommée entre le gel et l archive'};
+function _l517Cause(f){
+  const tags=[]; const prev=(typeof window!=='undefined')?window._l505Warn:null, prevN=(typeof window!=='undefined')?window._l505WarnN:0;
+  try{
+    if(typeof window!=='undefined') window._l505Warn=function(where,e){ try{ tags.push({t:String(where||''),m:(e&&e.message)?String(e.message):String(e||'')}); }catch(_){ } };
+    const m=_l513Matiere(f);
+    const NB={'l513·edge':1,'ncLoss·ref':1,'ref·index-sans-nom':1};   /* replis TRACES mais NON bloquants : la fiche reste calculable */
+    const bloq=tags.filter(x=>_L517_CAUSES[x.t]&&!NB[x.t]); const src=bloq.length?bloq:tags;
+    return {ok:!!m.ok,cause:(m.ok?'':(src.length?(_L517_CAUSES[src[0].t]||src[0].t):'cause inconnue')),
+            tags:tags.map(x=>x.t),detail:(src[0]&&src[0].m)||'',mat:m};
+  }catch(e){ return {ok:false,cause:'erreur de calcul (voir console)',tags:['l517'],detail:String((e&&e.message)||e),mat:null}; }
+  finally{ if(typeof window!=='undefined'){ window._l505Warn=prev; window._l505WarnN=prevN; } }
+}
+/* UNE ligne du CSV des fiches = fonction PURE (aucun DOM, aucun cache) ; csvCell et join restent dans exportFiches. 43 cellules = 43 colonnes. */
+function _l517FicheRow(f){
+  const _m17=_l513MatiereOf(f);   /* UN seul appel a la source unique par fiche */
+  const _c17=_l517Cause(f);
+  const _liv=_l517LivIso(f);
+  const pc=(a)=>(_m17.ok&&_m17.m2Coupes>0&&typeof a==='number')?_l517Num(a/_m17.m2Coupes*100):'';
+  const _d=new Date(f.date);
+  return [
+    f.name,(isNaN(_d)?'':_d.toLocaleDateString('fr-FR')),f.ini,f.ini2||'',f.op2Bob||'',
+    f.client,_l517ClientNom(f.client),_l517NumCmd(f),_liv,(_liv?_liv.slice(0,7):''),
+    f.ref,f.machine,f.machine2||'',
+    f.mother,f.useful,_l517Blade(f),f.longueur,f.lame,(f.lameChg?(f.lameNew||''):''),(f.lameChg?(f.lameChgBob||''):''),f.numJour,
+    f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
+    (f.rows||[]).map(r=>r.qty+'x'+r.width).join('+'),
+    f.totalBobines,_l517NbMeres(f),_l517Bobineaux(f),
+    (_m17.ok?_m17.m2Coupes:''),pc(_m17.perteM2),(_m17.ok?_l517Num(_m17.perteM2):''),
+    ((typeof _m17.dechetM2==='number')?_l517Num(_m17.dechetM2):''),pc(_m17.dechetM2),
+    (_m17.ok?_l517Num(_m17.chutesM2):''),((_m17.ok&&typeof _m17.clientM2==='number')?_l517Num(_m17.clientM2):''),
+    _l517SansSec(f.tempsStr),
+    (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):''),
+    ((f&&f.mat&&f.mat.regleVer==='L513')?'L513':''),
+    (_c17.ok?'calculée':('non calculable : '+_c17.cause)).replace(/[\n\r;]/g,' ')
+  ];
+}
 /* Signature « matiere » d une fiche editee par l admin : si elle ne change pas (client, n° de commande, date, lame, photo...),
    l instantane n est PAS recalcule — un m² ne bouge que si une configuration, une bobine ou une action NC change. */
 function _l513MatSig(f,det){ try{ return JSON.stringify({ rg:(f.refGroups||[]).map(g=>[g.mother,g.edge,g.longueur]), mo:f.mother, us:f.useful, bl:f.blade, lg:f.longueur, mm:!!f.manqueMatiere,
@@ -20334,18 +20458,8 @@ async function exportFiches(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
   const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length){showToast('Aucune donnée.','err');return;}
-  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Référence;Machine;Machine op.2;Bobine mère;Utile;Lame;Longueur réf.;N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines;m²;Perte %;Perte m²;Déchet m²;Temps;Statut validation;Validée par;Validée le';   // [L83 · Audit #20] statut ISO en fin de ligne · [L480 · fix audit] Perte m²/Déchet m² : le CSV recoupe l'écran (règles actées m²)
-  const rows=fiches.map(f=>[
-    f.name,new Date(f.date).toLocaleDateString('fr-FR'),f.ini,f.ini2||'',f.op2Bob||'',f.client,f.ref,f.machine,f.machine2||'',
-    f.mother,f.useful,f.blade,f.longueur,f.lame,(f.lameChg?(f.lameNew||''):''),(f.lameChg?(f.lameChgBob||''):''),f.numJour,
-    f.palette||'',f.typeCond||f.carton||'',f.etiquetage||f.etiquette||'',f.cerclage||'',(f.notesEmballage||'').replace(/[\n;]/g,' '),
-    (f.rows||[]).map(r=>`${r.qty}x${r.width}`).join('+'),
-    f.totalBobines,_l471FicheM2(f),f.pct,
-    (()=>{try{ const m=_l513MatiereOf(f); return m.ok?m.perteM2:''; }catch(e){ _l505Warn('l513·csv',e); return ''; }})(),
-    (()=>{try{ const m=_l513MatiereOf(f); return (typeof m.dechetM2==='number')?m.dechetM2:''; }catch(e){ _l505Warn('l513·csv',e); return ''; }})(),   /* [L513 · décision Céline 09/09] Perte m² / Déchet m² depuis la SOURCE UNIQUE (règle L513) ; en-tête et colonne « Perte % » (f.pct brut, désormais stable) INCHANGÉS — le CSV de pilotage est L514 */
-    f.tempsStr,
-    (f.valide===true?'Validée':f.valide===false?'Refusée':'En attente'),f.valideBy||'',(f.valideAt?new Date(f.valideAt).toLocaleDateString('fr-FR'):'')
-  ].map(csvCell).join(';')).join('\n');
+  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Client (nom seul);N° commande;Livraison;Mois livraison;Référence;Machine;Machine op.2;Largeur bobine mère (mm);Utile;Perte lame (mm);Longueur bobine mère (m);N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines mères;Bobines mères coupées;Bobineaux découpés;m²;Perte % (m²);Perte m²;Déchet m²;Déchet %;Chutes gardées m²;m² découpés et livrés;Temps;Statut validation;Validée par;Validée le;Règle;Matière';   /* [L517 · 12 points Celine 26/08 + ajouts 10/09, decision Celine responsable qualite] 43 colonnes ; l ancien « Perte % » (f.pct, base utile) quitte le CSV, remplace par « Perte % (m²) » = perte m² / m² coupes (base mere) ; virgule decimale FR ; « Regle » (L513 ou vide) et « Matiere » (calculee / non calculable : cause) en fin de ligne */
+  const rows=fiches.map(f=>_l517FicheRow(f).map(csvCell).join(';')).join('\n');   /* [L517] la ligne est PURE et testee hors DOM (tests/csv_l517_test.js) ; csvCell conserve (anti-injection Excel, L83 #18) */
   const b=new Blob(['\ufeff'+csvMetaLine('Fiches de découpe',fiches.length)+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});   // [L251 · R6] périmètre DANS le fichier
   downloadBlob(b,'step_fiches_'+todayISO()+'.csv');   // [L98 · simpl.8]
 }
