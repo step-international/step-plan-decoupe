@@ -95,7 +95,11 @@ const SETUP = {
     donnees: "document.getElementById('page2').classList.contains('active')",
     analyse: "document.getElementById('page2').classList.contains('active') && document.getElementById('tabAnalyse').classList.contains('active') && !document.getElementById('tabContentAnalyse').classList.contains('hidden')",
   };
-  const screenOk = CHECKS[scene] ? await evalJs(`(function(){ try { return (!!(${CHECKS[scene]})) && !document.getElementById('bootOverlay') && document.getElementById('loginOverlay').classList.contains('hidden'); } catch(e){ return 'ERR ' + e; } })()`) : true;
+  // [L520 · outillage] le CHECK est ATTENDU (jusqu a 4 s, pas 200 ms) : la scene « fiche » a photographie une fois l ecran avant que
+  // page1 ne soit active (flake vu le 15/09 : « ECRAN ATTENDU NON AFFICHE (fiche) : false », vert en relance). Le verdict reste le meme :
+  // ecran attendu non affiche apres 4 s = rouge. On n attend jamais un capteur : la liste __jsErrors est relue APRES.
+  let screenOk = true;
+  if (CHECKS[scene]) { for (let k = 0; k < 20; k++) { screenOk = await evalJs(`(function(){ try { return (!!(${CHECKS[scene]})) && !document.getElementById('bootOverlay') && document.getElementById('loginOverlay').classList.contains('hidden'); } catch(e){ return 'ERR ' + e; } })()`); if (screenOk === true) break; await new Promise(r => setTimeout(r, 200)); } }
   if (screenOk !== true) cdpErrors.push('ECRAN ATTENDU NON AFFICHE (' + scene + ') : ' + JSON.stringify(screenOk));
   const pageErrs = await evalJs(`(function(){ return (window.__jsErrors||['CAPTEUR ABSENT']).slice(0,10); })()`);
   const allErrs = [].concat(Array.isArray(pageErrs) ? pageErrs : ['capteur illisible: ' + JSON.stringify(pageErrs)], cdpErrors);

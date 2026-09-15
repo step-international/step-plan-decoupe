@@ -62,6 +62,7 @@ et vérifier la prod : `curl -s "https://step-international.github.io/step-plan-
    re-rendu, toast honnête — jamais un `await` nu. Transaction = `boundedTx` (une transaction qui expire n'est PAS en file).
 9. **Les agents d'audit sont en LECTURE SEULE** (`agentType: Explore`) : des agents ont édité `index.html` pendant un audit.
 10. **Une règle nouvelle ici arrive AVEC le test ou le script qui la fait rougir**, dans le même commit — sinon c'est un souhait.
+11. **Le verdict d'une batterie lancée en arrière-plan est une CONDITION, pas un affichage** (faute du 15/09/2026, L520 : `grep -n 'EXIT=' log | tail -3 && git push` a poussé un lot dont un smoke était rouge — grep « réussit » dès qu'il affiche). Forme obligatoire : `bash tests/battery.sh > log 2>&1; echo EXIT=$? >> log; grep -q '^EXIT=0$' log` et la chaîne de publication commence par `grep -q '^EXIT=0$' log || exit 1`. Un smoke rouge se REJOUE par la batterie entière, jamais par un `node tests/shot.mjs` isolé suivi d'un push.
 
 ## Sur le PC Windows (poste de Céline)
 
