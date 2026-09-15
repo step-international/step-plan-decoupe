@@ -2302,5 +2302,16 @@ has(/window\._l505Warn=prev; window\._l505WarnN=prevN; window\._l517Replay=false
 has(/tags:Array\.from\(new Set\(tags\.map\(x=>x\.t\)\)\)/,'L521 : causes dedoublonnees dans la liste des fiches en repli (passe adverse)');
 has(/^function _l516EstSolde\(l\)\{ try\{\n  if\(!l\|\|l\.recut\) return false;\n  if\(l\.actChutes===true\) return true;/m,'L521 : _l516EstSolde suit la regle L513 (✂ Chutes = solde)');
 
+console.log('── L522 : design epure (capture Esteban 15/09 : « 13 % » imprime sur le n° de commande) ──');
+absent(/\.order-row \.row-share\{position:absolute;right:112px/,'L522 : la part de bobine n est plus calee sur le bord droit de la rangee (elle tombait sur le N° cde depuis L512)');
+has(/^function _l522PlaceAllShares\(\)\{/m,'L522 : la part de bobine est calee sur le champ Largeur lui-meme (lectures puis ecritures, page cachee ignoree — passe adverse)');
+has(/if\(i===0\)\{ try\{ requestAnimationFrame\(function\(\)\{ try\{ _l522PlaceAllShares\(\); \}catch\(e\)\{\} \}\); \}catch\(e\)\{\} \}/,'L522 : showPage(0) repose les parts (offsets nuls en display:none)');
+has(/s\.textContent=\(uShare>0&&w>0\)\?Math\.round\(w\/uShare\*100\)\+' %':'';\n\s*\}\);\n\s*_l522PlaceAllShares\(\);/,'L522 : _updateRowShares repositionne a chaque recalcul (une seule passe)');
+has(/\.order-row input\[data-type="numcmd"\]\{font-size:18px!important;font-weight:600!important/,'L522 : N° cde en 18 px (10 chiffres tiennent, champ secondaire)');
+has(/placeholder="n° client" value="\$\{esc\(numCmd\)\}"/,'L522 : plus de faux numero « 4501945512 » en placeholder dans chaque ligne');
+has(/body:has\(#page0\.active\) #reportBubble\{width:48px!important;height:48px!important;opacity:\.72!important/,'L522 : bulle 💬 discrete sur le Plan seulement (la fiche garde sa bulle pleine)');
+has(/#planLeft\{padding-bottom:calc\(96px \+ env\(safe-area-inset-bottom,0px\)\)\}/,'L522 : place sous la derniere ligne sur la colonne de saisie seulement (passe adverse : #page0 allongeait la grille calee sur 100dvh)');
+absent(/#page0\{padding-bottom:88px\}/,'L522 : plus de padding fixe sur #page0');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

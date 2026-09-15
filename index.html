@@ -1746,7 +1746,8 @@ body.atelier .stat-tile b{font-size:36px}
   .order-row .btn-red{background:transparent!important;border-color:transparent!important;color:var(--text3)!important;font-size:18px;box-shadow:none;min-width:48px;min-height:48px}
   .order-row .btn-red:active{color:var(--red)!important}
   .order-row{position:relative}
-  .order-row .row-share{position:absolute;right:112px;top:50%;transform:translateY(-50%);font-size:15px;color:#bcbcb5;margin:0;pointer-events:none}   /* [fix audit design] la part de bobine s'affiche DANS la carte de largeur (maquette) */
+  .order-row .row-share{position:absolute;right:auto;top:50%;transform:translateY(-50%);font-size:15px;color:#bcbcb5;margin:0;pointer-events:none}   /* [fix audit design] la part de bobine s'affiche DANS la carte de largeur (maquette) — [L522 · capture Esteban 15/09] plus de « right:112px » : depuis le N° cde (L512) ce decalage tombait SUR le n° de commande (« 4501945512 » barre d un « 13 % ») ; la position est posee par _l522PlaceShare depuis le champ Largeur lui-meme */
+  .order-row input[data-type="numcmd"]{font-size:18px!important;font-weight:600!important;color:var(--text2)!important;letter-spacing:.01em}   /* [L522] 10 chiffres tiennent dans les 190 px ; le n° client est secondaire face a Qte x Larg. */
   .order-row input[data-type="width"]{padding-right:70px}
   /* — plan calculé : lignes NEUTRES une rangée (sans « utilisé / utile »), chute à droite, SOLDE orange — */
   #planCards .bobine-card{border-left:1px solid var(--border);background:#1a1a18;padding:9px 14px}   /* [L386] serré : PLUS de lignes visibles sans scroller (retour Esteban sur L385) */
@@ -1980,6 +1981,15 @@ html.theme-light #sendPlanBtn.not-ready{box-shadow:0 6px 0 rgba(255,255,255,.92)
 #reportBubble:hover{background:#254878!important}
 #etiqPhotoZone img{width:48px!important;height:48px!important;border:2px solid var(--green)!important;border-radius:9px!important;box-shadow:0 0 0 2px rgba(69,201,123,.25)}
 @media(min-width:1100px){#outilsFicheDlg .outils-chg{display:none}}   /* [L350] doublon du bouton 🔧 du rail */
+@media(min-width:1100px){
+  /* [L522 · capture Esteban 15/09] sur le PLAN (ecran bureau), la grosse bulle 💬 recouvrait le titre « LAIZES » et le libelle « Qte » de la
+     colonne gauche : plus petite et translucide sur cet ecran seulement (la fiche atelier garde sa bulle pleine, decision anterieure),
+     et la page garde de la place en bas pour que la derniere ligne puisse defiler au-dessus d elle. */
+  body:has(#page0.active) #reportBubble{width:48px!important;height:48px!important;opacity:.72!important;font-size:22px}
+  body:has(#page0.active) #reportBubble:hover,body:has(#page0.active) #reportBubble:focus-visible,body:has(#page0.active) #reportBubble:active{opacity:1!important}
+  #planLeft{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}   /* sur la colonne de saisie seulement : n allonge pas la page quand la colonne droite (100dvh) est la plus haute */
+  body.training #planLeft{padding-bottom:calc(156px + env(safe-area-inset-bottom,0px))}   /* la bulle est remontee au-dessus du bandeau d entrainement */
+}
 #barExtras #etiqPhotoZone:has(img)+button,#etiqPhotoZone:has(img)~button{border-color:var(--green)!important;color:var(--green)!important}   /* le 📷＋ passe en vert dès qu'une photo est là */
 /* [L351 · audit régression] ♻ recalcul atteignable dès qu'une bobine est en NC (rebut/déchet) : le bouton ♻ de la carte en cours réapparaît (1 tap) */
 /* [L389 · demande Esteban : « enlève le bouton recalculer les écarts »] l exception badge-rouge retirée — la bannière rouge (L374) et ✓ APPLIQUER portent seuls le recalcul sur la carte en cours ; le flux corrections hors-coupe (lignes non courantes, chrono arrêté) garde ses ♻ */
@@ -3348,7 +3358,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.15-L521';
+const APP_VERSION='2026.09.15-L522';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6253,6 +6263,7 @@ function showPage(i){
   try{ _pushTrail('page '+({0:'Plan',1:'Fiche',2:'Données'}[i]||i)); }catch(e){}
   if(trainingGuard()&&i===2){ try{ showToast('🎓 Entraînement — écran Données indisponible (aucune écriture possible).'); }catch(e){} return; }   // [L327 · fix audit LOT 25] ferme la surface d'écriture admin
   document.querySelectorAll('.page').forEach((p,idx)=>p.classList.toggle('active',idx===i));
+  if(i===0){ try{ requestAnimationFrame(function(){ try{ _l522PlaceAllShares(); }catch(e){} }); }catch(e){} }   /* [L522 · passe adverse] les parts de bobine se reposent quand le Plan redevient visible */
   try{ renderFlow(); }catch(e){}   // [L320 · LOT 18] le fil du parcours suit la page
   document.querySelectorAll('#nav button').forEach((b,idx)=>b.classList.toggle('active',idx===i));
   document.querySelectorAll('#nav [role="tab"]').forEach((b,idx)=>b.setAttribute('aria-selected',idx===i?'true':'false'));
@@ -7473,7 +7484,7 @@ function makeOrderRow(qty='',width='',carton='',rattrapage=false,mandrin='',cli=
     <input type="text" data-type="width" placeholder="80" value="${esc(width)}" inputmode="decimal" oninput="autofillLegrandRow(this.closest('.order-row'));_maybeAutoRow(this.closest('.order-row'));debouncedRecalcPlan()" style="max-width:80px;text-align:center">
     <span class="order-lbl">mm</span><!-- [L104] steppers −/+ retirés (item L) : ils faisaient wrapper chaque largeur sur 3-4 lignes en mobile. Saisie clavier directe conservée ; Qté en inputmode numeric (pas de point décimal parasite) -->
     <span class="order-lbl l512-cell">· N° cde</span>
-    <input type="text" data-type="numcmd" class="l512-cell" placeholder="4501945512" value="${esc(numCmd)}" maxlength="40" autocomplete="off" spellcheck="false" style="max-width:150px" aria-label="N° de commande client de cette ligne (facultatif)"><!-- [L512] pas d oninput : rien a recalculer, et _maybeAutoRow ne regarde que Qte+Largeur ; le brouillon capte l input en delegue -->
+    <input type="text" data-type="numcmd" class="l512-cell" placeholder="n° client" value="${esc(numCmd)}" maxlength="40" autocomplete="off" spellcheck="false" style="max-width:150px" aria-label="N° de commande client de cette ligne (facultatif)"><!-- [L512] pas d oninput : rien a recalculer, et _maybeAutoRow ne regarde que Qte+Largeur ; le brouillon capte l input en delegue -->
     <span class="order-lbl carton-cell" style="display:none">· Carton</span>
     <input type="text" data-type="carton" placeholder="3" value="${esc(carton)}" inputmode="numeric" oninput="debouncedRecalcPlan()" class="carton-cell" style="max-width:70px;display:none">
     <span class="order-lbl mandrin-cell" style="display:none">· Mandrin</span>
@@ -23624,7 +23635,22 @@ function _updateRowShares(uShare){ try{
     if(!s){ s=document.createElement('span'); s.className='row-share'; row.appendChild(s); }
     s.textContent=(uShare>0&&w>0)?Math.round(w/uShare*100)+' %':'';
   });
+  _l522PlaceAllShares();
 }catch(_){} }
+/* [L522 · capture Esteban 15/09/2026] En paysage la part de bobine est absolue dans la rangee : elle etait calee sur le bord DROIT
+   (right:112px), valable quand le champ Largeur etait le dernier ; depuis le N° cde (L512) elle tombait sur le n° de commande.
+   On la cale sur le champ Largeur LUI-MEME (offsetLeft/offsetWidth, offsetParent = la rangee position:relative). Portrait : flux normal, rien a poser. */
+function _l522PlaceAllShares(){ try{
+  const p0=document.getElementById('page0'); if(!p0||!p0.classList.contains('active')) return;   /* [passe adverse] en display:none les offsets valent 0 : la part se figeait a gauche apres un aller-retour Plan -> Fiche */
+  const rows=Array.from(document.querySelectorAll('#page0 .order-row')); const jobs=[];
+  rows.forEach(function(row){ const s=row.querySelector('.row-share'); if(!s) return;
+    if(getComputedStyle(s).position!=='absolute'){ jobs.push({s:s,left:'',right:''}); return; }   /* portrait : flux normal */
+    const wi=row.querySelector('input[data-type="width"]'); if(!wi||!wi.offsetWidth){ return; }   /* rangee cachee : on ne touche a rien */
+    const l=wi.offsetLeft+wi.offsetWidth-s.offsetWidth-14; jobs.push({s:s,left:(l>wi.offsetLeft+8?l:wi.offsetLeft+8)+'px',right:'auto'}); });   /* LECTURES d abord... */
+  jobs.forEach(function(j){ j.s.style.left=j.left; j.s.style.right=j.right; });   /* ...ECRITURES ensuite : un seul reflow, pas un par rangee */
+}catch(e){} }
+function _l522PlaceShare(row,s){ try{ _l522PlaceAllShares(); }catch(e){} }   /* compat : meme effet, toutes les rangees d un coup */
+(function _l522ShareOnResize(){ try{ let t=null; window.addEventListener('resize',function(){ clearTimeout(t); t=setTimeout(function(){ try{ _l522PlaceAllShares(); }catch(e){} },150); }); }catch(e){} })();
 // [L64 · Lot 6] Récap emballage PAR CLIENT en bas de la fiche : qui reçoit quoi,
 // avec son n° de commande, sa date de livraison et son packaging. Masqué en mono-client.
 function renderCliRecapFiche(){
