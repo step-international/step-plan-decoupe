@@ -2283,5 +2283,13 @@ has(/if\(currentUser&&currentUser\.ini&&_l519PreselIni\(\)\)\{\n    document\.ge
 has(/try\{ _l435ChgTouch\(id==='fLameChg'\?'lame':\(id==='fMachChg'\?'mach':'op2'\)\); \}catch\(e\)\{\}/,'L519 : (de)cocher une case de changement = retouche (chg-ok + horodatage purges) — passe adverse : re-cochee, la pastille restait eteinte');
 has(/\{ref:"41317395 - TacFlex® KX1006-1",largeur:1260,longueur:700\}/,'L519 : graine de repli VEKA KX1006-1 700 ml alignee sur le referentiel Firestore');
 
+console.log('── L520 : brouillons visibles par les operateurs = ceux des 3 postes machine (demande Esteban 15/09/2026) ──');
+has(/^function _l520DraftVisible\(d,ctx\)\{/m,'L520 : predicat PUR de visibilite (tests/drafts_l520_test.js)');
+has(/^function _l520DraftCtx\(\)\{/m,'L520 : contexte du compte connecte (manage / uid / initiales)');
+has(/const _l520c=_l520DraftCtx\(\);/,'L520 : renderDrafts calcule le contexte une fois');
+has(/\.filter\(function\(d\)\{ return _l520DraftVisible\(d,_l520c\); \}\)/,'L520 : renderDrafts filtre l AFFICHAGE, pas la source (persistDrafts reecrit la liste entiere)');
+absent(/^function loadDrafts\(\)\{[^\n]*_l520/m,'L520 : loadDrafts reste non filtree (sinon les brouillons caches seraient supprimes a la reecriture)');
+has(/if\(\(d\.fromFicheId&&String\(d\.fromFicheId\)\.trim\(\)\)\|\|\/\^d_solde_\/\.test\(String\(d\.id\|\|''\)\)\) return true;/,'L520 : le SOLDE manque-matiere reste visible a l atelier quel que soit le compte qui l a parque (passe adverse)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

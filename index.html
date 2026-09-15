@@ -3348,7 +3348,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.15-L519';
+const APP_VERSION='2026.09.15-L520';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -23667,6 +23667,18 @@ function _ini(){ return (currentUser&&currentUser.ini)?currentUser.ini:(document
 function _machinePostName(){ return (currentUser&&currentUser.ini===''&&/^Poste /.test(currentUser.nom||''))?String(currentUser.nom).replace(/^Poste\s+/,''):''; }
 // [L365 · demande Esteban 19/08 : 3 tablettes = 3 comptes machine] poste (machine) d'un brouillon : ownerPost (compte machine à la création) > machine de la fiche > machine du plan ; '' si inconnu
 function _draftPoste(d){ try{ if(d&&d.ownerPost) return String(d.ownerPost).toUpperCase(); const f=(d&&d.state&&d.state.fiche)||{}, p=(d&&d.state&&d.state.plan)||{}; const m=f.machine||p.machine||''; return m?String(getMachineLabel(m)).toUpperCase():''; }catch(e){ return ''; } }
+/* [L520 · demande Esteban 15/09/2026] « les comptes feba, maveg, cevenini n ont acces qu aux brouillons de ces trois utilisateurs ;
+   ils ne voient pas les brouillons d Esteban, de Dominique… ». Regle d AFFICHAGE (Donnees > Brouillons) : admin/pilotage voient tout ;
+   un compte OPERATEUR (personnel ou machine) ne voit que les brouillons crees sur un POSTE machine (ownerPost) et les siens
+   (ownerUid = son uid, ou owner = ses initiales pour un compte personnel). Fonction PURE (tests/drafts_l520_test.js). Le cache et
+   persistDrafts ne sont PAS filtres : persistDrafts reecrit la liste entiere, filtrer la source aurait SUPPRIME les brouillons caches. */
+function _l520DraftVisible(d,ctx){ try{ if(!d) return false; const c=ctx||{}; if(c.manage) return true; if(d.ownerPost&&String(d.ownerPost).trim()) return true;
+  /* [L520 · passe adverse] un SOLDE « manque matiere » n est PAS un brouillon personnel : c est du travail a produire (jamais purge,
+     cf. purgeExpiredBrouillons ; deja classe a part par fromFicheId) et le chemin de secours Donnees > Fiches > Reprendre est ferme aux
+     comptes operateur/machine (L457). Il reste visible de l atelier quel que soit le compte qui l a parque (tablette sous compte admin, L519). */
+  if((d.fromFicheId&&String(d.fromFicheId).trim())||/^d_solde_/.test(String(d.id||''))) return true;
+  if(c.uid&&c.uid!=='anon'&&d.ownerUid&&d.ownerUid===c.uid) return true; if(c.ini&&d.owner&&d.owner===c.ini) return true; return false; }catch(e){ return false; } }
+function _l520DraftCtx(){ try{ return {manage:(typeof canManageData==='function')&&!!canManageData(), uid:(typeof _uid==='function')?_uid():'', ini:(currentUser&&currentUser.ini)||''}; }catch(e){ return {manage:false,uid:'',ini:''}; } }
 function _posteChip(p,extraStyle){ if(!p) return ''; const k=String(p).toLowerCase(); const mc=(MACHINE_KEYS.indexOf(k)>=0)?('var(--'+k+')'):'#8a94a6'; return '<span class="frs-mch" style="--mc:'+mc+';'+(extraStyle||'')+'">⚙ '+esc(p)+'</span>'; }
 // ============================================================
 // [L59 · Lot 1] COMMANDE PARTAGÉE — UI (bouton + modale + badge)
@@ -25664,7 +25676,8 @@ function restoreChrono(c){
 }
 function renderDrafts(){
   try{ renderSharedDraftsBlock(); }catch(e){}   // [Lot 3] section « Partagées avec moi » (indépendante des brouillons normaux)
-  let drafts=loadDrafts().filter(d=>!d.consumed).filter(d=>!(typeof _l430IsResidualDraft==='function'&&_l430IsResidualDraft(d)));   // DRAFT-4 : masquer les brouillons de commandes déjà produites — [L430] + ceux d'une commande DEJA VALIDEE (auto/filet uniquement, rien n'est supprime)
+  const _l520c=_l520DraftCtx();   /* [L520] contexte du compte connecte, calcule UNE fois par rendu */
+  let drafts=loadDrafts().filter(d=>!d.consumed).filter(d=>!(typeof _l430IsResidualDraft==='function'&&_l430IsResidualDraft(d))).filter(function(d){ return _l520DraftVisible(d,_l520c); });   /* [L520] operateurs : brouillons des postes machine + les leurs ; admin/pilotage : tout */   // DRAFT-4 : masquer les brouillons de commandes déjà produites — [L430] + ceux d'une commande DEJA VALIDEE (auto/filet uniquement, rien n'est supprime)
   // [L280 · demande Esteban] plus de DOUBLON : masquer le brouillon « saisie de plan en cours » (planDraft) quand
   // la MÊME commande (n°) existe déjà en FICHE (un brouillon non-planDraft avec des bobines) → le « ? » LIMA
   // disparaît dès que la fiche LIMA existe. On matche par n° de commande (unique).

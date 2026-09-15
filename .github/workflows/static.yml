@@ -12,6 +12,9 @@ on:
   # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
+  # [L520] les PR vers main (routine « signalements », branches auto/*) passent le job verifier ; deploy reste main seulement
+  pull_request:
+    branches: ["main"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -25,8 +28,10 @@ permissions:
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  # [L520 · passe adverse] les runs de PR ne deploient rien : groupe distinct par branche, sinon un run de PR pouvait
+  # evincer en file un deploiement de main en attente (cancel-in-progress:false ne garde qu UN run pending par groupe).
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.head_ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # [L504 · audit 30 agents, pattern 3] VERIFICATION BLOQUANTE : un hook pre-push se contourne (--no-verify),
@@ -40,8 +45,25 @@ jobs:
       TZ: Europe/Paris
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # [L520] historique complet : comparaison avec origin/main (bump, unicite, meta-gardien)
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
+      - name: Version bumpee vs origin/main, jamais reutilisee (battery.sh etape 0, transposee — L520)
+        run: |
+          set -euo pipefail
+          git fetch -q origin main
+          L=$(grep -o "APP_VERSION='[^']*'" index.html | head -1)
+          R=$(git show origin/main:index.html | grep -o "APP_VERSION='[^']*'" | head -1 || echo "")
+          if [ -n "$R" ] && [ "$L" = "$R" ] && ! git diff --quiet origin/main -- index.html; then echo "index.html modifie mais APP_VERSION identique a origin/main ($L) : bump obligatoire (regle 6)"; exit 1; fi
+          if [ "$L" != "$R" ] && [ -n "$(git log origin/main -S"$L" --oneline -- index.html)" ]; then echo "$L a DEJA existe sur main : deux lots sous un meme LNNN — choisir le numero suivant"; exit 1; fi
+          echo "$L (origin/main : ${R:-?})"
+      - name: Meta-gardien — sur origin/main le gardien doit etre ROUGE si index.html change (battery.sh etape 4b — L520)
+        run: |
+          set -euo pipefail
+          if git diff --quiet origin/main -- index.html; then echo "index.html identique a origin/main : sans objet"; exit 0; fi
+          git show origin/main:index.html > /tmp/_prev.html
+          if AUDIT_HTML=/tmp/_prev.html node tests/audit_regress_test.js >/dev/null 2>&1; then echo "le gardien est VERT sur origin/main : aucun marqueur de ce lot ne discrimine"; exit 1; fi
+          echo "meta-gardien OK : $(AUDIT_HTML=/tmp/_prev.html node tests/audit_regress_test.js 2>/dev/null | grep -c '❌' || true) marqueur(s) rouge(s) sur origin/main"
       - name: Syntaxe (3 scripts inline compilent)
         run: node tests/syntax_test.js
       - name: Moteur gele (empreintes figees)
@@ -65,9 +87,42 @@ jobs:
           UNB3=$(grep -n "runTransaction(" index.html | grep -vE "boundedTx|function boundedTx|Promise\.race\(|^[0-9]+:\s*//" || true)   # Promise.race([tx, delai]) = borne posee AVANT boundedTx (2 sites : doSave, saveFicheConfigs)
           [ -z "$UNB3" ] || { echo "$UNB3"; echo "transaction(s) Firestore hors boundedTx"; exit 1; }
           [ "$(grep -c 'await logAudit(' index.html || true)" = "0" ] || { grep -n 'await logAudit(' index.html; echo "await logAudit( interdit (L501 : logAudit ne doit jamais bloquer un flux)"; exit 1; }
+  # [L520 · passe adverse] SMOKES ET SIMULATION AVEC CHROME (battery.sh etapes 5-7, transposees). Le deploiement ne depend PAS de ce job
+  # (la batterie locale les a deja joues pour un push humain) ; la routine « signalements » exige verifier ET smoke verts avant toute fusion.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Europe/Paris
+      CHROME_BIN: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Serveur local :8000 (version servie = version du depot)
+        run: |
+          set -euo pipefail
+          (python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          for i in $(seq 1 20); do curl -fsS --max-time 1 -o /dev/null http://127.0.0.1:8000/index.html 2>/dev/null && break; sleep 0.5; done
+          curl -fsS http://127.0.0.1:8000/index.html | grep -o "APP_VERSION='[^']*'" | head -1
+      - name: Simulation (plancher 8 scenarios, rapport relu)
+        run: |
+          set -euo pipefail
+          node tests/sim200.mjs --n 8 --seed 7 --multi 0.5 > /tmp/_sim.log 2>&1 || { tail -12 /tmp/_sim.log; exit 1; }
+          grep -q "🏆" /tmp/_sim.log || { tail -12 /tmp/_sim.log; exit 1; }
+          node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if((s.withBugs||0)+(s.jsErrors||0)+(s.domGuards||0)>0||(s.n||0)<8){console.log(JSON.stringify(s));process.exit(1)} console.log('rapport relu : n='+s.n)"
+      - name: Smokes (6 scenes, capteur d erreurs et sentinelles)
+        run: |
+          set -euo pipefail
+          for s in plan fiche fiche-start fiche-cut donnees analyse; do
+            if ! node tests/shot.mjs --scene "$s" --out "/tmp/_smoke_$s.png" --json > "/tmp/_smoke_$s.log" 2>&1; then tail -8 "/tmp/_smoke_$s.log"; echo "smoke $s : shot.mjs sort en erreur"; exit 1; fi
+            if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_smoke_$s.log"; then tail -8 "/tmp/_smoke_$s.log"; echo "smoke $s : sentinelle d erreur"; exit 1; fi
+            printf '%-11s ok\n' "$s"
+          done
   # Single deploy job since we're just deploying
   deploy:
     needs: verifier
+    if: github.event_name != 'pull_request'   # [L520] jamais de deploiement depuis une PR
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

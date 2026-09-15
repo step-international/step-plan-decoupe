@@ -33,7 +33,7 @@ Il enchaîne, dans l'ordre et en s'arrêtant au premier rouge : version bumpée 
 écritures Firestore non bornées (doit être vide) et des `await logAudit(` (doit être 0).
 **Ne jamais recopier ces étapes à la main** : c'est exactement comme ça que `grep -c "❌"` (sort en code 1 quand tout
 est vert), `| tail -1` (masque l'échec) et le capteur `__jsErrors` (qui n'existait pas) ont validé des lots cassés.
-Le même contrôle tourne sur GitHub Actions (job `verifier`, `needs:` sur le déploiement) : un push cassé ne se déploie plus.
+Le même contrôle tourne sur GitHub Actions : job `verifier` (`needs:` sur le déploiement, avec version bumpée + méta-gardien depuis L520) et job `smoke` (simulation + smokes Chrome, L520 : ne bloque pas le déploiement d'un push humain, mais la routine « signalements » exige les deux verts). Un push cassé ne se déploie plus.
 
 Puis : miroir (Mac d'Esteban UNIQUEMENT) `cp index.html "/Users/EstebanR/Documents/step/code plan de découpe/index.html"`,
 commit **sans accents ni accents graves (backticks : le shell les interprète)**, préfixé `LNNN (AAAA.MM.JJ) - `, avec
@@ -98,6 +98,7 @@ Si un push est rejeté (« fetch first » / non fast-forward) : `git pull --reba
 les fichiers des deux machines ne se recouvrent pas.
 - **Catalogue clients** : `CLIENT_DATA` dans `index.html`. **Règles d'emballage par client** : `PKG_CLIENTS`. Pour ajouter un client/une référence : copier la structure d'une entrée existante similaire.
 - **Assistant IA de la bulle 💬** : `functions/index.js` (Cloud Function `assistReply`). **Règles Firestore** : `firestore.rules` (publication en console = un propriétaire du projet, Esteban ou Christian).
+- **Routine cloud « signalements »** (mails 💬 des opérateurs traités automatiquement, décision Esteban 15/09/2026) : mode d'emploi dans `passation/ROUTINE-SIGNALEMENTS.md` ; ses PR passent le job `verifier` de la CI, les cas SIMPLES sont fusionnés sans « go ».
 - **Tests et outils** : dossier `tests/` (batterie, simulateur `sim200.mjs`, captures `shot.mjs` — serveur local `python3 -m http.server 8000` requis pour shot).
 - **Journal du chantier** : messages de commit `git log --oneline` (marqueurs LNNN).
 
