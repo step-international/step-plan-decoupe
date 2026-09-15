@@ -2029,7 +2029,7 @@ absent(/function groupsFromDetail\(/,'L506 : l ancien regroupement (laize de la 
 has(/if\(!_multiEF\) _defs=\{useful:parseNum\(f\.useful\)\|\|0,blade:parseNum\(f\.blade\)\|\|0,ref:f\.ref\|\|'',refIdx:0\};/,'L506 : bobine AJOUTÉE par l admin (mono-réf) hérite laize/lame/réf de la fiche');
 has(/if\(nrm\(g\.ref\)!==_nn&&rg\.some\(function\(x\)\{ return x&&nrm\(x\.ref\)===_nn; \}\)\) g=null;/,'L506 : _lgOf rejette l index seulement si le nom désigne un AUTRE groupe (réf renommée : index gardé)');
 has(/^function _l506RefGroupFor\(f,fd\)\{ try\{/m,'L506 : résolution UNIQUE de la réf d une ligne (index fiable → refIdKey → nom unique → null)');
-has(/if\(gi&&byName\.length===0\)\{ try\{ if\(!_l507Traced\.has\(fd\)\)\{ _l507Traced\.add\(fd\); _l505Warn\('ref·index-sans-nom'/,'L507 : l index qui gagne sans nom concordant est TRACÉ (une fois par ligne)');
+has(/_l507Traced\.add\(fd\); _l505Warn\('ref·index-sans-nom',/,'L507 : l index qui gagne sans nom concordant est TRACÉ (une fois par ligne) — [L521] regex recalee : la garde accepte desormais le drapeau de rejeu window._l517Replay (audit adverse C5)');
 has(/^function _l507MatchRefByLabel\(label,refGroups\)\{ try\{/m,'L507 : matcher de référence par libellé, pur et testé (KX1006-1 vs KX1006-10)');
 has(/^function _l507GroupUseful\(g\)\{ try\{/m,'L507 : laize utile d un groupe persisté recomposée mère − bords (serializeRefGroups n a pas de useful)');
 has(/^function _l507GroupIdxOf\(f,fd\)\{ try\{/m,'L507 : index de groupe PAR LIGNE pour les compteurs de m² (index fiable → identité → nom)');
@@ -2290,6 +2290,17 @@ has(/const _l520c=_l520DraftCtx\(\);/,'L520 : renderDrafts calcule le contexte u
 has(/\.filter\(function\(d\)\{ return _l520DraftVisible\(d,_l520c\); \}\)/,'L520 : renderDrafts filtre l AFFICHAGE, pas la source (persistDrafts reecrit la liste entiere)');
 absent(/^function loadDrafts\(\)\{[^\n]*_l520/m,'L520 : loadDrafts reste non filtree (sinon les brouillons caches seraient supprimes a la reecriture)');
 has(/if\(\(d\.fromFicheId&&String\(d\.fromFicheId\)\.trim\(\)\)\|\|\/\^d_solde_\/\.test\(String\(d\.id\|\|''\)\)\) return true;/,'L520 : le SOLDE manque-matiere reste visible a l atelier quel que soit le compte qui l a parque (passe adverse)');
+
+console.log('── L521 : audit adverse des lots L516-L518 (42 agents, 15/09/2026) — 5 correctifs ──');
+absent(/<\/td>\s+\/\* \[L518 · question Celine/,'L521 : plus aucun commentaire /* */ DANS le gabarit du plan imprime (il s imprimait en clair a chaque ligne)');
+has(/^\s*\/\/ \[L521 · audit adverse 15\/09\] ce commentaire vivait DANS le gabarit/m,'L521 : le commentaire vit hors du gabarit, avec la lecon');
+has(/if\(fd\.actDechet===true&&!fd\.recut&&typeof ncLoss==='function'\)\{ const n=ncLoss\(f,fd\); if\(n&&n\.m2>0\)\{ client-=n\.m2; \} \}/,'L521 : le dechet NC d une ligne ♻ n est plus soustrait de « m² decoupes et livres » (jamais credite)');
+has(/const _n0=cur\.querySelector\('\.l516-note'\); if\(_n0\) _n0\.remove\(\); return; \}/,'L521 : note VOIR DOMINIQUE purgee quand la configuration devient vide');
+has(/const _n1=cur\.querySelector\('\.l516-note'\); if\(_n1\) _n1\.remove\(\); return; \}/,'L521 : note purgee quand la configuration est illisible');
+has(/if\(\(typeof window!=='undefined'&&window\._l517Replay\)\|\|!_l507Traced\.has\(fd\)\)\{ _l507Traced\.add\(fd\); _l505Warn\('ref·index-sans-nom',/,'L521 : le rejeu _l517Cause re-emet la trace ref·index-sans-nom');
+has(/window\._l505Warn=prev; window\._l505WarnN=prevN; window\._l517Replay=false; \}/,'L521 : drapeau de rejeu retire dans le finally');
+has(/tags:Array\.from\(new Set\(tags\.map\(x=>x\.t\)\)\)/,'L521 : causes dedoublonnees dans la liste des fiches en repli (passe adverse)');
+has(/^function _l516EstSolde\(l\)\{ try\{\n  if\(!l\|\|l\.recut\) return false;\n  if\(l\.actChutes===true\) return true;/m,'L521 : _l516EstSolde suit la regle L513 (✂ Chutes = solde)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

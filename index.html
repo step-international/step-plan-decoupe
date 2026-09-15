@@ -3348,7 +3348,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.15-L520';
+const APP_VERSION='2026.09.15-L521';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9960,9 +9960,11 @@ function buildPlanPrintHTML(o){
       }
       _subRows.forEach((r,ri)=>{
         const _isL=isLast&&ri===_subRows.length-1;
+        // [L518 · question Celine « 4 bobines + 1 bobine meme configuration : bug ? »] non : la derniere bobine de la ref est isolee (_palSplitSolde) parce que sa laize restante est le SOLDE a garder ; on le dit. Cote fiche, _grp peut refusionner 4+1 -> « 5 bobines (dont la derniere : solde) »
+        // [L521 · audit adverse 15/09] ce commentaire vivait DANS le gabarit (entre deux backticks) et s imprimait en clair sur le plan, a chaque ligne du tableau. JAMAIS de /* */ a l interieur d un template literal.
         tRows+=`<tr style="${_isL?'background:#fffbea;font-style:italic':''}">
           ${o.coupeCol?`<td style="text-align:center;font-size:14px">${_chkBoxes(r.count)}</td>`:''}
-          <td>${r.count>1?r.count+' bobines':'1 bobine'}${_isL?(r.count>1?' <span style="white-space:nowrap">(dont la dernière : solde)</span>':' <span style="white-space:nowrap">(dernière : solde)</span>'):''}</td>   /* [L518 · question Celine « 4 bobines + 1 bobine meme configuration : bug ? »] non : la derniere bobine de la ref est isolee (_palSplitSolde) parce que sa laize restante est le SOLDE a garder ; on le dit. Cote fiche, _grp peut refusionner 4+1 -> « 5 bobines (dont la derniere : solde) » */
+          <td>${r.count>1?r.count+' bobines':'1 bobine'}${_isL?(r.count>1?' <span style="white-space:nowrap">(dont la dernière : solde)</span>':' <span style="white-space:nowrap">(dernière : solde)</span>'):''}</td>
           <td>${(function(){ try{ if(!g.chute&&typeof _l415Conf==='function'){ const _t=_l415Conf(g.pattern,r.alloc,null); if(_t) return '<strong>'+esc(_l518SegPapier(_t))+'</strong>'; } }catch(e){} return chutePrintConfig(g.pattern,g.chute); })()}${r.note||''}</td>
           <td>${_isL?'Solde '+fmt(waste)+' mm':'Perte '+fmt(waste)+' mm'}</td></tr>`;   /* [L518] le mot devant le nombre : la photocopie N&B perd l italique et le fond creme */
       });
@@ -18670,7 +18672,7 @@ function _l506RefGroupFor(f,fd){ try{
   if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey; }catch(_){ return false; } }); if(k) return k; }   /* [L507 · 8e passe adverse] l IDENTITÉ d abord quand la ligne en porte une (clé recomposée, laize comprise) : l index gelé est celui du plan CALCULÉ (blocs sans ligne valide filtrés) alors que refGroups est sérialisé sans filtre — un bloc homonyme à moitié saisi placé avant décalait l index vers le mauvais métrage, et le nom (identique) ne pouvait pas le voir */
   const gi=(typeof fd.refIdx==='number'&&rg[fd.refIdx])?rg[fd.refIdx]:null;
   if(gi&&(!nn||nrm(gi.ref)===nn)) return gi;
-  if(gi&&byName.length===0){ try{ if(!_l507Traced.has(fd)){ _l507Traced.add(fd); _l505Warn('ref·index-sans-nom',new Error(String(fd.ref||'')+' → '+String(gi.ref||''))); } }catch(_){ } return gi; }   /* [L507] l index gagne (réf renommée entre gel et archive) mais c est TRACÉ : si l index était aussi décalé, le chiffre serait celui d une autre réf */
+  if(gi&&byName.length===0){ try{ if((typeof window!=='undefined'&&window._l517Replay)||!_l507Traced.has(fd)){ _l507Traced.add(fd); _l505Warn('ref·index-sans-nom',new Error(String(fd.ref||'')+' → '+String(gi.ref||''))); } }catch(_){ } return gi; }   /* [L507] l index gagne (réf renommée entre gel et archive) mais c est TRACÉ : si l index était aussi décalé, le chiffre serait celui d une autre réf */
   if(byName.length===1) return byName[0];
   return null;
 }catch(e){ return null; } }
@@ -19672,7 +19674,7 @@ function _l513Matiere(f){
       if(fd.recut){ perte+=w*k; }
       else { nKept++; coupes+=c.mother*k; perte+=c.edge*k; client+=laizes*k;
              if(fd.actChutes||fd.phaseEnd||lastIdx.has(i)) chutes+=w*k; else perte+=w*k; }
-      if(fd.actDechet===true&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0){ client-=n.m2; } }   /* (le dechet lui-meme est deja cumule plus haut) */
+      if(fd.actDechet===true&&!fd.recut&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0){ client-=n.m2; } }   /* (le dechet lui-meme est deja cumule plus haut) — [L521 · audit adverse] !fd.recut : une ligne ♻ n a jamais ete creditee dans client (branche non-recut seulement), on ne lui soustrait donc rien ; symetrique de la ligne chutes ci-dessous */
       if(fd.actChutes===true&&!fd.recut&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0){ chutes+=n.m2; client-=n.m2; } }
     });
     if(!nKept&&(Number(f.totalBobines)||0)>0){ ok=false; warn('detail',new Error('fiche avec bobines mais sans configuration lisible')); }   /* jamais un faux 0 : des bobines archivees sans detail exploitable = inconnu, pas 0 m² */
@@ -19731,13 +19733,14 @@ function _l517Cause(f){
   const tags=[]; const prev=(typeof window!=='undefined')?window._l505Warn:null, prevN=(typeof window!=='undefined')?window._l505WarnN:0;
   try{
     if(typeof window!=='undefined') window._l505Warn=function(where,e){ try{ tags.push({t:String(where||''),m:(e&&e.message)?String(e.message):String(e||'')}); }catch(_){ } };
+    if(typeof window!=='undefined') window._l517Replay=true;   /* [L521 · audit adverse] le rejeu doit RE-EMETTRE les traces « une fois par session » (_l507Traced), sinon la liste des fiches en repli est vide sous une tuile qui en annonce N */
     const m=_l513Matiere(f);
     const NB={'l513·edge':1,'ncLoss·ref':1,'ref·index-sans-nom':1};   /* replis TRACES mais NON bloquants : la fiche reste calculable */
     const bloq=tags.filter(x=>_L517_CAUSES[x.t]&&!NB[x.t]); const src=bloq.length?bloq:tags;
     return {ok:!!m.ok,cause:(m.ok?'':(src.length?(_L517_CAUSES[src[0].t]||src[0].t):'cause inconnue')),
-            tags:tags.map(x=>x.t),detail:(src[0]&&src[0].m)||'',mat:m};
+            tags:Array.from(new Set(tags.map(x=>x.t))),detail:(src[0]&&src[0].m)||'',mat:m};   /* [L521 · passe adverse] dedoublonne : le rejeu re-emet une trace par APPEL (2 a 4 par ligne), la liste affichait la meme cause 2 a 4 fois */
   }catch(e){ return {ok:false,cause:'erreur de calcul (voir console)',tags:['l517'],detail:String((e&&e.message)||e),mat:null}; }
-  finally{ if(typeof window!=='undefined'){ window._l505Warn=prev; window._l505WarnN=prevN; } }
+  finally{ if(typeof window!=='undefined'){ window._l505Warn=prev; window._l505WarnN=prevN; window._l517Replay=false; } }
 }
 /* UNE ligne du CSV des fiches = fonction PURE (aucun DOM, aucun cache) ; csvCell et join restent dans exportFiches. 43 cellules = 43 colonnes. */
 function _l517FicheRow(f){
@@ -23267,6 +23270,8 @@ function _l353Overflow(id){ try{ const l=(typeof ficheLines!=='undefined')?fiche
    bobine serait dite PERTE alors que son reste est bien un solde etiquete). « ⚠ DEPASSE » (L353) reste prioritaire et inchange. */
 function _l516EstSolde(l){ try{
   if(!l||l.recut) return false;
+  if(l.actChutes===true) return true;   /* [L521 · audit adverse] parite avec la regle L513 (actChutes || phaseEnd || derniere) : une bobine dont l operateur a choisi ✂ Chutes est comptee en CHUTES GARDEES dans les m² — la pastille doit dire SOLDE, pas PERTE */
+  try{ const _b=(typeof document!=='undefined')?document.getElementById('act_chutes_'+l.id):null; if(_b&&_b.classList.contains('btn-orange')) return true; }catch(_){ }   /* meme lecture qu a l envoi (getFicheLinesData) */
   if(l.phaseEnd) return true;
   const k=_refKeyOf(l); let last=null;
   (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(x){ if(x&&_refKeyOf(x)===k) last=x; });
@@ -23289,8 +23294,8 @@ function _l340RenderChuteChip(){ try{
   const useful=(l&&l.useful>0)?l.useful:((typeof getUseful==='function')?getUseful():0);
   const blade=(l&&typeof l.blade==='number')?l.blade:((typeof getBlade==='function')?getBlade():0);
   let chip=cur.querySelector('.fl-chute');
-  if(!(useful>0)||!conf.trim()){ if(chip) chip.remove(); return; }
-  const pieces=parseConf(conf); if(!pieces.length){ if(chip) chip.remove(); return; }
+  if(!(useful>0)||!conf.trim()){ if(chip) chip.remove(); const _n0=cur.querySelector('.l516-note'); if(_n0) _n0.remove(); return; }   /* [L521 · audit adverse] la note « VOIR DOMINIQUE » suivait la pastille sauf sur ces deux sorties : elle restait collee avec son ancien chiffre */
+  const pieces=parseConf(conf); if(!pieces.length){ if(chip) chip.remove(); const _n1=cur.querySelector('.l516-note'); if(_n1) _n1.remove(); return; }
   const waste=useful-calcStats(pieces,blade).total;
   if(!chip){ chip=document.createElement('span'); chip.className='fl-chute'; const hd=cur.querySelector('.fiche-line-header'); if(hd) hd.appendChild(chip); else cur.appendChild(chip); }
   const _solde=_l516EstSolde(l); const _e=_l516ChipEtat(waste,_solde,PERTE_LAIZE_ALERTE_MM);   /* [L516] PERTE / SOLDE / ⚠ DÉPASSE — même tolérance 0,5 mm que _l353Overflow (chip et confirm disent la même chose) */
