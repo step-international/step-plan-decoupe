@@ -15,8 +15,9 @@ Ce fichier EST le mode d'emploi que la routine suit. Il est lu après `CLAUDE.md
 - Un mail 💬 a pour sujet `STEP <type> · <écran> · <initiales> · <version>` et contient le texte de
   l'opérateur, le contexte technique et souvent une ou deux captures d'écran.
 - Recherche à chaque passage, TROIS conditions cumulatives : (1) expéditeur = l'adresse d'envoi de l'extension
-  Trigger Email (`from:` — adresse à relever dans la console Firebase › Extensions › Trigger Email › « Default FROM »
-  et à écrire ici : `______________________`) ; (2) sujet au gabarit exact `STEP <type> · <écran> · <initiales> ·
+  Trigger Email (`from:esterozier42480@gmail.com` — c'est le compte SMTP de l'extension Trigger Email, relevé le 15/09/2026 dans
+  la console Firebase : `smtps://esterozier42480@gmail.com@smtp.gmail.com:465` ; dans la boîte esterozier42480 ces mails
+  apparaissent aussi comme `from:me`) ; (2) sujet au gabarit exact `STEP <type> · <écran> · <initiales> ·
   <version>` avec `<version>` de la forme `AAAA.MM.JJ-LNNN` ; (3) reçu depuis 3 jours, sans le libellé Gmail
   `plan-decoupe/traite`. Un mail qui ne remplit pas les trois n'est PAS un signalement : on n'y touche pas, on n'y
   répond pas (c'est peut-être un client), on le cite au plus dans le compte rendu. Un mail traité reçoit le libellé
