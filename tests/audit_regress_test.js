@@ -2334,5 +2334,13 @@ has(/const rk=_cliQKey\(_refIdKey\(_x\),_x\.machine\|\|'feba'\);/,'L524 : cle de
 has(/rows:rows,machine:\(\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|''\),/,'L523 C1 : doSave persiste \'\' sans machine');
 absent(/rows:rows,machine:\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|currentMachine,/,'L523 C1 : l ancien repli currentMachine de doSave a disparu');
 absent(/selectMachine\(_lastM\|\|'feba'\);/,'L523 : plus de derniere machine pre-remplie au boot (E1 de L511)');
+
+// ── [L525 · demande Celine atelier 16/09] chute ♻ en n°1 d une reference PAS commencee sur une commande engagee ──
+has(/^function _l525Done\(node,id\)\{/m,'L525 : helper — ligne coupee ou jetee = reference commencee');
+has(/^function _l525Split\(metas,isDone\)\{/m,'L525 : helper pur — figees de la reference : commencee ? + figees non coupees');
+has(/^function _l525MoveAfter\(lines,rest\)\{/m,'L525 : helper pur — les figees non coupees passent apres les rouleaux');
+has(/return \(typeof isLineFrozen==='function'\)\?!!isLineFrozen\(id\):false; \}catch\(e\)\{ return false; \} \}   \/\* une ligne coupee, jetee, ou engagee par un GESTE operateur/,'L525 : un geste operateur (etiquette, photo, NC, conf) = reference commencee, la chute ne passe jamais devant une bobine touchee');
+has(/const _l525S=_l525Split\(frozenMetas\.filter\(l=>lineKey\(l\)===k\),function\(l\)\{ return _l525Done\(frozenNodes\[l\.id\],l\.id\); \}\);/,'L525 : rebuild engage, etape 3a — reference commencee ?');
+has(/if\(recutAdded>0&&!_l525S\.started\)\{ const _l525M=_l525S\.rest\.filter\(function\(l\)\{ return !l\.recut; \}\); if\(_l525M\.length\)\{ _l525M\.forEach\(function\(l\)\{ const n=document\.getElementById\(l\.id\); if\(n\) cont\.appendChild\(n\); \}\); ficheLines=_l525MoveAfter\(ficheLines,_l525M\); \} \}/,'L525 : rebuild engage, apres les rouleaux — chute en n°1 de sa reference si elle n est pas commencee ; un rouleau ♻ deja en place ne recule jamais');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

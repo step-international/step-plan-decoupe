@@ -3358,7 +3358,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.16-L524';
+const APP_VERSION='2026.09.16-L525';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6371,6 +6371,16 @@ function _cutOrderChutesFirst(order,computed,keep){
     return o;
   }catch(e){ return order; }
 }
+/* [L525 · demande Celine a l atelier, 16/09/2026 (commande 4501961108, VEKA, MAVEG, KX1006)] L operateur saisit ses chutes AVANT de couper.
+   Ref 1 coupee, il va chercher le stock de la ref 2, y trouve une chute et l ajoute : l outil recalcule la ref 2 (commande ENGAGEE ->
+   recalcEcartsFromFiche, jamais la generation L491) et la chute tombait en 3e position de sa reference, derriere les deux premieres
+   meres NON coupees que le verrou MAVEG (_l418Frozen2Ids, « deux bobines montees ») gele ET re-attache en tete (etape 3a) avant les
+   rouleaux ♻ regeneres (3b). Regle : une reference SANS bobine coupee (ni jetee) recoit sa chute en n°1 ; une reference COMMENCEE garde
+   l ordre actuel (coupees, montees MAVEG, chutes, meres). Rien de coupe ne bouge, aucune renumerotation, etiquettes tapees conservees
+   (les noeuds figes sont deplaces, jamais recrees), ordre des references inchange (_cutOrderChutesFirst keep=true). */
+function _l525Done(node,id){ try{ if(!node) return false; if(node.classList&&node.classList.contains('coupee')) return true; const d=(node.querySelector)?node.querySelector('#act_dechet_'+id):null; if(d&&d.classList&&d.classList.contains('btn-red')) return true; return (typeof isLineFrozen==='function')?!!isLineFrozen(id):false; }catch(e){ return false; } }   /* une ligne coupee, jetee, ou engagee par un GESTE operateur (isLineFrozen : etiquette tapee, photo, NC, conf editee, test 2e bobineau) = reference commencee ; le verrou MAVEG seul (_l418Frozen2Ids) n en est pas un — appele apres 3a, noeud re-attache */
+function _l525Split(metas,isDone){ const rest=[]; let started=false; (metas||[]).forEach(function(l){ if(isDone(l)) started=true; else rest.push(l); }); return {started:started,rest:rest}; }   /* PURE : figees de la reference -> commencee ? + figees NON coupees */
+function _l525MoveAfter(lines,rest){ const st=new Set(rest||[]); const a=[],b=[]; (lines||[]).forEach(function(l){ (st.has(l)?b:a).push(l); }); return a.concat(b); }   /* PURE : les figees non coupees passent APRES ce qui precede (les rouleaux ♻ qui viennent d etre emis) */
 function importPlanToFiche(opts){
   // opts.auto === true : appelé automatiquement au passage Plan→Fiche (silencieux, pas de bascule, pas d'alerte bloquante)
   // sinon : clic explicite sur le bouton (confirmations + bascule + toast)
@@ -12123,6 +12133,7 @@ function recalcEcartsFromFiche(opts){
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
       frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=_refIdKey(c); if(!l.machine&&c.machine) l.machine=c.machine; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante — [L295] clé de BASE (jamais la composite interne) + machine complétée
+      const _l525S=_l525Split(frozenMetas.filter(l=>lineKey(l)===k),function(l){ return _l525Done(frozenNodes[l.id],l.id); });   /* [L525] commencee = une figee coupee/jetee ; rest = figees NON coupees (verrou MAVEG L418, etiquette tapee) */
 
       // 3b) Ré-empaqueter le reliquat de cette réf. Par défaut avec SA laize/lame ;
       // si op.2 est ciblé sur cette réf, on utilise la laize utile / lame de l'op.2.
@@ -12178,6 +12189,7 @@ function recalcEcartsFromFiche(opts){
             ri++; recutAdded++;
           }
         });
+        if(recutAdded>0&&!_l525S.started){ const _l525M=_l525S.rest.filter(function(l){ return !l.recut; }); if(_l525M.length){ _l525M.forEach(function(l){ const n=document.getElementById(l.id); if(n) cont.appendChild(n); }); ficheLines=_l525MoveAfter(ficheLines,_l525M); } }   /* [L525] reference PAS commencee : la chute ♻ ajoutee devient la n°1 de sa reference (devant les MERES figees non coupees ; un rouleau ♻ deja en place ne recule jamais) ; commencee : ordre inchange */
         const bobines=pack(rr.remaining,pu,pb);
         // [L92 · Audit #6] le reliquat suit la MÊME contrainte ≤4 palettes que le plan initial :
         // les bobines déjà coupées (figées) comptent comme palettes déjà ouvertes (préfixe).
