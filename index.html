@@ -3358,7 +3358,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.16-L523';
+const APP_VERSION='2026.09.16-L524';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6813,7 +6813,7 @@ function _l523PersistMachine(sel,fallback,isPost){ const t=String(sel==null?'':s
 function _l523GeomFeba(netTyped){ const d=MACHINE_DEFAULTS.feba; return {edge:netTyped?null:String(d.edge),blade:String(d.blade)}; }   /* PURE : L514b = bords intacts si laize nette saisie, la lame suit toujours */
 function _l523PlanMachine(){ try{ const vals=Array.from(document.querySelectorAll('#refBlocks [data-rb="machine"]')).map(el=>el.value); const post=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; return _l523PersistMachine(_l523MachineSel(vals),currentMachine,!!post); }catch(e){ return currentMachine||''; } }
 function _l523GeomProvisoire(){ try{ document.querySelectorAll('#refBlocks .ref-block').forEach(function(blk){ const gm=_l523GeomFeba(_l514NetTyped(blk)); const e=blk.querySelector('[data-rb="edge"]'); if(e&&gm.edge!=null) e.value=gm.edge; const b=blk.querySelector('[data-rb="blade"]'); if(b) b.value=gm.blade; }); currentMachine='feba'; }catch(e){} }
-function _l523SansMachine(){ try{ if((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine()) return false; currentMachine='feba'; document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';}); return true; }catch(e){ return false; } }   /* [L523 · C1] reprise / chargement SANS machine sur le pilotage : repli feba ET selects vides (la machine encore affichee par la commande precedente ne doit pas coller au brouillon repris) ; tablette : rien, le filet du poste fait foi */
+function _l523SansMachine(){ try{ if((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine()){ document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='feba';}); selectMachine('feba'); return false; }   /* [L524 · revue post-L523] TABLETTE : un plan persiste SANS machine repart en geometrie FEBA IMPLICITE (selects 'feba', comme le faisait setRb1('machine','feba') avant L523) pour que _l376PostMachineSwap le voie (_vals[0]!==_post) et applique les reglages du poste — sinon les selects deja sur la machine du poste (applyRole) masquaient le plan sans machine : bords 10 / lame 5 sous l etiquette MAVEG (famille de l incident du 08/09) */ currentMachine='feba'; document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';}); return true; }catch(e){ return false; } }   /* [L523 · C1] reprise / chargement SANS machine sur le pilotage : repli feba ET selects vides (la machine encore affichee par la commande precedente ne doit pas coller au brouillon repris) ; tablette : rien, le filet du poste fait foi */
 
 function onRefMachineChange(sel){
   const block=sel.closest('.ref-block');
@@ -25578,7 +25578,7 @@ function restoreFicheState(st){
     // pas de champ useful (serializeRefGroups ne le sauvegarde pas) : on le recompose
     // (mère − bords) pour que la clé colle à celle des lignes/groupes vivants.
     const _x=Object.assign({},x,{useful:(Number(x.useful)||Math.max(0,(parseNum(x.mother)||0)-(parseNum(x.edge)||0)))});
-    const rk=_cliQKey(_refIdKey(_x),_x.machine);   // [L92 · Audit #14] machine incluse (aligné sur _cliLineKey)
+    const rk=_cliQKey(_refIdKey(_x),_x.machine||'feba');   // [L92 · Audit #14] machine incluse (aligné sur _cliLineKey) · [L524] '' persiste depuis L523 = repli interne 'feba' des groupes vivants (getRefGroups) : la cle doit concorder
     const meta=cmdMetaByRef[rk]||(cmdMetaByRef[rk]={totals:{},carton:{},mandrin:{}});
     (x.rows||[]).forEach(r=>{
       commandTotals[r.width]=(commandTotals[r.width]||0)+r.qty;

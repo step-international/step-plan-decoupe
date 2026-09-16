@@ -60,9 +60,12 @@ ok(/if\(!st\.plan\.machine\) _l523SansMachine\(\);/.test(rfs),'restoreFicheState
 { /* helper _l523SansMachine : pilotage = repli feba + selects vides ; tablette = no-op */
   const SM=grab('_l523SansMachine'); blocks[0].els.machine.value='maveg'; global._l363DefaultMachine=()=>''; global.currentMachine='maveg';
   ok(SM&&SM()===true&&blocks[0].els.machine.value===''&&global.currentMachine==='feba','_l523SansMachine (pilotage) : select vide, currentMachine=feba');
-  blocks[0].els.machine.value='feba'; global._l363DefaultMachine=()=>'feba';
-  ok(SM&&SM()===false&&blocks[0].els.machine.value==='feba','_l523SansMachine (tablette) : ne touche a rien');
+  /* [L524] tablette MAVEG : les selects portent deja la machine du POSTE (applyRole) ; un plan persiste SANS machine doit repartir en
+     FEBA implicite (selects 'feba' + selectMachine('feba')) pour que _l376PostMachineSwap le voie et applique les reglages du poste */
+  blocks[0].els.machine.value='maveg'; global._l363DefaultMachine=()=>'maveg'; global.currentMachine='maveg'; global.__sm=[]; global.selectMachine=m=>{ global.__sm.push(m); global.currentMachine=m; };
+  ok(SM&&SM()===false&&blocks[0].els.machine.value==='feba'&&global.__sm.join(',')==='feba','_l523SansMachine (tablette) : selects remis sur feba + selectMachine(feba) → le filet du poste (_vals[0]!==_post) s applique ensuite (L524)');
 }
+ok(/const rk=_cliQKey\(_refIdKey\(_x\),_x\.machine\|\|'feba'\);/.test(src),'restoreFicheState : la cle ref¦machine lit le vide persiste comme le repli feba des groupes vivants (L524, R3)');
 const ds=(()=>{ try{ return fnOf('doSave'); }catch(e){ return ''; } })();
 ok(/rows:rows,machine:\(\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|''\),/.test(ds)&&!/machine:\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|currentMachine,/.test(ds),'doSave : \'\' quand aucune machine (Donnees > Plans ne re-remplit plus FEBA)');
 ok(!/selectMachine\(_lastM\|\|'feba'\);/.test(src)&&!/_lastM/.test(src)&&/selectMachine\('feba'\); document\.querySelectorAll\('#refBlocks \[data-rb="machine"\]'\)\.forEach\(el=>\{el\.value='';\}\);/.test(src),'boot : plus de « derniere machine » pre-remplie (E1) ; selects vides, repli feba, tablette servie a la connexion (L363 B3)');

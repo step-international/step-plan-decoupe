@@ -2327,6 +2327,10 @@ has(/_rz\+\+; \} \}\); _l523GeomProvisoire\(\);/,'L523 C2 : onClientChange remet
 has(/^function _l523SansMachine\(\)\{/m,'L523 C1 : helper « sans machine » (repli feba + selects vides, pilotage seulement)');
 has(/if\(!s\.machine\) _l523SansMachine\(\);/,'L523 C1 : doLoad, plan sans machine = repli feba, selects vides');
 has(/if\(!st\.plan\.machine\) _l523SansMachine\(\);/,'L523 C1 : restoreFicheState, brouillon sans machine = selects vides (la machine de l ecran precedent ne colle plus)');
+// ── [L524 · revue post-L523] tablette : un plan sans machine retrouve le filet du poste ──
+has(/_l363DefaultMachine\(\)\)\{ document\.querySelectorAll\('#refBlocks \[data-rb="machine"\]'\)\.forEach\(el=>\{el\.value='feba';\}\); selectMachine\('feba'\); return false; \}/,'L524 : tablette, plan persiste sans machine = selects feba puis swap du poste (bords/lame du poste, pas 10/5 sous etiquette MAVEG)');
+absent(/&&_l363DefaultMachine\(\)\) return false; currentMachine='feba';/,'L524 : la branche tablette no-op de L523 (qui masquait le plan sans machine au filet du poste) a disparu');
+has(/const rk=_cliQKey\(_refIdKey\(_x\),_x\.machine\|\|'feba'\);/,'L524 : cle de restauration ref¦machine — le vide persiste concorde avec le repli interne feba');
 has(/rows:rows,machine:\(\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|''\),/,'L523 C1 : doSave persiste \'\' sans machine');
 absent(/rows:rows,machine:\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|currentMachine,/,'L523 C1 : l ancien repli currentMachine de doSave a disparu');
 absent(/selectMachine\(_lastM\|\|'feba'\);/,'L523 : plus de derniere machine pre-remplie au boot (E1 de L511)');
