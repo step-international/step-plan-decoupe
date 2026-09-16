@@ -2313,5 +2313,22 @@ has(/body:has\(#page0\.active\) #reportBubble\{width:48px!important;height:48px!
 has(/#planLeft\{padding-bottom:calc\(96px \+ env\(safe-area-inset-bottom,0px\)\)\}/,'L522 : place sous la derniere ligne sur la colonne de saisie seulement (passe adverse : #page0 allongeait la grille calee sur 100dvh)');
 absent(/#page0\{padding-bottom:88px\}/,'L522 : plus de padding fixe sur #page0');
 
+
+// ── [L523 · audit L521 C1/C2] « MACHINE A CHOISIR » effective sur le poste de pilotage ──
+has(/^function _l523MachineSel\(vals\)\{/m,'L523 : helper pur — 1re machine choisie parmi les selects');
+has(/^function _l523PersistMachine\(sel,fallback,isPost\)\{/m,'L523 : helper pur — pilotage sans choix = \'\', tablette = repli du poste');
+has(/^function _l523GeomFeba\(netTyped\)\{/m,'L523 : helper pur — geometrie provisoire FEBA, bords intacts si laize nette (L514b)');
+has(/^function _l523PlanMachine\(\)\{/m,'L523 : la machine persistee est celle des selects');
+has(/^function _l523GeomProvisoire\(\)\{/m,'L523 : changement de client = geometrie FEBA + currentMachine=feba');
+has(/plan:\{machine:_l523PlanMachine\(\),mother:/,'L523 C1 : serializeFicheState ne persiste plus currentMachine brut');
+absent(/plan:\{machine:currentMachine,mother:/,'L523 C1 : l ancienne persistance (toujours feba) a disparu');
+has(/machine:_l523PersistMachine\(\(\(_blks20\[i\]&&_blks20\[i\]\.querySelector\('\[data-rb="machine"\]'\)\)\|\|\{\}\)\.value,g\.machine,/,'L523 C1 : serializeRefGroups persiste le select du bloc');
+has(/_rz\+\+; \} \}\); _l523GeomProvisoire\(\);/,'L523 C2 : onClientChange remet la geometrie apres le vidage des selects');
+has(/^function _l523SansMachine\(\)\{/m,'L523 C1 : helper « sans machine » (repli feba + selects vides, pilotage seulement)');
+has(/if\(!s\.machine\) _l523SansMachine\(\);/,'L523 C1 : doLoad, plan sans machine = repli feba, selects vides');
+has(/if\(!st\.plan\.machine\) _l523SansMachine\(\);/,'L523 C1 : restoreFicheState, brouillon sans machine = selects vides (la machine de l ecran precedent ne colle plus)');
+has(/rows:rows,machine:\(\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|''\),/,'L523 C1 : doSave persiste \'\' sans machine');
+absent(/rows:rows,machine:\(refGroups\[0\]&&refGroups\[0\]\.machine\)\|\|currentMachine,/,'L523 C1 : l ancien repli currentMachine de doSave a disparu');
+absent(/selectMachine\(_lastM\|\|'feba'\);/,'L523 : plus de derniere machine pre-remplie au boot (E1 de L511)');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

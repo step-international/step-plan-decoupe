@@ -3358,7 +3358,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.15-L522';
+const APP_VERSION='2026.09.16-L523';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6802,6 +6802,18 @@ function selectMachine(m){
 function _l511Apply(block,m){ try{ const ms=block.querySelector('[data-rb="machine"]'); if(!ms||ms.value||!m) return false; ms.value=m; const d=MACHINE_DEFAULTS[m]; if(d){ const _net=_l514NetTyped(block); const e=block.querySelector('[data-rb="edge"]'); if(e&&!_net) e.value=d.edge; const b=block.querySelector('[data-rb="blade"]'); if(b) b.value=d.blade; } return true; }catch(e){ return false; } }   /* [L514b] bords par défaut seulement sans laize nette saisie (même règle qu onRefMachineChange) */
 function _l511Propagate(fromBlock,m){ document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){ if(b!==fromBlock) _l511Apply(b,m); }); }
 function _l511InheritMachine(block){ const first=document.querySelector('#refBlocks .ref-block [data-rb="machine"]'); const m=first?String(first.value||'').trim():''; if(m&&first.closest('.ref-block')!==block) _l511Apply(block,m); }
+/* [L523 · audit L521 C1/C2 (Esteban 15/09/2026), decision Celine 16/09] « — choisir — » sur le poste de PILOTAGE : l etat interne ne doit plus
+   dire FEBA (ni la machine du client precedent) en silence. (C1) ce qui est PERSISTE = la machine CHOISIE dans les selects ('' si aucune) :
+   un brouillon / plan repris sans machine reste sur « — choisir — » (restoreFicheState et _restoreRefGroupsBody ne touchent pas un select
+   quand la valeur persistee est vide ; doLoad : selectMachine('') est un no-op). (C2) au changement de client, la geometrie repart aux defauts
+   FEBA promis par le libelle « calcul provisoire FEBA » (bords sauf laize nette saisie L514b/c, lame toujours) et currentMachine='feba'.
+   Tablettes : INCHANGEES (repli = machine du poste ; _l376PostMachineSwap pose la machine du poste sur un plan sans machine). */
+function _l523MachineSel(vals){ try{ for(const v of (vals||[])){ const t=String(v==null?'':v).trim(); if(t) return t; } }catch(e){} return ''; }   /* PURE : 1re machine choisie */
+function _l523PersistMachine(sel,fallback,isPost){ const t=String(sel==null?'':sel).trim(); if(t) return t; return isPost?String(fallback||'').trim():''; }   /* PURE : pilotage sans choix = '' ; tablette = repli du poste inchange */
+function _l523GeomFeba(netTyped){ const d=MACHINE_DEFAULTS.feba; return {edge:netTyped?null:String(d.edge),blade:String(d.blade)}; }   /* PURE : L514b = bords intacts si laize nette saisie, la lame suit toujours */
+function _l523PlanMachine(){ try{ const vals=Array.from(document.querySelectorAll('#refBlocks [data-rb="machine"]')).map(el=>el.value); const post=(typeof _l363DefaultMachine==='function')?_l363DefaultMachine():''; return _l523PersistMachine(_l523MachineSel(vals),currentMachine,!!post); }catch(e){ return currentMachine||''; } }
+function _l523GeomProvisoire(){ try{ document.querySelectorAll('#refBlocks .ref-block').forEach(function(blk){ const gm=_l523GeomFeba(_l514NetTyped(blk)); const e=blk.querySelector('[data-rb="edge"]'); if(e&&gm.edge!=null) e.value=gm.edge; const b=blk.querySelector('[data-rb="blade"]'); if(b) b.value=gm.blade; }); currentMachine='feba'; }catch(e){} }
+function _l523SansMachine(){ try{ if((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine()) return false; currentMachine='feba'; document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';}); return true; }catch(e){ return false; } }   /* [L523 · C1] reprise / chargement SANS machine sur le pilotage : repli feba ET selects vides (la machine encore affichee par la commande precedente ne doit pas coller au brouillon repris) ; tablette : rien, le filet du poste fait foi */
 
 function onRefMachineChange(sel){
   const block=sel.closest('.ref-block');
@@ -6913,7 +6925,7 @@ function onClientChange(){
      de la commande precedente ne doit pas rester choisie en silence. Selects remis sur « — choisir — » (contour rouge + pastille
      « MACHINE A CHOISIR » de L511), toast honnete. Jamais au premier passage (restauration d un brouillon) ni sur une tablette machine. */
   try{ const _pc=window._l516PrevClient, _nc=String(client||'').trim(); const _pilot=!((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine());
-    if(_pilot&&_pc!==undefined&&_nc&&_pc&&_nc!==_pc){ let _rz=0; document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(function(el){ if(el.value){ el.value=''; _rz++; } }); if(_rz){ try{ showToast('Nouvelle commande : machine à choisir ('+_rz+' référence'+(_rz>1?'s':'')+').','ok'); }catch(_){ } } }
+    if(_pilot&&_pc!==undefined&&_nc&&_pc&&_nc!==_pc){ let _rz=0; document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(function(el){ if(el.value){ el.value=''; _rz++; } }); _l523GeomProvisoire();   /* [L523 · C2] bords/lame et repli remis a FEBA (ce que le libelle promet), bords sauf laize nette saisie */ if(_rz){ try{ showToast('Nouvelle commande : machine à choisir ('+_rz+' référence'+(_rz>1?'s':'')+').','ok'); }catch(_){ } } }
     window._l516PrevClient=_nc; }catch(_){ }
   const refs=_l454CatalogRefs(client);   /* [L454] tolere le client texte libre */
   /* [L487] data-ci = index dans le catalogue : deux entrees de MEME reference a metrages differents
@@ -8176,7 +8188,7 @@ function serializeRefGroups(){
   const _blks20=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
   return getRefGroups().map((g,i)=>({
     opValidated:!!(_blks20[i]&&_blks20[i].dataset.opValidated==='1'),   /* [L420] la validation operateur survit au brouillon — [L439 · URGENT terrain 27/08] JAMAIS undefined : Firestore refuse tout doc qui en contient un (« Unsupported field value: undefined ») → la sauvegarde d'un plan NON valide (le flux NORMAL du poste de saisie, cf. L428) plantait en bloc depuis L420. false est strippe pareil qu'undefined par la restauration (test truthy). */
-    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:g.machine||'', rows:g.rows, chutes:g.chutes||[], recuts:g.recuts||[], rawRows:g.rawRows||[], rawChutes:g.rawChutes||[], rawRecuts:g.rawRecuts||[]   // [L271 · audit #2] rawRows persistées pour ne pas perdre une ligne mal saisie (réf disparue) au ré-enregistrement ; [L287] même filet pour bobineaux stock + rouleaux chute
+    ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:_l523PersistMachine(((_blks20[i]&&_blks20[i].querySelector('[data-rb="machine"]'))||{}).value,g.machine,!!((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine())), rows:g.rows,   /* [L523 · C1] '' si le select est sur « — choisir — » (pilotage) : _restoreRefGroupsBody ne re-remplit plus FEBA */ chutes:g.chutes||[], recuts:g.recuts||[], rawRows:g.rawRows||[], rawChutes:g.rawChutes||[], rawRecuts:g.rawRecuts||[]   // [L271 · audit #2] rawRows persistées pour ne pas perdre une ligne mal saisie (réf disparue) au ré-enregistrement ; [L287] même filet pour bobineaux stock + rouleaux chute
   }));
 }
 // Chaîne lisible des attributs film d'une réf (ex. "Imprimé · VEKA"). Vide si rien.
@@ -10418,7 +10430,7 @@ async function doSave(){
   const refGroups=serializeRefGroups();
   const multi=refGroups.length>1;
   const entry={
-    rows:rows,machine:(refGroups[0]&&refGroups[0].machine)||currentMachine,
+    rows:rows,machine:((refGroups[0]&&refGroups[0].machine)||''),   /* [L523 · C1] '' sur pilotage sans choix : Donnees > Plans ne re-remplit plus FEBA au chargement */
     refGroups:refGroups,                       // multi-réfs (nouveau)
     mother:document.getElementById('motherWidth').value,
     blade:document.getElementById('bladeWidth').value,
@@ -10847,6 +10859,7 @@ async function doLoad(){
 
   // 2) Machine + paramètres (non bloquants).
   try{ selectMachine(s.machine); }catch(e){ console.warn('doLoad machine:',e); }
+  if(!s.machine) _l523SansMachine();   /* [L523 · C1] plan enregistre SANS machine : repli interne feba et selects vides sur le pilotage (selectMachine('') est un no-op) */
   set('motherWidth',s.mother); set('bladeWidth',s.blade); set('edgeLoss',s.edgeLoss);
   set('planLargeur',s.largeur); set('planLongueur',s.longueur);
   set('planNumCmd',s.numCmd); set('planDateLiv',s.dateLiv);
@@ -24742,7 +24755,7 @@ async function clearCurrentDraft(ficheId){
 function serializeFicheState(){
   _checkPersistIds();   // [L302] alerte UNE fois si un champ de persistance critique a disparu du DOM (id renommé au redesign)
   return {
-    plan:{machine:currentMachine,mother:g('motherWidth')?.value||'',blade:g('bladeWidth')?.value||'',edge:g('edgeLoss')?.value||'',
+    plan:{machine:_l523PlanMachine(),mother:g('motherWidth')?.value||'',   /* [L523 · C1] la machine CHOISIE ('' sur pilotage sans choix) : currentMachine n est plus persiste en silence */blade:g('bladeWidth')?.value||'',edge:g('edgeLoss')?.value||'',
       client:g('planClient')?.value||'',ref:g('planRef')?.value||'',largeur:g('planLargeur')?.value||'',longueur:g('planLongueur')?.value||'',
       numCmd:g('planNumCmd')?.value||'',dateLiv:g('planDateLiv')?.value||'',type:g('planType')?.value||'',palette:g('planPalette')?.value||'',
       etiquetage:g('planEtiquetage')?.value||'',cerclage:g('planCerclage')?.value||'',notes:g('planNotesEmballage')?.value||'',
@@ -25499,6 +25512,7 @@ function restoreFicheState(st){
   window._l377MachinePrep=null;   // [L379 · n°12] la reprise repart proprement (le swap de passation re-posera la valeur s'il a lieu)
   try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] brouillon restauré : chips du bon couple client+réf
   if(st.plan.machine) selectMachine(st.plan.machine); else currentMachine='feba';   /* [L516 · signalement Celine 10/09] brouillon SANS machine (poste de pilotage depuis L511) : on ne force plus FEBA dans les selects vides a chaque ouverture — repli interne inchange, l ecran reste sur « — choisir — » */
+  if(!st.plan.machine) _l523SansMachine();   /* [L523 · C1] brouillon sans machine : les selects sont vides sur le pilotage (preuve 16/09 : le select gardait la machine de l ecran precedent) */
   if(g('motherWidth'))g('motherWidth').value=st.plan.mother;
   if(g('bladeWidth'))g('bladeWidth').value=st.plan.blade;
   if(g('edgeLoss'))g('edgeLoss').value=st.plan.edge;
@@ -25984,9 +25998,7 @@ function toggleChangements(){
   try{ initTheme(); }catch(e){}   // [L155] thème clair/sombre appliqué dès le boot (écran de login inclus)
   initClientDropdown();
   // Présélection de la dernière machine choisie par l'opérateur (sinon champs vides).
-  let _lastM=''; try{_lastM=localStorage.getItem('step_last_machine')||'';}catch(e){}
-  selectMachine(_lastM||'feba');
-  if(!_lastM) document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';});
+  selectMachine('feba'); document.querySelectorAll('#refBlocks [data-rb="machine"]').forEach(el=>{el.value='';});   /* [L523 · C1 voisin] plus de « derniere machine » pre-remplie au chargement (E1 de L511 : le pilotage ouvre sur « — choisir — ») ; une tablette recoit sa machine a la connexion (applyRole, L363 B3) */
   // [L363 · B3] le compte machine « Poste X » n'est connu qu'après la connexion : applyRole re-pose la machine du poste si le bloc 1 est encore vide
   initDefaultRows();
   document.getElementById('fNumJour').value=getDayOfYear();
