@@ -116,7 +116,7 @@ console.log('── L513 matière du mois : SOURCE UNIQUE, familles disjointes, 
   ok(Math.abs(k.chuteM2-1771)<0.11,'chutes gardées = solde 885,5 + solde 885,5 = 1771 m² → '+k.chuteM2);
   ok(Math.abs(k.dechetM2-78.5)<0.11,'déchet NC = 1 bobineau 157 mm × 500 m = 78,5 m² (disjoint de la perte) → '+k.dechetM2);
   ok(k.machines.FEBA.perteM2===185.5&&k.machines.MAVEG.perteM2===7.5,'perte m² ventilée par machine : FEBA 185,5 · MAVEG 7,5 → '+k.machines.FEBA.perteM2+' / '+k.machines.MAVEG.perteM2);
-  ok(k.pertePct===7.4,'pertePct (ancien indicateur, agrégat mensuel ; plus lu par le CSV depuis L517) conservé : (9,9×3 + 0×1)/4 = 7,4 → '+k.pertePct);
+  ok(k.pertePct===7.4,'pertePct (ancien indicateur, agrégat mensuel ; plus EXPORTÉ par le CSV depuis L526, il l était encore après L517) conservé : (9,9×3 + 0×1)/4 = 7,4 → '+k.pertePct);
 }
 {
   // instantané persisté (f.mat, règle L513, ok) lu AVANT tout calcul vif — une fiche archivée ne change plus de chiffre

@@ -156,5 +156,27 @@ console.log('── 14. revue adversariale : fiche NON calculable (ok=false) →
   ok(m.ok===false&&m.perteM2===null&&m.chutesM2===null,'perte et chutes inconnues (null) → ok=false, trace ('+warns+' warn)');
   ok(near(m.dechetM2,78.5),'mais dechet NC = 78,5 m² (ncLoss ne depend pas des configurations) → '+m.dechetM2);
 }
+console.log('── 17. [L526 · demande Celine 16/09] decomposition de la PERTE : traits de lame / bords / laize restante non gardee (somme = perteM2 PAR CONSTRUCTION) ──');
+{
+  const F=()=>({mother:2100,useful:2090,blade:5,longueur:'500',ficheDetail:[L('4x502',{blade:5,useful:2090}),L('3x612',{blade:5,useful:2090}),L('2x157',{blade:5,useful:2090})]});
+  const m=M(F());
+  ok(m.lamesM2===15&&m.bordsM2===15&&near(m.resteM2,155.5),'cas 1 EPCO : lames 15 · bords 15 · laize restante 155,5 → '+m.lamesM2+' / '+m.bordsM2+' / '+m.resteM2);
+  ok(near(m.lamesM2+m.bordsM2+m.resteM2,m.perteM2,0.16),'somme des 3 = Perte m² ('+(m.lamesM2+m.bordsM2+m.resteM2)+' vs '+m.perteM2+')');
+  const f2=F(); f2.ficheDetail[2].ncLots=[{q:1,w:157}]; f2.ficheDetail[2].ncLarg=true; f2.ficheDetail[2].actDechet=true; const m2=M(f2);
+  ok(m2.lamesM2===m.lamesM2&&m2.bordsM2===m.bordsM2&&m2.resteM2===m.resteM2,'cas 2 (bobineau jete) : decomposition IDENTIQUE (le dechet n entre pas dans la perte)');
+  const m3=M({mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[L('3x612',{useful:2090,phaseEnd:true}),L('4x502',{useful:2090}),L('2x157',{useful:2090})]});
+  ok(m3.lamesM2===0&&m3.bordsM2===15&&near(m3.resteM2,41),'cas 3 (phaseEnd, lame 0) : lames 0 · bords 15 · reste 41 → '+m3.lamesM2+' / '+m3.bordsM2+' / '+m3.resteM2);
+  const m7=M({mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[L('2x157',{useful:2090}),L('1x100',{recut:true,rollW:300,useful:300})]});
+  ok(m7.lamesM2===0&&m7.bordsM2===5&&near(m7.resteM2,100),'cas 7 (rouleau ♻, lame 0) : le residu du rouleau est de la LAIZE RESTANTE : lames 0 · bords 5 · reste 100 → '+m7.lamesM2+' / '+m7.bordsM2+' / '+m7.resteM2);
+  [ {mother:2100,useful:2090,blade:0,longueur:'500',manqueMatiere:true,ficheDetail:[L('4x502',{useful:2090,coupee:true}),L('3x612',{useful:2090,coupee:true}),L('2x157',{useful:2090,coupee:false})]},
+    {refGroups:[{ref:'A',longueur:'500',mother:2100,edge:10},{ref:'B',longueur:'1000',mother:1260,useful:1240}],ficheDetail:[{conf:'4x502',useful:2090,blade:0,coupee:true,refIdx:0,ref:'A'},{conf:'20x55',useful:1240,blade:0,coupee:true,refIdx:1,ref:'B'}]},
+    {mother:2100,useful:2090,blade:5,longueur:'500',ficheDetail:[L('4x502',{blade:5,useful:2090}),L('3x612',{blade:5,useful:2090}),L('2x157',{blade:5,useful:2090}),L('1x500',{blade:5,useful:2090,label:'RESTE-1 · 1x500',ncLots:[{q:1,w:500}],ncLarg:true,actDechet:true})]}
+  ].forEach((f,i)=>{ const x=M(f); ok(x.ok===true&&near(x.lamesM2+x.bordsM2+x.resteM2,x.perteM2,0.16),'cas '+[6,10,13][i]+' : somme = perteM2 ('+(x.lamesM2+x.bordsM2+x.resteM2)+' vs '+x.perteM2+')'); });
+  warns=0; const m5=M({mother:2100,useful:2090,blade:0,ficheDetail:[L('4x502',{useful:2090})]});
+  ok(m5.ok===false&&m5.lamesM2===null&&m5.bordsM2===null&&m5.resteM2===null,'cas 5 (!ok) : decomposition null, jamais 0');
+  warns=0; const m9=M({mother:2100,useful:2090,blade:0,longueur:'500',totalBobines:3,ficheDetail:[{coupee:true},{coupee:true}]});
+  ok(m9.ok===false&&m9.lamesM2===null&&m9.bordsM2===null&&m9.resteM2===null,'cas 9 (!ok) : decomposition null');
+  ok([m,m2,m3,m7,m5,m9].every(x=>(typeof x.lamesM2==='number')===x.ok),'pour tous : (typeof lamesM2 === number) === ok');
+}
 console.log(fail?('💥 '+fail+' echec(s) sur '+total):('🏆 MATIERE L513 OK : '+total+' verifications'));
 process.exit(fail?1:0);

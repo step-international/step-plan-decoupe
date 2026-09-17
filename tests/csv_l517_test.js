@@ -22,6 +22,10 @@ global.CLIENT_DATA={'EPCO':[],'VEKA':[],'Alphacan 25':[]};
 ['_l517Num','_l517NoAcc','_l517ClientNom','_l517NumCmd','_l517Iso','_l517LivIso','_l517SansSec','_l517Blade','_l517NbMeres','_l517Bobineaux'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });
 const mC=src.match(/^const _L517_CAUSES=(\{[\s\S]*?\});/m); if(!mC) throw new Error('introuvable _L517_CAUSES'); global._L517_CAUSES=eval('('+mC[1]+')');
 global._l517Cause=eval('('+fnOf('_l517Cause')+')');
+/* [L526] la ligne appelle desormais _l526Decomp / _l526Diag, qui lisent MACHINE_DEFAULTS et les deux seuils (patron perte_l516_test) */
+const mD=src.match(/^const MACHINE_DEFAULTS=(\{[^;]*\});/m); if(!mD) throw new Error('introuvable MACHINE_DEFAULTS'); global.MACHINE_DEFAULTS=eval('('+mD[1]+')');
+global.PERTE_DIAG_SEUIL_PCT=+((src.match(/^const PERTE_DIAG_SEUIL_PCT=(\d+);/m)||[])[1]); global.PERTE_DIAG_LAIZE_ETROITE_MM=+((src.match(/^const PERTE_DIAG_LAIZE_ETROITE_MM=(\d+);/m)||[])[1]);
+['_l526PctM2','_l526Decomp','_l526Diag'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });
 const ROW=eval('('+fnOf('_l517FicheRow')+')');
 const HDR=(src.match(/const hdr='([^']*)'/)||[])[1].split(';');
 const col=(r,n)=>{ const i=HDR.indexOf(n); if(i<0) throw new Error('colonne absente : '+n); return r[i]; };
@@ -30,7 +34,9 @@ const L=(c,x)=>Object.assign({conf:c,useful:2090,blade:5,coupee:true,refIdx:0},x
 const F1=()=>({name:'EPCO-1',date:'2026-09-02T08:00:00Z',client:'EPCO pour le 02 09 2026 n°C12345',numCmd:'—',dateLiv:'02/09/2026',ini:'JF',machine:'FEBA',mother:2100,useful:2090,blade:5,longueur:'500',totalBobines:3,tempsStr:'1h 05min 32s (JF — 10/09/2026)',ficheDetail:[L('4x502'),L('3x612'),L('2x157')]});
 
 console.log('── 0. structure : autant de cellules que de colonnes ──');
-{ const r=ROW(F1()); ok(r.length===HDR.length,'ligne = '+r.length+' cellules pour '+HDR.length+' colonnes (le test qui manquait : un decalage rend le CSV illisible)'); ok(HDR.length===43,'43 colonnes → '+HDR.length); }
+{ const r=ROW(F1()); ok(r.length===HDR.length,'ligne = '+r.length+' cellules pour '+HDR.length+' colonnes (le test qui manquait : un decalage rend le CSV illisible)'); ok(HDR.length===47,'47 colonnes (43 + decomposition L526 + Diagnostic) → '+HDR.length);
+  ok(HDR.slice(43).join(';')==='Traits de lame m²;Bords m²;Laize restante m²;Diagnostic','[L526] les 4 colonnes AJOUTEES EN FIN DE LIGNE (positions 1-43 stables pour les classeurs du DG) → '+HDR.slice(43).join(';'));
+  ok(HDR.slice(0,43).join(';').endsWith(';Règle;Matière'),'[L526] la 43e colonne reste « Matière » : rien n a bouge avant'); }
 console.log('── 1. cas EPCO mono (4x502 / 3x612 / 2x157, mere 2100, utile 2090, lame 5, 500 m) ──');
 { const r=ROW(F1());
   ok(col(r,'Perte m²')==='185,5','Perte m² = 185,5 (virgule) → '+col(r,'Perte m²'));
@@ -79,5 +85,42 @@ console.log('── 6. _l517Cause sans effet de bord ──');
 { global._l505WarnN=7; const before=global._l505Warn; const c=_l517Cause({totalBobines:2,mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[{conf:'',coupee:true,refIdx:0}]});
   ok(c.ok===false&&/configuration/.test(c.cause),'cause rendue → '+c.cause);
   ok(global._l505Warn===before&&global._l505WarnN===7,'traceur et compteur restaures apres le rejeu (la tuile du mois ne voit rien)'); }
+console.log('── 7. [L526 · demande Celine 16/09] decomposition de « Perte m² » + Diagnostic (seuil PERTE_DIAG_SEUIL_PCT) ──');
+{ const r=ROW(F1());
+  ok(col(r,'Traits de lame m²')==='15'&&col(r,'Bords m²')==='15'&&col(r,'Laize restante m²')==='155,5','EPCO : traits de lame 15 · bords 15 · laize restante 155,5 → '+col(r,'Traits de lame m²')+' / '+col(r,'Bords m²')+' / '+col(r,'Laize restante m²'));
+  const num=v=>parseFloat(String(v).replace(',','.'));
+  const som=['Traits de lame m²','Bords m²','Laize restante m²'].reduce((a,n)=>a+num(col(r,n)),0);
+  ok(Math.abs(som-num(col(r,'Perte m²')))<=0.16,'somme des 3 colonnes = Perte m² ('+som+' vs '+col(r,'Perte m²')+')');
+  ok(String(col(r,'Diagnostic')).indexOf('5,9 % des m² = traits de lame 0,5 % + bords 0,5 % + laize restante non gardée 4,9 %')===0,'Diagnostic (5,9 > 5) commence par la decomposition en % → '+col(r,'Diagnostic'));
+  ok(_l517Num(_l526PctM2(185.5,3150))===col(r,'Perte % (m²)'),'meme arrondi partout : _l526PctM2(185,5 / 3150) = '+_l517Num(_l526PctM2(185.5,3150))+' = colonne Perte % (m²)');
+  const V=()=>({name:'VEKA-T',date:'2026-09-05T08:00:00Z',client:'VEKA',machine:'MAVEG',mother:2100,useful:2080,blade:5,longueur:'500',totalBobines:2,ficheDetail:[L('30x40+10x25+8x20',{useful:2080}),L('30x40+10x25+8x20',{useful:2080})]});
+  const rv=ROW(V()); const dg=String(col(rv,'Diagnostic'));
+  ok(/traits de lame : lame 5 mm sur des laizes de 20 à 40 mm \(laizes étroites\)/.test(dg)&&/⚠ lame 5 mm sur MAVEG/.test(dg),'VEKA/MAVEG lame 5 sur laizes 20-40 : le Diagnostic nomme les traits de lame, les laizes etroites et l alerte de reglage → '+dg);
+  ok(dg.indexOf('traits de lame')<dg.indexOf('bords')&&dg.indexOf('bords')<dg.indexOf('laize restante'),'ordre des termes = ordre des colonnes (lames → bords → laize restante)');
+  const sv=['Traits de lame m²','Bords m²','Laize restante m²'].reduce((a,n)=>a+num(col(rv,n)),0);
+  ok(Math.abs(sv-num(col(rv,'Perte m²')))<=0.16&&col(rv,'Perte % (m²)')==='17,7','VEKA : 235 + 20 + 117,5 = 372,5 = Perte m² (17,7 %) → '+sv+' vs '+col(rv,'Perte m²')+' / '+col(rv,'Perte % (m²)'));
+  const fnc={name:'NC',date:'2026-09-04T08:00:00Z',client:'X',totalBobines:2,mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[{conf:'',coupee:true,refIdx:0}]}; const rn=ROW(fnc);
+  ok(['Traits de lame m²','Bords m²','Laize restante m²'].every(n=>col(rn,n)==='')&&col(rn,'Diagnostic')==='perte non chiffrable : bobine pointée coupée sans configuration','fiche NON calculable : 3 cellules VIDES + Diagnostic = « perte non chiffrable : <cause _L517_CAUSES> » → '+col(rn,'Diagnostic'));
+  const h=F1(); h.mat={perteM2:1,chutesM2:2,dechetM2:0,m2Coupes:9,clientM2:6,ok:true,calcWarn:0,regleVer:'L513'}; const rh=ROW(h);
+  ok(['Traits de lame m²','Bords m²','Laize restante m²'].every(n=>col(rh,n)==='')&&String(col(rh,'Diagnostic')).indexOf('décomposition non écrite')===0,'f.mat pre-L526 DIVERGENT du rejeu : cellules vides + « décomposition non écrite » (jamais une decomposition qui contredit sa ligne) → '+col(rh,'Diagnostic'));
+  const h2=F1(); h2.mat={perteM2:185.5,chutesM2:885.5,dechetM2:0,m2Coupes:3150,clientM2:2079,ok:true,calcWarn:0,regleVer:'L513'}; const rh2=ROW(h2);
+  ok(col(rh2,'Traits de lame m²')==='15'&&col(rh2,'Laize restante m²')==='155,5','f.mat pre-L526 CONCORDANT : cellules remplies par le rejeu → '+col(rh2,'Traits de lame m²')+' / '+col(rh2,'Laize restante m²'));
+  const h3=F1(); h3.mat={perteM2:185.5,chutesM2:885.5,dechetM2:0,m2Coupes:3150,clientM2:2079,lamesM2:1,bordsM2:2,resteM2:182.5,ok:true,calcWarn:0,regleVer:'L513'};
+  const d3=_l526Decomp(h3,_l513MatiereOf(h3),null); ok(d3.ok===true&&d3.src==='mat'&&d3.lamesM2===1,'f.mat AVEC decomposition : lue sur l instantane (src=mat) → '+d3.src+' / '+d3.lamesM2);
+  const f1=F1(), m1=_l513MatiereOf(f1), c1=_l517Cause(f1), d1=_l526Decomp(f1,m1,c1.mat);
+  ok(_l526Diag(f1,d1,c1,10)===''&&_l526Diag(f1,d1,c1,5).indexOf('5,9 % des m²')===0,'seuil : a 10 % rien (EPCO 5,9 %) ; a 5 % la decomposition');
+  const fv=V(), mv=_l513MatiereOf(fv), cv=_l517Cause(fv), dv=_l526Decomp(fv,mv,cv.mat);
+  ok(/⚠ lame 5 mm sur MAVEG/.test(_l526Diag(fv,dv,cv,50)),'l alerte de reglage lame/machine sort MEME sous le seuil (seuil 50) : un reglage faux est un signal qualite');
+}
+console.log('── 8. [L526] _l526Decomp sans effet de bord ; une vraie exception est TRACEE (regle 7), jamais avalee ──');
+{ const h=F1(); h.mat={perteM2:1,chutesM2:2,dechetM2:0,m2Coupes:9,clientM2:6,ok:true,calcWarn:0,regleVer:'L513'}; const mh=_l513MatiereOf(h);
+  const fnc={totalBobines:2,mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[{conf:'',coupee:true,refIdx:0}]}; const mn=_l513MatiereOf(fnc);   /* la source unique est calculee par l APPELANT (comme dans _l517FicheRow) : ses traces sont les siennes */
+  global._l505WarnN=7; const before=global._l505Warn; global._l517Replay=false; const w0=warns;
+  _l526Decomp(h,mh,null); _l526Decomp(fnc,mn,null);
+  ok(global._l505Warn===before&&global._l505WarnN===7&&global._l517Replay!==true&&warns===w0,'traceur et compteur restaures, rejeu MUET (aucune trace emise), _l517Replay jamais pose (la tuile du mois ne voit rien)');
+  const d=_l526Decomp(F1(),{get ok(){ throw new Error('boom'); }},null);
+  ok(d.ok===false&&d.err.indexOf('boom')>=0&&warns===w0+1&&global._l505Warn===before,'exception forcee : err renseigne, UNE trace emise (regle 7), traceur restaure → '+d.err+' / '+(warns-w0));
+  ok(_l526Diag(F1(),d,{ok:true},5).indexOf('décomposition indisponible')===0,'Diagnostic dit « décomposition indisponible … »');
+}
 console.log(fail?('💥 '+fail+' echec(s) sur '+total):('🏆 CSV L517 OK : '+total+' verifications'));
 process.exit(fail?1:0);

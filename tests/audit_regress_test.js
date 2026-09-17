@@ -171,7 +171,7 @@ has(/function csvMetaLine\(/,'R6 : ligne de méta CSV (date · auteur · périm�
 has(/csvMetaLine\('Relevés de temps',temps\.length\)/,'R6 : périmètre DANS le CSV temps');
 has(/csvMetaLine\('Registre NC',rows\.length\)/,'R6 : périmètre DANS le CSV NC');
 has(/csvMetaLine\('Fiches de découpe',fiches\.length\)/,'R6 : périmètre DANS le CSV fiches');
-has(/function exportDashboardCsv\(/,'R6 : export CSV tableau de bord (KPI 24 mois + débit quartiles + pilotage)');
+has(/function exportDashboardCsv\(/,'R6 : export CSV tableau de bord (KPI 12 mois glissants + débit + pilotage — L526)');
 has(/step_tableau_de_bord_/,'R6 : nom de fichier daté du tableau de bord');
 has(/n\/d = mois figé AVANT la version/,'R6 : n/d expliqué DANS le fichier (jamais un faux 0 exporté)');
 
@@ -1494,8 +1494,8 @@ console.log('── L482 : diagramme matiere mensuel ISO (perte / dechet / chute
 has(/chuteM2=0;/,'L482 : accumulateur chuteM2 dans buildMonthlyKpi');
 has(/chuteM2:Math\.round\(chuteM2\*10\)\/10/,'L482 : chuteM2 dans le retour du KPI mensuel (voyage dans les agregats figes)');
 has(/fd\.actChutes===true&&!fd\.recut&&typeof ncLoss/,'L482→L485 : NC partie en ✂ Chutes comptee en CHUTE gardee (hors rouleaux ♻)');
-has(/if\(fd\.actChutes\|\|fd\.phaseEnd\|\|lastIdx\.has\(i\)\) chutes\+=w\*k; else perte\+=w\*k;/,'L482→L485→L513 : chute gardee = solde de la derniere bobine de chaque ref + fins de phase + ✂ Chutes, sinon PERTE (ancre sur le CODE de la source unique)');
-has(/{f:'perte',lbl:'Perte',c:'#f87171'}/,'L482 : serie Perte du diagramme');
+has(/if\(fd\.actChutes\|\|fd\.phaseEnd\|\|lastIdx\.has\(i\)\) chutes\+=w\*k; else \{ perte\+=w\*k; pReste\+=w\*k; \}/,'L482→L485→L513→L526 : chute gardee = solde de la derniere bobine de chaque ref + fins de phase + ✂ Chutes, sinon PERTE (ancre sur le CODE de la source unique ; L526 ajoute le jumeau pReste, memes conditions, meme terme w*k)');
+has(/{f:'perte',lbl:'Perte',c:'#f0742a'}/,'L482→L526 : serie Perte du diagramme, ORANGE comme la tuile Perte (decision Celine 16/09 : perte/dechet etaient inverses entre graphe et tuiles)');
 has(/{f:'chute',lbl:'Chutes gardées',c:'#5eead4'}/,'L482 : serie Chutes gardees du diagramme');
 has(/✂ chutes gardées<\/span>/,'L482 : chutes gardees du mois dans la ligne de tete');
 has(/'Chutes gardées m²'/,'L482 : colonne Chutes gardees m² dans le CSV mensuel');
@@ -2004,7 +2004,7 @@ has(/^function _l505Warn\(where,e\)\{/m,'L505 : catch muets de la chaîne ISO �
 has(/\}catch\(e\)\{ _l505Warn\('wasteOf',e\); return 0; \}/,'L505 : wasteOf trace son repli');
 has(/\}catch\(e\)\{ _l505Warn\('_l493ChuteFromDetail',e\); return 0; \}/,'L505 : _l493ChuteFromDetail trace son repli');
 has(/\}catch\(e\)\{ try\{ _l505Warn\('l513·matiere',e\); \}catch\(_\)\{ \} R\.calcWarn\+\+; return R; \}/,'L505→L513 : NC → chute (et toute la matière) trace son repli : _l513Matiere ne retourne jamais un 0 sur exception (calcWarn + _l505Warn)');
-has(/_l517ReplisToggle\('\$\{ym\}'\)/,'L505→L506→L517 : la tuile Chutes gardées affiche le compteur de replis DE L AGRÉGAT, désormais CLIQUABLE (liste fiche / date / client / cause)');
+has(/_l517ReplisToggle\(\\''\+ym\+'\\'\)/,'L505→L506→L517→L526 : la tuile Chutes gardées affiche le compteur de replis DE L AGRÉGAT, CLIQUABLE hors filtre machine (_repClick : la liste est TOUT atelier)');
 console.log('── L506 · décision Esteban 05/09 : mode apprenti + bulle « 1 tap » supprimés ──');
 has(/\[L506 · décision Esteban 05\/09\] MODE APPRENTI \(L323\) et INDICE « 1 tap » \(L322\) SUPPRIMÉS/,'L506 : pierre tombale documentée (pourquoi, quoi)');
 has(/k\.indexOf\('step_appr_'\)===0\|\|k\.indexOf\('step_hint_cut_'\)===0/,'L506 : ménage des anciennes clés localStorage sur les tablettes');
@@ -2236,7 +2236,7 @@ has(/id="kpiReplisList"/,'L517 : conteneur DISTINCT de kpiFichesList (sinon les 
 has(/;Client \(nom seul\);N° commande;Livraison;Mois livraison;/,'L517 pt.3+10+11 : identification commerciale du DG, en colonnes propres');
 has(/;Largeur bobine mère \(mm\);Utile;Perte lame \(mm\);Longueur bobine mère \(m\);/,'L517 pt.7/8/9 : libellés qui disent ce que la colonne VAUT (5 = FEBA, 0 = MAVEG/CEVENINI)');
 has(/;Total bobines mères;Bobines mères coupées;Bobineaux découpés;/,'L517 pt.4/5 : « Total bobines » était une demi-vérité (bobines du PLAN) — la colonne « coupées » le dit');
-has(/;Règle;Matière';/,'L517 (10/09) : Règle (L513 ou vide) + Matière (« calculée » / « non calculable : cause ») en fin de ligne');
+has(/;Règle;Matière;Traits de lame m²;Bords m²;Laize restante m²;Diagnostic';/,'L517 (10/09) → L526 (16/09) : Règle + Matière, puis la decomposition de Perte m² (3 colonnes) et le Diagnostic AJOUTES EN FIN DE LIGNE (positions 1-43 stables)');
 has(/\(\(f&&f\.mat&&f\.mat\.regleVer==='L513'\)\?'L513':''\)/,'L517 : la colonne Règle lit f.mat DIRECTEMENT (via _l513MatiereOf elle serait toujours « L513 »)');
 absent(/f\.totalBobines,_l471FicheM2\(f\),f\.pct,/,'L517 pt.1 : l ancienne colonne « Perte % » (f.pct, base utile) a quitté la ligne');
 
@@ -2342,5 +2342,54 @@ has(/^function _l525MoveAfter\(lines,rest\)\{/m,'L525 : helper pur — les figee
 has(/return \(typeof isLineFrozen==='function'\)\?!!isLineFrozen\(id\):false; \}catch\(e\)\{ return false; \} \}   \/\* une ligne coupee, jetee, ou engagee par un GESTE operateur/,'L525 : un geste operateur (etiquette, photo, NC, conf) = reference commencee, la chute ne passe jamais devant une bobine touchee');
 has(/const _l525S=_l525Split\(frozenMetas\.filter\(l=>lineKey\(l\)===k\),function\(l\)\{ return _l525Done\(frozenNodes\[l\.id\],l\.id\); \}\);/,'L525 : rebuild engage, etape 3a — reference commencee ?');
 has(/if\(recutAdded>0&&!_l525S\.started\)\{ const _l525M=_l525S\.rest\.filter\(function\(l\)\{ return !l\.recut; \}\); if\(_l525M\.length\)\{ _l525M\.forEach\(function\(l\)\{ const n=document\.getElementById\(l\.id\); if\(n\) cont\.appendChild\(n\); \}\); ficheLines=_l525MoveAfter\(ficheLines,_l525M\); \} \}/,'L525 : rebuild engage, apres les rouleaux — chute en n°1 de sa reference si elle n est pas commencee ; un rouleau ♻ deja en place ne recule jamais');
+
+// ── [L526 · demandes Celine 16/09/2026] decomposition de la perte, % a cote des m², filtre machine des KPI, CSV KPI recale L513, couleurs, libelles ──
+has(/^const PERTE_DIAG_SEUIL_PCT=5;/m,'L526 : seuil du Diagnostic = point de reglage UNIQUE (5 %), jamais 5 en dur ailleurs');
+has(/^const PERTE_DIAG_LAIZE_ETROITE_MM=50;/m,'L526 : seuil « laize etroite » = point de reglage unique');
+has(/lamesM2:r1\(pLames\),bordsM2:r1\(pBords\),resteM2:r1\(pReste\)/,'L526 : _l513Matiere expose la decomposition avec le MEME arrondi que perteM2 (somme = perte par construction)');
+has(/perte\+=lames\*k; pLames\+=lames\*k;/,'L526 : jumeau traits de lame');
+has(/if\(fd\.recut\)\{ perte\+=w\*k; pReste\+=w\*k; \}/,'L526 : le residu d un rouleau ♻ est de la laize restante');
+has(/perte\+=c\.edge\*k; pBords\+=c\.edge\*k;/,'L526 : jumeau bords');
+has(/^function _l526Decomp\(f,m,live\)\{/m,'L526 : lecteur UNIQUE de la decomposition (instantane, sinon rejeu MUET accepte seulement s il retombe sur le meme perteM2)');
+has(/^function _l526Diag\(f,d,c,seuil\)\{/m,'L526 : Diagnostic texte du CSV fiches, seuil reglable');
+has(/^function _l526PctM2\(n,d\)\{/m,'L526 : UNE definition du % matiere (perte / m² coupes, base bobine mere) pour les tuiles ET le CSV KPI');
+has(/^function _l526MachKeep\(x,m\)\{/m,'L526 : predicat machine (machine OU relais) partage par les fiches et les releves');
+has(/const _d26=_l526Decomp\(f,_m17,_c17\.mat\);/,'L526 : la ligne CSV reutilise le rejeu de _l517Cause (zero appel de plus a la source unique)');
+has(/window\._l505Warn=_pw; if\(!_bug\) window\._l505WarnN=_pn;/,'L526 : traceur ET compteur restaures apres le rejeu muet ; une vraie exception reste TRACEE et COMPTEE (regle 7)');
+absent(/_l526Decomp[\s\S]{0,1500}_l517Replay=true/,'L526 : le rejeu de decomposition ne force PAS la re-emission des traces (reserve a _l517Cause)');
+has(/\$\{_l513M2\(kpi\.perteM2\)\} m²\$\{_pct26\?_l526PctSpan\(kpi\.perteM2,kpi\.m2,'Perte % \(m²\)'\):''\}/,'L526 : tuile Perte = m² + % A COTE (base m² coupes), jamais a la place ; pas de % sur un mois fige sous l ancienne definition (revue adverse)');
+has(/\$\{_l513M2\(kpi\.dechetM2\)\} m²\$\{_pct26\?_l526PctSpan\(kpi\.dechetM2,kpi\.m2,'Déchet %'\):''\}/,'L526 : tuile Dechet = m² + %');
+has(/const _pct26=\(isLive\|\|!!_mf26\|\|\(kpi&&kpi\.regleVer==='L513'\)\);/,'L526 (revue adverse) : le % des tuiles suit la meme regle que le CSV (n/d avant L513)');
+has(/const M=\(\(_mf26&&_kAll26\)\?_kAll26:kpi\)\.machines\|\|\{\};/,'L526 (revue adverse, MAJEUR) : « Par machine » reste TOUT atelier sous filtre machine, comme le dit la note');
+has(/if\(_mf26\) _kAll26=buildMonthlyKpi\(ym,fichesCache,tempsCache\);/,'L526 (revue adverse) : mois courant sous filtre — calcul TOUT atelier conserve pour « Par machine »');
+has(/const _repClick=_mf26\?'':/,'L526 (revue adverse) : sous filtre, le lien « fiches a verifier » n ouvre plus la liste TOUT atelier');
+absent(/avec repli tracé|fiche en repli ce mois/,'L526 (revue adverse) : plus de jargon « repli » dans la liste des fiches a verifier');
+has(/x\.machineChg&&x\.machineChg\.to/,'L526 (revue adverse) : le filtre machine compte aussi le changement de machine en cours de fiche');
+has(/const pc=\(a\)=>\{ const p=_m17\.ok\?_l526PctM2\(a,_m17\.m2Coupes\):null; return \(p==null\)\?'':_l517Num\(p\); \};/,'L526 (revue adverse) : UNE formule de % sur la ligne CSV (la colonne et le seuil du Diagnostic ne peuvent plus diverger de 0,1)');
+has(/const pr=Math\.max\(0,Math\.round\(\(pct-pl-pb\)\*10\)\/10\);/,'L526 (revue adverse) : l egalite ecrite dans le Diagnostic est exacte (dernier terme par difference)');
+has(/if\(!L\)\{ if\(_hasW\) window\._l505Warn=function\(\)\{\}; L=_l513Matiere\(f\); \}/,'L526 : le rejeu de decomposition est MUET (marqueur positif, rouge sur L525 — l absent() seul etait vert par construction)');
+has(/revirement PARTIEL et daté : le % en base m² COUPÉS/,'L526 : la decision du 28/08 (plus de % a l ecran) est amendee PAR ECRIT et DATEE (Celine 16/09), sinon une revue future retire le %');
+has(/kpi=buildMonthlyKpi\(ym,_l526F\(fichesCache\),_l526F\(tempsCache\)\);/,'L526 : filtre machine des KPI = recalcul EN DIRECT sur un sous-ensemble de fiches (buildMonthlyKpi et les agregats INCHANGES)');
+has(/n'est pas couvert par les fiches chargées/,'L526 : mois fige sous filtre : recalcule seulement si la couverture est PROUVEE, sinon on le DIT (jamais un chiffre partiel)');
+has(/const prevKpi=_mf26\?null:\(agregatsCache\.find/,'L526 : sous filtre machine, aucun Δ contre un agregat TOUT atelier');
+has(/const evo=_mf26\?\[\]:agregatsCache/,'L526 : tableau Evolution masque sous filtre');
+has(/const _fchClick=_mf26\?'':/,'L526 : sous filtre, la tuile Fiches n ouvre plus la liste TOUT atelier');
+has(/if\(_ks26\) renderKpiMois\(_ks26\.value\);/,'L526 : le rendu partiel au clic de pastille re-rend les tuiles KPI');
+has(/\+scopeNoteKpi\+buildKpiMoisBlock\(\)\+/,'L526 : bandeau du bloc KPI = dit ce qui suit la machine et ce qui reste tout atelier');
+has(/^const _L526_KPI_HDR=\['Mois','Statut','Fiches','Bobines','m²','Perte % \(m²\)','Perte m²','Déchet m²','Déchet %','Chutes gardées m²'/m,'L526 : en-tete UNIQUE du CSV KPI, 30 colonnes, libelles et ordre du CSV fiches');
+has(/^function _l526KpiMois\(agregats,cur,fenetre\)\{/m,'L526 : fenetre 12 mois glissants, mois vides omis (les 2025 vides ne remontent plus)');
+has(/^function _l526KpiRow\(k,cur\)\{/m,'L526 : ligne PURE du CSV KPI (testee hors navigateur)');
+has(/const all=_l526KpiMois\(list,cur,prevMonthsYM\(12\)\)/,'L526 : l export applique la fenetre du selecteur');
+has(/rows\.push\(_l526KpiRow\(k,cur\)\.map\(csvCell\)\.join\(';'\)\);/,'L526 : csvCell conserve (anti-injection Excel)');
+absent(/'Perte %','Rendement %'/,'L526 : l ancien en-tete KPI (pertePct base utile, Rendement %) a disparu');
+absent(/k\.pertePct!=null\?k\.pertePct:''/,'L526 : le CSV n exporte plus k.pertePct (moyenne de f.pct, base laize utile : 1,5 % sur la VEKA contre 19,4 % L513)');
+absent(/d\.pertePct!=null\?d\.pertePct:''/,'L526 : plus de « perte % » par machine sous l ancienne base');
+absent(/⬇ CSV du mois/,'L526 : libelle mensonger retire (le fichier contient 12 mois + debit + pilotage)');
+has(/{f:'dechet',lbl:'Déchet \(NC\)',c:'#f87171'}/,'L526 : serie Dechet du diagramme ROUGE comme la tuile Dechet (Celine 16/09)');
+has(/{label:'Humain',value:ncHum,color:'#2dd4bf'}/,'L526 : part « Humain » du camembert NC en turquoise (Quantite et Humain etaient trop proches, Celine 16/09)');
+has(/Bobines mères avec NC<\/div>/,'L526 : tuile renommee « Bobines meres avec NC » (Celine 16/09 : « bobines ? bobineaux ? »)');
+has(/sur \$\{_q\.ctrl\} contrôlées/,'L526 : sous-titre « N sur M controlees · K non cloturee(s) »');
+absent(/calcul\(s\) en repli<\/span>/,'L526 : « calcul(s) en repli » (jargon) ne s affiche plus sur la tuile');
+has(/calcul\(s\) incertain\(s\) · fiches à vérifier/,'L526 : la tuile dit « N calcul(s) incertain(s) · fiches a verifier » (Celine 16/09)');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
