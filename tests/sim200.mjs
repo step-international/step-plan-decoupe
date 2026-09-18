@@ -68,6 +68,8 @@ const PAGE_ONE = `(async function(k){
       if(!w2s.length){ rep.multiSkip='réf 2 trop étroite (utile '+u2+' mm)'; }
       else { const n2=ri(1,2); for(let i=0;i<n2;i++){ r2.appendChild(makeOrderRow(String(ri(1,20)),String(pick(w2s)))); } multi=true; } }catch(e){ bug('multi : addRefBlock a levé '+e.message); } }
     rep.multi=multi;
+    /* [L527] le VRAI geste de l operateur (CLAUDE.md lecon 3) : la laize mesuree est TAPEE dans chaque bloc — sans elle VALIDER la preparation refuse (garde L527) */
+    document.querySelectorAll('#refBlocks .ref-block').forEach(b=>{ try{ const u=b.querySelector('[data-op-useful]'); const m=parseFloat(String(b.querySelector('[data-rb=mother]')?.value||'').replace(',','.'))||0; const e=parseFloat(String(b.querySelector('[data-rb=edge]')?.value||'').replace(',','.'))||0; const v=(typeof clampUseful==='function')?clampUseful(m-e):(m-e); if(u&&v>0){ u.value=String(v); u.dispatchEvent(new Event('input',{bubbles:true})); } }catch(_){} });
     recalcPlan(); await wait(60);
     const cards=document.querySelectorAll('#planCards .bobine-card').length;
     const tiles=[...document.querySelectorAll('#statsBar .stat-tile b')].map(e=>e.textContent.trim());

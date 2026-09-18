@@ -32,6 +32,7 @@ const SETUP = {
     __set('planClient','EPCO'); onClientChange&&onClientChange();
     __set('planRef','41312809 - TacFlex® KX1045-1'); __set('planNumCmd','CMD-2026-0871');
     (function(){ const rows=document.querySelector('.ref-block .rb-rows'); rows.innerHTML=''; rows.appendChild(makeOrderRow('9','502')); rows.appendChild(makeOrderRow('3','612')); rows.appendChild(makeOrderRow('65','157')); })();
+    document.querySelectorAll('#refBlocks .ref-block').forEach(b=>{ try{ const u=b.querySelector('[data-op-useful]'); const m=parseFloat(String(b.querySelector('[data-rb=mother]')?.value||'').replace(',','.'))||0; const e=parseFloat(String(b.querySelector('[data-rb=edge]')?.value||'').replace(',','.'))||0; const v=(typeof clampUseful==='function')?clampUseful(m-e):(m-e); if(u&&v>0){ u.value=String(v); u.dispatchEvent(new Event('input',{bubbles:true})); } }catch(_){} });   /* [L527] laize TAPEE (sinon VALIDER refuse et le chrono ne demarre pas) */
     recalcPlan();
   `,
   plan: `showPage(0); window.scrollTo(0,0);`,

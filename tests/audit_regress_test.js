@@ -2029,7 +2029,7 @@ absent(/function groupsFromDetail\(/,'L506 : l ancien regroupement (laize de la 
 has(/if\(!_multiEF\) _defs=\{useful:parseNum\(f\.useful\)\|\|0,blade:parseNum\(f\.blade\)\|\|0,ref:f\.ref\|\|'',refIdx:0\};/,'L506 : bobine AJOUTÉE par l admin (mono-réf) hérite laize/lame/réf de la fiche');
 has(/if\(nrm\(g\.ref\)!==_nn&&rg\.some\(function\(x\)\{ return x&&nrm\(x\.ref\)===_nn; \}\)\) g=null;/,'L506 : _lgOf rejette l index seulement si le nom désigne un AUTRE groupe (réf renommée : index gardé)');
 has(/^function _l506RefGroupFor\(f,fd\)\{ try\{/m,'L506 : résolution UNIQUE de la réf d une ligne (index fiable → refIdKey → nom unique → null)');
-has(/_l507Traced\.add\(fd\); _l505Warn\('ref·index-sans-nom',/,'L507 : l index qui gagne sans nom concordant est TRACÉ (une fois par ligne) — [L521] regex recalee : la garde accepte desormais le drapeau de rejeu window._l517Replay (audit adverse C5)');
+has(/_l507Trace\('ref·index-sans-nom',String\(fd\.ref\|\|''\)\+' → '\+String\(gi\.ref\|\|''\)\); return gi; \}/,'L507 : l index qui gagne sans nom concordant est TRACÉ (une fois par ligne) — [L521] la garde accepte le drapeau de rejeu — [L527] regex recalee : la trace passe par la garde locale unique _l507Trace(tag,msg)');
 has(/^function _l507MatchRefByLabel\(label,refGroups\)\{ try\{/m,'L507 : matcher de référence par libellé, pur et testé (KX1006-1 vs KX1006-10)');
 has(/^function _l507GroupUseful\(g\)\{ try\{/m,'L507 : laize utile d un groupe persisté recomposée mère − bords (serializeRefGroups n a pas de useful)');
 has(/^function _l507GroupIdxOf\(f,fd\)\{ try\{/m,'L507 : index de groupe PAR LIGNE pour les compteurs de m² (index fiable → identité → nom)');
@@ -2297,7 +2297,7 @@ has(/^\s*\/\/ \[L521 · audit adverse 15\/09\] ce commentaire vivait DANS le gab
 has(/if\(fd\.actDechet===true&&!fd\.recut&&typeof ncLoss==='function'\)\{ const n=ncLoss\(f,fd\); if\(n&&n\.m2>0\)\{ client-=n\.m2; \} \}/,'L521 : le dechet NC d une ligne ♻ n est plus soustrait de « m² decoupes et livres » (jamais credite)');
 has(/const _n0=cur\.querySelector\('\.l516-note'\); if\(_n0\) _n0\.remove\(\); return; \}/,'L521 : note VOIR DOMINIQUE purgee quand la configuration devient vide');
 has(/const _n1=cur\.querySelector\('\.l516-note'\); if\(_n1\) _n1\.remove\(\); return; \}/,'L521 : note purgee quand la configuration est illisible');
-has(/if\(\(typeof window!=='undefined'&&window\._l517Replay\)\|\|!_l507Traced\.has\(fd\)\)\{ _l507Traced\.add\(fd\); _l505Warn\('ref·index-sans-nom',/,'L521 : le rejeu _l517Cause re-emet la trace ref·index-sans-nom');
+has(/const _l507Trace=function\(tag,msg\)\{ try\{ if\(\(typeof window!=='undefined'&&window\._l517Replay\)\|\|!_l507Traced\.has\(fd\)\)\{ _l507Traced\.add\(fd\); _l505Warn\(tag,new Error\(msg\)\); \} \}catch\(_\)\{ \} \};/,'L521 : le rejeu _l517Cause re-emet la trace ref·index-sans-nom — [L527] regex recalee : garde locale unique _l507Trace (audit_l521 C5 : un seul _l507Traced.has)');
 has(/window\._l505Warn=prev; window\._l505WarnN=prevN; window\._l517Replay=false; \}/,'L521 : drapeau de rejeu retire dans le finally');
 has(/tags:Array\.from\(new Set\(tags\.map\(x=>x\.t\)\)\)/,'L521 : causes dedoublonnees dans la liste des fiches en repli (passe adverse)');
 has(/^function _l516EstSolde\(l\)\{ try\{\n  if\(!l\|\|l\.recut\) return false;\n  if\(l\.actChutes===true\) return true;/m,'L521 : _l516EstSolde suit la regle L513 (✂ Chutes = solde)');
@@ -2391,5 +2391,84 @@ has(/Bobines mères avec NC<\/div>/,'L526 : tuile renommee « Bobines meres avec
 has(/sur \$\{_q\.ctrl\} contrôlées/,'L526 : sous-titre « N sur M controlees · K non cloturee(s) »');
 absent(/calcul\(s\) en repli<\/span>/,'L526 : « calcul(s) en repli » (jargon) ne s affiche plus sur la tuile');
 has(/calcul\(s\) incertain\(s\) · fiches à vérifier/,'L526 : la tuile dit « N calcul(s) incertain(s) · fiches a verifier » (Celine 16/09)');
+
+// ── [L527 · incident Celine 17/09/2026] reference sans laize MESUREE : marqueur par bloc, poste operateur seul, VALIDER refuse, ceinture de coupe, rappel de fin de ref ──
+has(/^function _l527PosteOp\(\)\{/m,'L527 : poste OPERATEUR (compte machine ou role operateur) = seul poste dont la saisie confirme la laize (process Celine : le bureau calcule et imprime, la machine mesure)');
+has(/^function _l527LaizeOk\(blk\)\{ try\{ return !!\(blk&&blk\.dataset&&blk\.dataset\.laizeOk==='1'\); \}/m,'L527 : « laize confirmee » = marqueur data-laize-ok seulement — jamais le defaut mere−bords, jamais une laize tapee au bureau');
+has(/if\(parseNum\(v26\)>0&&_l527PosteOp\(\)\) blk\.dataset\.laizeOk='1';/,'L527 : la frappe dans la case « Laize utilisable » confirme la laize de CETTE reference — au poste operateur seulement');
+has(/inp\.value=\(u>0&&\(_l527LaizeOk\(blk\)\|\|!_l527PosteOp\(\)\)\)\?String\(Math\.round\(u\*10\)\/10\):'';/,'L527 : poste operateur = case VIDE tant que non confirmee (le 2090 affiche passait pour une saisie) ; bureau = valeur provisoire affichee');
+has(/document\.body\.classList\.toggle\('l527-op',_l527PosteOp\(\)\);/,'L527 : le libelle CSS sous la case depend du poste');
+eqN((src.match(/data-op-useful oninput="_l421UsefulInput\(this\)" inputmode="decimal" placeholder="à saisir"/g)||[]).length,2,'L527 : placeholder « a saisir » sur les DEUX cases (bloc 1 statique + gabarit addRefBlock)');
+has(/Laize utilisable NON saisie — tape la laize MESURÉE de TA bobine/,'L527 : VALIDER la preparation refuse sans laize saisie (le trou exact de l incident : mo>0 etait vrai par construction)');
+has(/La préparation se valide à la MACHINE/,'L527 : au bureau, VALIDER dit que la preparation se valide a la machine');
+has(/_l527LaizeOk\(_blks20\[i\]\)\)\?\{laizeOk:true\}:\{\}\),/,'L527 : le marqueur survit au brouillon (jamais undefined, L439) — [revue adverse 18/09] regex recalee : cle ABSENTE quand non confirmee');
+has(/if\(g&&g\.laizeOk\) _b20\[i\]\.dataset\.laizeOk='1'; else delete _b20\[i\]\.dataset\.laizeOk; if\(g&&g\.opValidated&&_l527LaizeOk\(_b20\[i\]\)\) _b20\[i\]\.dataset\.opValidated='1';/,'L527 : reprise d un plan — marqueur restaure OU efface (bloc 1 statique, L514d) et une validation ne survit pas sans laize confirmee');
+has(/if\(mo\) mo\.value=''; delete b\.dataset\.laizeOk;/,'L527 : ↺ Nouveau plan efface le marqueur (lecon L514d : rien de collant)');
+eqN((src.match(/delete block\.dataset\.laizeOk;|delete _b27\.dataset\.laizeOk;/g)||[]).length,2,'L527 : choix d une reference au catalogue (mere ecrasee) = laize a re-saisir, sur les DEUX jumeaux (onRefChange / onRefChangeBlock)');
+has(/value="'\+\(_ok27\?V\(r\.mother\):''\)\+'"/,'L527 : carte Fiche — la bobine mere n est PAS pre-remplie tant que la laize n est pas confirmee (un tap validait 2100/10)');
+has(/laize NON saisie — tape ici la VRAIE bobine mère mesurée/,'L527 : Fiche — refus explicite du bouton bleu (dit quoi faire : ici ou onglet Plan)');
+has(/planBlock\.dataset\.laizeOk='1';/,'L527 : bobine mere tapee dans la Fiche = laize confirmee pour cette ref (geste de la machine)');
+has(/if\(_ko27\)\{ _l527GoPlan\(_i27,_r27\?refDisp\(_r27\):''\); return; \}/,'L527 : ceinture de coupe — une ref validee par HERITAGE sans laize confirmee ne se coupe pas (decision hors du try, avant le verrou L379)');
+has(/^function _l527GoPlan\(idx,lbl\)\{/m,'L527 : refus = toast + showPage(0) + focus/halo sur la case de CETTE ref (patron _chronoBlocked, zero tap mort)');
+has(/^function _l527NewlyDone\(prev,done\)\{/m,'L527 : rappel de fin de reference — helper PUR (muet au 1er rendu / reprise)');
+has(/^function _l527RefDoneMsg\(doneLbl,nextLbl,nextKo\)\{/m,'L527 : texte du rappel (Celine : initiales, laize mesuree, chutes → VALIDER) + laize manquante de la ref suivante');
+has(/showToast\(_l527RefDoneMsg\(refDispCtx\(_byKey00\[_k\],_k\),_nx\?refDispCtx\(_byKey00\[_nx\],_nx\):'',_nko\),'err'\);/,'L527 : le rappel part a la derniere coche d une reference quand il en reste une autre (jamais quand tout est coupe)');
+has(/body\.l527-op #refBlocks \.ref-block:not\(\[data-laize-ok="1"\]\) \.field:has\(\[data-op-useful\]\)::after\{content:"LAIZE À SAISIR — plan provisoire"/,'L527 : Plan (paysage, poste operateur) — « LAIZE A SAISIR » sous la case, meme patron que « MACHINE A CHOISIR » (L523) ; portrait = layout historique');
+has(/body:not\(\.l527-op\) #refBlocks \.ref-block:not\(\[data-laize-ok="1"\]\) \.field:has\(\[data-op-useful\]\)::after\{content:"provisoire — l'opérateur confirme la laize mesurée à la machine"/,'L527 : Plan (paysage, bureau) — « provisoire » sous la case : la valeur affichee n est pas une confirmation');
+has(/\.fmm-hint\.l527-ko-hint\{display:block\}/,'L527 : Fiche (paysage) — la consigne rouge de la carte active reste lisible malgre n°5 / L352');
+has(/amendement date du point 6 de L426/,'L527 : la decision L426 (case pre-remplie) est amendee PAR ECRIT et DATEE (Celine 17/09) — sinon une revue future re-remplit la case');
+
+// ── [L527 · incident Celine 17/09/2026 · REINAL] deux references de meme nom et meme contenu = deux references distinctes (rang « ref N ») ──
+has(/^function _l527AssignLots\(groups\)\{/m,'L527 : rang pose sur les blocs de meme contenu (ordre DOM)');
+has(/if\(!\(g\.rows&&g\.rows\.length\)\) return; const b=_refIdKey\(g\)\.split\('¦'\)/,'L527 : seuls les groupes PRODUCTIFS entrent dans la collision (un stub ne change pas la cle) — [revue adverse 18/09] regex recalee : collision sur le prefixe + machine');
+has(/\.join\('¦'\)\+\(\(g&&Number\(g\.lot\)>0\)\?\('¦#'\+Number\(g\.lot\)\):''\);/,'L527 : 7e segment de _refIdKey = rang, ABSENT sinon (cle byte-identique pour tout plan sans homonymes de contenu)');
+has(/return _l527AssignLots\(groups\);/,'L527 : getRefGroups pose les rangs');
+has(/\.\.\.\(g\.lot>0\?\{lot:g\.lot\}:\{\}\), \.\.\.\(\(_blks20\[i\]&&_blks20\[i\]\.dataset\.lotOk==='1'\)\?\{lotOk:true\}:\{\}\),/,'L527 : lot / lotOk persistes, cles absentes sinon (L439, _planSigOf stable)');
+absent(/lot:g\.lot\|\|0/,'L527 : jamais une cle lot vide persistee');
+has(/if\(g&&g\.lotOk\) _b20\[i\]\.dataset\.lotOk='1'; else delete _b20\[i\]\.dataset\.lotOk;/,'L527 : lotOk restaure OU efface a la reprise');
+has(/delete b\.dataset\.laizeOk; delete b\.dataset\.lotOk;/,'L527 : ↺ efface lotOk (lecon L514d)');
+has(/if\(_h27\.length===1\) return k;/,'L527 : cle portee par UN groupe → resolution L507 inchangee');
+has(/_h27\.indexOf\(rg\[fd\.refIdx\]\)>=0\)\?rg\[fd\.refIdx\]:null;/,'L527 : cle ambigue (archive anterieure) → l index tranche s il designe l un des groupes de meme cle');
+has(/_l507Trace\('ref·identite-ambigue',String\(fd\.ref\|\|''\)\+' ×'\+_h27\.length/,'L527 : resolution ambigue TRACEE par la garde unique (regle 7), jamais un « premier trouve » muet');
+{ const _a=src.indexOf("if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey;"), _b=src.indexOf("if(_h27.length===1) return k;"), _c=src.indexOf("const gi=(typeof fd.refIdx==='number'&&rg[fd.refIdx])?rg[fd.refIdx]:null;"); const okk=_a>0&&_b>_a&&_c>_b; console.log((okk?'✅ ':'❌ ')+'L527 : ordre identite → ambiguite → index conserve dans _l506RefGroupFor'); if(!okk) fail++; }
+eqN((src.match(/refIdKey:_refIdKey\(c\), refIdx:ci,/g)||[]).length,6,'L527 : refIdx sur les 6 points de creation (4 import + 2 recalcul)');
+absent(/refIdKey:_refIdKey\(c\), useful:g\.rollW, blade:pb/,'L527 : plus de ligne ♻ regeneree sans refIdx');
+absent(/refIdKey:_refIdKey\(c\), useful:pu, blade:pb/,'L527 : plus de mere regeneree sans refIdx');
+has(/l\.refIdKey=_refIdKey\(c\); l\.refIdx=ci; if\(!l\.machine&&c\.machine\)/,'L527 : refIdx resynchronise au re-attachement des figees');
+has(/if\(typeof l\.refIdx==='number'&&computed\[l\.refIdx\]&&_pool\.indexOf\(refKey\(computed\[l\.refIdx\]\)\)>=0\) return refKey\(computed\[l\.refIdx\]\);/,'L527 : lineKey — entre candidats de MEME prefixe d identite (ou sans cle), l INDEX du bloc tranche — [revue adverse 18/09] regex recalee : le prefixe discriminant passe d abord (L103)');
+has(/\$\{_mlChip\}\$\{_l527Lot\(refKey\)\?`<span class="frs-m">réf \$\{_l527Lot\(refKey\)\}<\/span>`:''\}/,'L527 : chip « ref N » sur la bande de la fiche (frs-name intact)');
+has(/if\(me&&_l527Lot\(me\)\) return short\+/,'L527 : refDispCtx nomme la reference N quand la cle le porte (papier : appel sans cle, inchange)');
+has(/\+esc\(_l527LotLbl\(r\)\);/,'L527 : rail ORDRE DE COUPE');
+has(/'<\/span>'\+\(_l527Lot\(r\)\?\('<span class="fmm-btn-ref">'\+esc\(_l527LotLbl\(r\)\)\+'<\/span>'\):''\)\+'<\/button>';/,'L527 : bouton VALIDER (span L360 intact)');
+has(/esc\(refDispCtx\(r\.ref,r\.refKey\)\)\+' terminée <span/,'L527 : ligne « terminee » avec la cle');
+has(/const refLbl=\(refDisp\(c\.ref\)\|\|\('Référence '\+\(_cPos\+1\)\)\)\+_l527LotLbl\(c\);/,'L527 : bande du Plan a l ecran');
+has(/^function dupRefKeepLots\(di\)\{/m,'L527 : 3e issue de la banniere doublons');
+has(/onclick="dupRefKeepLots\('\+di\+'\)"/,'L527 : bouton « Garder les 2 references » dans la banniere');
+has(/if\(list\.every\(bl=>bl\.dataset\.lotOk==='1'\)\) return;/,'L527 : un groupe arbitre n est plus bloquant');
+has(/logAudit\('edit','saves','lots-distincts'/,'L527 : arbitrage trace dans le journal ISO');
+eqN((src.match(/soit ✓ Garder les 2 références \(deux lots de la même qualité\)\.','err'\);/g)||[]).length,2,'L527 : les 2 toasts jumeaux nomment la 3e issue');
+{ const _b=src.indexOf('function buildPlanPrintHTML('), _e=src.indexOf('function getPlanHTML('); const okk=_b>0&&_e>_b&&!/_l527Lot/.test(src.slice(_b,_e)); console.log((okk?'✅ ':'❌ ')+'L527 : papier — buildPlanPrintHTML sans « (réf N) » (aucun changement de format)'); if(!okk) fail++; }
+absent(/_l497RefLbl=c0=>\{[^\n]*_l527/,'L527 : libelles BOB non suffixes (persistes, parses par _l507MatchRefByLabel)');
+
+// ── [L527 · revue adverse 18/09/2026 (3 lentilles)] confirmation retiree hors poste operateur, plan recharge, bobines calculees sur une autre laize, rang collant ──
+has(/if\(parseNum\(v26\)>0&&_l527PosteOp\(\)\) blk\.dataset\.laizeOk='1'; else delete blk\.dataset\.laizeOk;/,'L527 revue : une frappe HORS poste operateur (ou une laize 0) RETIRE la confirmation — la valeur du bureau redevient provisoire');
+has(/if\(blk&&!_l527PosteOp\(\)\) delete blk\.dataset\.laizeOk;/,'L527 revue : mere / bords modifies au bureau → confirmation retiree (_l420Invalidate)');
+has(/delete b\.dataset\.opValidated; delete b\.dataset\.laizeOk; \}\); if\(typeof _l420SyncStart/,'L527 revue : un plan ENREGISTRE recharge (doLoad) arrive SANS laize confirmee (jumeau de L428)');
+has(/^var _l527DriftIds=new Set\(\);/m,'L527 revue : memoire des bobines a recalculer (derive DIMENSIONS)');
+has(/if\(!line\.classList\.contains\('coupee'\)&&_l527DriftIds\.has\(id\)\)\{/,'L527 revue : une bobine calculee sur une AUTRE laize que celle du Plan ne se coupe pas avant « Appliquer » (mono et multi)');
+has(/if\(_dimMsg\)\{ try\{ lines\.forEach\(d=>\{ if\(d&&d\.id&&!d\.recut&&!_frozenLike\(d\)\) _l527DriftIds\.add\(d\.id\); \}\); \}catch\(e\)\{\} \}/,'L527 revue : seules les bobines NON figees et non ♻ de la reference derivee sont retenues');
+has(/nrm\(d\.ref\|\|''\)===nm&&d\.refIdx===_ci27\);/,'L527 revue : detecteur de derive — entre references de MEME NOM, rattachement des orphelines par refIdx (angle mort L241 ferme)');
+has(/^function _l527DomIdx\(l\)\{/m,'L527 revue : index DOM d une ligne par CLE puis refIdx converti (un bloc-stub devant ne decale plus la ceinture)');
+has(/_i27=_l527DomIdx\(_l27\); _ko27=!_l527LaizeOkIdx\(_i27\);/,'L527 revue : la ceinture lit le BON bloc');
+has(/\.split\('¦'\)\.slice\(0,4\)\.join\('¦'\)\+'¦⚙'\+String\(g\.machine\|\|''\)\.toLowerCase\(\);/,'L527 revue : rang pose sur nom¦film¦veka¦metrage + MACHINE — collant quand les laizes mesurees different, jamais entre deux machines (L130/L286/L298 intacts)');
+has(/\.\.\.\(\(_blks20\[i\]&&_l527LaizeOk\(_blks20\[i\]\)\)\?\{laizeOk:true\}:\{\}\),/,'L527 revue : laizeOk serialise seulement quand il est vrai');
+has(/delete o\.laizeOk; delete o\.lotOk; return o;/,'L527 revue : les marqueurs de confirmation sont HORS de la signature du plan (_planSigOf)');
+has(/'ref·identite-ambigue':'deux références de même contenu/,'L527 revue : cause lisible pour la trace ref·identite-ambigue (liste « Fiches à vérifier »)');
+has(/if\(_ph\.length===1\) return _ph\[0\];/,'L527 revue : lineKey — prefixe discriminant d abord (L103), index entre candidats de meme prefixe');
+has(/_l527PosteOp\(\)\?_l527NewlyDone\(window\._l527Done,_dn27\):\[\]/,'L527 revue : rappel de fin de reference au poste operateur seulement');
+has(/window\._l527DoneSig!==_sg27/,'L527 revue : le rappel repart de zero (en silence) quand la fiche est remplacee ou recalculee');
+has(/\.fmm-inline-block\.locked \.fmm-hint\.l527-ko-hint/,'L527 revue : consigne rouge de la carte VERROUILLEE visible en paysage');
+has(/return !!_in27&&typeof USER_PROFILES!=='undefined'&&Object\.keys\(USER_PROFILES\)\.some\(/,'L527 revue : compte admin / pilotage utilise A LA MACHINE (cas L519, tablette FEBA) — l operateur est reconnu par SES initiales ; sinon sa frappe etait classee « bureau » et une commande mono-reference ne pouvait plus demarrer');
+has(/try\{ if\(typeof _l421SyncUseful==='function'\) _l421SyncUseful\(\); \}catch\(e\)\{\}   \/\* \[L527 · revue adverse 18\/09\] le poste/,'L527 revue : choisir ses initiales met a jour la case et son libelle (poste operateur / bureau)');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

@@ -1660,6 +1660,9 @@ body.atelier .stat-tile b{font-size:36px}
   .fl-current .fl-chute.perte{color:var(--red)}   /* [L516] perte >= PERTE_LAIZE_ALERTE_MM : ROUGE, sans cadre ni halo (le cadre de .over coute 22 px, budget L509) */
   .fl-current .fl-chute.solde{color:#f5b301}      /* [L516] solde = meme ambre que .badge-solde du plan */
   .fl-current .l516-note{display:block;font:700 15px/1.25 var(--f-head);letter-spacing:.02em;color:var(--red);margin:6px 0 0}   /* [L516] consigne visible sous la configuration de la bobine en cours */
+  body.l527-op #refBlocks .ref-block:not([data-laize-ok="1"]) .field:has([data-op-useful])::after{content:"LAIZE À SAISIR — plan provisoire";display:block;color:var(--red);font:800 11.5px/1.2 var(--f-head);letter-spacing:.06em;margin-top:4px}   /* [L527] poste OPERATEUR, Plan paysage : sous la case, meme patron que « MACHINE A CHOISIR » (L523) — portrait = layout historique (regle 3) */
+  body:not(.l527-op) #refBlocks .ref-block:not([data-laize-ok="1"]) .field:has([data-op-useful])::after{content:"provisoire — l'opérateur confirme la laize mesurée à la machine";display:block;color:var(--muted);font:700 11px/1.2 var(--f-head);letter-spacing:.04em;margin-top:4px}   /* [L527] bureau (Dominique) : la valeur affichee sert a calculer et imprimer, elle n est pas une confirmation */
+  #ficheRight>.fmm-inline-block.active .fmm-hint.l527-ko-hint,#ficheLines .fmm-inline-block.active .fmm-hint.l527-ko-hint,#ficheRight>.fmm-inline-block.locked .fmm-hint.l527-ko-hint,#ficheLines .fmm-inline-block.locked .fmm-hint.l527-ko-hint,#ficheHeadSide .fmm-hint.l527-ko-hint{display:block}   /* [L527] Fiche paysage : la consigne « LAIZE NON SAISIE » reste lisible (les autres hints restent muets, n°5 / L352) */
   .fl-current .fl-conf-long{display:block;font:700 15px/1.25 var(--f-head);letter-spacing:.02em;color:var(--text2);margin:4px 0 0}   /* [L518] echo lecture seule sous la configuration de la bobine en cours */
   body.atelier .fl-current .fl-conf-long{font-size:17px}
   body.atelier .fl-current .l516-note{font-size:17px}
@@ -2490,7 +2493,7 @@ html.theme-light .fp-num small{color:#8a8a84}
         <div class="row2" style="margin-top:8px"><!-- [L421 · demande Esteban] UNE seule case : la laize UTILISABLE (mere − bords) saisie directement -->
           <div class="field">
             <label>Laize utilisable bobine (mm)</label>
-            <input type="text" data-op-useful oninput="_l421UsefulInput(this)" inputmode="decimal" placeholder="2080">
+            <input type="text" data-op-useful oninput="_l421UsefulInput(this)" inputmode="decimal" placeholder="à saisir">
             <div class="useful-display" id="usefulDisplay" style="display:none"></div>
           </div>
           <div class="field" style="display:none"><!-- miroirs data-rb conserves : moteur/getRefGroups/fiche inchanges -->
@@ -3334,6 +3337,7 @@ function refDispCtx(ref,refKey){
       let me=null;
       if(refKey){ me=twins.find(x=>_refIdKey(x)===refKey)||null; }
       else { const same=twins.filter(x=>(x.ref||'')===String(ref||'')); if(same.length===1) me=same[0]; }
+      if(me&&_l527Lot(me)) return short+(me.longueur?(' · '+me.longueur+' ml'):'')+_l527LotLbl(me);   /* [L527] deux references de meme contenu : le rang est le seul discriminant (ecran ; le papier appelle sans cle → inchange) */
       if(me&&me.longueur) return short+' · '+me.longueur+' ml';
     }
     return short;
@@ -3358,7 +3362,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.16-L526';
+const APP_VERSION='2026.09.17-L527';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5993,6 +5997,7 @@ function _planSigOf(){
   try{
     const p=Object.assign({},serializeFicheState().plan);
     delete p.commandeFiles;
+    if(Array.isArray(p.refGroups)) p.refGroups=p.refGroups.map(function(g){ const o=Object.assign({},g); delete o.laizeOk; delete o.lotOk; return o; });   /* [L527 · revue adverse 18/09] marqueurs de CONFIRMATION, pas du contenu : hors signature — sinon toute fiche vierge etait regeneree (ordre de coupe manuel perdu) a la 1re ouverture apres L527 et a chaque confirmation d une laize identique */
     if(Array.isArray(p.planManual)) p.planManual=p.planManual.map(r=>Object.assign({},r,{bobines:Array.isArray(r.bobines)?r.bobines.slice().sort((a,b)=>String(a.conf||'').localeCompare(String(b.conf||''))||((parseInt(b.count)||0)-(parseInt(a.count)||0))):r.bobines}));
     const clean=JSON.parse(JSON.stringify(p,(k,v)=>(typeof v==='string'&&v.indexOf('data:')===0)?'':v));
     return _stableSig(clean);
@@ -6014,6 +6019,7 @@ function _snapFicheChutes(){
 }
 function _fichePlanDriftCheck(opts){
   opts=opts||{};   // [L286] opts.autoApply : posé UNIQUEMENT par showPage(1) — dérives « sûres » appliquées seules à l'arrivée sur la fiche
+  try{ _l527DriftIds=new Set(); }catch(e){}   /* [L527 · revue adverse 18/09] bobines a recalculer (derive DIMENSIONS) : recalculees a CHAQUE passage du detecteur */
   const el=document.getElementById('planDriftBanner'); if(!el) return;
   const hide=()=>{ el.style.display='none'; el.innerHTML=''; try{ document.body.classList.remove('plan-drift'); }catch(e){} };   // [L374]
   try{
@@ -6046,7 +6052,7 @@ function _fichePlanDriftCheck(opts){
     });
     // [L286 · revue P4] plan MANUEL : hissé hors boucle (sert aussi à la porte d'auto-application plus bas).
     const _pm=(typeof planManual!=='undefined')&&planManual&&Array.isArray(planManual)&&planManual.length;
-    computed.forEach(c=>{
+    computed.forEach((c,_ci27)=>{
       const key=_refIdKey(c);
       let lines=data.filter(d=>d.refIdKey===key);
       // [L231 · audit MAJ-2] REPLI PAR NOM : un changement de machine (ex. →feba) applique aussi les défauts
@@ -6062,7 +6068,7 @@ function _fichePlanDriftCheck(opts){
         // documentée : dérive non signalée si les 2 homonymes divergent EN MÊME temps — rare).
         if(computed.filter(x=>nrm(x.ref||'')===nm).length===1){
           lines=data.filter(d=>!allKeys.has(d.refIdKey)&&nrm(d.ref||'')===nm);
-        }
+        }else{ lines=data.filter(d=>!allKeys.has(d.refIdKey)&&nrm(d.ref||'')===nm&&d.refIdx===_ci27); }   /* [L527 · revue adverse 18/09] deux references de MEME NOM (cas nominal depuis L527) : le repli par nom reste refuse (L241) mais l INDEX du bloc, pose sur toutes les lignes a la generation, rattache sans fusion — la derive de laize de la ref 2 n est plus invisible */
       }
       if(!lines.length) return;                          // réf absente du snapshot (fiche pas encore générée pour elle) : flux normal
       // [L290 · audit 30/07 #1] DIMENSIONS modifiées côté PLAN en cours de coupe (mère/bords/lame → useful/blade
@@ -6098,6 +6104,7 @@ function _fichePlanDriftCheck(opts){
         if(typeof normConf==='function' && normConf(d.conf||'')!==(d.origConf||'')) return true;   // config modifiée à la main
         return false;
       };
+      if(_dimMsg){ try{ lines.forEach(d=>{ if(d&&d.id&&!d.recut&&!_frozenLike(d)) _l527DriftIds.add(d.id); }); }catch(e){} }   /* [L527 · revue adverse 18/09] bobines NON figees (et non ♻ : leur laize est celle du rouleau) calculees sur une autre laize / lame que celle du Plan : coupeeTapOne les refuse avant « Appliquer » */
       // [L286] plan MANUEL (_pm hissé hors boucle, revue P4) : les détecteurs par CONTENU (rouleaux multiset /
       // équilibre) comparent au plan AUTO recalculé → faux positifs structurels quand l'opérateur a voulu un
       // plan différent. En manuel on garde les checks historiques uniquement (comptes + snapshot).
@@ -6686,7 +6693,7 @@ function insertFicheRefSeparator(ref,useful,longueur,machine,prevMachine,mother,
   if(!bandHtml) div.classList.add('refonly');
   if(twin&&!bandHtml) div.classList.add('twin');   // [L497] refs homonymes : visible malgre refonly (regle CSS .refonly.twin)   // [L372 · demande Esteban 20/08] pas de changement de machine : bande de réf quand même rendue (masquée en portrait — L224 y garde le bloc « Réf N » ; en paysage L361 a masqué ces blocs → la pile n'avait plus AUCUN repère au passage de réf)
   const _mlChip=(!bandHtml&&longueur)?`<span class="frs-m">${esc(String(longueur))} ml</span>`:'';
-  div.innerHTML=`${bandHtml}${machLbl?`<span class="frs-mch">⚙ ${esc(machLbl)}</span>`:''}<span class="frs-name">🎞 ${esc(refDisp(ref))}</span>${_mlChip}<span class="frs-count ref-sep-count"></span>`;   /* [L293] nom court (dataset.ref garde le nom complet pour le matching) */
+  div.innerHTML=`${bandHtml}${machLbl?`<span class="frs-mch">⚙ ${esc(machLbl)}</span>`:''}<span class="frs-name">🎞 ${esc(refDisp(ref))}</span>${_mlChip}${_l527Lot(refKey)?`<span class="frs-m">réf ${_l527Lot(refKey)}</span>`:''}<span class="frs-count ref-sep-count"></span>`;   /* [L293] nom court (dataset.ref garde le nom complet pour le matching) */
   document.getElementById('ficheLines').appendChild(div);
 }
 
@@ -6984,6 +6991,38 @@ function _localDay(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getM
    machine du bloc (sinon « mère 2100 / bords 0 » passait pour une saisie nette et la laize utile valait 2100 au lieu de 2080). */
 function _l514EdgeAfterCatalog(motherEl){ try{ const blk=motherEl&&motherEl.closest?motherEl.closest('.ref-block'):null; if(!blk) return; const ed=blk.querySelector('[data-rb="edge"]'); if(!ed) return; if((parseNum(ed.value)||0)!==0) return; const mk=String((blk.querySelector('[data-rb="machine"]')||{}).value||'').trim(); const d=(typeof MACHINE_DEFAULTS!=='undefined')?(MACHINE_DEFAULTS[mk]||MACHINE_DEFAULTS.feba):null; if(d) ed.value=d.edge; }catch(e){} }
 function _l514NetTyped(block){ try{ if(!block) return false; const mo=parseNum((block.querySelector('[data-rb="mother"]')||{}).value)||0, ed=parseNum((block.querySelector('[data-rb="edge"]')||{}).value); return mo>0&&ed===0; }catch(e){ return false; } }
+/* [L527 · incident Celine 17/09/2026 (commande REINAL) : la ref 2 a ete demarree sur la laize PAR DEFAUT (2100 − bords), affichee comme une saisie]
+   Process valide par Celine : le plan du BUREAU (Dominique, poste pilotage/admin) est PROVISOIRE par nature — elle saisit, calcule, imprime ;
+   a la MACHINE l operateur MESURE la laize de sa bobine et la saisit. « laize confirmee » pour CETTE reference = marqueur data-laize-ok,
+   pose UNIQUEMENT par un geste au poste OPERATEUR (_l527PosteOp : compte machine ou role operateur) : frappe dans la case « Laize
+   utilisable » (_l421UsefulInput) ou bobine mere TAPEE dans la carte de la Fiche (applyFicheRefPlanChange, quel que soit le poste :
+   c est le geste de la machine). Persiste par serializeRefGroups, restaure par restoreRefGroups ; efface par ↺ (resetAll), la reprise
+   d un plan et le choix d une reference au catalogue (la mere est ecrasee). Pas de repli « mere>0 + bords 0 » (L514c) : une laize
+   tapee au bureau n est PAS une confirmation. Sans confirmation la reference est INCOMPLETE : le calcul garde le repli mere−bords
+   (useful=0 rendrait TOUTES ses laizes oversize dans le moteur gele → fiche ENTIERE vide, ref 1 comprise — L359), mais ce plan est
+   PROVISOIRE : case vide au poste operateur + « LAIZE A SAISIR », VALIDER la preparation refuse, la carte Fiche ne pre-remplit pas la
+   mere, et la coupe est refusee (coupeeTapOne : verrou L377/L379 + ceinture L527 quand la validation a ete heritee). Verrouille par
+   tests/laize_l527_test.js. Amendement date de L514d (« aucun marqueur DOM ») : celui-ci n est PAS collant (efface aux 4 sites ci-dessus). */
+/* [L527 · revue adverse 18/09/2026 (3 lentilles, lecture seule)] (1) une valeur modifiee HORS poste operateur retire la confirmation (_l421UsefulInput, _l420Invalidate) : sinon la valeur du bureau etait ensuite presentee comme « mesuree » ; (2) un plan ENREGISTRE recharge (doLoad) arrive sans confirmation, comme il
+   arrive sans validation (L428) : la bobine de la nouvelle production se mesure ; (3) le chemin que les messages L527 recommandent — onglet Plan → laize → ✓ VALIDER sur une
+   fiche DEJA entamee — ne regenere pas les bobines restantes (importPlanToFiche auto sort, fiche engagee) : c est la banniere rouge « DIMENSIONS modifiees » qui le fait,
+   or elle etait AVEUGLE entre deux references de meme nom (limite L241 « rare », devenue le cas nominal REINAL). Le detecteur rattache desormais les orphelines par refIdx,
+   memorise les bobines a recalculer (_l527DriftIds), la coupe de ces bobines est refusee avant « Appliquer », et le toast de VALIDER le dit. */
+var _l527DriftIds=new Set();
+function _l527DomIdx(l){ try{ if(!l) return -1; const raw=(typeof fmmRawRefs==='function')?fmmRawRefs():[]; if(l.refIdKey){ const rs=raw.filter(function(x){ return x.refKey===l.refIdKey; }); if(rs.length===1) return rs[0].idx; } if(typeof l.refIdx==='number') return raw[l.refIdx]?raw[l.refIdx].idx:l.refIdx; return -1; }catch(e){ return (l&&typeof l.refIdx==='number')?l.refIdx:-1; } }   /* index DOM du bloc d une ligne : par CLE quand elle designe UN seul bloc, sinon refIdx — qui est l index du plan CALCULE (blocs sans ligne filtres, L507) — converti par fmmRawRefs (meme filtre, idx = index DOM) */
+function _l527PosteOp(){ try{ if(typeof currentRole!=='undefined'&&currentRole==='operateur') return true; if((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine()) return true;
+  const _in27=String(((typeof document!=='undefined'&&document.getElementById('fInitiales'))||{}).value||'').trim().toUpperCase();   /* [L527 · revue adverse 18/09] compte admin / pilotage utilise A LA MACHINE (cas L519 : la tablette FEBA etait connectee avec le compte d Esteban) : c est l OPERATEUR choisi dans la rangee « Opérateur » qui tape — initiales d un profil operateur (JF, TB, MR). Sans cela sa frappe etait classee « bureau » et une commande mono-reference ne pouvait plus demarrer sur cette tablette. */
+  return !!_in27&&typeof USER_PROFILES!=='undefined'&&Object.keys(USER_PROFILES).some(function(k){ const p=USER_PROFILES[k]; return !!p&&p.role==='operateur'&&String(p.ini||'').toUpperCase()===_in27; });
+}catch(e){ return false; } }   /* poste OPERATEUR (role operateur, compte machine, ou initiales d un operateur choisies) : seule sa saisie confirme la laize */
+function _l527LaizeOk(blk){ try{ return !!(blk&&blk.dataset&&blk.dataset.laizeOk==='1'); }catch(e){ return false; } }
+function _l527LaizeOkIdx(idx){ try{ return _l527LaizeOk(document.querySelectorAll('.ref-block')[idx]); }catch(e){ return false; } }   /* idx = index DOM = index getRefGroups = r.idx des cartes fiche — PAS l.refIdx d une ligne (index du plan calcule) : passer par _l527DomIdx(l) */
+function _l527FocusCase(blk){ try{ const u=blk&&blk.querySelector('[data-op-useful]'); if(!u) return; try{ u.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} try{ u.focus({preventScroll:true}); }catch(e){} u.style.outline='3px solid var(--red)'; setTimeout(function(){ u.style.outline=''; },2500); }catch(e){} }
+function _l527GoPlan(idx,lbl){   /* refus explique + renvoi sur la case de CETTE ref (patron _chronoBlocked : showPage(0) + scroll + halo, zero tap mort) */
+  try{ showToast('⛔ '+(lbl||('Réf '+(idx+1)))+' : laize NON saisie — onglet PLAN → Partie opérateur → tape la laize MESURÉE de TA bobine → ✓ VALIDER la préparation, avant de couper.','err'); }catch(e){}
+  try{ showPage(0); _l527FocusCase(document.querySelectorAll('.ref-block')[idx]); }catch(e){}
+}
+function _l527NewlyDone(prev,done){ if(!Array.isArray(prev)) return []; return (done||[]).filter(function(k){ return prev.indexOf(k)<0; }); }   /* PURE : cles de ref qui VIENNENT de se terminer ; prev=null (1er rendu, reprise, rechargement) → muet */
+function _l527RefDoneMsg(doneLbl,nextLbl,nextKo){ return '✓ '+doneLbl+' terminée. AVANT '+(nextLbl||'la réf suivante')+' : onglet Plan → tes initiales, la laize mesurée de la bobine, les chutes en stock → ✓ VALIDER la préparation.'+(nextKo?' ⛔ Sa laize n\'est PAS saisie.':''); }   /* PURE : rappel demande par Celine 17/09 (vocabulaire atelier) */
 function _l421UsefulInput(inp){ try{
   const blk=inp.closest('.ref-block'); if(!blk) return;
   const v26=String(inp.value||'').trim();
@@ -6991,16 +7030,18 @@ function _l421UsefulInput(inp){ try{
   const mo=blk.querySelector('[data-rb="mother"]'), ed=blk.querySelector('[data-rb="edge"]');
   if(mo) mo.value=v26;
   if(ed) ed.value='0';
+  if(parseNum(v26)>0&&_l527PosteOp()) blk.dataset.laizeOk='1'; else delete blk.dataset.laizeOk;   /* [L527] laize MESUREE saisie au poste operateur pour CETTE reference (le libelle « LAIZE A SAISIR » tombe des la frappe) ; au bureau : provisoire, pas de marqueur */
   _l420Invalidate(blk);
   if(blk.querySelector('#motherWidth')) onParamChange(); else debouncedRecalcPlan();
 }catch(e){} }
 function _l421SyncUseful(){ try{
+  try{ document.body.classList.toggle('l527-op',_l527PosteOp()); }catch(e){}   /* [L527] le libelle sous la case depend du poste (CSS) — [revue adverse 18/09] pose UNE fois, AVANT la boucle : dans la boucle il etait saute quand la case avait le focus (mono-reference : jamais mis a jour pendant la frappe) */
   document.querySelectorAll('#refBlocks .ref-block').forEach(function(blk){
     const inp=blk.querySelector('[data-op-useful]'); if(!inp||inp===document.activeElement) return;
     const mo=parseNum(blk.querySelector('[data-rb="mother"]')?.value)||0;
     const ed=parseNum(blk.querySelector('[data-rb="edge"]')?.value)||0;
     const u=mo>0?Math.max(0,mo-ed):0;
-    inp.value=u>0?String(Math.round(u*10)/10):'';
+    inp.value=(u>0&&(_l527LaizeOk(blk)||!_l527PosteOp()))?String(Math.round(u*10)/10):'';   /* [L527 · Celine 17/09] poste OPERATEUR : case VIDE tant que la laize MESUREE n est pas saisie (le 2090 affiche passait pour une saisie — cause de l incident) ; BUREAU : valeur provisoire affichee (Dominique calcule et imprime) */
   });
 }catch(e){} }
 /* [L448 · demande Esteban 28/08] choix de l'operateur DEPUIS LE PLAN : ecrit fInitiales (le champ que toute
@@ -7024,11 +7065,20 @@ function _l420OpValidate(btn){ try{
   }
   const mo=parseNum(blk.querySelector('[data-rb="mother"]')?.value)||0;
   if(!(mo>0)){ showToast('⚠ Renseigne la largeur de la BOBINE MÈRE avant de valider.','err'); const el=blk.querySelector('[data-rb="mother"]'); if(el){ try{el.focus({preventScroll:true});}catch(e){} el.style.borderColor='var(--red)'; setTimeout(function(){el.style.borderColor='';},2200); } return; }
+  if(!_l527LaizeOk(blk)){   /* [L527 · incident Celine 17/09] la ref 2 se validait sur le defaut 2100−10 : laize MESUREE obligatoire, saisie au poste operateur */
+    const _ed27=parseNum(blk.querySelector('[data-rb="edge"]')?.value)||0;
+    showToast(_l527PosteOp()?('👷 Laize utilisable NON saisie — tape la laize MESURÉE de TA bobine (case « Laize utilisable bobine (mm) » juste au-dessus) avant de valider. Plan provisoire calculé sur '+fmt(Math.max(0,mo-_ed27))+' mm.'):('👷 La préparation se valide à la MACHINE : l\'opérateur choisit SES initiales (rangée OPÉRATEUR), tape la laize mesurée de sa bobine (case « Laize utilisable bobine (mm) ») puis valide. Ici le plan reste provisoire ('+fmt(Math.max(0,mo-_ed27))+' mm).'),'err');
+    _l527FocusCase(blk);
+    return;
+  }
   blk.dataset.opValidated='1';
   try{ const _i27=Array.from(document.querySelectorAll('#refBlocks .ref-block')).indexOf(blk); if(_i27>=0&&typeof ficheRefValidated!=='undefined') ficheRefValidated.add(_i27); }catch(e){}   /* [L427] la ref est validee DES le clic : la fiche ne la redemande plus, meme sans re-rendu */
   try{ clearTimeout(_recalcPlanTimer); recalcPlan(); }catch(e){}
   _l420SyncStart();
-  showToast('✓ Préparation validée — stock vérifié, bobine mère '+fmt(mo)+' mm.','ok');
+  let _st27=false;   /* [L527 · revue adverse 18/09] fiche DEJA entamee : les bobines restantes de cette reference ont ete calculees sur une autre laize → le DIRE (la banniere rouge de la Fiche recalcule ; d ici la, la coupe de ces bobines est refusee) */
+  try{ const _ix27=Array.from(document.querySelectorAll('#refBlocks .ref-block')).indexOf(blk); const _g27=(typeof getRefGroups==='function')?getRefGroups()[_ix27]:null; const _u27=_g27?(Number(_g27.useful)||0):0;
+    _st27=_u27>0&&typeof ficheLines!=='undefined'&&Array.isArray(ficheLines)&&ficheLines.some(function(l){ if(!l||l.recut||!(Number(l.useful)>0)||_l527DomIdx(l)!==_ix27) return false; const e=document.getElementById(l.id); return !(e&&e.classList.contains('coupee'))&&Math.abs(Number(l.useful)-_u27)>0.001; }); }catch(e){}
+  showToast('✓ Préparation validée — stock vérifié, bobine mère '+fmt(mo)+' mm.'+(_st27?' ⚠ Les bobines restantes de cette référence ont été calculées sur une AUTRE laize : onglet Fiche → bouton ROUGE de la bannière en haut (« Appliquer ») avant de couper.':''),_st27?'err':'ok');
 }catch(e){} }
 function _l420SyncStart(){ try{
   const blocks=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
@@ -7038,6 +7088,7 @@ function _l420SyncStart(){ try{
   try{ _l421SyncUseful(); }catch(e){}
 }catch(e){} }
 function _l420Invalidate(blk){ try{
+  if(blk&&!_l527PosteOp()) delete blk.dataset.laizeOk;   /* [L527 · revue adverse 18/09] mere / bords modifies HORS poste operateur : la laize n est plus « mesuree » (au poste operateur, c est lui qui tape : conservee) */
   if(blk&&blk.dataset.opValidated==='1'){
     delete blk.dataset.opValidated;
     try{ const _i30=Array.from(document.querySelectorAll('#refBlocks .ref-block')).indexOf(blk); if(_i30>=0&&typeof ficheRefValidated!=='undefined') ficheRefValidated.delete(_i30); }catch(e){}   /* [L427→L430 audit] sinon la ref restait VALIDEE cote fiche apres modification de la mere : verrou ISO contourne */
@@ -7118,7 +7169,7 @@ function onRefChange(){
     document.getElementById('planLargeur').value=found.largeur||'';
     document.getElementById('planLongueur').value=found.longueur||'';
     if(found.largeur>0){
-      document.getElementById('motherWidth').value=found.largeur; try{ _l514EdgeAfterCatalog(document.getElementById('motherWidth')||m); }catch(_){ };
+      document.getElementById('motherWidth').value=found.largeur; try{ _l514EdgeAfterCatalog(document.getElementById('motherWidth')||m); }catch(_){ }; try{ const _b27=document.getElementById('motherWidth')?.closest('.ref-block'); if(_b27) delete _b27.dataset.laizeOk; }catch(_){ }   /* [L527] largeur CATALOGUE ≠ laize mesuree : a re-saisir (jumeau de onRefChangeBlock) */
     }
   }
   // Re-appliquer packaging pour détecter KX dans la nouvelle réf
@@ -7669,7 +7720,7 @@ function addRefBlock(){
       <div class="row2" style="margin-top:8px"><!-- [L421] laize UTILISABLE en une case -->
       <div class="field">
         <label>Laize utilisable bobine (mm)</label>
-        <input type="text" data-op-useful oninput="_l421UsefulInput(this)" inputmode="decimal" placeholder="2080">
+        <input type="text" data-op-useful oninput="_l421UsefulInput(this)" inputmode="decimal" placeholder="à saisir">
       </div>
       <div class="field" style="display:none">
         <input type="text" data-rb="mother" value="2100" oninput="debouncedRecalcPlan();_l420Invalidate(this.closest('.ref-block'))" inputmode="decimal">
@@ -7680,7 +7731,7 @@ function addRefBlock(){
       <button type="button" class="btn rb-op-validate val-todo" onclick="_l420OpValidate(this)">✓ VALIDER la préparation</button>
     </div>`;
   document.getElementById('refBlocks').appendChild(block);
-  try{ if(typeof _l421SyncUseful==='function') _l421SyncUseful(); }catch(e){}   /* [L426 audit] la case laize utilisable arrive REMPLIE (avant : vide -> l'operateur croyait devoir saisir) */
+  try{ if(typeof _l421SyncUseful==='function') _l421SyncUseful(); }catch(e){}   /* [L426 audit] la case laize utilisable arrive REMPLIE (avant : vide -> l'operateur croyait devoir saisir) */   /* [L527 · Celine 17/09/2026] amendement date du point 6 de L426 : au poste OPERATEUR la case n arrive REMPLIE que si la laize MESUREE a ete saisie (_l527LaizeOk) — une reference incomplete la montre VIDE, et c est ce vide qui dit a l operateur de mesurer et saisir (incident : le 2090 affiche passait pour une saisie) ; au bureau la valeur provisoire reste affichee */
   // La machine reste à choisir (choix obligatoire). Les défauts perte bords/lame
   // seront appliqués par onRefMachineChange au moment du choix de la machine.
   const mEl=block.querySelector('[data-rb="machine"]'); if(mEl) mEl.value='';
@@ -7728,7 +7779,7 @@ function onRefChangeBlock(sel){
   const client=document.getElementById('planClient')?.value||'';
   const found=_l487Picked(sel,_l454CatalogRefs(client));   /* [L454] · [L487] */
   if(found){
-    if(found.largeur>0){const m=block.querySelector('[data-rb="mother"]');if(m)m.value=found.largeur; try{ _l514EdgeAfterCatalog(m); }catch(_){ };}
+    if(found.largeur>0){const m=block.querySelector('[data-rb="mother"]');if(m)m.value=found.largeur; try{ _l514EdgeAfterCatalog(m); }catch(_){ }; delete block.dataset.laizeOk;}   /* [L527] largeur CATALOGUE = mere ecrasee : la laize est a re-saisir (jumeau de onRefChange) */
     const lg=block.querySelector('[data-rb="longueur"]');if(lg)lg.value=found.longueur||'';
   }
   block.querySelectorAll('.order-row').forEach(autofillLegrandRow);
@@ -8173,7 +8224,7 @@ function getRefGroups(){
       });
       groups.push({ref,longueur,film,veka,mother,edge,useful,blade,machine,rows,chutes,recuts,rawRows,rawChutes,rawRecuts});
     });
-    return groups;
+    return _l527AssignLots(groups);   /* [L527] rang « ref N » sur les blocs PRODUCTIFS de meme contenu (ordre DOM = index des cartes / validations / laizeOk) */
   }
   // Mode mono-réf historique : un seul groupe construit depuis les champs globaux.
   return [{
@@ -8200,6 +8251,8 @@ function serializeRefGroups(){
   const _blks20=Array.from(document.querySelectorAll('#refBlocks .ref-block'));
   return getRefGroups().map((g,i)=>({
     opValidated:!!(_blks20[i]&&_blks20[i].dataset.opValidated==='1'),   /* [L420] la validation operateur survit au brouillon — [L439 · URGENT terrain 27/08] JAMAIS undefined : Firestore refuse tout doc qui en contient un (« Unsupported field value: undefined ») → la sauvegarde d'un plan NON valide (le flux NORMAL du poste de saisie, cf. L428) plantait en bloc depuis L420. false est strippe pareil qu'undefined par la restauration (test truthy). */
+    ...((_blks20[i]&&_l527LaizeOk(_blks20[i]))?{laizeOk:true}:{}),
+    ...(g.lot>0?{lot:g.lot}:{}), ...((_blks20[i]&&_blks20[i].dataset.lotOk==='1')?{lotOk:true}:{}),   /* [L527] rang de la reference (archives : _l507KeyOf recompose « base¦#N ») + arbitrage « 2 references distinctes » de la banniere doublons — cles ABSENTES sinon (L439 : jamais undefined ; _planSigOf inchange hors homonymes) */   /* [L527] laize mesuree confirmee pour cette ref — survit au brouillon / plan enregistre ; jamais undefined (L439) */
     ref:g.ref, longueur:g.longueur, film:g.film||'', veka:g.veka||'', mother:g.mother, edge:g.edge, blade:g.blade, machine:_l523PersistMachine(((_blks20[i]&&_blks20[i].querySelector('[data-rb="machine"]'))||{}).value,g.machine,!!((typeof _l363DefaultMachine==='function')&&_l363DefaultMachine())), rows:g.rows,   /* [L523 · C1] '' si le select est sur « — choisir — » (pilotage) : _restoreRefGroupsBody ne re-remplit plus FEBA */ chutes:g.chutes||[], recuts:g.recuts||[], rawRows:g.rawRows||[], rawChutes:g.rawChutes||[], rawRecuts:g.rawRecuts||[]   // [L271 · audit #2] rawRows persistées pour ne pas perdre une ligne mal saisie (réf disparue) au ré-enregistrement ; [L287] même filet pour bobineaux stock + rouleaux chute
   }));
 }
@@ -8220,13 +8273,31 @@ function vekaClass(v){ return v==='Profilé'?'veka-profile':(v==='VEKA'?'veka-ve
    (NOM) — et surtout refIdx qui n a JAMAIS ete renseigne (c.idx n existe pas). */
 function _refMatchFn(rk,k){ return rk?(l=>!!l&&(l.refIdKey?(l.refIdKey===rk):(nrm(l.ref)===k))):(l=>!!l&&nrm(l.ref)===k); }   /* ligne AVEC cle : par la cle ; SANS cle (archive) : par le nom — jamais un OU additif */
 function _refKeyOf(l){ return (l&&l.refIdKey)||('nom¦'+nrm((l&&l.ref)||'')); }
+/* [L527 · incident Celine 17/09/2026 · commande REINAL] DEUX blocs de MEME NOM et MEME CONTENU = deux references distinctes.
+   _refIdKey (identite par contenu) rendait la MEME cle pour les deux → une seule bande, un seul compteur, une seule etiquette solde, un seul
+   seau matiere (solde de la 1re compte en perte), verrou de coupe perce apres recalcul, 2e bloc saute par le dedup du recalcul, et la
+   banniere « blocs IDENTIQUES » n offrait que la fusion. Rang (1..n, ordre des blocs du Plan = index des cartes / validations / laizeOk)
+   pose par getRefGroups sur chaque groupe PRODUCTIF dont la cle de base est portee par PLUSIEURS blocs (un bloc-stub sans ligne ne compte
+   pas, regle L156 #6) ; persiste par serializeRefGroups (archives : _l507KeyOf recompose « base¦#N ») ; un groupe sans collision n a PAS
+   de rang et garde sa cle byte-identique (archives, brouillons, planManual intacts). Affichage « (réf N) » a l ECRAN seulement (mot de
+   Celine : « bien indiquer ref 1 et ref 2 ») ; papier inchange. Verrouille par tests/lots_l527_test.js. */
+function _l527AssignLots(groups){
+  try{
+    const by={};
+    (groups||[]).forEach(function(g){ if(!g) return; delete g.lot; if(!(g.rows&&g.rows.length)) return; const b=_refIdKey(g).split('¦').slice(0,4).join('¦')+'¦⚙'+String(g.machine||'').toLowerCase(); (by[b]=by[b]||[]).push(g); });   /* [L527 · revue adverse 18/09] collision sur nom¦film¦veka¦metrage + MACHINE (plus sur la laize ni la lame) : « réf 1 / réf 2 » reste affiche quand les deux laizes MESUREES different (cas normal : deux bobines), et une meme reference scindee sur deux machines (L130/L286, continuite RESTE-NN de L298) ne recoit JAMAIS de rang */
+    Object.keys(by).forEach(function(b){ if(by[b].length>1) by[b].forEach(function(g,i){ g.lot=i+1; }); });
+  }catch(e){ try{ _l505Warn('l527·lots',e); }catch(_){ } }
+  return groups;
+}
+function _l527Lot(x){ if(x&&typeof x==='object'){ if(Number(x.lot)>0) return Number(x.lot); x=x.refKey||x.refIdKey||''; } const m=/¦#(\d+)$/.exec(String(x==null?'':x)); return m?Number(m[1]):0; }
+function _l527LotLbl(x){ const n=_l527Lot(x); return n?(' (réf '+n+')'):''; }
 function _refIdKey(g){
   // [L243 · props P4a/P4b] : (1) longueur passée par n() comme les autres champs texte (« 6000ML » ≠ « 6000ml »
   // scindait une même réf en deux identités) ; (2) séparateur ¦ ÉCHAPPÉ dans chaque champ (un ¦ saisi déplaçait
   // la frontière des champs → deux réfs distinctes pouvaient fusionner).
   const n=v=>String(v==null?'':v).trim().toLowerCase().split('¦').join('¦¦');
   return [n(g&&g.ref),n(g&&g.film),n(g&&g.veka),n(g&&g.longueur),
-          Number(g&&g.useful)||0,Number(g&&g.blade)||0].join('¦');
+          Number(g&&g.useful)||0,Number(g&&g.blade)||0].join('¦')+((g&&Number(g.lot)>0)?('¦#'+Number(g.lot)):'');   /* [L527] 7e segment : rang de la reference, SEULEMENT en cas de collision de contenu (cle byte-identique sinon) */
 }
 // Colore chaque <select> VEKA à la saisie selon son choix.
 function colorVekaSelects(){
@@ -8317,7 +8388,7 @@ function restoreRefGroups(arr){
   // les blocs par position → plan sauvegardé chargé partiellement. La fusion reprend après.
   _restoringRefGroups=true;
   try{ _restoreRefGroupsBody(arr); }finally{ _restoringRefGroups=false; }
-  try{ const _b20=Array.from(document.querySelectorAll('#refBlocks .ref-block')); (arr||[]).forEach(function(g,i){ if(g&&g.opValidated&&_b20[i]) _b20[i].dataset.opValidated='1'; }); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}   /* [L420] */
+  try{ const _b20=Array.from(document.querySelectorAll('#refBlocks .ref-block')); (arr||[]).forEach(function(g,i){ if(!_b20[i]) return; if(g&&g.laizeOk) _b20[i].dataset.laizeOk='1'; else delete _b20[i].dataset.laizeOk; if(g&&g.opValidated&&_l527LaizeOk(_b20[i])) _b20[i].dataset.opValidated='1'; }); (arr||[]).forEach(function(g,i){ if(!_b20[i]) return; if(g&&g.lotOk) _b20[i].dataset.lotOk='1'; else delete _b20[i].dataset.lotOk; }); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}   /* [L527] l arbitrage « 2 references distinctes » survit au brouillon / plan enregistre (sinon ⛔ Envoi bloque a la tablette en fin de coupe) */   /* [L420] ; [L527] marqueur laizeOk restaure OU efface (bloc 1 statique, lecon L514d) ; une validation ne survit pas sans laize confirmee (plan d avant L527 valide sur le defaut) */
 }
 let _restoringRefGroups=false;
 function _restoreRefGroupsBody(arr){
@@ -8968,6 +9039,20 @@ function _dupRefKeyOf(bl){
   const mach=nrm(bl.querySelector('[data-rb="machine"]')?.value);
   return ref+'␟'+ml+'␟'+film+'␟'+mach+'␟'+nrm(bl.querySelector('[data-rb="veka"]')?.value)+'␟'+(parseNum(bl.querySelector('[data-rb="mother"]')?.value)||0);   // [L97 · relecture #5] VEKA + bobine mère dans la clé (alignée _refIdKey)
 }
+/* [L527 · incident Celine 17/09] 3e issue de la banniere « blocs IDENTIQUES » : ce sont DEUX references de la meme qualite, deux lots (cas REINAL).
+   Marque les blocs du groupe vise (data-lot-ok, persiste lotOk), rangs 1/2 poses par getRefGroups, trace ISO, recalcul. Rien n est fusionne. */
+function dupRefKeepLots(di){
+  if(_restoringRefGroups) return;
+  const want=(_dupRefPending[di]||{}).key||null;
+  if(want===null){ try{ recalcPlan(); }catch(e){} showToast('⚠ La liste des doublons a changé — re-clique sur la bannière.','err'); return; }
+  const list=[...document.querySelectorAll('.ref-block')].filter(bl=>_dupRefKeyOf(bl)===want);
+  if(list.length<2){ try{ recalcPlan(); }catch(e){} return; }
+  list.forEach(bl=>{ bl.dataset.lotOk='1'; bl.classList.remove('rb-dup'); });
+  const label=(_dupRefPending[di]||{}).label||'?';
+  logAudit('edit','saves','lots-distincts',list.length+' références distinctes gardées (même nom, même qualité) — '+label+' (réf 1 … réf '+list.length+')').catch(function(){});
+  showToast('✓ « '+label+' » : '+list.length+' références distinctes — réf 1 / réf 2'+(list.length>2?' / …':'')+' partout (Plan, Fiche, matière).','ok');
+  try{ recalcPlan(); }catch(e){}
+}
 function mergeDuplicateRefBlocks(){   // nom conservé (appelants) — ne fait plus QUE détecter
   _dupRefPending=[];
   document.querySelectorAll('.ref-block.rb-dup').forEach(bl=>bl.classList.remove('rb-dup'));
@@ -8990,6 +9075,7 @@ function mergeDuplicateRefBlocks(){   // nom conservé (appelants) — ne fait p
   });
   Object.entries(byKey).forEach(([k,list])=>{
     if(list.length<2) return;
+    if(list.every(bl=>bl.dataset.lotOk==='1')) return;   /* [L527] arbitrage « 2 references distinctes » deja donne (bouton de la banniere, persiste lotOk) : ni surlignage ni blocage — rangs 1/2 poses par getRefGroups */
     list.forEach(bl=>bl.classList.add('rb-dup'));   // surlignage orange des blocs concernés
     const t=list[0], ml=parseNum(t.querySelector('[data-rb="longueur"]')?.value)||0;
     _dupRefPending.push({key:k,label:(t.querySelector('[data-rb="ref"]')?.value||'?')+(ml?' · '+fmt(ml)+' ml':''),count:list.length});
@@ -9166,6 +9252,7 @@ function recalcPlan(){
       heavyBanner+='<div style="flex-basis:100%;width:100%;background:#3d2a00;border:2px solid var(--orange);color:#fbbf24;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:4px">⚠ '+d.count+' blocs de référence IDENTIQUES : «&nbsp;'+esc(d.label)+'&nbsp;»<br>'
         +'<span style="font-weight:600">· MÊME commande (vraie double saisie) → <button class="btn btn-orange btn-sm" style="vertical-align:middle" onclick="mergeDupRefNow('+di+')">♻ Fusionner les blocs</button><br>'
         +'· DEUX FILMS différents (ex. Imprimé / Non imprimé) → choisis le « Type de film » sur CHAQUE bloc (surlignés en orange) pour les séparer.<br>'
+        +'· DEUX LOTS distincts de la MÊME qualité (même nom, même film, deux bobines mères) → <button class="btn btn-sm" style="vertical-align:middle" onclick="dupRefKeepLots('+di+')">✓ Garder les 2 références (réf 1 / réf 2)</button><br>'   /* [L527 · cas REINAL] */
         +'⛔ L\'envoi est bloqué tant que ce n\'est pas résolu — sinon les deux seraient coupés ENSEMBLE sur les mêmes bobines mères.</span></div>';
     });
   }
@@ -9293,7 +9380,7 @@ function recalcPlan(){
       }catch(e){ console.warn('Attribution clients (plan) :',e); _cliAllocs=null; }
     }
     if(multi){
-      const refLbl=refDisp(c.ref)||('Référence '+(_cPos+1));   // [L293] nom court partout
+      const refLbl=(refDisp(c.ref)||('Référence '+(_cPos+1)))+_l527LotLbl(c);   // [L293] nom court partout — [L527] + rang de la reference (ecran seulement, papier inchange)
       const mlPart=(c.longueur!=null&&String(c.longueur).trim()!=='')?`<span class="rb-m">${esc(String(c.longueur))} ml</span>`:'';
       const filmOnly=(c.film||'').trim();
       const filmPart=filmOnly?`<span class="rb-m">${esc(filmOnly)}</span>`:'';
@@ -10885,7 +10972,7 @@ async function doLoad(){
   try{
     if(hasGroups){
       restoreRefGroups(s.refGroups);
-      try{ document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){ delete b.dataset.opValidated; }); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){}   /* [L428 · demande Esteban] un plan CHARGE arrive NON valide — la preparation se verifie au moment de couper, pas a la sauvegarde */
+      try{ document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){ delete b.dataset.opValidated; delete b.dataset.laizeOk; }); if(typeof _l420SyncStart==='function') _l420SyncStart(); if(typeof _l421SyncUseful==='function') _l421SyncUseful(); }catch(e){}   /* [L527 · revue adverse 18/09] ni la laize confirmee : un plan recharge sert une AUTRE production, sa bobine se mesure */   /* [L428 · demande Esteban] un plan CHARGE arrive NON valide — la preparation se verifie au moment de couper, pas a la sauvegarde */
     }else{
       document.querySelectorAll('.order-row').forEach(r=>r.remove());
       applySavedRef(G('planRef'),s.ref,s.client);
@@ -11372,7 +11459,7 @@ async function stopManqueMatiere(){
   if(done===0){showToast('⚠ Aucune bobine coupée.\n\nMarque au moins une bobine comme "Coupée" avant de déclarer un manque de matière.','err');return;}
   // [L156 · audit #2] MÊME garde L152 que l'envoi normal (confirmCommande) : sans elle, l'arrêt manque-matière
   // contournait le blocage des blocs de réf identiques (l'incident BEKA restait possible par cette voie).
-  if(!planManual&&_dupRefPending.length){ showToast('⛔ Arrêt manque-matière bloqué : '+_dupRefPending.map(d=>d.count+' blocs identiques « '+d.label+' »').join(' · ')+'.\n\nRemonte au plan : soit ♻ Fusionner (même commande), soit choisis le « Type de film » sur chaque bloc (2 films différents).','err'); return; }
+  if(!planManual&&_dupRefPending.length){ showToast('⛔ Arrêt manque-matière bloqué : '+_dupRefPending.map(d=>d.count+' blocs identiques « '+d.label+' »').join(' · ')+'.\n\nRemonte au plan : soit ♻ Fusionner (même commande), soit choisis le « Type de film » sur chaque bloc (2 films différents), soit ✓ Garder les 2 références (deux lots de la même qualité).','err'); return; }
   // [L129 · audit #4/#6] l'arrêt manque-matière court-circuitait TOUTES les re-validations d'envoi de
   // confirmCommandeRecap. On les rejoue ici, portées sur les bobines RÉELLEMENT coupées (seules envoyées) :
   //  · #6 copie locale d'un partage terminé → confirm anti-doublon (miroir 7140, absent de cette voie) ;
@@ -11710,7 +11797,7 @@ async function confirmCommande(){
   // pas choisi (fusionner = même commande, ou distinguer les films = 2 commandes physiques). Sinon deux films
   // différents (imprimé / non imprimé) partiraient coupés ENSEMBLE sur les mêmes bobines mères.
   if(!planManual&&_dupRefPending.length){
-    showToast('⛔ Envoi bloqué : '+_dupRefPending.map(d=>d.count+' blocs identiques « '+d.label+' »').join(' · ')+'.\n\nRemonte au plan : soit ♻ Fusionner (même commande), soit choisis le « Type de film » sur chaque bloc (2 films différents).','err');
+    showToast('⛔ Envoi bloqué : '+_dupRefPending.map(d=>d.count+' blocs identiques « '+d.label+' »').join(' · ')+'.\n\nRemonte au plan : soit ♻ Fusionner (même commande), soit choisis le « Type de film » sur chaque bloc (2 films différents), soit ✓ Garder les 2 références (deux lots de la même qualité).','err');
     return;
   }
   const totalBobChk=[].concat(...computed.map(c=>c.bobines)).length;
@@ -11896,8 +11983,12 @@ function recalcEcartsFromFiche(opts){
     const _cand=nameToKeys[nrmRef(l.ref)]||[];
     if(_cand.length){
       const _byM=_cand.filter(k2=>k2.endsWith('¦⚙'+_m));
-      if(l.refIdKey&&_cand.length>1){ const _pf=_idPrefix(l.refIdKey);
-        const _hit=(_byM.find(k2=>_idPrefix(k2)===_pf))||_cand.find(k2=>_idPrefix(k2)===_pf); if(_hit) return _hit; }
+      if(_cand.length>1){   /* [L527 → revue adverse 18/09] homonymes : le PREFIXE d identite (nom¦film¦veka¦metrage) tranche quand il est discriminant (twins L497 de metrages differents — correctif L103 intact) ; quand PLUSIEURS candidats le partagent (deux references de meme nom et metrage : rangs), c est l INDEX du bloc pose a la generation qui tranche ; sinon repli historique (machine, puis 1er) */
+        const _pf=l.refIdKey?_idPrefix(l.refIdKey):null; const _ph=_pf?_cand.filter(k2=>_idPrefix(k2)===_pf):[];
+        if(_ph.length===1) return _ph[0];
+        const _pool=_ph.length?_ph:_cand;
+        if(typeof l.refIdx==='number'&&computed[l.refIdx]&&_pool.indexOf(refKey(computed[l.refIdx]))>=0) return refKey(computed[l.refIdx]);
+        if(_ph.length){ return _ph.find(k2=>k2.endsWith('¦⚙'+_m))||_ph[0]; } }
       if(_byM.length===1) return _byM[0];
     }
     return nameToKey[nrmRef(l.ref)]||l.refIdKey||nrmRef(l.ref);
@@ -12134,7 +12225,7 @@ function recalcEcartsFromFiche(opts){
       if(multi){ insertFicheRefSeparator(c.ref||('Référence '+(ci+1)), c.useful, c.longueur, c.machine, _prevMachR, c.mother, c.edge, !!(c.ref&&_l497Twins[refDisp(c.ref)]>1), _refIdKey(c)); if(c.machine) _prevMachR=c.machine; }   // [L92 · Audit #15] couleur machine + bande CHANGEMENT DE MACHINE conservées après recalcul
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
-      frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=_refIdKey(c); if(!l.machine&&c.machine) l.machine=c.machine; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante — [L295] clé de BASE (jamais la composite interne) + machine complétée
+      frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=_refIdKey(c); l.refIdx=ci; if(!l.machine&&c.machine) l.machine=c.machine; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante — [L295] clé de BASE (jamais la composite interne) + machine complétée
       const _l525S=_l525Split(frozenMetas.filter(l=>lineKey(l)===k),function(l){ return _l525Done(frozenNodes[l.id],l.id); });   /* [L525] commencee = une figee coupee/jetee ; rest = figees NON coupees (verrou MAVEG L418, etiquette tapee) */
 
       // 3b) Ré-empaqueter le reliquat de cette réf. Par défaut avec SA laize/lame ;
@@ -12184,7 +12275,7 @@ function recalcEcartsFromFiche(opts){
           for(let n=0;n<g.count;n++){
             addFicheLine({label:(multi&&c.ref?_l497RefLbl(c)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:g.rollW, blade:pb, machine:pm,   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci, useful:g.rollW, blade:pb, machine:pm,   /* [L527] refIdx aussi sur les lignes regenerees : verrou B3 / ceinture laize par INDEX apres ♻ Ecarts (le repli par nom designait le 1er homonyme) */   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
               recut:true, rollW:g.rollW,
               chuteNote:'♻ ROULEAU CHUTE · laize '+fmt(g.rollW)+' mm'});
             if(!_firstAddedId&&ficheLines.length) _firstAddedId=ficheLines[ficheLines.length-1].id;   // [L87]
@@ -12207,7 +12298,7 @@ function recalcEcartsFromFiche(opts){
           for(let n=0;n<g.count;n++){
             addFicheLine({label:(multi&&c.ref?_l497RefLbl(c)+' · ':'')+(useOp2?'OP2-':'RESTE-')+String(ri).padStart(2,'0'),
               conf:g.pattern.map(p=>p.qty+'×'+p.width).join(' + '),
-              ref:c.ref||'', refIdKey:_refIdKey(c), useful:pu, blade:pb, machine:pm});   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
+              ref:c.ref||'', refIdKey:_refIdKey(c), refIdx:ci, useful:pu, blade:pb, machine:pm});   /* [L527] jumeau : refIdx sur les meres regenerees */   // [L73 · Lot 5 · B55] machine op.2 sur les lignes OP2-
             if(!_firstAddedId&&ficheLines.length) _firstAddedId=ficheLines[ficheLines.length-1].id;   // [L87] 1re bobine ajoutée : repérée pour scroll+surbrillance
             ri++; added++;
           }
@@ -12961,7 +13052,7 @@ function resetAll(){
        gardaient sinon la bobine mere de la commande precedente, et la case « laize utilisable » la reaffichait). */
     const _md=(typeof MACHINE_DEFAULTS!=='undefined')?(MACHINE_DEFAULTS[(typeof _l363DefaultMachine==='function'?_l363DefaultMachine():'')||'feba']||MACHINE_DEFAULTS.feba):null;
     document.querySelectorAll('#refBlocks .ref-block').forEach(function(b){
-      const mo=b.querySelector('[data-rb="mother"]'); if(mo) mo.value='';
+      const mo=b.querySelector('[data-rb="mother"]'); if(mo) mo.value=''; delete b.dataset.laizeOk; delete b.dataset.lotOk;   /* [L527] le marqueur « laize confirmee » ne survit pas au ↺ (lecon L514d) */
       const ed=b.querySelector('[data-rb="edge"]'); if(ed) ed.value=_md?String(_md.edge):'';
       const bl=b.querySelector('[data-rb="blade"]'); if(bl) bl.value=_md?String(_md.blade):'';
     });
@@ -18739,11 +18830,15 @@ function _l507GroupIdxOf(f,fd){ try{ const rg=Array.isArray(f&&f.refGroups)?f.re
 function _l507KeyOf(g){ try{ return _refIdKey(Object.assign({},g,{useful:_l507GroupUseful(g)})); }catch(e){ return ''; } }
 function _l506RefGroupFor(f,fd){ try{
   const rg=Array.isArray(f&&f.refGroups)?f.refGroups:null; if(!rg||!rg.length||!fd) return null; if(rg.length===1) return rg[0];
+  const _l507Trace=function(tag,msg){ try{ if((typeof window!=='undefined'&&window._l517Replay)||!_l507Traced.has(fd)){ _l507Traced.add(fd); _l505Warn(tag,new Error(msg)); } }catch(_){ } };   /* [L527] UNE seule garde « une trace par ligne, rejeu accepte » pour les deux traces de la resolution (audit_l521 C5 : pas de jumeau de _l507Traced.has) */
   const nn=nrm(fd.ref||''); const byName=nn?rg.filter(function(x){ return x&&nrm(x.ref)===nn; }):[];
-  if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey; }catch(_){ return false; } }); if(k) return k; }   /* [L507 · 8e passe adverse] l IDENTITÉ d abord quand la ligne en porte une (clé recomposée, laize comprise) : l index gelé est celui du plan CALCULÉ (blocs sans ligne valide filtrés) alors que refGroups est sérialisé sans filtre — un bloc homonyme à moitié saisi placé avant décalait l index vers le mauvais métrage, et le nom (identique) ne pouvait pas le voir */
+  if(fd.refIdKey){ const k=rg.find(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey; }catch(_){ return false; } }); if(k){ const _h27=rg.filter(function(x){ try{ return _l507KeyOf(x)===fd.refIdKey; }catch(_){ return false; } }); if(_h27.length===1) return k;
+      const _gi27=(typeof fd.refIdx==='number'&&rg[fd.refIdx]&&_h27.indexOf(rg[fd.refIdx])>=0)?rg[fd.refIdx]:null;
+      _l507Trace('ref·identite-ambigue',String(fd.ref||'')+' ×'+_h27.length+(_gi27?(' → index '+fd.refIdx):' → 1er groupe'));
+      return _gi27||k; } }   /* [L527] cle portee par PLUSIEURS groupes (archive anterieure a L527 : deux references de meme contenu sans rang) : l index tranche s il designe l un d eux, sinon 1er groupe — TRACE (regle 7), jamais un « premier trouve » muet */   /* [L507 · 8e passe adverse] l IDENTITÉ d abord quand la ligne en porte une (clé recomposée, laize comprise) : l index gelé est celui du plan CALCULÉ (blocs sans ligne valide filtrés) alors que refGroups est sérialisé sans filtre — un bloc homonyme à moitié saisi placé avant décalait l index vers le mauvais métrage, et le nom (identique) ne pouvait pas le voir */
   const gi=(typeof fd.refIdx==='number'&&rg[fd.refIdx])?rg[fd.refIdx]:null;
   if(gi&&(!nn||nrm(gi.ref)===nn)) return gi;
-  if(gi&&byName.length===0){ try{ if((typeof window!=='undefined'&&window._l517Replay)||!_l507Traced.has(fd)){ _l507Traced.add(fd); _l505Warn('ref·index-sans-nom',new Error(String(fd.ref||'')+' → '+String(gi.ref||''))); } }catch(_){ } return gi; }   /* [L507] l index gagne (réf renommée entre gel et archive) mais c est TRACÉ : si l index était aussi décalé, le chiffre serait celui d une autre réf */
+  if(gi&&byName.length===0){ _l507Trace('ref·index-sans-nom',String(fd.ref||'')+' → '+String(gi.ref||'')); return gi; }   /* [L507] l index gagne (réf renommée entre gel et archive) mais c est TRACÉ : si l index était aussi décalé, le chiffre serait celui d une autre réf */
   if(byName.length===1) return byName[0];
   return null;
 }catch(e){ return null; } }
@@ -19802,7 +19897,7 @@ const _L517_CAUSES={'l513·ref':'référence non rattachée à sa bobine mère',
   'l513·conf':'configuration de bobine illisible','l513·conf-vide':'bobine pointée coupée sans configuration',
   'l513·useful':'laize utile inconnue','l513·detail':'bobines archivées sans configuration lisible',
   'l513·matiere':'erreur de calcul (voir console)','l513·edge':'bords non renseignés (comptés 0)',
-  'ncLoss·ref':'référence du bobineau NC non résolue','ref·index-sans-nom':'référence renommée entre le gel et l archive'};
+  'ncLoss·ref':'référence du bobineau NC non résolue','ref·index-sans-nom':'référence renommée entre le gel et l archive','ref·identite-ambigue':'deux références de même contenu dans une fiche d avant L527 (rattachées par l ordre des blocs)'};
 function _l517Cause(f){
   const tags=[]; const prev=(typeof window!=='undefined')?window._l505Warn:null, prevN=(typeof window!=='undefined')?window._l505WarnN:0;
   try{
@@ -21070,7 +21165,7 @@ function renderFicheMachineBlocks(opts){
       // à la ligne, les tags film/veka en dessous. Chip machine CONSERVÉE (acquis L258, demande Esteban).
       const _mlTag=(r.longueur!=null&&String(r.longueur).trim()!=='')?'<span class="foc-ml" style="border:2px solid '+rc+';color:'+rc+'">'+esc(String(r.longueur))+' ml</span>':'';
       const _tagsNoMl=tags.filter(t=>!/ ml$/.test(t));
-      const _nm=(typeof refDisp==='function')?esc(refDisp(String(r.ref))):esc(String(r.ref));
+      const _nm=((typeof refDisp==='function')?esc(refDisp(String(r.ref))):esc(String(r.ref)))+esc(_l527LotLbl(r));   /* [L527] rang de la reference (lu dans r.refKey) */
       // [L335 · §2.21 + maquette 17] ligne 1 = n° + CLIENT (ellipsable) + pastille ml (jamais tronquée) + ÉTAT
       // en toutes lettres ; ligne 2 = produit ; ligne 3 = n bobines. État dérivé de l'ordre d'exécution (affichage pur).
       const _act0=(r.idx===activeIdx)&&!ficheRefValidated.has(r.idx);   /* [L337 · audit] tout validé → fmmActiveIdx retombe sur la DERNIÈRE réf : pas de fausse « EN COURS » */
@@ -21119,6 +21214,7 @@ function renderFicheMachineBlocks(opts){
     // Gardé par _anyBob : inactif sur une fiche 100% stock (rendu d'origine préservé, pas de nouveau cul-de-sac).
     if(_anyBob && !_refHasFicheBob(r)) return;
     const validated=ficheRefValidated.has(r.idx);
+    const _ok27=_l527LaizeOkIdx(r.idx);   /* [L527] laize mesuree confirmee pour cette ref ? (r.idx = index DOM du bloc Plan) */
     const active=(r.idx===activeIdx) && !validated;
     const locked=!validated && !active;
     const stateCls=active?'active':(locked?'locked':'');
@@ -21129,7 +21225,7 @@ function renderFicheMachineBlocks(opts){
     if(locked){
       badge='<span class="fmm-badge lock">🔒 à renseigner au passage</span>';
       body='';
-      hint='<div class="fmm-hint" style="color:var(--muted)">Mère / bords / lame pré-remplis ('+V(r.mother||'—')+' / '+V(r.edge||'—')+' / '+V(r.blade||'—')+') — se débloque à la fin de la réf précédente.</div>';
+      hint=_ok27?('<div class="fmm-hint" style="color:var(--muted)">Mère / bords / lame pré-remplis ('+V(r.mother||'—')+' / '+V(r.edge||'—')+' / '+V(r.blade||'—')+') — se débloque à la fin de la réf précédente.</div>'):'<div class="fmm-hint l527-ko-hint" style="color:var(--red)">⛔ LAIZE NON SAISIE — mesure ta bobine et saisis-la dans l\'onglet Plan (Partie opérateur) avant de couper cette réf.</div>';   /* [L527] */
     }else if(validated){
       // [L217] réf VALIDÉE → résumé COMPACT (une seule fois, en haut) au lieu des champs verbeux — demande Esteban.
       badge='<span class="fmm-badge val">✓ validée</span>';
@@ -21142,7 +21238,7 @@ function renderFicheMachineBlocks(opts){
       // _syncRefDonePills (updateCoupeeStatus + rendu) — matching par refIdKey/idx, PAS par nom (homonymes).
       /* [L423 · demande Esteban] la ref VALIDEE ne reaffiche plus mere/bords/laize ni « ✓ VÉRIFIÉES » (doublon
          de la Partie operateur du Plan depuis L420-L422) : juste la ligne « terminée » + ✎ MODIFIER pour corriger. */
-      body='<div class="fmm-done-line" onclick="this.closest(\'.fmm-inline-block\').classList.toggle(\'ref-open\')">✓ Réf '+(pos+1)+' · '+esc(refDispCtx(r.ref))+' terminée <span class="fdl-hint fdl-o">(déplier)</span><span class="fdl-hint fdl-c">(replier)</span></div>'
+      body='<div class="fmm-done-line" onclick="this.closest(\'.fmm-inline-block\').classList.toggle(\'ref-open\')">✓ Réf '+(pos+1)+' · '+esc(refDispCtx(r.ref,r.refKey))+' terminée <span class="fdl-hint fdl-o">(déplier)</span><span class="fdl-hint fdl-c">(replier)</span></div>'
         +'<div class="fmm-valsum">'
         +(_ml?'<span class="frs-mch" style="--mc:'+_mc+'">⚙ '+esc(_ml)+'</span>':'')
         +'<button type="button" class="fmm-recorr" onclick="unvalidateFicheRef('+r.idx+')">✎ MODIFIER</button>'
@@ -21158,12 +21254,12 @@ function renderFicheMachineBlocks(opts){
         +'<input type="hidden" data-fmm="machine" value="'+V(r.machine)+'">'
         +'<div class="machine-btns" style="margin-bottom:0">'+MACHINE_KEYS.map(mbtn).join('')+'</div></div>'
         +'<div class="row3">'
-        +'<div class="field"><label>Bobine mère (mm)</label><input type="text" data-fmm="mother" inputmode="decimal" value="'+V(r.mother)+'"></div>'
+        +'<div class="field"><label>Bobine mère (mm)</label><input type="text" data-fmm="mother" inputmode="decimal" value="'+(_ok27?V(r.mother):'')+'"'+(_ok27?'':' placeholder="à saisir"')+'></div>'   /* [L527] laize non confirmee : mere NON pre-remplie (un tap sur 2100/10 validait un plan faux — incident 17/09) */
         +'<div class="field"><label>Bords (mm)</label><input type="text" data-fmm="edge" inputmode="decimal" value="'+V(r.edge)+'"></div>'
         +'<div class="field"><label>Perte lame (mm)</label><input type="text" data-fmm="blade" inputmode="decimal" value="'+V(r.blade)+'"></div>'
         +'</div>'
-        +'<button class="btn btn-blue" style="width:100%;margin-top:10px" onclick="applyFicheRefPlanChange('+r.idx+')">🔄 Valider la bobine mère<span class="fmm-btn-ref"> — '+esc(String(r.ref))+'</span></button>';
-      hint='<div class="fmm-hint" style="color:var(--orange)">⚠ Vérifie la vraie bobine mère puis valide pour cette réf.</div>';
+        +'<button class="btn btn-blue" style="width:100%;margin-top:10px" onclick="applyFicheRefPlanChange('+r.idx+')">🔄 Valider la bobine mère<span class="fmm-btn-ref"> — '+esc(String(r.ref))+'</span>'+(_l527Lot(r)?('<span class="fmm-btn-ref">'+esc(_l527LotLbl(r))+'</span>'):'')+'</button>';   /* [L527] */
+      hint=_ok27?'<div class="fmm-hint" style="color:var(--orange)">⚠ Vérifie la vraie bobine mère puis valide pour cette réf.</div>':'<div class="fmm-hint l527-ko-hint" style="color:var(--red)">⛔ '+esc(refDispCtx(r.ref,r.refKey))+' : LAIZE NON SAISIE — mesure ta bobine, tape-la ci-dessus et valide, ou onglet Plan → Partie opérateur → laize utilisable → ✓ VALIDER la préparation.</div>';   /* [L527] visible portrait (slot hint historique) ET paysage (override CSS .l527-ko-hint) */
     }
     const block=document.createElement('div');
     block.className='fmm-block fmm-inline-block '+stateCls;
@@ -21256,7 +21352,10 @@ function applyFicheRefPlanChange(idx){
   const blade=(gv('blade')?.value||'').trim();
   const machine=(gv('machine')?.value||'').trim();
   if(!machine){ showToast('⚠ Choisis la machine de cette référence.','err'); const _mb=blk.querySelector('.machine-btns .machine-btn-fiche'); if(_mb){ try{ _mb.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} try{ _mb.focus(); }catch(e){} } return; }   // [L261 · revue] focus/scroll vers les BOUTONS machine (l'input est caché → focus() était un no-op)
-  if(!mother){ showToast('⚠ Renseigne la bobine mère de cette référence.','err'); gv('mother')?.focus(); return; }
+  if(!mother){   /* [L527 · incident Celine 17/09] mere vide = laize NON confirmee (la carte ne pre-remplit plus le defaut) : dire quoi faire, ici ou au Plan */
+    const _ok27=_l527LaizeOkIdx(idx), _rr27=(fmmGetRefs().find(r=>r.idx===idx)||{}), _lb27=String(_rr27.ref||('réf '+(idx+1)));
+    showToast(_ok27?'⚠ Renseigne la bobine mère de cette référence.':'⛔ '+refDispCtx(_lb27,_rr27.refKey)+' : laize NON saisie — tape ici la VRAIE bobine mère mesurée (ou onglet Plan → Partie opérateur → laize utilisable → ✓ VALIDER la préparation) avant de couper.','err');
+    gv('mother')?.focus(); return; }
   if(!edge){ showToast('⚠ Renseigne la perte bords de cette référence.','err'); gv('edge')?.focus(); return; }
   if(blade===''){ showToast('⚠ Renseigne la perte lame de cette référence.','err'); gv('blade')?.focus(); return; }
   // Écrit dans le bloc plan correspondant (position = index).
@@ -21267,6 +21366,7 @@ function applyFicheRefPlanChange(idx){
   if(planBlock){
     const set=(s,v)=>{const e=planBlock.querySelector('[data-rb="'+s+'"]'); if(e) e.value=v;};
     set('machine',machine); set('mother',mother); set('edge',edge); set('blade',blade);
+    planBlock.dataset.laizeOk='1';   /* [L527] bobine mere TAPEE dans la Fiche = laize confirmee pour cette ref (geste de la machine, quel que soit le compte ; mother non vide garanti par la garde ci-dessus) */
   }
   // Miroir champs historiques (garde chrono / impression).
   const setId=(id,v)=>{const e=document.getElementById(id); if(e) e.value=v;};
@@ -21619,6 +21719,7 @@ function selectIni(v){
   document.getElementById('fInitiales').value=v;
   document.querySelectorAll('#initBtns .ini-btn').forEach(b=>b.classList.toggle('sel',b.textContent===v));
   try{ _l448SyncPlanIni(); }catch(e){}   /* [L448] la rangee OPERATEUR du Plan suit */
+  try{ if(typeof _l421SyncUseful==='function') _l421SyncUseful(); }catch(e){}   /* [L527 · revue adverse 18/09] le poste (operateur / bureau) depend aussi des initiales choisies : la case « Laize utilisable » et son libelle suivent */
   try{ localStorage.setItem('step_op_day',JSON.stringify({ini:v,date:_localDay()})); }catch(e){}
   // [L376 · grande analyse A2.6] l'en-tête déplié par la GARDE (initiales manquantes) se replie tout seul une fois
   // les initiales choisies, et l'écran revient à la bobine en cours — avant : +330px permanents, volet NC sous le pli.
@@ -22101,9 +22202,21 @@ let _lastCoupeeMarkMs=0;
 function coupeeTapOne(id){
   const line=document.getElementById(id);
   if(!line){ return; }
+  /* [L527 · revue adverse 18/09] bobine NON coupee dont la laize (ou la lame) a change dans le Plan APRES son calcul — derive « DIMENSIONS » de _fichePlanDriftCheck : pas de coupe
+     avant « Appliquer ». C est le plan provisoire de l incident, par le chemin Plan → ✓ VALIDER que les messages L527 recommandent. Mono et multi ; le de-marquage n est pas concerne. */
+  if(!line.classList.contains('coupee')&&_l527DriftIds.has(id)){
+    showToast('⛔ La laize de cette référence a changé dans le Plan APRÈS le calcul de cette bobine : tape le bouton ROUGE de la bannière en haut (« Appliquer ») pour recalculer ses bobines, puis coupe.','err');
+    try{ const pb=document.getElementById('planDriftApplyBtn'); if(pb){ pb.scrollIntoView({behavior:'smooth',block:'center'}); pb.animate([{outline:'3px solid #f5b301',outlineOffset:'2px'},{outline:'3px solid rgba(245,179,1,0)'}],{duration:1400}); } }catch(e){}
+    return;
+  }
   // [L377 · grande analyse B3 (reco appliquée « go » Esteban 20/08)] MULTI-RÉF : la bobine d'une réf NON VALIDÉE ne se coupe pas —
   // la validation de la bobine mère par réf est déjà la règle (L176) ; seul le 1er départ était verrouillé (trou ISO préexistant L303).
   if(!line.classList.contains('coupee')&&typeof fmmIsMulti==='function'&&fmmIsMulti()){
+    /* [L527 · incident Celine 17/09] CEINTURE independante de la validation : une ref VALIDEE par heritage (brouillon / plan d avant L527) mais
+       dont la laize mesuree n est pas confirmee ne se coupe pas — renvoi vers la case du Plan. Decision HORS du try (L379 n°4). */
+    let _ko27=false, _i27=-1, _r27='';
+    try{ const _l27=ficheLines.find(x=>x&&x.id===id)||{}; _r27=_l27.ref||''; if(typeof _l27.refIdx==='number'&&typeof ficheRefValidated!=='undefined'&&ficheRefValidated.has(_l27.refIdx)){ _i27=_l527DomIdx(_l27); _ko27=!_l527LaizeOkIdx(_i27); } }catch(e){}
+    if(_ko27){ _l527GoPlan(_i27,_r27?refDisp(_r27):''); return; }
     let _blockCut=false, _lref='';
     try{
       const _ln=ficheLines.find(x=>x&&x.id===id)||{}; _lref=_ln.ref||'';
@@ -22281,7 +22394,7 @@ function updateCoupeeStatus(){
   if(!ficheLines.length){   // [L340 · fix audit] fiche VIDE : plus de « RESTE 9 » fantôme + pastilles d'en-tête rafraîchies (resetAll/login/restore écrivent les champs sans événement) — posé AVANT le marqueur L260 inchangé
     try{ const _sb=document.getElementById('sendPlanBtn'); if(_sb) _sb.removeAttribute('data-reste'); }catch(e){}
     try{ if(typeof renderFicheHeadPills==='function') renderFicheHeadPills(); }catch(e){} }
-  if(!ficheLines.length){ const _b=document.getElementById('coupeeBanner'); if(_b){ _b.style.display='none'; _b.innerHTML=''; } return; }
+  if(!ficheLines.length){ window._l527Done=null; const _b=document.getElementById('coupeeBanner'); if(_b){ _b.style.display='none'; _b.innerHTML=''; } return; }   /* [L527] fiche vide : le rappel de fin de ref repart de zero */
   const total=ficheLines.length;
   const done=countCoupees();   // [L85 · Audit #27]
   const allDone=done===total;
@@ -22304,6 +22417,18 @@ function updateCoupeeStatus(){
       });
       return `<span style="color:${ok?'var(--green)':'var(--text)'}">${esc(refDispCtx(r,rk00))} <strong>${d}/${lines.length}</strong></span>`;
     }).join(' · ');
+    /* [L527 · demande Celine 17/09] fin d une reference : rappel AVANT la suivante (onglet Plan : initiales, laize mesuree, chutes → VALIDER).
+       Toast rouge tappable (8-14 s, portrait + paysage), jamais une modale, rien en base ; muet au 1er rendu (reprise / rechargement / regeneration). */
+    try{
+      const _sg27=ficheLines.length+':'+String((ficheLines[0]&&ficheLines[0].id)||''); if(window._l527DoneSig!==_sg27){ window._l527DoneSig=_sg27; window._l527Done=null; }   /* [L527 · revue adverse 18/09] fiche remplacee / regeneree / recalculee : le rappel repart de zero, en silence */
+      const _tk27=function(rk){ const l0=ficheLines.find(function(l){ return _refKeyOf(l)===rk; }); return (l0&&typeof l0.refIdx==='number')?('i'+l0.refIdx):rk; };   /* jeton STABLE par reference = index du bloc : la CLE change quand une laize ou un rang change, et le rappel ressortait a tort */
+      const _dk27=refs.filter(function(rk){ const ls=ficheLines.filter(function(l){ return _refKeyOf(l)===rk; }); return ls.length>0&&ls.every(function(x){ const e=document.getElementById(x.id); return e&&e.classList.contains('coupee'); }); });
+      const _dn27=_dk27.map(_tk27);
+      const _new27=_l527PosteOp()?_l527NewlyDone(window._l527Done,_dn27):[]; window._l527Done=_dn27;   /* rappel adresse a l OPERATEUR : muet sur un poste bureau / une vue miroir */
+      if(_new27.length&&!allDone){ const _k=_dk27[_dn27.indexOf(_new27[_new27.length-1])]; const _nx=refs.find(function(rk){ return _dk27.indexOf(rk)<0; });
+        const _nl=_nx?ficheLines.find(function(l){ return _refKeyOf(l)===_nx; }):null; const _di27=_nl?_l527DomIdx(_nl):-1; const _nko=_di27>=0&&!_l527LaizeOkIdx(_di27);
+        showToast(_l527RefDoneMsg(refDispCtx(_byKey00[_k],_k),_nx?refDispCtx(_byKey00[_nx],_nx):'',_nko),'err'); }
+    }catch(e){}
   }
   const banner=document.getElementById('coupeeBanner');
   const sendBtn=document.getElementById('sendPlanBtn');
