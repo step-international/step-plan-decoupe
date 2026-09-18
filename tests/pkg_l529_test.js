@@ -9,6 +9,7 @@ let fail=0,total=0; const ok=(c,m)=>{ total++; console.log((c?'✅ ':'❌ ')+m);
 global.nrm=v=>String(v==null?'':v).trim().toLowerCase();
 const mP=src.match(/^var PKG_CLIENTS=(\{[\s\S]*?\n\});/m); if(!mP) throw new Error('introuvable PKG_CLIENTS'); global.PKG_CLIENTS=eval('('+mP[1]+')');
 const mL=src.match(/^const _L529_PKG_PATCHES=(\[[^\]]*\]);/m); global._L529_PKG_PATCHES=mL?eval(mL[1]):null;
+const mF2=src.match(/^const _L532_PKG_FORCE=(\[[^\]]*\]);/m); global._L532_PKG_FORCE=mF2?eval(mF2[1]):[];   /* [L532] la fusion lit aussi la liste des regles MISES A JOUR dans le code (le code gagne pour ces cles) */
 let MERGE=null; try{ MERGE=eval('('+fnOf('_l529PkgMerge')+')'); }catch(e){ ok(false,'fonction _l529PkgMerge introuvable ('+e.message+')'); }
 global._l410PkgResolve=eval('('+fnOf('_l410PkgResolve')+')');
 console.log('── 1. la regle Suys existe dans le code ──');
@@ -21,7 +22,7 @@ console.log('── 2. la table partagee ne peut plus effacer la regle, et gagne
 global.PKG_CLIENTS_SEED=PKG_CLIENTS;
 const remote={'EPCO':{palette:'X',notes:'table partagee'},'VEKA':{palette:'Y',notes:'v'}};
 const out=MERGE?MERGE(remote):null;
-ok(!!out&&out!==remote&&out['Suys']===S&&out['EPCO'].notes==='table partagee'&&Object.keys(out).length===3&&Object.keys(remote).length===2,'table partagee SANS Suys → Suys re-ajoutee, les cles recues intactes, l objet recu non modifie');
+ok(!!out&&out!==remote&&out['Suys']===S&&out['EPCO'].notes==='table partagee'&&Object.keys(out).length===5&&out['Cougnaud']===PKG_CLIENTS['Cougnaud']&&out['BOUVET']===PKG_CLIENTS['BOUVET']&&Object.keys(remote).length===2,'table partagee SANS Suys → Suys re-ajoutee, [L532] Cougnaud (regle mise a jour dans le code) aussi, les cles recues intactes, l objet recu non modifie');
 const remote2={'Suys':{palette:'Z',notes:'saisie par un admin'}}; const out2=MERGE?MERGE(remote2):null;
 ok(!!out2&&out2['Suys'].notes==='saisie par un admin','table partagee AVEC sa propre entree Suys → elle GAGNE (jamais ecrasee par le code)');
 ok(Array.isArray(_L529_PKG_PATCHES)&&_L529_PKG_PATCHES.join(',')==='Suys'&&!!out&&!('CARRETIER ROBIN' in out),'seules les cles LISTEES sont re-ajoutees (une regle retiree de la table partagee ne ressuscite pas)');

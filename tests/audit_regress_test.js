@@ -2550,5 +2550,16 @@ has(/const _di31=_l527DomIdx\(_ln\); _blockCut=\(typeof ficheRefValidated!=='und
 absent(/_blockCut=\(typeof ficheRefValidated!=='undefined'\)&&!ficheRefValidated\.has\(_ln\.refIdx\);/,'L531 : plus aucune lecture de ficheRefValidated avec l index du PLAN CALCULE');
 has(/else \{ delete _b20\[i\]\.dataset\.opValidated; try\{ if\(typeof ficheRefValidated!=='undefined'\) ficheRefValidated\.delete\(i\); \}catch\(_\)\{ \} \} \}\);/,'L531 : a la reprise d un brouillon, une preparation NON validee EFFACE le marqueur du bloc 1 statique et purge le verrou fiche (symetrie de laizeOk)');
 has(/delete o\.laizeOk; delete o\.lotOk; delete o\.lot; return o;/,'L531 : le rang « lot » (derive, _l527AssignLots) sort de la signature du plan — un plan homonyme d avant L527 ne fait plus regenerer sa fiche');
+
+// ── [L532 · demande Celine 18/09/2026] regle d emballage Cougnaud : chiffres de la fiche atelier (PP / GP, par pile, 20 piles de, par carton) ──
+has(/PP = petite palette · GP = grande palette\./,'L532 : la regle Cougnaud explique PP et GP');
+has(/DQ1006 Bleu 600ml — bob\/pile : 14mm=8 PP \| 19mm=6 PP \| 24mm=6 PP \| 30mm=7 GP \| 36mm=6 GP/,'L532 : DQ1006 bleu — bobineaux par pile et palette (fiche « commande cougnaud 08 2025 »)');
+has(/DQ1006 Bleu 600ml — 20 piles de N bobineaux : 40mm=19 GP \| 45mm=11 PP \| 50mm=15 GP \| 65mm=7 PP \| 81mm=6 PP \| 90mm=6 PP/,'L532 : DQ1006 bleu — 20 piles de N bobineaux');
+has(/KX1011-1 noir blanc 500ml — bob\/carton : 14mm=16 \| 19mm=11 \| 24mm=9 \| 30mm=7 \| 36mm=6 \| 40mm=5 \| 45mm=4 \| 50mm=4 \| 65mm=3 \| 81mm=2 \| 90mm=2 \| 100mm=2 \| 110mm=2 \| 130mm=1/,'L532 : KX1011-1 — bobineaux par carton');
+has(/^const _L532_PKG_FORCE=\['Cougnaud','BOUVET'\];/m,'L532 : regle MISE A JOUR dans le code → le code gagne sur la table partagee pour cette cle (sinon la mise a jour restait invisible)');
+has(/\['palette','type','etiquetage','cerclage','notes'\]\.every\(function\(f\)\{ return String\(a\[f\]==null\?'':a\[f\]\)===String\(b\[f\]==null\?'':b\[f\]\); \}\)/,'L532 : fusion — comparaison CHAMP PAR CHAMP (une table revenue de Firestore a ses cles triees)');
+has(/\{o:'⚡ SPÉCIFICITÉ : Mandrins PARFAITS exigés \+ caisse\/carton mixte\.\\nDQ1006 Bleu 600ml \(bob\/pile par largeur 14-90mm\)\./,'L532 : les commandes et plans deja enregistres avec l ancienne note Cougnaud affichent la nouvelle (patron L297)');
+has(/DQ1009 Bleu 600ml : 20mm=11\/p ×48p \(528\) \| 30mm=7\/p ×48p \(336\) — 20 et 30 mm CERCLÉS \| 40\/55\/70mm/,'L532 : BOUVET — DQ1009 bleu : totaux entre parentheses, « 20 et 30 mm CERCLÉS » (correction Celine 18/09 : 360 / 260 / 200 non repris)');
+has(/DQ1000-1 transp 500ml — CERCLER toutes les largeurs : 20mm=5\/p \| 30mm=5\/p \| 40mm=4\/p \| 50mm=4\/p \| 70mm=3\/p/,'L532 : BOUVET — DQ1000-1 : « CERCLER toutes les largeurs » (la mention manquait)');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
