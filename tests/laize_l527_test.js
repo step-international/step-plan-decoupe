@@ -106,11 +106,15 @@ const CT9=grab('coupeeTapOne'); global._l527DriftIds=new Set(); global.fmmIsMult
 { const lineEl={classList:{contains:()=>false}}; const prevGet=document.getElementById; document.getElementById=id=>id==='L1'?lineEl:(id==='fInitiales'?{value:ini}:null);
   global.ficheLines=[{id:'L1',ref:'KX',refIdKey:'KB',refIdx:1}]; global.fmmRawRefs=()=>[{idx:1,refKey:'KA'},{idx:2,refKey:'KB'}];
   blocks=[block({mother:2100,edge:10,blade:5,machine:'feba'}),block({mother:1240,edge:0,blade:5,machine:'feba',dataset:{laizeOk:'1'}}),block({mother:2100,edge:10,blade:5,machine:'feba'})];
-  ficheRefValidated.clear(); ficheRefValidated.add(1); toasts.length=0; pages=[];
+  ficheRefValidated.clear(); ficheRefValidated.add(2); toasts.length=0; pages=[];   /* [L531 · audit adverse 18/09] ficheRefValidated est indexe par index de BLOC DOM (index.html l.21309 : « i = index DOM », l.7076 : indexOf(blk), l.21307 : r.idx de fmmRawRefs). La reference de cette ligne est le bloc DOM 2 : c est 2 qu il faut y mettre. La fixture posait 1 — l index du PLAN CALCULE — et ne passait que parce que coupeeTapOne lisait le Set dans ce meme mauvais cadre. */
   let went=null; const prevGo=global._l527GoPlan; global._l527GoPlan=(i)=>{ went=i; };
   if(CT9) CT9('L1'); ok(went===2&&cut9===0,'CEINTURE jouee de bout en bout (coupeeTapOne) : ref du bloc DOM 2 (refIdx 1, bloc-stub devant), validee par heritage, laize non confirmee → renvoi sur le bloc 2 (avant : lisait le bloc 1, confirme → coupe acceptee) → '+went);
   went=null; cut9=0; blocks[2].dataset.laizeOk='1'; _l527DriftIds.add('L1'); toasts.length=0; if(CT9) CT9('L1');   /* laize confirmee : seule la garde « autre laize » doit arreter la coupe */
   ok(went===null&&cut9===0&&toasts.some(t=>/laize de cette référence a changé dans le Plan/.test(t)),'bobine NON coupee calculee sur une AUTRE laize que celle du Plan (derive DIMENSIONS) → coupe REFUSEE avant « Appliquer » (chemin Plan → VALIDER de l incident)');
+  /* [L531] cas MIROIR, celui qui manquait : la reference de la ligne (bloc DOM 2) n est PAS validee — seul le bloc DOM 1 l est.
+     Le verrou L379 doit REFUSER la coupe, laize confirmee ou non. Avant L531 : has(_ln.refIdx)=has(1)=vrai -> coupe ACCEPTEE (verrou ISO perce). */
+  _l527DriftIds.clear(); ficheRefValidated.clear(); ficheRefValidated.add(1); blocks[2].dataset.laizeOk='1'; went=null; cut9=0; toasts.length=0; if(CT9) CT9('L1');
+  ok(cut9===0&&went===null&&toasts.some(t=>/bobine m\u00e8re/.test(t)),'[L531] reference NON validee (son bloc DOM absent du Set) -> coupe REFUSEE meme laize confirmee -> coupes='+cut9+' toasts='+toasts.length);
   _l527DriftIds.clear(); global._l527GoPlan=prevGo; document.getElementById=prevGet; ficheRefValidated.clear(); }
 { const b0=block({mother:1240,edge:0,blade:5,machine:'feba',dataset:{laizeOk:'1'}}), b1=block({mother:2080,edge:0,blade:5,machine:'feba',dataset:{laizeOk:'1'}}); blocks=[b0,b1]; ini='TB';
   global.getRefGroups=()=>[{useful:1240},{useful:2080}]; global.fmmRawRefs=()=>[{idx:0,refKey:'K0'},{idx:1,refKey:'K1'}];

@@ -131,5 +131,21 @@ console.log('── 8. [L526] _l526Decomp sans effet de bord ; une vraie excepti
   ok(d.ok===false&&d.err.indexOf('boom')>=0&&warns===w0+1&&global._l505Warn===before,'exception forcee : err renseigne, UNE trace emise (regle 7), traceur restaure → '+d.err+' / '+(warns-w0));
   ok(_l526Diag(F1(),d,{ok:true},5).indexOf('décomposition indisponible')===0,'Diagnostic dit « décomposition indisponible … »');
 }
+console.log('\u2500\u2500 9. [L531 \u00b7 audit adverse 18/09] Diagnostic : l egalite ECRITE retombe sur le total, et jamais une categorie inventee \u2500\u2500');
+{ /* d synthetique : _l526Diag ne lit que ok / m2Coupes / lamesM2 / bordsM2 / resteM2 / perteM2 — meme surface que _l526Decomp */
+  const D=(m2,l,b,r)=>({ok:true,m2Coupes:m2,lamesM2:l,bordsM2:b,resteM2:r,perteM2:l+b+r});
+  const lit=t=>{ const m=String(t).match(/^([\d,]+) % des m\u00b2 = traits de lame ([\d,]+) % \+ bords ([\d,]+) % \+ laize restante non gard\u00e9e ([\d,]+) %/);
+                 return m?m.slice(1).map(x=>parseFloat(x.replace(',','.'))):null; };
+  /* les deux premiers cas sont les VRAIS contre-exemples trouves le 18/09 : trois arrondis a 0,1 qui ne retombent pas sur le total */
+  const CAS=[[1000,24.5,28.5,0],[1000,24.4,28.4,0],[3150,15,15,155.5],[1000,24,28,10]];
+  let koEg=0,koInv=0,vus=0,dbg=[];
+  CAS.forEach(function(c){ const p=lit(_l526Diag(F1(),D(c[0],c[1],c[2],c[3]),{ok:true},5)); if(!p) return; vus++;
+    const somme=Math.round((p[1]+p[2]+p[3])*10)/10;
+    if(somme!==p[0]){ koEg++; dbg.push(p[1]+'+'+p[2]+'+'+p[3]+'='+somme+' annonce '+p[0]); }
+    if(c[3]===0&&p[3]>0){ koInv++; dbg.push('reste 0 m\u00b2 annonce '+p[3]+' %'); } });
+  ok(vus===CAS.length,'les '+CAS.length+' cas passent le seuil et sortent une decomposition \u2192 '+vus);
+  ok(koEg===0,'l egalite ECRITE retombe toujours sur le total annonce (residu des arrondis pose sur le terme DOMINANT) \u2192 '+koEg+' faux '+dbg.join(' | '));
+  ok(koInv===0,'jamais « laize restante non gard\u00e9e 0,1 % » quand la colonne « Laize restante m\u00b2 » de la MEME ligne dit 0 \u2192 '+koInv+' invente(s)');
+}
 console.log(fail?('💥 '+fail+' echec(s) sur '+total):('🏆 CSV L517 OK : '+total+' verifications'));
 process.exit(fail?1:0);

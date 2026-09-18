@@ -1077,7 +1077,7 @@ has(/\.fiche-ref-sep \.frs-count,\.fiche-ref-sep \.frs-m\{font-size:13px\}/,'L37
 has(/html\.theme-light \.stat-tile\.pct-orange b\{color:#ff9d4d\}/,'L378 : thème clair — perte % lisible');
 
 console.log('── L379 : correctifs audit L377/L378 ──');
-has(/if\(typeof _ln\.refIdx==='number'\)\{ _blockCut=\(typeof ficheRefValidated!=='undefined'\)&&!ficheRefValidated\.has\(_ln\.refIdx\); \}/,'L379 n°2 : verrou B3 par INDEX de groupe (les homonymes ne mentent plus) — structurel');
+has(/if\(typeof _ln\.refIdx==='number'\)\{ const _di31=_l527DomIdx\(_ln\);/,'L379 n°2 : verrou B3 par INDEX de groupe (les homonymes ne mentent plus) — structurel ; [L531] l index est CONVERTI avant la lecture du Set');
 has(/refIdKey:_refIdKey\(c\), refIdx:ci,/,'L379 n°2 → L500 : refIdx posé à la génération des lignes (c.idx n existait pas — corrigé en ci)');
 has(/st\.fiche\.refValidated=\[\]; st\.fiche\.refOrder=\[\];/,'L379 n°3 : les mères du SOLDE se re-valident (index ré-alignés)');
 has(/if\(_blockCut\)\{   \/\/ \[L379 · n°4\] décision HORS du try/,'L379 n°4 : verrou fail-closed');
@@ -2366,7 +2366,9 @@ has(/const _repClick=_mf26\?'':/,'L526 (revue adverse) : sous filtre, le lien «
 absent(/avec repli tracé|fiche en repli ce mois/,'L526 (revue adverse) : plus de jargon « repli » dans la liste des fiches a verifier');
 has(/x\.machineChg&&x\.machineChg\.to/,'L526 (revue adverse) : le filtre machine compte aussi le changement de machine en cours de fiche');
 has(/const pc=\(a\)=>\{ const p=_m17\.ok\?_l526PctM2\(a,_m17\.m2Coupes\):null; return \(p==null\)\?'':_l517Num\(p\); \};/,'L526 (revue adverse) : UNE formule de % sur la ligne CSV (la colonne et le seuil du Diagnostic ne peuvent plus diverger de 0,1)');
-has(/const pr=Math\.max\(0,Math\.round\(\(pct-pl-pb\)\*10\)\/10\);/,'L526 (revue adverse) : l egalite ecrite dans le Diagnostic est exacte (dernier terme par difference)');
+has(/const _pa=\[pl,pb,prRaw\], _res=Math\.round\(\(pct-\(pl\+pb\+prRaw\)\)\*10\)\/10;/,'L531 : le residu des trois arrondis du Diagnostic va sur le terme DOMINANT (le L526 le posait d office sur « laize restante »)');
+absent(/const pr=Math\.max\(0,Math\.round\(\(pct-pl-pb\)\*10\)\/10\);/,'L531 : l ancien dernier-terme-par-difference a bien disparu (il annoncait 2,5 + 2,9 + 0 pour 5,3 et inventait 0,1 % de laize restante)');
+has(/n\(_pa\[0\]\)\+' % \+ bords '\+n\(_pa\[1\]\)\+' % \+ laize restante non gard\u00e9e '\+n\(_pa\[2\]\)/,'L531 : la phrase du Diagnostic ECRIT les trois termes corriges (preuve : tests/csv_l517_test.js bloc 9, vu ROUGE le 18/09)');
 has(/if\(!L\)\{ if\(_hasW\) window\._l505Warn=function\(\)\{\}; L=_l513Matiere\(f\); \}/,'L526 : le rejeu de decomposition est MUET (marqueur positif, rouge sur L525 — l absent() seul etait vert par construction)');
 has(/revirement PARTIEL et daté : le % en base m² COUPÉS/,'L526 : la decision du 28/08 (plus de % a l ecran) est amendee PAR ECRIT et DATEE (Celine 16/09), sinon une revue future retire le %');
 has(/kpi=buildMonthlyKpi\(ym,_l526F\(fichesCache\),_l526F\(tempsCache\)\);/,'L526 : filtre machine des KPI = recalcul EN DIRECT sur un sous-ensemble de fiches (buildMonthlyKpi et les agregats INCHANGES)');
@@ -2459,10 +2461,10 @@ has(/if\(!line\.classList\.contains\('coupee'\)&&_l527DriftIds\.has\(id\)\)\{/,'
 has(/if\(_dimMsg\)\{ try\{ lines\.forEach\(d=>\{ if\(d&&d\.id&&!d\.recut&&!_frozenLike\(d\)\) _l527DriftIds\.add\(d\.id\); \}\); \}catch\(e\)\{\} \}/,'L527 revue : seules les bobines NON figees et non ♻ de la reference derivee sont retenues');
 has(/nrm\(d\.ref\|\|''\)===nm&&d\.refIdx===_ci27\);/,'L527 revue : detecteur de derive — entre references de MEME NOM, rattachement des orphelines par refIdx (angle mort L241 ferme)');
 has(/^function _l527DomIdx\(l\)\{/m,'L527 revue : index DOM d une ligne par CLE puis refIdx converti (un bloc-stub devant ne decale plus la ceinture)');
-has(/_i27=_l527DomIdx\(_l27\); _ko27=!_l527LaizeOkIdx\(_i27\);/,'L527 revue : la ceinture lit le BON bloc');
+has(/_i27=_l527DomIdx\(_l27\);[\s\S]{0,120}_ko27=!_l527LaizeOkIdx\(_i27\);/,'L527 revue : la ceinture lit le BON bloc (et depuis L529, interroge le Set avec CE meme index)');
 has(/\.split\('¦'\)\.slice\(0,4\)\.join\('¦'\)\+'¦⚙'\+String\(g\.machine\|\|''\)\.toLowerCase\(\);/,'L527 revue : rang pose sur nom¦film¦veka¦metrage + MACHINE — collant quand les laizes mesurees different, jamais entre deux machines (L130/L286/L298 intacts)');
 has(/\.\.\.\(\(_blks20\[i\]&&_l527LaizeOk\(_blks20\[i\]\)\)\?\{laizeOk:true\}:\{\}\),/,'L527 revue : laizeOk serialise seulement quand il est vrai');
-has(/delete o\.laizeOk; delete o\.lotOk; return o;/,'L527 revue : les marqueurs de confirmation sont HORS de la signature du plan (_planSigOf)');
+has(/delete o\.laizeOk; delete o\.lotOk; delete o\.lot; return o;/,'L527 revue : les marqueurs de confirmation sont HORS de la signature du plan (_planSigOf) — [L531] le rang « lot » aussi');
 has(/'ref·identite-ambigue':'deux références de même contenu/,'L527 revue : cause lisible pour la trace ref·identite-ambigue (liste « Fiches à vérifier »)');
 has(/if\(_ph\.length===1\) return _ph\[0\];/,'L527 revue : lineKey — prefixe discriminant d abord (L103), index entre candidats de meme prefixe');
 has(/_l527PosteOp\(\)\?_l527NewlyDone\(window\._l527Done,_dn27\):\[\]/,'L527 revue : rappel de fin de reference au poste operateur seulement');
@@ -2504,11 +2506,11 @@ has(/onclick="_l528ExportVolumes\(\)">⬇ CSV volumes livrés \(12 mois terminé
 absent(/const hdr='Client;/,'L528 : AUCUN second « const hdr= » (csv_l517_test.js:30 lit la PREMIERE occurrence) — filet, pas un marqueur discriminant');
 
 // ── [L529 · demande Celine 18/09/2026] note d emballage du client Suys ──
-has(/'Suys':\{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard \(≤39mm \+ tous KX\)',/,'L529 : regle d emballage du client Suys dans le code');
-has(/DH1004 imprimé → écrire à la main la largeur dans le mandrin/,'L529 : la consigne Suys (DH1004 imprime : largeur ecrite a la main dans le mandrin)');
-has(/^function _l529PkgMerge\(remote\)\{/m,'L529 : la table partagee (Firestore / cache local) ne peut plus effacer une regle ajoutee au code');
-has(/^const _L529_PKG_PATCHES=\['Suys'\];/m,'L529 : seules les cles LISTEES sont re-ajoutees (la table partagee gagne sur ses propres cles)');
-has(/PKG_CLIENTS=_l529PkgMerge\(d\.pkgClients\);/,'L529 : fusion au seul point de convergence (_l486Apply)');
+has(/'Suys':\{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard \(≤39mm \+ tous KX\)',/,'L531 : regle d emballage du client Suys dans le code');
+has(/DH1004 imprimé → écrire à la main la largeur dans le mandrin/,'L531 : la consigne Suys (DH1004 imprime : largeur ecrite a la main dans le mandrin)');
+has(/^function _l529PkgMerge\(remote\)\{/m,'L531 : la table partagee (Firestore / cache local) ne peut plus effacer une regle ajoutee au code');
+has(/^const _L529_PKG_PATCHES=\['Suys'\];/m,'L531 : seules les cles LISTEES sont re-ajoutees (la table partagee gagne sur ses propres cles)');
+has(/PKG_CLIENTS=_l529PkgMerge\(d\.pkgClients\);/,'L531 : fusion au seul point de convergence (_l486Apply)');
 
 // ── [L530 · decisions Celine 18/09/2026] m² coupés (bobines mères) / m² découpés (bobineaux) / m² livrés ──
 has(/pReste=0,pRecut=0,pSurplus=0,nSurplusInc=0;/,'L530 : accumulateur de la quantite en trop (m²) et compteur des quantites en trop non chiffrees');
@@ -2539,5 +2541,14 @@ has(/if\(rs\.some\(r=>r\.surplusInc\)\) R\.nQT\+\+;/,'L530 revue : quantite en t
 has(/Déchet % = Déchet m² \/ « m² coupés \(bobines mères\) »/,'L530 revue : la legende du CSV tableau de bord cite la colonne sous son NOUVEAU nom');
 has(/bons bobineaux produits \(bobines mères \+ rouleaux chute recoupés,/,'L530 (demande Celine 18/09) : dans l ANALYSE et les fichiers, « rouleaux chute recoupés » en toutes lettres (le symbole ♻ reste pour les operateurs : Plan et Fiche inchanges)');
 has(/bons bobineaux produits : bobines mères \+ rouleaux chute recoupés,/,'L530 : meme libelle dans la meta du CSV volumes');
+has(/^function _l531RefsSansMachine\(arr\)\{/m,'L531 : une reference persistee SANS machine revient sur « choisir » sur le PILOTAGE (reproduit le 18/09 : ref 2 vide revenait en MAVEG par heritage _l511InheritMachine)');
+has(/try\{ _l531RefsSansMachine\(arr\); \}catch\(e\)\{\}/,'L531 : le garde-fou est pose dans restoreRefGroups, donc sur les DEUX appelants (doLoad et restoreState)');
+has(/_l363DefaultMachine\(\)\) return 0; const els=document\.querySelectorAll\('#refBlocks \[data-rb="machine"\]'\)/,'L531 : la tablette est EXCLUE du garde-fou (le filet du poste fait foi, L524 intact)');
+has(/if\(b\) b\.value=gm\.blade; try\{ if\(typeof _l420Invalidate==='function'\) _l420Invalidate\(blk\); \}catch\(_\)\{ \}/,'L531 : geometrie provisoire reecrite (changement de client) = la « Preparation validee » retombe (verrou ISO, reproduit le 18/09 : lame 0 -> 5 sous un bouton reste vert)');
+has(/_i27=_l527DomIdx\(_l27\); if\(_i27>=0&&typeof ficheRefValidated!=='undefined'&&ficheRefValidated\.has\(_i27\)\)/,'L531 : la ceinture laize L527 convertit l index AVANT d interroger ficheRefValidated (index DOM vs index du plan calcule)');
+has(/const _di31=_l527DomIdx\(_ln\); _blockCut=\(typeof ficheRefValidated!=='undefined'\)&&_di31>=0&&!ficheRefValidated\.has\(_di31\);/,'L531 : le verrou de coupe L379 convertit lui aussi (reproduit le 18/09 : reference VALIDEE definitivement incoupable, bouton bleu absent)');
+absent(/_blockCut=\(typeof ficheRefValidated!=='undefined'\)&&!ficheRefValidated\.has\(_ln\.refIdx\);/,'L531 : plus aucune lecture de ficheRefValidated avec l index du PLAN CALCULE');
+has(/else \{ delete _b20\[i\]\.dataset\.opValidated; try\{ if\(typeof ficheRefValidated!=='undefined'\) ficheRefValidated\.delete\(i\); \}catch\(_\)\{ \} \} \}\);/,'L531 : a la reprise d un brouillon, une preparation NON validee EFFACE le marqueur du bloc 1 statique et purge le verrou fiche (symetrie de laizeOk)');
+has(/delete o\.laizeOk; delete o\.lotOk; delete o\.lot; return o;/,'L531 : le rang « lot » (derive, _l527AssignLots) sort de la signature du plan — un plan homonyme d avant L527 ne fait plus regenerer sa fiche');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
