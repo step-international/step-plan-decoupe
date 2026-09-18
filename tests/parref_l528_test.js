@@ -11,7 +11,7 @@ global.nrm=v=>String(v==null?'':v).trim().toLowerCase();
 global._l507Traced=new WeakSet();
 let warns=0; global._l505Warn=function(){ warns++; }; global._l505WarnN=0; global._l528BugN=0;   /* [revue adverse] compteur des vraies exceptions des lecteurs L528 (module-level dans index.html) */
 global.CLIENT_DATA={'EPCO':[],'VEKA':[],'ACTA':[],'Alphacan 25':[]};
-['_l528Livres','_l528ParRef','_l528RefKey','_l528CliNom','_l528Fiches','_l528Win','_l528VolAgg','_l528VolHdr','_l528VolRows','_l528Periodes','_l528Chiffres'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });
+['computeChutesUsed','_sanStoredRows','_l530ChutesOfGroup','_l530Stock','_l530Surplus','_l530Bilan','_l528Livres','_l528ParRef','_l528RefKey','_l528CliNom','_l528Fiches','_l528Win','_l528VolAgg','_l528VolHdr','_l528VolRows','_l528Periodes','_l528Chiffres'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });
 let fail=0,total=0; const ok=(c,m)=>{ total++; console.log((c?'✅ ':'❌ ')+m); if(!c)fail++; };
 const near=(a,b,eps)=>typeof a==='number'&&Math.abs(a-b)<=(eps==null?0.11:eps);
 const L=(c,x)=>Object.assign({conf:c,coupee:true},x||{});
@@ -95,7 +95,7 @@ console.log('── 10. CSV volumes : agregat + lignes (mois en colonnes, client
   const C=_l528VolAgg([F1(),F5(),fNC,fDiv,fOld,fRef,fDel,FA()],win); const rows=_l528VolRows(C,win); const hdr=_l528VolHdr(win);
   const X=(cli,ref,lg,map,tot,n)=>[cli,ref,lg].concat(win.map(ym=>(map[ym]==null?'':map[ym]))).concat([tot,n]).join(';');
   ok(hdr.length===17&&rows.every(r=>r.length===17),'17 cellules par ligne = 3 + 12 mois + Total + Fiches → '+hdr.length+' / '+rows.map(r=>r.length).join(','));
-  ok(hdr.slice(0,3).join(';')==='Client;Référence;Longueur (m)'&&hdr[3]==='2025-10'&&hdr[14]==='2026-09'&&hdr.slice(15).join(';')==='Total m²;Fiches','en-tete : Client;Référence;Longueur (m);2025-10…2026-09;Total m²;Fiches');
+  ok(hdr.slice(0,3).join(';')==='Client;Référence;Longueur (m)'&&hdr[3]==='2025-10'&&hdr[14]==='2026-09'&&hdr.slice(15).join(';')==='Total m² livrés;Fiches','en-tete : Client;Référence;Longueur (m);2025-10…2026-09;Total m²;Fiches');
   const J=rows.map(r=>r.join(';'));
   ok(J[0]===X('ACTA','TOTAL CLIENT','',{'2026-09':'2020'},'2020',1),'ACTA total : 2020 en 2026-09 (1940 meres + 80 rouleau ♻), 1 fiche → '+J[0]);
   ok(J[1]===X('ACTA',RA,'600',{'2026-09':'1440'},'1440',1)&&J[2]===X('ACTA',RB,'500',{'2026-09':'500'},'500',1)&&J[3]===X('ACTA','C','400',{'2026-09':'80'},'80',1),'ACTA references : A 1440, B 500, C 80 (coupee dans un rouleau ♻ seulement : PRESENTE) → '+J[3]);

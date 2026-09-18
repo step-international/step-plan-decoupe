@@ -1536,7 +1536,7 @@ console.log('── L471 : en-tete fiche compacte + CSV visibles ──');
 has(/cliCourt=cliCourt\.slice\(0,cut\)/,'L471 : pastille client COURTE (sans « pour le ... n° »)');
 has(/pastilles compactes : la rangee/,'L471 : pastilles atelier 14px, une seule ligne tablette');
 has(/function _l471FicheM2/,'L471 : m² par fiche dans l export commande');
-has(/;m²;Perte % \(m²\);Perte m²;Déchet m²;Déchet %;Chutes gardées m²;m² découpés et livrés;Temps;/,'L471→L480→L517 (decision Celine 26/08 + 10/09) : bloc matiere du CSV fiches — % en base MERE (perte m² / m² coupes), l ancien pct base utile est archive mais plus exporte');
+has(/;m² coupés \(bobines mères\);Perte % \(m²\);Perte m²;Déchet m²;Déchet %;Chutes gardées m²;m² découpés \(bobineaux\);Temps;/,'L471→L480→L517 (decision Celine 26/08 + 10/09) : bloc matiere du CSV fiches — % en base MERE (perte m² / m² coupes), l ancien pct base utile est archive mais plus exporte');
 has(/une seule ligne de liens discrets/,'L471→L480 : exports CSV + piste d audit en liens discrets tout en bas');
 
 console.log('── L470 : module Stock supprime ──');
@@ -2236,7 +2236,7 @@ has(/id="kpiReplisList"/,'L517 : conteneur DISTINCT de kpiFichesList (sinon les 
 has(/;Client \(nom seul\);N° commande;Livraison;Mois livraison;/,'L517 pt.3+10+11 : identification commerciale du DG, en colonnes propres');
 has(/;Largeur bobine mère \(mm\);Utile;Perte lame \(mm\);Longueur bobine mère \(m\);/,'L517 pt.7/8/9 : libellés qui disent ce que la colonne VAUT (5 = FEBA, 0 = MAVEG/CEVENINI)');
 has(/;Total bobines mères;Bobines mères coupées;Bobineaux découpés;/,'L517 pt.4/5 : « Total bobines » était une demi-vérité (bobines du PLAN) — la colonne « coupées » le dit');
-has(/;Règle;Matière;Traits de lame m²;Bords m²;Laize restante m²;Diagnostic';/,'L517 (10/09) → L526 (16/09) : Règle + Matière, puis la decomposition de Perte m² (3 colonnes) et le Diagnostic AJOUTES EN FIN DE LIGNE (positions 1-43 stables)');
+has(/;Règle;Matière;Traits de lame m²;Bords m²;Laize restante m²;Diagnostic;m² mis au stock \(quantité en trop\);m² pris du stock;m² livrés \(bobineaux\)';/,'L517 (10/09) → L526 (16/09) : Règle + Matière, puis la decomposition de Perte m² (3 colonnes) et le Diagnostic AJOUTES EN FIN DE LIGNE (positions 1-43 stables)');
 has(/\(\(f&&f\.mat&&f\.mat\.regleVer==='L513'\)\?'L513':''\)/,'L517 : la colonne Règle lit f.mat DIRECTEMENT (via _l513MatiereOf elle serait toujours « L513 »)');
 absent(/f\.totalBobines,_l471FicheM2\(f\),f\.pct,/,'L517 pt.1 : l ancienne colonne « Perte % » (f.pct, base utile) a quitté la ligne');
 
@@ -2376,7 +2376,7 @@ has(/const evo=_mf26\?\[\]:agregatsCache/,'L526 : tableau Evolution masque sous 
 has(/const _fchClick=_mf26\?'':/,'L526 : sous filtre, la tuile Fiches n ouvre plus la liste TOUT atelier');
 has(/if\(_ks26\) renderKpiMois\(_ks26\.value\);/,'L526 : le rendu partiel au clic de pastille re-rend les tuiles KPI');
 has(/\+scopeNoteKpi\+buildKpiMoisBlock\(\)\+/,'L526 : bandeau du bloc KPI = dit ce qui suit la machine et ce qui reste tout atelier');
-has(/^const _L526_KPI_HDR=\['Mois','Statut','Fiches','Bobines','m²','Perte % \(m²\)','Perte m²','Déchet m²','Déchet %','Chutes gardées m²'/m,'L526 : en-tete UNIQUE du CSV KPI, 30 colonnes, libelles et ordre du CSV fiches');
+has(/^const _L526_KPI_HDR=\['Mois','Statut','Fiches','Bobines','m² coupés \(bobines mères\)','Perte % \(m²\)','Perte m²','Déchet m²','Déchet %','Chutes gardées m²'/m,'L526 : en-tete UNIQUE du CSV KPI, 30 colonnes, libelles et ordre du CSV fiches');
 has(/^function _l526KpiMois\(agregats,cur,fenetre\)\{/m,'L526 : fenetre 12 mois glissants, mois vides omis (les 2025 vides ne remontent plus)');
 has(/^function _l526KpiRow\(k,cur\)\{/m,'L526 : ligne PURE du CSV KPI (testee hors navigateur)');
 has(/const all=_l526KpiMois\(list,cur,prevMonthsYM\(12\)\)/,'L526 : l export applique la fenetre du selecteur');
@@ -2472,7 +2472,7 @@ has(/return !!_in27&&typeof USER_PROFILES!=='undefined'&&Object\.keys\(USER_PROF
 has(/try\{ if\(typeof _l421SyncUseful==='function'\) _l421SyncUseful\(\); \}catch\(e\)\{\}   \/\* \[L527 · revue adverse 18\/09\] le poste/,'L527 revue : choisir ses initiales met a jour la case et son libelle (poste operateur / bureau)');
 
 // ── [L528 · demandes Celine 17/09/2026] m² livres TOUT COMPRIS (recutM2), matiere PAR REFERENCE (lecteur pur), CSV volumes livres (12 mois termines), bloc Chiffres ──
-has(/pLames=0,pBords=0,pReste=0,pRecut=0;/,'L528 : accumulateur des m² livres depuis les rouleaux ♻ (jumeau des accumulateurs L526)');
+has(/pLames=0,pBords=0,pReste=0,pRecut=0,/,'L528 : accumulateur des m² des rouleaux ♻ (jumeau des accumulateurs L526) — [L530] regex recalee : la liste continue (pSurplus, nSurplusInc)');
 has(/if\(fd\.recut\)\{ let _nc28=0; if\(\(fd\.actDechet===true\|\|fd\.actChutes===true\)&&typeof ncLoss==='function'\)\{ const n=ncLoss\(f,fd\); if\(n&&n\.m2>0\) _nc28=n\.m2; \} pRecut\+=Math\.max\(0,laizes\*k-_nc28\); \}/,'L528 : bobineaux d un rouleau ♻ = laizes × metrage, MOINS jetes (🗑) ou gardes (✂), jamais en dessous de 0');
 has(/resteM2:r1\(pReste\),recutM2:r1\(pRecut\),ok:true\}\);/,'L528 : recutM2 expose avec le meme arrondi ; clientM2 INCHANGE (regle L513 : bobineaux des meres seuls)');
 has(/lamesM2:null,bordsM2:null,resteM2:null,recutM2:null,ok:false/,'L528 : recutM2 null (jamais 0) quand la fiche n est pas calculable');
@@ -2493,8 +2493,8 @@ has(/fiche multi-clients imputée en totalité au client principal \(client A\)/
 has(/^function _l528Chiffres\(fiches,cli,refKey,mois\)\{/m,'L528 : chiffres PURS du bloc (client / reference / periode), null tant qu aucune fiche n est chiffree');
 has(/^function _l528Periodes\(win,cur\)\{/m,'L528 : periodes = 12 mois termines, mois en cours (provisoire), trimestres civils, chaque mois');
 has(/lbl:monthLabelFr\(cur\)\+' — mois en cours \(provisoire\)'/,'L528 : le bloc Chiffres offre le mois en cours, marque provisoire (marqueur ancre sur le CODE — revue adverse : l ancien etait satisfait par un commentaire)');
-has(/const kept=sub\.filter\(fd=>fd&&\(!f\.manqueMatiere\|\|fd\.coupee===true\)\); if\(!kept\.length\) return;/,'L528 revue : manque-matiere — un groupe jamais commence est ABSENT (la fiche reste ventilee)');
-has(/hors bobineaux prélevés du stock/,'L528 revue : la definition ECRITE des m² livres dit ce qu elle ne compte pas (bobineaux preleves du stock)');
+has(/const kept=sub\.filter\(fd=>fd&&\(!f\.manqueMatiere\|\|fd\.coupee===true\)\); if\(!kept\.length\)\{ stockOnly\(\); return; \}/,'L528 revue : manque-matiere — un groupe jamais commence est ABSENT (la fiche reste ventilee)');
+has(/\+ bobineaux pris du stock/,'L528 revue → L530 (decision Celine 18/09) : la definition ECRITE des m² livres INCLUT desormais les bobineaux pris du stock');
 has(/if\(!seen\.has\(k\)\)\{ seen\.add\(k\); o\.n\[ym\]=\(o\.n\[ym\]\|\|0\)\+1; \}/,'L528 revue : colonne Fiches — une fiche compte UNE fois par article');
 has(/window\._l505WarnN=_pn\+\(_l528BugN-_b0\);/,'L528 revue : une vraie exception d un lecteur reste COMPTEE quand l appelant restaure le compteur (regle 7)');
 has(/'\\n\\n'\+csvCell\(leg\)/,'L528 revue : legende du CSV dans UNE cellule, separee du tableau');
@@ -2509,5 +2509,35 @@ has(/DH1004 imprimé → écrire à la main la largeur dans le mandrin/,'L529 : 
 has(/^function _l529PkgMerge\(remote\)\{/m,'L529 : la table partagee (Firestore / cache local) ne peut plus effacer une regle ajoutee au code');
 has(/^const _L529_PKG_PATCHES=\['Suys'\];/m,'L529 : seules les cles LISTEES sont re-ajoutees (la table partagee gagne sur ses propres cles)');
 has(/PKG_CLIENTS=_l529PkgMerge\(d\.pkgClients\);/,'L529 : fusion au seul point de convergence (_l486Apply)');
+
+// ── [L530 · decisions Celine 18/09/2026] m² coupés (bobines mères) / m² découpés (bobineaux) / m² livrés ──
+has(/pReste=0,pRecut=0,pSurplus=0,nSurplusInc=0;/,'L530 : accumulateur de la quantite en trop (m²) et compteur des quantites en trop non chiffrees');
+has(/if\(fd\.ncQty&&!fd\.ncLarg&&!fd\.ncCasse&&!fd\.ncAng&&!fd\.ncHum&&!fd\.actAccept&&typeof ncLoss==='function'\)\{/,'L530 : quantite en trop SEULE (condition exacte de L446), hors « + Acceptable »');
+has(/if\(q&&q\.m2>0\) pSurplus\+=Math\.min\(q\.m2,laizes\*k\); else nSurplusInc\+\+;/,'L530 : plafonnee a la production de la ligne ; non chiffree = comptee a part, jamais devinee');
+has(/clientM2:r1\(client\),surplusM2:r1\(pSurplus\),surplusInc:nSurplusInc,/,'L530 : surplusM2 expose ; clientM2 INCHANGE');
+has(/^function _l530ChutesOfGroup\(g\)\{/m,'L530 : rejeu du plafond de stock sur un groupe ARCHIVE (laize utile recomposee : l appel direct du moteur rendait {} en silence)');
+has(/^function _l530Stock\(f,m\)\{/m,'L530 : m² des bobineaux PRIS du stock, par reference quand le rejeu retombe sur f.chutesStock');
+has(/const same=Object\.keys\(CS\)\.length===Object\.keys\(S\)\.length&&Object\.keys\(CS\)\.every\(function\(w\)\{ return S\[w\]===CS\[w\]; \}\);/,'L530 : la donnee persistee (f.chutesStock) reste l ARBITRE — egalite entiere exacte');
+has(/^function _l530Surplus\(f,m\)\{/m,'L530 : quantite en trop d un instantane ancien (0 par construction, sinon rejeu muet concordant, sinon inconnu)');
+has(/^function _l530Bilan\(f,m\)\{/m,'L530 : bilan d une fiche — decoupes, mis au stock, pris du stock, livres');
+has(/B\.livresM2=r1\(Math\.max\(0,d-s\.m2\)\+st\.m2\);/,'L530 : m² livres = m² decoupes − quantite en trop + pris du stock');
+has(/if\(!st\.ok\|\|\(st\.pieces>0&&!st\.parRef\)\) return R;/,'L530 : stock non rattachable par reference → fiche « non ventilable », jamais une repartition inventee');
+has(/nMeres:0,m2Coupes:0,clientM2:0,decoupesM2:0,surplusM2:0,stockM2:sg\.m2,livresM2:sg\.m2,/,'L530 : une reference ENTIEREMENT servie par le stock garde sa ligne');
+has(/tile\('m² découpés \(bobineaux\)',r\.decoupesM2\)\+tile\('m² livrés \(partis chez le client\)',r\.livresM2\)/,'L530 : le bloc Chiffres montre les TROIS notions (4 tuiles avec la perte)');
+has(/'Total m² livrés','Fiches'/,'L530 : CSV volumes — la colonne dit ce qu elle contient');
+has(/;m² mis au stock \(quantité en trop\);m² pris du stock;m² livrés \(bobineaux\)';/,'L530 : CSV par commande — 3 colonnes EN FIN DE LIGNE (positions 1-47 stables)');
+has(/\(_b30&&_b30\.ok\)\?_l517Num\(_b30\.livresM2\):''/,'L530 : CSV par commande — m² livres VIDE (jamais 0) quand ils ne sont pas chiffrables');
+has(/Objectif du mois — m² coupés \(bobines mères\)/,'L530 : l objectif du mois dit « bobines mères »');
+has(/Production — 6 derniers mois \(m² coupés, bobines mères\)/,'L530 : la courbe de production dit « bobines mères »');
+has(/\+' m² coupés \(bobines mères\)':'—';/,'L530 : PAPIER (demande explicite de Celine 18/09) — l en-tete de la fiche imprimee dit « m² coupés (bobines mères) »');
+has(/const _st30=\(Array\.isArray\(fd\.ncLots\)&&fd\.ncLots\.some\(/,'L530 revue : la quantite en trop n est chiffree que sur une saisie STRUCTUREE (lots ou quantite × largeur) — un commentaire libre a deux « q×w » retirait toute la ligne des m² livres');
+has(/\(_b30&&_b30\.surplusM2!=null&&!_b30\.surplusInc\)\?_l517Num\(_b30\.surplusM2\):''/,'L530 revue : CSV par commande — « m² mis au stock » VIDE quand la quantite en trop n est pas chiffree (jamais un faux 0)');
+has(/'quantité en trop non chiffrée \(m² livrés surestimés\)'/,'L530 revue : CSV par commande — la ligne le DIT dans Diagnostic');
+has(/\(_b30&&_b30\.decoupesM2!=null\)\?_l517Num\(_b30\.decoupesM2\):''/,'L530 revue : CSV par commande — « m² découpés (bobineaux) » = bobines meres + rouleaux ♻ (changement de VALEUR garde par csv_l517_test)');
+has(/if\(b\.decoupesM2!=null\) d\+=b\.decoupesM2; else R\.nDK\+\+;/,'L530 revue : les m² decoupes ne dependent pas des m² livres (une fiche aux livres inconnus n efface plus la tuile)');
+has(/if\(rs\.some\(r=>r\.surplusInc\)\) R\.nQT\+\+;/,'L530 revue : quantite en trop non chiffree signalee aussi sous un filtre par reference');
+has(/Déchet % = Déchet m² \/ « m² coupés \(bobines mères\) »/,'L530 revue : la legende du CSV tableau de bord cite la colonne sous son NOUVEAU nom');
+has(/bons bobineaux produits \(bobines mères \+ rouleaux chute recoupés,/,'L530 (demande Celine 18/09) : dans l ANALYSE et les fichiers, « rouleaux chute recoupés » en toutes lettres (le symbole ♻ reste pour les operateurs : Plan et Fiche inchanges)');
+has(/bons bobineaux produits : bobines mères \+ rouleaux chute recoupés,/,'L530 : meme libelle dans la meta du CSV volumes');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

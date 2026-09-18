@@ -192,5 +192,15 @@ console.log('── 18. [L528 · decision Celine 17/09] m² LIVRES depuis les ro
   ok(m5.ok===false&&m5.recutM2===null,'fiche non calculable : recutM2 null, jamais 0');
   ok([m7,m8,m9,m1,m5].every(x=>(typeof x.recutM2==='number')===x.ok),'pour tous : (typeof recutM2 === number) === ok');
 }
+console.log('── 19. [L530 · decision Celine 18/09] quantite en trop SEULE = surplusM2 (part au stock) ; clientM2, perte, chutes, dechet INCHANGES ──');
+{
+  const Q=(x)=>({mother:1010,useful:1000,blade:0,longueur:'500',ficheDetail:[L('15x65',Object.assign({useful:1000,ncQty:true,ncLots:[{q:2,w:65}],actChutes:true},x||{}))]});
+  const a=M(Q()), b=M(Q({ncQty:false,ncLots:undefined}));
+  ok(a.ok&&a.surplusM2===65&&a.surplusInc===0&&a.clientM2===b.clientM2&&a.perteM2===b.perteM2&&a.chutesM2===b.chutesM2&&a.dechetM2===b.dechetM2&&a.m2Coupes===b.m2Coupes,'2x65 en trop sur 500 m : surplusM2 65 ; les cinq chiffres L513 sont IDENTIQUES avec ou sans la declaration → '+[a.surplusM2,a.clientM2,a.perteM2,a.chutesM2].join(' / '));
+  ok(M(Q({ncLarg:true})).surplusM2===0&&M(Q({actAccept:true})).surplusM2===0,'avec un DEFAUT (deja sorti par ✂) ou « + Acceptable » (part avec la commande) → 0');
+  const c=M(Q({ncLots:undefined,ncDetail:'deux de plus'})); ok(c.surplusM2===0&&c.surplusInc===1,'non chiffree → 0 retire, comptee a part (surplusInc 1)');
+  const d=M({mother:2100,useful:2090,blade:0,ficheDetail:[L('4x502',{useful:2090})]}); ok(d.ok===false&&d.surplusM2===null,'fiche non calculable → null');
+  ok([a,b,c,d].every(x=>(typeof x.surplusM2==='number')===x.ok),'pour tous : (typeof surplusM2 === number) === ok');
+}
 console.log(fail?('💥 '+fail+' echec(s) sur '+total):('🏆 MATIERE L513 OK : '+total+' verifications'));
 process.exit(fail?1:0);

@@ -26,6 +26,8 @@ global._l517Cause=eval('('+fnOf('_l517Cause')+')');
 const mD=src.match(/^const MACHINE_DEFAULTS=(\{[^;]*\});/m); if(!mD) throw new Error('introuvable MACHINE_DEFAULTS'); global.MACHINE_DEFAULTS=eval('('+mD[1]+')');
 global.PERTE_DIAG_SEUIL_PCT=+((src.match(/^const PERTE_DIAG_SEUIL_PCT=(\d+);/m)||[])[1]); global.PERTE_DIAG_LAIZE_ETROITE_MM=+((src.match(/^const PERTE_DIAG_LAIZE_ETROITE_MM=(\d+);/m)||[])[1]);
 ['_l526PctM2','_l526Decomp','_l526Diag'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });
+/* [L530] la ligne appelle _l530Bilan (m² decoupes / mis au stock / pris du stock / livres) */
+global._l528BugN=0; ['computeChutesUsed','_sanStoredRows','_l528Livres','_l530ChutesOfGroup','_l530Stock','_l530Surplus','_l530Bilan'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });
 const ROW=eval('('+fnOf('_l517FicheRow')+')');
 const HDR=(src.match(/const hdr='([^']*)'/)||[])[1].split(';');
 const col=(r,n)=>{ const i=HDR.indexOf(n); if(i<0) throw new Error('colonne absente : '+n); return r[i]; };
@@ -34,17 +36,24 @@ const L=(c,x)=>Object.assign({conf:c,useful:2090,blade:5,coupee:true,refIdx:0},x
 const F1=()=>({name:'EPCO-1',date:'2026-09-02T08:00:00Z',client:'EPCO pour le 02 09 2026 n°C12345',numCmd:'—',dateLiv:'02/09/2026',ini:'JF',machine:'FEBA',mother:2100,useful:2090,blade:5,longueur:'500',totalBobines:3,tempsStr:'1h 05min 32s (JF — 10/09/2026)',ficheDetail:[L('4x502'),L('3x612'),L('2x157')]});
 
 console.log('── 0. structure : autant de cellules que de colonnes ──');
-{ const r=ROW(F1()); ok(r.length===HDR.length,'ligne = '+r.length+' cellules pour '+HDR.length+' colonnes (le test qui manquait : un decalage rend le CSV illisible)'); ok(HDR.length===47,'47 colonnes (43 + decomposition L526 + Diagnostic) → '+HDR.length);
-  ok(HDR.slice(43).join(';')==='Traits de lame m²;Bords m²;Laize restante m²;Diagnostic','[L526] les 4 colonnes AJOUTEES EN FIN DE LIGNE (positions 1-43 stables pour les classeurs du DG) → '+HDR.slice(43).join(';'));
+{ const r=ROW(F1()); ok(r.length===HDR.length,'ligne = '+r.length+' cellules pour '+HDR.length+' colonnes (le test qui manquait : un decalage rend le CSV illisible)'); ok(HDR.length===50,'50 colonnes (43 + decomposition L526 + Diagnostic + 3 colonnes L530 en fin de ligne) → '+HDR.length);
+  ok(HDR.slice(47).join(';')==='m² mis au stock (quantité en trop);m² pris du stock;m² livrés (bobineaux)','[L530] les 3 colonnes AJOUTEES EN FIN DE LIGNE (positions 1-47 stables pour les classeurs du DG) → '+HDR.slice(47).join(';'));
+  ok(HDR.slice(43,47).join(';')==='Traits de lame m²;Bords m²;Laize restante m²;Diagnostic','[L526] les 4 colonnes AJOUTEES EN FIN DE LIGNE (positions 1-43 stables pour les classeurs du DG) → '+HDR.slice(43).join(';'));
   ok(HDR.slice(0,43).join(';').endsWith(';Règle;Matière'),'[L526] la 43e colonne reste « Matière » : rien n a bouge avant'); }
 console.log('── 1. cas EPCO mono (4x502 / 3x612 / 2x157, mere 2100, utile 2090, lame 5, 500 m) ──');
 { const r=ROW(F1());
   ok(col(r,'Perte m²')==='185,5','Perte m² = 185,5 (virgule) → '+col(r,'Perte m²'));
   ok(col(r,'Chutes gardées m²')==='885,5','Chutes gardees m² = 885,5 → '+col(r,'Chutes gardées m²'));
-  ok(col(r,'m²')===3150,'m² coupes = 3150 (source unique, pas _l471FicheM2) → '+col(r,'m²'));
+  ok(col(r,'m² coupés (bobines mères)')===3150&&HDR.indexOf('m²')<0,'[L530] « m² coupés (bobines mères) » = 3150 (source unique) ; la colonne nue « m² » n existe plus → '+col(r,'m² coupés (bobines mères)'));
   ok(col(r,'Perte % (m²)')==='5,9','Perte % (m²) = 185,5 / 3150 = 5,9 → '+col(r,'Perte % (m²)'));
   ok(col(r,'Déchet m²')==='0'&&col(r,'Déchet %')==='0','Dechet m² 0 et Dechet % 0 (vrai zero) → '+col(r,'Déchet m²')+' / '+col(r,'Déchet %'));
-  ok(col(r,'m² découpés et livrés')==='2079','m² livres = client 2079 → '+col(r,'m² découpés et livrés'));
+  ok(col(r,'m² découpés (bobineaux)')==='2079'&&col(r,'m² livrés (bobineaux)')==='2079'&&col(r,'m² pris du stock')==='0'&&col(r,'m² mis au stock (quantité en trop)')==='0'&&HDR.indexOf('m² découpés et livrés')<0,'[L530] decoupes 2079 = livres 2079 (ni stock ni quantite en trop : vrais zeros) ; « m² découpés et livrés » n existe plus → '+col(r,'m² découpés (bobineaux)')+' / '+col(r,'m² livrés (bobineaux)'));
+  { const f=F1(); f.ficheDetail[2].ncQty=true; f.ficheDetail[2].ncDetail='un de plus'; f.ficheDetail[2].actChutes=true; const r3=ROW(f);
+    ok(col(r3,'m² mis au stock (quantité en trop)')===''&&col(r3,'m² livrés (bobineaux)')==='2079'&&/quantité en trop non chiffrée/.test(col(r3,'Diagnostic')),'[L530 · revue adverse] quantite en trop NON chiffree : cellule « mis au stock » VIDE (jamais un faux 0) et la ligne le DIT dans Diagnostic → « '+col(r3,'m² mis au stock (quantité en trop)')+' » / '+col(r3,'Diagnostic')); }
+  { const f=F1(); f.ficheDetail.push(L('1x100',{recut:true,rollW:300,useful:300,blade:0})); const r4=ROW(f);
+    ok(col(r4,'m² découpés (bobineaux)')==='2129'&&col(r4,'m² coupés (bobines mères)')===3150,'[L530 · revue adverse] la colonne 37 a change de VALEUR : bobineaux des bobines meres (2079) + bobineaux du rouleau ♻ (1x100 sur 500 m = 50) = 2129 ; les m² coupes ne bougent pas → '+col(r4,'m² découpés (bobineaux)')); }
+  { const f=F1(); f.chutesStock={'157':4}; f.ficheDetail[2].ncQty=true; f.ficheDetail[2].ncLots=[{q:1,w:157}]; f.ficheDetail[2].actChutes=true; const r2=ROW(f);
+    ok(col(r2,'m² découpés (bobineaux)')==='2079'&&col(r2,'m² mis au stock (quantité en trop)')==='78,5'&&col(r2,'m² pris du stock')==='314'&&col(r2,'m² livrés (bobineaux)')==='2314,5','[L530] 1x157 en trop (78,5 au stock) et 4x157 pris du stock (314) : livres = 2079 − 78,5 + 314 = 2314,5 → '+[col(r2,'m² mis au stock (quantité en trop)'),col(r2,'m² pris du stock'),col(r2,'m² livrés (bobineaux)')].join(' / ')); }
   ok(col(r,'Bobineaux découpés')===9&&col(r,'Bobines mères coupées')===3&&col(r,'Total bobines mères')===3,'bobineaux 9, meres coupees 3, total meres 3 → '+col(r,'Bobineaux découpés')+' / '+col(r,'Bobines mères coupées')+' / '+col(r,'Total bobines mères'));
   ok(col(r,'Client')==='EPCO pour le 02 09 2026 n°C12345'&&col(r,'Client (nom seul)')==='EPCO','Client brut conserve + Client (nom seul) = EPCO → '+col(r,'Client (nom seul)'));
   ok(col(r,'N° commande')==='C12345','N° commande extrait du texte libre quand numCmd vaut « — » → '+col(r,'N° commande'));
@@ -70,7 +79,7 @@ console.log('── 4. fiche NON calculable : cellules m² vides, dechet rendu, 
 { const f={name:'NC',date:'2026-09-04T08:00:00Z',client:'X',totalBobines:2,mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[{conf:'',coupee:true,refIdx:0}]};
   const r=ROW(f);
   ok(col(r,'Matière')==='non calculable : bobine pointée coupée sans configuration','cause lisible → '+col(r,'Matière'));
-  ok(['m²','Perte m²','Perte % (m²)','Chutes gardées m²','m² découpés et livrés','Déchet %'].every(n=>col(r,n)===''),'toutes les cellules matiere VIDES (jamais 0)');
+  ok(['m² coupés (bobines mères)','Perte m²','Perte % (m²)','Chutes gardées m²','m² découpés (bobineaux)','m² mis au stock (quantité en trop)','m² pris du stock','m² livrés (bobineaux)','Déchet %'].every(n=>col(r,n)===''),'toutes les cellules matiere VIDES (jamais 0)');
   ok(col(r,'Déchet m²')==='0','Dechet m² rendu quand meme (0 reel) → '+col(r,'Déchet m²'));
   const f2=F1(); f2.longueur=''; ok(col(ROW(f2),'Matière')==='non calculable : métrage de la bobine mère absent','metrage absent → cause « metrage … absent » → '+col(ROW(f2),'Matière')); }
 console.log('── 5. temps, livraison historique, regle ──');
