@@ -2502,5 +2502,12 @@ has(/\$\{_l528ChiffresBlock\(scopeNote\)\}/,'L528 : le bloc Chiffres est dans re
 has(/tile\('Perte',r\.perteM2,_l526PctSpan\(r\.perteM2,r\.m2Coupes,'Perte % \(m²\)'\)\)/,'L528 : le % du bloc passe par _l526PctSpan / _l526PctM2 (4e surface, MEME definition que tuiles, CSV fiches, CSV KPI)');
 has(/onclick="_l528ExportVolumes\(\)">⬇ CSV volumes livrés \(12 mois terminés\)<\/button>/,'L528 : bouton CSV volumes dans l Analyse (rangee de liens + bloc)');
 absent(/const hdr='Client;/,'L528 : AUCUN second « const hdr= » (csv_l517_test.js:30 lit la PREMIERE occurrence) — filet, pas un marqueur discriminant');
+
+// ── [L529 · demande Celine 18/09/2026] note d emballage du client Suys ──
+has(/'Suys':\{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard \(≤39mm \+ tous KX\)',/,'L529 : regle d emballage du client Suys dans le code');
+has(/DH1004 imprimé → écrire à la main la largeur dans le mandrin/,'L529 : la consigne Suys (DH1004 imprime : largeur ecrite a la main dans le mandrin)');
+has(/^function _l529PkgMerge\(remote\)\{/m,'L529 : la table partagee (Firestore / cache local) ne peut plus effacer une regle ajoutee au code');
+has(/^const _L529_PKG_PATCHES=\['Suys'\];/m,'L529 : seules les cles LISTEES sont re-ajoutees (la table partagee gagne sur ses propres cles)');
+has(/PKG_CLIENTS=_l529PkgMerge\(d\.pkgClients\);/,'L529 : fusion au seul point de convergence (_l486Apply)');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

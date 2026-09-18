@@ -3362,7 +3362,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.18-L528';
+const APP_VERSION='2026.09.18-L529';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4968,7 +4968,9 @@ var PKG_CLIENTS={
     notes:'⚡ SPÉCIFICITÉ : NE PAS filmer. Réhausses obligatoires, palettes solides.\n⚠ Alterner bobines pile & face · télescopage ≤10mm.\nGerbage autorisé par référence UNIQUEMENT.\nBob/pile cerclée (KX1075/1006-1) : 15mm=11 | 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : 20mm=10/pile'},
 
   'Bouyer Leroux - groupe Maine':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',notes:'Règles par défaut.'},
-  'CARRETIER ROBIN':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',notes:'Règles par défaut.'}
+  'CARRETIER ROBIN':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',notes:'Règles par défaut.'},
+  'Suys':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
+    notes:'⚡ SPÉCIFICITÉ : DH1004 imprimé → écrire à la main la largeur dans le mandrin.\nRègles par défaut : cerclage ≤39mm + tous KX + DQ1000-1. Pile max 25cm. Largeur sur planchette.'}   /* [L529 · demande Celine 18/09/2026] la regle est par CLIENT : la consigne nomme l article (DH1004 imprime) pour les autres references Suys */
 };
 
 // [L410 · demande Esteban] LA resolution packaging, partagee A/B/C/D : cle exacte, sinon
@@ -4997,10 +4999,17 @@ function _l486Valid(o,minKeys){ try{ return !!o&&typeof o==='object'&&!Array.isA
 /* [L493] jumeau de stopBrouillons. On NE VIDE PAS CLIENT_DATA/PKG_CLIENTS : le referentiel doit rester
    en memoire (ecran de login, poste hors-ligne). On repart d un etat « jamais lu » pour la session suivante. */
 function _l486StopClients(){ if(_l486Unsub){ try{ _l486Unsub(); }catch(_){ } _l486Unsub=null; } _l486SeenAt=undefined; _l486Retries=0; }
+/* [L529 · demande Celine 18/09/2026] Les regles d emballage n ont PAS d ecran d edition (onglet Clients = references seulement) : elles vivent dans le code.
+   Or _l486Apply REMPLACE la table du code par la table partagee (Firestore config/clients, rejouee aussi depuis le cache local) : une regle ajoutee au code
+   apres la 1re publication d un admin etait ecrasee en silence. Fusion MINIMALE : seules les cles listees ici sont re-ajoutees, et seulement quand la table
+   recue ne les porte pas — la table partagee GAGNE toujours sur ses propres cles, rien n est ecrit en base (la prochaine publication d un admin emportera la
+   regle avec le reste, _l486Publish fige PKG_CLIENTS tel qu en memoire). Ajouter un client ici = ajouter son entree dans PKG_CLIENTS ET son nom dans la liste. */
+const _L529_PKG_PATCHES=['Suys'];
+function _l529PkgMerge(remote){ try{ const seed=PKG_CLIENTS_SEED; if(!seed||!remote||typeof remote!=='object') return remote; let out=null; _L529_PKG_PATCHES.forEach(function(k){ if(seed[k]&&!(k in remote)){ if(!out) out=Object.assign({},remote); out[k]=seed[k]; } }); return out||remote; }catch(_){ return remote; } }
 function _l486Apply(d,src){
   var n=0;
   try{ if(_l486Valid(d&&d.clientData)){ CLIENT_DATA=d.clientData; n++; } }catch(_){ }
-  try{ if(_l486Valid(d&&d.pkgClients)){ PKG_CLIENTS=d.pkgClients; n++; } }catch(_){ }
+  try{ if(_l486Valid(d&&d.pkgClients)){ PKG_CLIENTS=_l529PkgMerge(d.pkgClients); n++; } }catch(_){ }
   if(n){ _l486Loaded=true; try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488] la liste du Plan suit le referentiel */
     try{ console.log('[L486] clients/emballages charges depuis '+src+' — '+Object.keys(CLIENT_DATA).length+' clients, '+Object.keys(PKG_CLIENTS).length+' regles'); }catch(_){ } }
   return n;
