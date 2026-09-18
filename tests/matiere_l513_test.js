@@ -178,5 +178,19 @@ console.log('── 17. [L526 · demande Celine 16/09] decomposition de la PERTE
   ok(m9.ok===false&&m9.lamesM2===null&&m9.bordsM2===null&&m9.resteM2===null,'cas 9 (!ok) : decomposition null');
   ok([m,m2,m3,m7,m5,m9].every(x=>(typeof x.lamesM2==='number')===x.ok),'pour tous : (typeof lamesM2 === number) === ok');
 }
+console.log('── 18. [L528 · decision Celine 17/09] m² LIVRES depuis les rouleaux ♻ (recutM2) : coupes dans le rouleau, moins jetes / gardes ; clientM2 INCHANGE ──');
+{
+  const m7=M({mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[L('2x157',{useful:2090}),L('1x100',{recut:true,rollW:300,useful:300})]});
+  ok(m7.ok===true&&m7.recutM2===50&&m7.clientM2===157&&m7.perteM2===105&&m7.chutesM2===888,'cas 7 (rouleau ♻ 1x100 sur 500 m) : recutM2 50 · clientM2 157 (bobineaux des meres seuls, regle L513 inchangee) · perte 105 · chutes 888 → '+[m7.recutM2,m7.clientM2,m7.perteM2,m7.chutesM2].join(' / '));
+  const f8={mother:2100,useful:2090,blade:0,longueur:'500',ficheDetail:[L('2x157',{useful:2090}),L('1x100',{recut:true,rollW:300,useful:300,ncLots:[{q:1,w:100}],ncLarg:true,actDechet:true})]}; const m8=M(f8);
+  ok(m8.recutM2===0&&m8.dechetM2===50&&m8.perteM2===m7.perteM2&&m8.clientM2===157,'bobineau ♻ jete (🗑) : recutM2 0 (50 − 50), dechet 50, perte et clientM2 inchanges → '+[m8.recutM2,m8.dechetM2].join(' / '));
+  const f9=JSON.parse(JSON.stringify(f8)); delete f9.ficheDetail[1].actDechet; f9.ficheDetail[1].actChutes=true; const m9=M(f9);
+  ok(m9.recutM2===0&&m9.dechetM2===0&&m9.chutesM2===m7.chutesM2,'bobineau ♻ garde en stock (✂) : recutM2 0, aucun dechet, chutes inchangees → '+[m9.recutM2,m9.dechetM2].join(' / '));
+  const m1=M({mother:2100,useful:2090,blade:5,longueur:'500',ficheDetail:[L('4x502',{blade:5,useful:2090}),L('3x612',{blade:5,useful:2090}),L('2x157',{blade:5,useful:2090})]});
+  ok(m1.ok===true&&m1.recutM2===0,'sans rouleau ♻ : recutM2 vaut 0 (vrai zero) → '+m1.recutM2);
+  const m5=M({mother:2100,useful:2090,blade:0,ficheDetail:[L('4x502',{useful:2090})]});
+  ok(m5.ok===false&&m5.recutM2===null,'fiche non calculable : recutM2 null, jamais 0');
+  ok([m7,m8,m9,m1,m5].every(x=>(typeof x.recutM2==='number')===x.ok),'pour tous : (typeof recutM2 === number) === ok');
+}
 console.log(fail?('💥 '+fail+' echec(s) sur '+total):('🏆 MATIERE L513 OK : '+total+' verifications'));
 process.exit(fail?1:0);

@@ -3362,7 +3362,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.17-L527';
+const APP_VERSION='2026.09.18-L528';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -17822,6 +17822,7 @@ function renderAnalyse(partial){
     ${_l463Prod6m(_liveKpi63)}
     <!-- [L469 · demande Esteban] rangee cartes machines RETIREE (PAR MACHINE vit dans les KPI mensuels) -->
     ${_l463PerteClients(_liveKpi63)}
+    ${_l528ChiffresBlock(scopeNote)}
     ${_anaFold('kpi','📋 KPI mensuels — le mois tient-il ses objectifs ? (ISO · CSV · impression)','<div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">'+scopeNoteKpi+buildKpiMoisBlock()+'</div>',false)}
     <div id="zoneFbar">${_fbar}</div>
     ${_anaFold('prod','📈 Productivité — chaque opérateur progresse-t-il ?','<div id="zoneCharts" style="display:flex;flex-direction:column;gap:20px">'+chartsHTML+'</div>',true)}
@@ -17829,7 +17830,7 @@ function renderAnalyse(partial){
     <!-- [L461 · maquette validee] « Combien de temps prendra une commande ? » (Debit) RETIRE (« inutile ») -->
     ${_anaFold('tend','📉 Tendances 12 mois — la trajectoire est-elle bonne ?','<div id="zoneTendances" style="display:flex;flex-direction:column;gap:8px">'+scopeNote+buildTendancesBlock()+'</div>',false)}
     ${(function(){ const b=[]; const st='background:none;border:none;color:var(--muted);font-size:11.5px;font-weight:600;cursor:pointer;padding:4px 6px;text-decoration:underline;text-underline-offset:3px';
-      if(typeof canManageData==='function'&&canManageData()){ b.push('<button style="'+st+'" onclick="exportDashboardCsv()">⬇ CSV tableau de bord (12 mois)</button>'); b.push('<button style="'+st+'" onclick="exportFiches()">⬇ CSV par commande</button>'); }
+      if(typeof canManageData==='function'&&canManageData()){ b.push('<button style="'+st+'" onclick="exportDashboardCsv()">⬇ CSV tableau de bord (12 mois)</button>'); b.push('<button style="'+st+'" onclick="exportFiches()">⬇ CSV par commande</button>'); b.push('<button style="'+st+'" onclick="_l528ExportVolumes()">⬇ CSV volumes livrés (12 mois terminés)</button>'); }   /* [L528 · Celine 17/09] */
       if(typeof canViewAudit==='function'&&canViewAudit()) b.push('<button style="'+st+'" onclick="switchTab(\'audit\')">🔍 piste d\'audit ISO</button>');
       return b.length?'<div style="display:flex;gap:14px;justify-content:flex-end;align-items:center;margin-top:4px;opacity:.75">'+b.join('')+'</div>':'';
     })()}<!-- [L476 → L480 retour Esteban « en tout petit, plus joli »] une seule ligne de liens discrets -->
@@ -17838,6 +17839,7 @@ function renderAnalyse(partial){
   // figé ») alors que kpiMoisContent est rendu sur le mois COURANT (live) → étiquette d'un mois figé sur des
   // chiffres live, et 🖨 imprimerait un autre mois que l'écran. On resynchronise le contenu sur le mois restauré.
   try{ const _ks=document.getElementById('kpiMoisSel'); if(_ks&&_ks.value&&_ks.value!==currentMonthYM()) renderKpiMois(_ks.value); }catch(e){}
+  try{ if(typeof _l528SelSync==='function') _l528SelSync(); }catch(e){}   /* [L528 · revue adverse] meme resynchronisation pour les trois listes du bloc Chiffres */
 }
 // [L249 · R4a] Graphiques de productivité (zone re-rendue seule au filtre). La carte « Temps moyen par
 // largeur de bobineau » est RETIRÉE (rapport §c, validé) : redondante avec le modèle additif corrigé-laize
@@ -19800,7 +19802,7 @@ async function exportNc(){
    Jamais un faux 0 : metrage absent ou ref irresolue -> ok=false, m² null, _l505Warn (regle 7). Remplace computePerteChute (code mort
    depuis L479/L480) et la triangulation « bords + m² utiles × % » du mois (L480). Le moteur gele n est PAS touche (calcStats est LU). */
 function _l513Matiere(f){
-  const R={perteM2:null,chutesM2:null,dechetM2:null,m2Coupes:null,clientM2:null,lamesM2:null,bordsM2:null,resteM2:null,ok:false,calcWarn:0,regleVer:'L513'};   /* [L526 · demande Celine 16/09] decomposition de la PERTE : traits de lame / bords / laize restante non gardee (+ residu des rouleaux recoupes). Memes gardes, meme perimetre keepNc, meme arrondi r1 que perteM2 : lamesM2+bordsM2+resteM2 === perteM2 PAR CONSTRUCTION. _l513Matiere n est PAS gelee (engine_identity.js ne fige que calcStats parmi les briques matiere) ; le moteur reste LU. */
+  const R={perteM2:null,chutesM2:null,dechetM2:null,m2Coupes:null,clientM2:null,lamesM2:null,bordsM2:null,resteM2:null,recutM2:null,ok:false,calcWarn:0,regleVer:'L513'};   /* [L526 · demande Celine 16/09] decomposition de la PERTE : traits de lame / bords / laize restante non gardee (+ residu des rouleaux recoupes). Memes gardes, meme perimetre keepNc, meme arrondi r1 que perteM2 : lamesM2+bordsM2+resteM2 === perteM2 PAR CONSTRUCTION. _l513Matiere n est PAS gelee (engine_identity.js ne fige que calcStats parmi les briques matiere) ; le moteur reste LU. */
   try{
     const det=(f&&f.ficheDetail)||[]; const multi=Array.isArray(f.refGroups)&&f.refGroups.length>0;
     const mlOf=v=>parseFloat(String(v==null?'':v).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.'));
@@ -19821,7 +19823,7 @@ function _l513Matiere(f){
     const lisible=fd=>{ const p=Array.isArray(fd.pattern)?fd.pattern:parseConf(fd.conf||''); return p.length>0; };
     const lastByRef={}; det.forEach((fd,i)=>{ if(!keep(fd)||fd.recut||!lisible(fd)) return; const bk=bucket(fd); if(bk!=null) lastByRef[bk]=i; });   /* la DERNIERE ligne lisible de chaque ref porte le solde, quel que soit son libelle (terrain) */
     const lastIdx=new Set(Object.values(lastByRef));
-    let perte=0,chutes=0,dechet=0,coupes=0,client=0,ok=true,nKept=0,pLames=0,pBords=0,pReste=0;   /* [L526] chaque `perte+=` a son jumeau : pLames+pBords+pReste === perte par construction (matiere_l513_test bloc 17) */
+    let perte=0,chutes=0,dechet=0,coupes=0,client=0,ok=true,nKept=0,pLames=0,pBords=0,pReste=0,pRecut=0;   /* [L526] chaque `perte+=` a son jumeau : pLames+pBords+pReste === perte par construction (matiere_l513_test bloc 17) */
     det.forEach((fd,i)=>{
       if(!keepNc(fd)) return;
       if(fd.actDechet===true&&typeof ncLoss==='function'){ const nd=ncLoss(f,fd); if(nd&&nd.m2>0){ dechet+=nd.m2; } }   /* dechet NC d abord : compte meme si la configuration est illisible */
@@ -19840,13 +19842,14 @@ function _l513Matiere(f){
       if(fd.recut){ perte+=w*k; pReste+=w*k; }
       else { nKept++; coupes+=c.mother*k; perte+=c.edge*k; pBords+=c.edge*k; client+=laizes*k;
              if(fd.actChutes||fd.phaseEnd||lastIdx.has(i)) chutes+=w*k; else { perte+=w*k; pReste+=w*k; } }
+      if(fd.recut){ let _nc28=0; if((fd.actDechet===true||fd.actChutes===true)&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0) _nc28=n.m2; } pRecut+=Math.max(0,laizes*k-_nc28); }   /* [L528 · decision Celine 17/09] m² LIVRES depuis les rouleaux ♻ : bobineaux coupes dans le rouleau, MOINS ceux jetes (🗑) ou gardes en stock (✂) — jamais credites dans clientM2 (regle L513 inchangee : colonne « m² decoupes et livres » du CSV par commande = bobines meres seules) ; exposes A PART (recutM2) pour « tout ce qui part chez le client » */
       if(fd.actDechet===true&&!fd.recut&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0){ client-=n.m2; } }   /* (le dechet lui-meme est deja cumule plus haut) — [L521 · audit adverse] !fd.recut : une ligne ♻ n a jamais ete creditee dans client (branche non-recut seulement), on ne lui soustrait donc rien ; symetrique de la ligne chutes ci-dessous */
       if(fd.actChutes===true&&!fd.recut&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0){ chutes+=n.m2; client-=n.m2; } }
     });
     if(!nKept&&(Number(f.totalBobines)||0)>0){ ok=false; warn('detail',new Error('fiche avec bobines mais sans configuration lisible')); }   /* jamais un faux 0 : des bobines archivees sans detail exploitable = inconnu, pas 0 m² */
     if(!ok){ R.dechetM2=Math.round(dechet*10)/10; return R; }   /* [revue adversariale L513] perte/chutes/m² inconnus (null) MAIS le dechet NC — seul indicateur ISO — est rendu : il ne depend pas des configurations */
     const r1=x=>Math.round(x*10)/10;
-    return Object.assign(R,{perteM2:r1(perte),chutesM2:r1(chutes),dechetM2:r1(dechet),m2Coupes:Math.round(coupes),clientM2:r1(client),lamesM2:r1(pLames),bordsM2:r1(pBords),resteM2:r1(pReste),ok:true});
+    return Object.assign(R,{perteM2:r1(perte),chutesM2:r1(chutes),dechetM2:r1(dechet),m2Coupes:Math.round(coupes),clientM2:r1(client),lamesM2:r1(pLames),bordsM2:r1(pBords),resteM2:r1(pReste),recutM2:r1(pRecut),ok:true});
   }catch(e){ try{ _l505Warn('l513·matiere',e); }catch(_){ } R.calcWarn++; return R; }
 }
 /* Un seul point de lecture : l instantane pose a l envoi (f.mat) s il est de la regle courante, sinon calcul vif (fiches anterieures a L513). */
@@ -19987,6 +19990,175 @@ function _l517FicheRow(f){
     n26(_d26.lamesM2),n26(_d26.bordsM2),n26(_d26.resteM2),   /* [L526 · Celine 16/09] 3 composantes de « Perte m² » (somme = Perte m² a 0,15 pres : trois arrondis independants au dixieme) */
     _l526Diag(f,_d26,_c17,PERTE_DIAG_SEUIL_PCT).replace(/[\n\r;]/g,' ')
   ];
+}
+/* ── [L528 · demandes Celine 17/09/2026] MATIERE PAR REFERENCE (lecteur pur) + CSV « volumes livres » + bloc Analyse « Chiffres » ──
+   Decisions Celine (17/09) : m² LIVRES = TOUT ce qui part chez le client (bobineaux des bobines meres + bobineaux des rouleaux ♻, nets du
+   dechet NC et des chutes gardees en stock) ; mois de DECOUPE ; fenetre = 12 derniers mois TERMINES (le bloc Chiffres offre en plus le mois
+   en cours, provisoire) ; fiche multi-clients imputee en totalite au client principal (client A), ecrit dans le fichier.
+   _l528ParRef : la REGLE de _l513Matiere n est pas touchee (L528 y ajoute seulement l accumulateur recutM2). On la REJOUE sur une sous-fiche
+   par groupe : refGroups INTACT (index et resolution _l506RefGroupFor inchanges ; une sous-fiche a 1 groupe resoudrait tout vers rg[0]),
+   ficheDetail = lignes resolues vers CE groupe sur la fiche ENTIERE, totalBobines = meres du sous-ensemble (sinon la garde « jamais un faux 0 »
+   de la source rendrait un faux ok=false), f.manqueMatiere herite. Le solde de derniere bobine etant deja PAR SEAU (lastByRef), Σ sous-fiches
+   == fiche a l arrondi pres (r1 applique N fois : |Σ − fiche| < 0,05×(N+1) au dixieme, 0,5×(N+1) a l unite ; verifie node 17/09 : 537/913 ml →
+   perte 54,7 vs 54,8). Patron _l526Decomp : rejeu MUET (traceur ET compteur restaures dans le finally), ACCEPTE seulement si la somme retombe
+   sur _l513MatiereOf(f) — sinon ok:false = « calculable mais non ventilable » (instantane ancien divergent compris). Fiche !ok → RIEN par
+   reference (une ref saine sous un total « — » serait un mensonge). Groupe sans ligne → ABSENT, jamais 0. Une vraie exception est TRACEE
+   et COMPTEE (regle 7). PUR, teste hors DOM (tests/parref_l528_test.js). */
+/* m² LIVRES tout compris d une fiche = clientM2 + recutM2. Instantane f.mat anterieur a L528 (sans recutM2) : aucune ligne ♻ → recutM2 vaut 0
+   par construction (aucun rejeu) ; sinon rejeu MUET accepte si clientM2 et perteM2 retombent au dixieme ; sinon null (jamais 0). */
+var _l528BugN=0;   /* [revue adverse] vraies exceptions des lecteurs L528 : les appelants qui restaurent le compteur de replis (rejeu muet) les RE-AJOUTENT — une erreur tracee reste COMPTEE (regle 7) */
+function _l528Livres(f,m){
+  const _hasW=(typeof window!=='undefined'), _pw=_hasW?window._l505Warn:null, _pn=_hasW?window._l505WarnN:0; let _bug=false;
+  try{
+    m=m||_l513MatiereOf(f); if(!m||!m.ok||typeof m.clientM2!=='number') return null;
+    const r1=x=>Math.round(x*10)/10;
+    if(typeof m.recutM2==='number') return r1(m.clientM2+m.recutM2);
+    if(!((f&&f.ficheDetail)||[]).some(fd=>fd&&fd.recut)) return r1(m.clientM2);
+    if(_hasW) window._l505Warn=function(){};
+    const L=_l513Matiere(f);
+    if(L&&L.ok&&typeof L.recutM2==='number'&&Math.abs((Number(L.clientM2)||0)-m.clientM2)<=0.1&&Math.abs((Number(L.perteM2)||0)-(Number(m.perteM2)||0))<=0.1) return r1(m.clientM2+L.recutM2);
+    return null;
+  }catch(e){ _bug=true; _l528BugN++; if(_hasW) window._l505Warn=_pw; try{ _l505Warn('l528·livres',e); }catch(_){ } return null; }
+  finally{ if(_hasW){ window._l505Warn=_pw; if(!_bug) window._l505WarnN=_pn; } }
+}
+function _l528ParRef(f,m){
+  const R={ok:false,refs:[],src:'',err:''};
+  const _hasW=(typeof window!=='undefined'), _pw=_hasW?window._l505Warn:null, _pn=_hasW?window._l505WarnN:0; let _bug=false;
+  try{
+    m=m||_l513MatiereOf(f); if(!m||!m.ok) return R;
+    const r1=x=>Math.round(x*10)/10;
+    const rg=Array.isArray(f&&f.refGroups)?f.refGroups:null;
+    if(!rg||!rg.length){ const liv=_l528Livres(f,m); if(liv==null) return R;   /* mono-ref (refGroups null a l archivage) : la fiche EST la reference (f.ref, f.longueur) — aucun rejeu */
+      return Object.assign(R,{ok:true,src:'mono',refs:[{gi:-1,ref:String((f&&f.ref)||''),longueur:String((f&&f.longueur)||''),nMeres:null,m2Coupes:m.m2Coupes,clientM2:m.clientM2,livresM2:liv,perteM2:m.perteM2,chutesM2:m.chutesM2}]}); }
+    if(_hasW) window._l505Warn=function(){};   /* rejeu MUET : N+1 appels re-emettraient les memes replis dans la tuile du mois */
+    const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[]; const gOf=det.map(fd=>fd?_l506RefGroupFor(f,fd):null);   /* resolution UNIQUE, sur la fiche ENTIERE */
+    const refs=[]; let sC=0,sL=0,sP=0,sR=0,bad=false;
+    rg.forEach((g,gi)=>{ if(bad) return; const sub=det.filter((fd,i)=>gOf[i]===g); if(!sub.length) return;   /* groupe commande sans ligne : ABSENT, jamais une ligne a 0 */
+      const kept=sub.filter(fd=>fd&&(!f.manqueMatiere||fd.coupee===true)); if(!kept.length) return;   /* [revue adverse] manque-matiere : un groupe dont AUCUNE ligne n est retenue par la source (jamais commence) est ABSENT — sinon la garde « jamais un faux 0 » refusait toute la fiche */
+      const nb=kept.filter(fd=>!fd.recut).length;
+      const L=_l513Matiere(Object.assign({},f,{ficheDetail:sub,totalBobines:nb}));   /* refGroups INTACT ; totalBobines du sous-ensemble */
+      if(!L||!L.ok||typeof L.recutM2!=='number'){ bad=true; return; }
+      refs.push({gi:gi,ref:String((g&&g.ref)||''),longueur:String((g&&g.longueur)||''),nMeres:nb,m2Coupes:L.m2Coupes,clientM2:L.clientM2,livresM2:r1(L.clientM2+L.recutM2),perteM2:L.perteM2,chutesM2:L.chutesM2});
+      sC+=L.m2Coupes; sL+=L.clientM2; sP+=L.perteM2; sR+=L.recutM2; });
+    if(bad||!refs.length) return R;
+    const N=refs.length;
+    if(Math.abs(sC-m.m2Coupes)>0.5*N+0.5||Math.abs(sL-m.clientM2)>0.05*N+0.05||Math.abs(sP-m.perteM2)>0.05*N+0.05) return R;   /* jamais une ventilation qui ne somme pas a sa propre fiche (borne = N+1 arrondis independants) */
+    if(typeof m.recutM2==='number'&&Math.abs(sR-m.recutM2)>0.05*N+0.05) return R;   /* rouleaux ♻ : meme concordance quand l instantane les connait */
+    return Object.assign(R,{ok:true,src:'rejeu',refs:refs});
+  }catch(e){ R.err=String((e&&e.message)||e); _bug=true; _l528BugN++; if(_hasW) window._l505Warn=_pw; try{ _l505Warn('l528·parref',e); }catch(_){ } return R; }
+  finally{ if(_hasW){ window._l505Warn=_pw; if(!_bug) window._l505WarnN=_pn; } }
+}
+/* Cle d ARTICLE = reference (chaine catalogue, code compris) + metrage : les deux « KX1006-1 » VEKA (41313870 en 1000 ml, 41317395 en 700 ml) restent deux articles. Jamais f.ref : en multi-ref c est la concatenation « A + B ». */
+function _l528RefKey(ref,lg){ const n=parseFloat(String(lg==null?'':lg).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.')); return nrm(ref)+'¦'+(n>0?String(n):nrm(lg)); }   /* [revue adverse] metrage NUMERIQUE (meme lecture que _l513Matiere) : « 1 000 », « 1000 » et « 1000,0 » sont le meme article */
+/* Nom de client SEUL (catalogue, _l517ClientNom), sinon le texte brut, sinon « — » : une fiche dont le texte ne commence pas par le nom reste VISIBLE sous son libelle, jamais fondue dans un « Autres ». */
+function _l528CliNom(f){ const n=_l517ClientNom(f&&f.client); return n||String((f&&f.client)||'').trim()||'—'; }
+/* Perimetre des KPI (buildMonthlyKpi) : supprimees et REFUSEES exclues, mois LOCAL de la date de DECOUPE (_localYM). W = Set des mois retenus. */
+function _l528Fiches(fiches,W){ return (fiches||[]).filter(f=>f&&!f.deleted&&f.valide!==false&&W.has(_localYM(f.date))); }
+function _l528Win(){ return prevMonthsYM(13).slice(1); }   /* 12 derniers mois TERMINES, du plus recent au plus ancien — le mois en cours est exclu (decision Celine 17/09 : « mois termines ») */
+/* Agregat PUR du CSV volumes : par client (nom seul) et par mois, m² LIVRES tout compris (_l528Livres) ; sous chaque client, par article via _l528ParRef.
+   Le total client = somme des FICHES (jamais la somme des lignes references : derive d arrondi). nv = fiches calculables mais non ventilables (leurs m²
+   restent dans le total client, montres sur une ligne a part) ; nc = fiches non calculables, ou dont les rouleaux ♻ d un instantane ancien divergent
+   ne sont pas chiffrables (m² inconnus : ligne visible, cellules VIDES). */
+function _l528VolAgg(fiches,win){
+  const W=new Set(win||[]), C={}; const add=(o,ym,v)=>{ o.tot[ym]=(o.tot[ym]||0)+v; o.n[ym]=(o.n[ym]||0)+1; };
+  _l528Fiches(fiches,W).forEach(f=>{ const ym=_localYM(f.date); const cn=_l528CliNom(f); const c=C[cn]||(C[cn]={tot:{},n:{},nc:{},nv:{tot:{},n:{}},refs:{}});
+    const m=_l513MatiereOf(f); const liv=m.ok?_l528Livres(f,m):null; if(liv==null){ c.nc[ym]=(c.nc[ym]||0)+1; return; }
+    add(c,ym,liv);
+    const p=_l528ParRef(f,m); if(!p.ok){ add(c.nv,ym,liv); return; }
+    const seen=new Set();   /* [revue adverse] deux groupes du MEME article dans une fiche (réf 1 / réf 2 de L527) : m² additionnes, mais la fiche ne compte qu UNE fois dans « Fiches » */
+    p.refs.forEach(r=>{ const k=_l528RefKey(r.ref,r.longueur); const o=c.refs[k]||(c.refs[k]={ref:r.ref,longueur:r.longueur,tot:{},n:{}}); o.tot[ym]=(o.tot[ym]||0)+r.livresM2; if(!seen.has(k)){ seen.add(k); o.n[ym]=(o.n[ym]||0)+1; } }); });
+  return C;
+}
+function _l528VolHdr(win){ return ['Client','Référence','Longueur (m)'].concat(win).concat(['Total m²','Fiches']); }   /* PAS « const hdr= » : csv_l517_test lit la PREMIERE occurrence */
+function _l528VolRows(C,win){
+  const rows=[]; const cell=(o,ym)=>((o.n[ym]||0)>0?_l517Num(o.tot[ym]||0):'');   /* VIDE quand aucune fiche (jamais un faux 0) ; un 0 ecrit = une fiche presente (vrai 0) */
+  const sum=o=>Object.values(o.tot).reduce((a,b)=>a+b,0), cnt=o=>Object.values(o.n).reduce((a,b)=>a+b,0);
+  const line=(cli,ref,lg,o)=>[cli,ref,lg].concat(win.map(ym=>cell(o,ym))).concat([cnt(o)?_l517Num(sum(o)):'',cnt(o)||'']);
+  const G={tot:{},n:{}};
+  Object.keys(C).sort((a,b)=>a.localeCompare(b,'fr')).forEach(cn=>{ const c=C[cn];
+    rows.push(line(cn,'TOTAL CLIENT','',c)); win.forEach(ym=>{ if(c.n[ym]){ G.tot[ym]=(G.tot[ym]||0)+c.tot[ym]; G.n[ym]=(G.n[ym]||0)+c.n[ym]; } });
+    Object.values(c.refs).sort((a,b)=>a.ref.localeCompare(b.ref,'fr')).forEach(o=>rows.push(line(cn,o.ref,o.longueur,o)));
+    if(cnt(c.nv)) rows.push(line(cn,'(non ventilé par référence)','',c.nv));
+    const nNC=Object.values(c.nc).reduce((a,b)=>a+b,0); if(nNC) rows.push([cn,'(non chiffrable : '+nNC+' fiche(s), m² inconnus)',''].concat(win.map(()=>'')).concat(['',nNC])); });
+  rows.push(line('TOTAL GÉNÉRAL','','',G));
+  return rows;
+}
+/* Export CSV « volumes livres » : MEME garde d historique que les 5 autres exports, meta ISO (le fichier dit sa fenetre, son mois de rattachement et sa definition), csvCell sur CHAQUE cellule, virgule FR (_l517Num), nom de fichier date. Les replis rejoues par le calcul vif ne gonflent pas la tuile du mois (compteur restaure, patron _l526Decomp). */
+async function _l528ExportVolumes(){
+  if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }
+  const _pn=(typeof window!=='undefined')?window._l505WarnN:0, _b0=_l528BugN; let _bug=false;
+  try{
+    const win=_l528Win().slice().sort();   /* 12 derniers mois TERMINES, du plus ancien au plus recent (colonnes) */
+    const C=_l528VolAgg(fichesCache,win); const rows=_l528VolRows(C,win);
+    if(rows.length<=1){ showToast('Aucune fiche sur les 12 derniers mois terminés.','err'); return; }
+    const meta=csvMetaLine('Volumes livrés par client et référence (m²)',rows.length,'mois = date de DÉCOUPE (heure locale, comme les KPI) · fenêtre = 12 derniers mois TERMINÉS ('+monthLabelFr(win[0])+' → '+monthLabelFr(win[win.length-1])+', mois en cours exclu) · m² livrés = TOUT ce qui part chez le client : bobineaux découpés dans les bobines mères + bobineaux des rouleaux ♻, nets du déchet NC et des chutes gardées en stock, hors bobineaux prélevés du stock (déjà coupés lors d\'une commande précédente) (≠ colonne « m² découpés et livrés » du CSV par commande, bobines mères seules) · fiches refusées exclues · fiche multi-clients imputée en totalité au client principal (client A)');
+    const leg='# Ligne « TOTAL CLIENT » = somme des fiches du client ; lignes suivantes = ses références (cellule VIDE = aucune fiche ce mois-là, jamais 0) · « (non ventilé par référence) » = fiches calculables dont la répartition par référence ne retombe pas sur leur total · « (non chiffrable) » = fiches sans m² connu (voir CSV par commande, colonne Matière) · la somme des références peut s\'écarter du total client de 0,1 m² par fiche multi-référence (arrondi)';
+    const csv='\uFEFF'+meta+_l528VolHdr(win).map(csvCell).join(';')+'\n'+rows.map(r=>r.map(csvCell).join(';')).join('\n')+'\n\n'+csvCell(leg);   /* [revue adverse] legende dans UNE cellule (ses « ; » la coupaient en deux dans Excel) et separee du tableau par une ligne vide */
+    downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),'step_volumes_livres_'+todayISO()+'.csv');
+    showToast('✓ Volumes livrés exportés ('+(rows.length-1)+' ligne(s))','ok');
+  }catch(e){ _bug=true; try{ _l505Warn('l528·export',e); }catch(_){ } showToast('Erreur export : '+((e&&e.message)||e),'err'); }
+  finally{ if(!_bug&&typeof window!=='undefined') window._l505WarnN=_pn+(_l528BugN-_b0); }
+}
+/* Periodes du bloc « Chiffres » : 12 derniers mois TERMINES, le mois en cours (provisoire), trimestres CIVILS presents dans la fenetre (partiels signales), puis chaque mois termine. PUR. */
+function _l528Periodes(win,cur){
+  const asc=win.slice().sort(), out=[{v:'ALL',lbl:'12 derniers mois terminés',mois:asc}], Q={};
+  if(cur) out.push({v:cur,lbl:monthLabelFr(cur)+' — mois en cours (provisoire)',mois:[cur]});
+  asc.forEach(ym=>{ const k=ym.slice(0,4)+'-T'+Math.ceil(parseInt(ym.slice(5),10)/3); (Q[k]=Q[k]||[]).push(ym); });
+  Object.keys(Q).sort().reverse().forEach(k=>out.push({v:'Q:'+k,lbl:'T'+k.slice(6)+' '+k.slice(0,4)+(Q[k].length<3?' (partiel : '+Q[k].length+' mois)':''),mois:Q[k]}));
+  asc.slice().reverse().forEach(ym=>out.push({v:ym,lbl:monthLabelFr(ym),mois:[ym]}));
+  return out;
+}
+/* Chiffres PURS d une selection client / article / mois : m² coupes, m² livres (tout compris), perte (SOURCE UNIQUE ; par article via _l528ParRef). null (jamais 0) tant qu aucune fiche n est chiffree.
+   n = fiches de la selection ; nNC = non calculables (ou rouleaux ♻ non chiffrables) ; nNV = calculables mais non ventilables par reference (comptees seulement en « toutes references »). */
+function _l528Chiffres(fiches,cli,refKey,mois){
+  const W=new Set(mois||[]), R={n:0,nOk:0,nNC:0,nNV:0,nRC:0,m2Coupes:null,clientM2:null,livresM2:null,perteM2:null}; let c=0,l=0,v=0,p=0;
+  _l528Fiches(fiches,W).forEach(f=>{ if(cli&&_l528CliNom(f)!==cli) return;
+    const m=_l513MatiereOf(f);
+    if(!refKey){ R.n++; if(!m.ok){ R.nNC++; return; } const liv=_l528Livres(f,m); R.nOk++; c+=m.m2Coupes; l+=m.clientM2; p+=m.perteM2; if(liv==null) R.nRC++; else v+=liv; return; }   /* toutes references : le total de la fiche, aucun rejeu par reference */
+    const has=(Array.isArray(f.refGroups)&&f.refGroups.length)?f.refGroups.some(g=>_l528RefKey(g&&g.ref,g&&g.longueur)===refKey):(_l528RefKey(f.ref,f.longueur)===refKey); if(!has) return;
+    if(!m.ok){ R.n++; R.nNC++; return; } const pr=_l528ParRef(f,m); if(!pr.ok){ R.n++; R.nNV++; return; }
+    const rs=pr.refs.filter(r=>_l528RefKey(r.ref,r.longueur)===refKey); if(!rs.length) return;   /* [revue adverse] reference COMMANDEE mais sans aucune bobine : pas une fiche de la selection */
+    R.n++; R.nOk++; rs.forEach(r=>{ c+=r.m2Coupes; l+=r.clientM2; v+=r.livresM2; p+=r.perteM2; }); });
+  if(R.nOk){ R.m2Coupes=Math.round(c); R.clientM2=Math.round(l*10)/10; R.livresM2=R.nRC?null:Math.round(v*10)/10; R.perteM2=Math.round(p*10)/10; }   /* [revue adverse] rouleaux ♻ non chiffrables (nRC) : m² coupes et perte restent ceux des tuiles KPI, seuls les m² LIVRES deviennent inconnus (jamais un total incomplet affiche comme complet) */
+  return R;
+}
+var _l528Sel={client:'',ref:'',per:'ALL'};   /* etat PROPRE du bloc : analyseFilterBar remet analyseFilter.client/month a ALL a chaque rendu (L461) */
+function _l528SelSet(k,v){ _l528Sel[k]=String(v||''); if(k==='client') _l528Sel.ref=''; const el=document.getElementById('l528Content'); if(el) el.innerHTML=_l528ChiffresInner(); try{ const sx=document.getElementById({client:'l528Cli',ref:'l528Ref',per:'l528Per'}[k]); if(sx) sx.focus({preventScroll:true}); }catch(e){} }   /* [revue adverse] la liste qui vient de changer est recreee : lui RENDRE le focus (clavier) */
+function _l528SelSync(){ try{ [['l528Cli','client'],['l528Ref','ref'],['l528Per','per']].forEach(function(x){ const e=document.getElementById(x[0]); if(e&&(e.selectedIndex<0||e.value!==_l528Sel[x[1]])) e.value=_l528Sel[x[1]]; }); }catch(e){} }   /* [revue adverse] _acSetHTML restaure la valeur d un select par id : une valeur DISPARUE de la liste laissait la liste vide alors que l etat etait retombe a « Tous » */   /* ne re-rend QUE son conteneur (patron renderKpiMois) */
+function _l528ChiffresInner(){
+  const _pn=(typeof window!=='undefined')?window._l505WarnN:0, _b0=_l528BugN; let _bug=false;
+  try{
+    const win=_l528Win(), cur=currentMonthYM(), F=_l528Fiches(fichesCache,new Set([cur].concat(win)));   /* listes : 12 mois termines + mois en cours */
+    const clients=[...new Set(F.map(_l528CliNom))].sort((a,b)=>a.localeCompare(b,'fr'));   /* listes baties sur les FICHES (demande Celine), pas sur le catalogue */
+    if(_l528Sel.client&&clients.indexOf(_l528Sel.client)<0) _l528Sel.client='';
+    const refs={}; F.forEach(f=>{ if(_l528Sel.client&&_l528CliNom(f)!==_l528Sel.client) return;
+      const gs=(Array.isArray(f.refGroups)&&f.refGroups.length)?f.refGroups:[{ref:f.ref,longueur:f.longueur}];
+      gs.forEach(g=>{ const k=_l528RefKey(g&&g.ref,g&&g.longueur); if(!refs[k]) refs[k]={ref:String((g&&g.ref)||'—'),lg:String((g&&g.longueur)||'')}; }); });
+    const refKeys=Object.keys(refs).sort((a,b)=>refs[a].ref.localeCompare(refs[b].ref,'fr'));
+    if(_l528Sel.ref&&refKeys.indexOf(_l528Sel.ref)<0) _l528Sel.ref='';   /* l etat reste la verite : une valeur restauree par _acSetHTML mais absente de la liste retombe a « Toutes » EXPLICITEMENT */
+    const pers=_l528Periodes(win,cur); const per=pers.find(p=>p.v===_l528Sel.per)||pers[0]; _l528Sel.per=per.v;
+    const sel=(id,k,opts)=>'<select id="'+id+'" onchange="_l528SelSet(\''+k+'\',this.value)" style="width:auto;max-width:260px">'+opts+'</select>';
+    const opt=(v,l,cur2)=>'<option value="'+esc(v)+'"'+(v===cur2?' selected':'')+'>'+esc(l)+'</option>';
+    const lgLbl=k=>(refs[k].lg&&refs[k].lg!=='—')?(' · '+refs[k].lg+' ml'):'';
+    const ui='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
+      +sel('l528Cli','client',opt('','Tous les clients',_l528Sel.client)+clients.map(c=>opt(c,c,_l528Sel.client)).join(''))
+      +sel('l528Ref','ref',opt('','Toutes les références',_l528Sel.ref)+refKeys.map(k=>opt(k,refs[k].ref+lgLbl(k),_l528Sel.ref)).join(''))
+      +sel('l528Per','per',pers.map(p=>opt(p.v,p.lbl,_l528Sel.per)).join(''))
+      +((typeof canManageData==='function'&&canManageData())?'<button onclick="_l528ExportVolumes()" class="btn btn-ghost btn-sm" title="CSV : m² livrés par client et référence, mois en colonnes (12 derniers mois terminés)">⬇ CSV volumes livrés (12 mois terminés)</button>':'')+'</div>';
+    const r=_l528Chiffres(F,_l528Sel.client,_l528Sel.ref,per.mois);
+    const tile=(lbl,v,extra)=>'<div class="ana-card" style="flex:1;min-width:150px;padding:12px 14px"><div class="ana-card-title" style="margin-bottom:6px">'+lbl+'</div><div style="font-size:22px;font-weight:800;color:var(--text)">'+_l513M2(v)+' m²'+(extra||'')+'</div></div>';
+    const body=r.n?('<div style="display:flex;gap:10px;flex-wrap:wrap">'+tile('m² coupés (bobines mères)',r.m2Coupes)+tile('m² livrés (mères + rouleaux ♻)',r.livresM2)+tile('Perte',r.perteM2,_l526PctSpan(r.perteM2,r.m2Coupes,'Perte % (m²)'))+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-top:8px">'+r.n+' fiche(s) · '+esc(per.lbl)+(r.nNC?' · <b style="color:#fbbf24">'+r.nNC+' non chiffrable(s)</b> (m² inconnus, non comptés)':'')+(r.nNV?' · <b style="color:#fbbf24">'+r.nNV+' non ventilable(s)</b> par référence (non comptées ici)':'')+(r.nRC?' · <b style="color:#fbbf24">'+r.nRC+' fiche(s) : rouleaux ♻ non chiffrés</b> (m² livrés inconnus)':'')+'</div>')
+      :'<div style="padding:14px;color:var(--muted)">Aucune fiche pour cette sélection.</div>';
+    const def='<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Mois de découpe (date de la fiche), fiches supprimées et refusées exclues · m² livrés = tout ce qui part chez le client : bobineaux des bobines mères + bobineaux des rouleaux ♻, nets du déchet NC et des chutes gardées en stock, hors bobineaux prélevés du stock · fenêtre = 12 derniers mois terminés (+ le mois en cours, provisoire) · % = perte / m² coupés (règle L513, même définition que les CSV)</div>';
+    const part=(typeof fullHistoryLoaded!=='undefined'&&fullHistoryLoaded)?'':'<div style="font-size:12px;font-weight:600;color:#fbbf24;margin-top:8px">⚠ Historique partiel : chiffres incomplets tant que l\'historique complet n\'est pas chargé.</div>';
+    return ui+body+def+part;
+  }catch(e){ _bug=true; try{ _l505Warn('l528·chiffres',e); }catch(_){ } return '<div style="padding:14px;color:#f87171">Chiffres indisponibles (erreur de calcul, voir console).</div>'; }
+  finally{ if(!_bug&&typeof window!=='undefined') window._l505WarnN=_pn+(_l528BugN-_b0); }
+}
+/* Bloc repliable de l Analyse (id NOUVEAU « chiffres » ; kpi/prod/qual/tend sont pris). note = scopeNote de renderAnalyse (.ana-scope-note : « pas filtrable, TOUT l atelier », bascule par le rendu partiel) : le bloc ne suit PAS la pastille machine et le dit. */
+function _l528ChiffresBlock(note){
+  return _anaFold('chiffres','🔢 Chiffres — combien de m² pour ce client, cette référence, cette période ?','<div style="display:flex;flex-direction:column;gap:8px">'+(note||'')+'<div class="ana-card"><div id="l528Content">'+_l528ChiffresInner()+'</div></div></div>',true);
 }
 /* Signature « matiere » d une fiche editee par l admin : si elle ne change pas (client, n° de commande, date, lame, photo...),
    l instantane n est PAS recalcule — un m² ne bouge que si une configuration, une bobine ou une action NC change. */

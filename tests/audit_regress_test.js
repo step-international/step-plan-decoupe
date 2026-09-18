@@ -2470,5 +2470,37 @@ has(/window\._l527DoneSig!==_sg27/,'L527 revue : le rappel repart de zero (en si
 has(/\.fmm-inline-block\.locked \.fmm-hint\.l527-ko-hint/,'L527 revue : consigne rouge de la carte VERROUILLEE visible en paysage');
 has(/return !!_in27&&typeof USER_PROFILES!=='undefined'&&Object\.keys\(USER_PROFILES\)\.some\(/,'L527 revue : compte admin / pilotage utilise A LA MACHINE (cas L519, tablette FEBA) — l operateur est reconnu par SES initiales ; sinon sa frappe etait classee « bureau » et une commande mono-reference ne pouvait plus demarrer');
 has(/try\{ if\(typeof _l421SyncUseful==='function'\) _l421SyncUseful\(\); \}catch\(e\)\{\}   \/\* \[L527 · revue adverse 18\/09\] le poste/,'L527 revue : choisir ses initiales met a jour la case et son libelle (poste operateur / bureau)');
+
+// ── [L528 · demandes Celine 17/09/2026] m² livres TOUT COMPRIS (recutM2), matiere PAR REFERENCE (lecteur pur), CSV volumes livres (12 mois termines), bloc Chiffres ──
+has(/pLames=0,pBords=0,pReste=0,pRecut=0;/,'L528 : accumulateur des m² livres depuis les rouleaux ♻ (jumeau des accumulateurs L526)');
+has(/if\(fd\.recut\)\{ let _nc28=0; if\(\(fd\.actDechet===true\|\|fd\.actChutes===true\)&&typeof ncLoss==='function'\)\{ const n=ncLoss\(f,fd\); if\(n&&n\.m2>0\) _nc28=n\.m2; \} pRecut\+=Math\.max\(0,laizes\*k-_nc28\); \}/,'L528 : bobineaux d un rouleau ♻ = laizes × metrage, MOINS jetes (🗑) ou gardes (✂), jamais en dessous de 0');
+has(/resteM2:r1\(pReste\),recutM2:r1\(pRecut\),ok:true\}\);/,'L528 : recutM2 expose avec le meme arrondi ; clientM2 INCHANGE (regle L513 : bobineaux des meres seuls)');
+has(/lamesM2:null,bordsM2:null,resteM2:null,recutM2:null,ok:false/,'L528 : recutM2 null (jamais 0) quand la fiche n est pas calculable');
+has(/^function _l528Livres\(f,m\)\{/m,'L528 : m² livres TOUT COMPRIS = clientM2 + recutM2 (instantane ancien : 0 sans ligne ♻, sinon rejeu muet concordant, sinon null)');
+has(/if\(!\(\(f&&f\.ficheDetail\)\|\|\[\]\)\.some\(fd=>fd&&fd\.recut\)\) return r1\(m\.clientM2\);/,'L528 : instantane ancien sans ligne ♻ → aucun rejeu (recutM2 vaut 0 par construction)');
+has(/^function _l528ParRef\(f,m\)\{/m,'L528 : lecteur PUR de la matiere par reference (rejeu par sous-fiche, regle _l513Matiere INTACTE)');
+has(/const L=_l513Matiere\(Object\.assign\(\{\},f,\{ficheDetail:sub,totalBobines:nb\}\)\);/,'L528 : sous-fiche = refGroups INTACT + ficheDetail filtre + totalBobines du sous-ensemble (garde « faux 0 » de la source respectee)');
+has(/if\(Math\.abs\(sC-m\.m2Coupes\)>0\.5\*N\+0\.5\|\|Math\.abs\(sL-m\.clientM2\)>0\.05\*N\+0\.05\|\|Math\.abs\(sP-m\.perteM2\)>0\.05\*N\+0\.05\) return R;/,'L528 : ventilation ACCEPTEE seulement si elle somme a sa fiche (borne = N+1 arrondis independants)');
+has(/if\(typeof m\.recutM2==='number'&&Math\.abs\(sR-m\.recutM2\)>0\.05\*N\+0\.05\) return R;/,'L528 : concordance des rouleaux ♻ exigee quand l instantane la connait');
+has(/if\(_hasW\) window\._l505Warn=function\(\)\{\};   \/\* rejeu MUET : N\+1 appels/,'L528 : rejeu MUET (patron _l526Decomp), traceur et compteur restaures dans le finally');
+has(/^function _l528Win\(\)\{ return prevMonthsYM\(13\)\.slice\(1\); \}/m,'L528 : fenetre = 12 derniers mois TERMINES (decision Celine 17/09), mois en cours exclu du CSV');
+has(/^function _l528RefKey\(ref,lg\)\{/m,'L528 : cle d article = reference + metrage (les deux KX1006-1 VEKA restent deux articles ; jamais f.ref « A + B »)');
+has(/^function _l528VolAgg\(fiches,win\)\{/m,'L528 : agregat PUR du CSV volumes (m² LIVRES tout compris, client nom seul, mois de decoupe local)');
+has(/^function _l528VolRows\(C,win\)\{/m,'L528 : lignes PURES du CSV (client = total des FICHES, puis references ; cellule VIDE sans fiche)');
+has(/^async function _l528ExportVolumes\(\)\{/m,'L528 : export CSV volumes (ensureFullHistory, csvMetaLine, csvCell, virgule FR)');
+has(/'step_volumes_livres_'\+todayISO\(\)\+'\.csv'/,'L528 : nom de fichier date');
+has(/fiche multi-clients imputée en totalité au client principal \(client A\)/,'L528 : la regle multi-clients est ECRITE dans le fichier (decision Celine 17/09 : « comme tu veux c est rare »)');
+has(/^function _l528Chiffres\(fiches,cli,refKey,mois\)\{/m,'L528 : chiffres PURS du bloc (client / reference / periode), null tant qu aucune fiche n est chiffree');
+has(/^function _l528Periodes\(win,cur\)\{/m,'L528 : periodes = 12 mois termines, mois en cours (provisoire), trimestres civils, chaque mois');
+has(/lbl:monthLabelFr\(cur\)\+' — mois en cours \(provisoire\)'/,'L528 : le bloc Chiffres offre le mois en cours, marque provisoire (marqueur ancre sur le CODE — revue adverse : l ancien etait satisfait par un commentaire)');
+has(/const kept=sub\.filter\(fd=>fd&&\(!f\.manqueMatiere\|\|fd\.coupee===true\)\); if\(!kept\.length\) return;/,'L528 revue : manque-matiere — un groupe jamais commence est ABSENT (la fiche reste ventilee)');
+has(/hors bobineaux prélevés du stock/,'L528 revue : la definition ECRITE des m² livres dit ce qu elle ne compte pas (bobineaux preleves du stock)');
+has(/if\(!seen\.has\(k\)\)\{ seen\.add\(k\); o\.n\[ym\]=\(o\.n\[ym\]\|\|0\)\+1; \}/,'L528 revue : colonne Fiches — une fiche compte UNE fois par article');
+has(/window\._l505WarnN=_pn\+\(_l528BugN-_b0\);/,'L528 revue : une vraie exception d un lecteur reste COMPTEE quand l appelant restaure le compteur (regle 7)');
+has(/'\\n\\n'\+csvCell\(leg\)/,'L528 revue : legende du CSV dans UNE cellule, separee du tableau');
+has(/\$\{_l528ChiffresBlock\(scopeNote\)\}/,'L528 : le bloc Chiffres est dans renderAnalyse AVEC le bandeau « pas filtrable » (il ne suit pas la pastille machine et le dit)');
+has(/tile\('Perte',r\.perteM2,_l526PctSpan\(r\.perteM2,r\.m2Coupes,'Perte % \(m²\)'\)\)/,'L528 : le % du bloc passe par _l526PctSpan / _l526PctM2 (4e surface, MEME definition que tuiles, CSV fiches, CSV KPI)');
+has(/onclick="_l528ExportVolumes\(\)">⬇ CSV volumes livrés \(12 mois terminés\)<\/button>/,'L528 : bouton CSV volumes dans l Analyse (rangee de liens + bloc)');
+absent(/const hdr='Client;/,'L528 : AUCUN second « const hdr= » (csv_l517_test.js:30 lit la PREMIERE occurrence) — filet, pas un marqueur discriminant');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
