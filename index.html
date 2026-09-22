@@ -2121,7 +2121,11 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   .fiche-line.fl-current .fiche-grid>.field:has([id^="flConf_"]){padding-left:165px;padding-right:210px}
   .fiche-line.fl-current:has(.fl-pos.pos-last-ref) .fiche-grid>.field:has([id^="flConf_"]){padding-left:210px}   /* [L509 · signalement Celine 08/09] le 🎯 « derniere bobine de sa reference » (L500) elargit le badge n/T de 37 px (198 px mesures en atelier 22px) : sur la carte EN COURS, dont l en-tete est pose SUR la rangee de config, il masquait « 1x55 + 33 ». La reserve gauche passe a 210 px quand le badge porte le picto — picto conserve, paysage uniquement */ /* [L458] recalibre pour la police systeme (L456) : pastille BOBINE n/T ~150px, CHUTE ~95px + ✕ 48 — les mesures Barlow Condensed (130/145) faisaient chevaucher MODIFIER/CHUTE et BOBINE/config (photos Esteban) */
   #ficheMain #fichePkgLine{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:6px 0 8px;padding:8px 14px;border-radius:9px;background:rgba(255,212,94,.10);border:1px solid rgba(255,212,94,.35);font:600 15px/1.35 var(--f-body);color:var(--text);word-break:break-word}   /* [L510 · Celine 08/09] emballage / cerclage / consignes de Dominique visibles par l operateur (lecture seule, 3 lignes max). Deux ids : gagne sur la regle globale #fichePkgLine{display:none} (placee plus loin dans le fichier) quel que soit l ordre */
+  #ficheMain #fichePkgLine.l533-open{-webkit-line-clamp:unset;display:block}   /* [L533 · signalement JF 21/09/2026] deplie : la regle VEKA fait 5 lignes, la 4e portait « 40mm=4 ». Placee AVANT .l510-vide (passe adverse) : a specificite egale, la derniere regle gagne — un bandeau vide doit rester masque meme s il a garde la classe depliee */
   #ficheMain #fichePkgLine.l510-vide{display:none}
+  #ficheMain #fichePkgMore{display:none;margin:-6px 0 8px;padding:11px 14px;min-height:44px;background:none;border:0;color:#ffd45e;font:700 14px/1.3 var(--f-body);text-align:left;text-decoration:underline;text-underline-offset:3px;cursor:pointer}   /* [L533] plancher tactile du projet (44 px, .btn-sm) et non 40 ; souligne — l operateur ganté doit voir que ca se touche */
+  #ficheMain #fichePkgMore.l533-on{display:inline-block}   /* inline-block : la zone cliquable s arrete au texte (passe adverse : une bande pleine largeur invisible, collee au-dessus des cartes bobines) */
+  body.atelier #ficheMain #fichePkgMore{min-height:48px;font-size:15px}   /* mode atelier : meme plancher que .lb-act / .lc-act */
   #fichePkgLine .l510-p{font-weight:800}
   #fichePkgLine .l510-sep{color:var(--text3)}
   #fichePkgLine .l510-n{color:#ffd45e;font-weight:700}
@@ -2151,6 +2155,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
    les ré-affiche. Badges OUTILS = entrées visibles (JS). Portrait inchangé.
    ============================================================ */
 .outils-recorr{display:none}
+#fichePkgMore{display:none}   /* [L533] portrait : comme la ligne emballage, le bouton n existe qu en paysage */
 #fichePkgLine{display:none}   /* [L510] portrait = layout historique (regle 3) : la ligne emballage n existe qu en paysage, voir le bloc @media(min-width:1100px) */
 @media(min-width:1100px){
   body:not(.show-ref-bands) #ficheRight>.fmm-inline-block:not(.active),body:not(.show-ref-bands) #ficheLines .fmm-inline-block:not(.active){display:none}
@@ -3362,7 +3367,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.18-L532';
+const APP_VERSION='2026.09.22-L533';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -6291,7 +6296,8 @@ function showPage(i){
   if(i===1){ try{ clearTimeout(_recalcPlanTimer); recalcPlan(); }catch(e){}   /* [L140 · audit #20] purger le recalcul débouncé (comme printPlan L6320) : sinon adaptPlanManualToInputs n'a pas tourné → la fiche calcule solde/chute/cumul sur d'ANCIENNES dimensions (useful/blade périmés) */
     importPlanToFiche({auto:true}); refreshEtiquetteSolde(); refreshFicheParams(); if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks(); if(typeof _l79SyncChgBtn==='function') _l79SyncChgBtn();
     if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck({autoApply:true});   /* [L221 · bug Dominique] dérive plan→fiche signalée au lieu d'être tue ; [L286 · choix Esteban] dérives SÛRES (stock/rouleaux) appliquées AUTOMATIQUEMENT à l'arrivée sur la fiche — machine/sur-coupe/équilibre restent bannière 1 clic */
-    if(typeof refreshEtiqPhotoZone==='function') refreshEtiqPhotoZone(); }   /* [L226 · ergo #14] vignettes étiquettes à jour en arrivant sur la Fiche (couvre doLoad/brouillon/reset) */
+    if(typeof refreshEtiqPhotoZone==='function') refreshEtiqPhotoZone();
+    try{ requestAnimationFrame(function(){ try{ _l533PkgFit(); }catch(e){} }); }catch(e){} }   /* [L533] la fiche redevient visible : c est le seul moment ou la ligne emballage est mesurable */   /* [L226 · ergo #14] vignettes étiquettes à jour en arrivant sur la Fiche (couvre doLoad/brouillon/reset) */
   if(i===2){ renderDataPage(); }   // [L80 · PERF-2] renderDataPage appelle déjà updateTabBadges (plus de double appel)
   if(i===0){ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); try{ if(typeof _l421SyncUseful==='function') _l421SyncUseful(); if(typeof _l420SyncStart==='function') _l420SyncStart(); }catch(e){} }
   try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(e){}   // [L102 · M2-E] barre d'action : visible sur la Fiche uniquement   /* [L309 · fix audit lot 5] hub complet : la barre segmentée du HUD suit le cran ambre */
@@ -23412,10 +23418,45 @@ function _l510PkgLine(){
     const v=function(id,alt){ let e=document.getElementById(id); let s=e?String(e.value||'').trim():''; if(!s&&alt){ e=document.getElementById(alt); s=e?String(e.value||'').trim():''; } return s; };
     const parts=[v('fPalette','planPalette'),v('fType','planType'),v('fEtiquetage','planEtiquetage'),v('fCerclage','planCerclage')].filter(Boolean);
     const notes=v('fNotesEmballage','planNotesEmballage').split(/\n/).map(function(x){ return x.trim(); }).filter(Boolean);
-    if(!parts.length&&!notes.length){ el.textContent=''; el.classList.add('l510-vide'); return; }
+    if(!parts.length&&!notes.length){ el.textContent=''; el.classList.add('l510-vide'); try{ _l533PkgFit(); }catch(_){ } return; }   /* [L533 · preuve navigateur] cette branche sortait AVANT la mesure : en passant d un client a regle (VEKA) a un client sans regle, le bouton « voir la suite » restait affiche sous un bandeau vide */
     let h='<b>📦</b> '+parts.map(function(p){ return '<span class="l510-p">'+esc(p)+'</span>'; }).join('<span class="l510-sep"> · </span>');
     if(notes.length) h+=(parts.length?'<span class="l510-sep"> — </span>':'')+'<span class="l510-n">⚡ '+esc(notes.join(' · '))+'</span>';
+    if(el.dataset.l533Sig!==h){ el.dataset.l533Sig=h; el.classList.remove('l533-open'); }   /* [L533 · passe adverse] le TEXTE change (autre commande, autre client, autre reference) : retour aux 3 lignes, la limite de L510 reste la regle par defaut. Un re-rendu au contenu identique (chaque frappe dans l en-tete) ne replie rien. */
     el.innerHTML=h; el.classList.remove('l510-vide');
+    try{ _l533PkgFit(); }catch(_){ }   /* [L533] le texte vient de changer : re-mesurer ce qui depasse */
+  }catch(_){ }
+}
+
+/* [L533 · signalement JF 21/09/2026, commande VEKA 4501964870 sur CEVENINI] « Pas de cerclage veka 40mm pour la ref
+   kx1006 ». Le ratio EXISTE (regle VEKA : « Bob/pile cerclee (KX1075/1006-1) : … 40mm=4 ») mais la ligne emballage est
+   coupee a 3 lignes depuis L510 : mesure en navigateur a 1280x800 ET 1194x800 — 4 lignes reelles, 3 affichees, et
+   « 40mm=4 » tombe dans la 4e. L operateur ne pouvait pas la lire, et la capture jointe au signalement montrait
+   pourtant le texte entier (la capture d ecran ignore -webkit-line-clamp) : le bureau repondait « mais c est ecrit ».
+   Ici : la coupure a 3 lignes est CONSERVEE (decision Celine 08/09, le bandeau n envahit pas l ecran) et un bouton
+   « voir la suite » apparait UNIQUEMENT quand du texte est cache. Lecture seule, paysage, aucun calcul touche. */
+function _l533PkgFit(){
+  try{
+    const el=document.getElementById('fichePkgLine'); if(!el) return;
+    let b=document.getElementById('fichePkgMore');
+    if(!b){
+      b=document.createElement('button'); b.id='fichePkgMore'; b.type='button';
+      b.setAttribute('aria-controls','fichePkgLine'); b.setAttribute('aria-expanded','false');   /* [L533 · passe adverse] doctrine a11y du projet (L357) : un bouton qui deplie dit ce qu il deplie et dans quel etat il est */
+      b.addEventListener('click',function(ev){ try{ ev.stopPropagation(); }catch(_){ } _l533PkgToggle(); });   /* ceinture : le bouton est un FRERE de l en-tete (pas un enfant), le clic ne remonterait pas — mais la rangee de pastilles est un <button> a 2 px au-dessus */
+      el.insertAdjacentElement('afterend',b);
+    }
+    if(el.classList.contains('l510-vide')){ el.classList.remove('l533-open'); b.classList.remove('l533-on'); return; }
+    if(!el.offsetParent) return;   /* [L533 · lecon L522] ecran cache : scrollHeight vaut 0, la mesure ferait apparaitre le bouton a tort — on garde l etat et on re-mesure a l affichage */
+    const open=el.classList.contains('l533-open');
+    b.classList.toggle('l533-on',open||el.scrollHeight>el.clientHeight+2);
+    b.textContent=open?'▲ Replier':'▼ Voir la suite de l’emballage';   /* [L533] ▲▼ (geometric shapes) : les ▴▾ fins n etaient pas rendus par la police de l app — capture de controle */
+    b.setAttribute('aria-expanded',open?'true':'false');
+  }catch(_){ }
+}
+function _l533PkgToggle(){
+  try{
+    const el=document.getElementById('fichePkgLine'); if(!el) return;
+    el.classList.toggle('l533-open');
+    _l533PkgFit();
   }catch(_){ }
 }
 
@@ -24152,7 +24193,7 @@ function _l522PlaceAllShares(){ try{
   jobs.forEach(function(j){ j.s.style.left=j.left; j.s.style.right=j.right; });   /* ...ECRITURES ensuite : un seul reflow, pas un par rangee */
 }catch(e){} }
 function _l522PlaceShare(row,s){ try{ _l522PlaceAllShares(); }catch(e){} }   /* compat : meme effet, toutes les rangees d un coup */
-(function _l522ShareOnResize(){ try{ let t=null; window.addEventListener('resize',function(){ clearTimeout(t); t=setTimeout(function(){ try{ _l522PlaceAllShares(); }catch(e){} },150); }); }catch(e){} })();
+(function _l522ShareOnResize(){ try{ let t=null; window.addEventListener('resize',function(){ clearTimeout(t); t=setTimeout(function(){ try{ _l522PlaceAllShares(); }catch(e){} try{ _l533PkgFit(); }catch(e){} },150); }); }catch(e){} })();   /* [L533] la rotation change le nombre de lignes de la ligne emballage */
 // [L64 · Lot 6] Récap emballage PAR CLIENT en bas de la fiche : qui reçoit quoi,
 // avec son n° de commande, sa date de livraison et son packaging. Masqué en mono-client.
 function renderCliRecapFiche(){

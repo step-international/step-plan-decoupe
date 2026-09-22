@@ -2561,5 +2561,23 @@ has(/\['palette','type','etiquetage','cerclage','notes'\]\.every\(function\(f\)\
 has(/\{o:'⚡ SPÉCIFICITÉ : Mandrins PARFAITS exigés \+ caisse\/carton mixte\.\\nDQ1006 Bleu 600ml \(bob\/pile par largeur 14-90mm\)\./,'L532 : les commandes et plans deja enregistres avec l ancienne note Cougnaud affichent la nouvelle (patron L297)');
 has(/DQ1009 Bleu 600ml : 20mm=11\/p ×48p \(528\) \| 30mm=7\/p ×48p \(336\) — 20 et 30 mm CERCLÉS \| 40\/55\/70mm/,'L532 : BOUVET — DQ1009 bleu : totaux entre parentheses, « 20 et 30 mm CERCLÉS » (correction Celine 18/09 : 360 / 260 / 200 non repris)');
 has(/DQ1000-1 transp 500ml — CERCLER toutes les largeurs : 20mm=5\/p \| 30mm=5\/p \| 40mm=4\/p \| 50mm=4\/p \| 70mm=3\/p/,'L532 : BOUVET — DQ1000-1 : « CERCLER toutes les largeurs » (la mention manquait)');
+
+// ── [L533 · signalement JF 21/09/2026, VEKA 4501964870 sur CEVENINI] « Pas de cerclage veka 40mm pour la ref kx1006 » :
+// le ratio EXISTE dans la regle VEKA mais la ligne emballage est coupee a 3 lignes (L510) et « 40mm=4 » tombait dans la 4e ──
+has(/Bob\/pile cerclée \(KX1075\/1006-1\) : 15mm=11 \| 20mm=8 \| 25mm=7 \| 30mm=6 \| 35mm=5 \| 40mm=4/,'L533 : le ratio VEKA 40 mm est bien dans la regle (la donnee n a jamais manque — c est son AFFICHAGE qui coupait)');
+has(/#ficheMain #fichePkgLine\{[^}]*-webkit-line-clamp:3/,'L533 : la coupure a 3 lignes de L510 est CONSERVEE par defaut (decision Celine 08/09 : le bandeau n envahit pas l ecran)');
+has(/#ficheMain #fichePkgLine\.l533-open\{-webkit-line-clamp:unset;display:block\}[\s\S]{0,400}#ficheMain #fichePkgLine\.l510-vide\{display:none\}/,'L533 : etat deplie — la suite du texte devient atteignable, et la regle est AVANT .l510-vide (a specificite egale la derniere gagne : un bandeau vide reste masque)');
+has(/#ficheMain #fichePkgMore\{display:none;[^}]*min-height:44px/,'L533 : bouton masque par defaut, cible de 44 px — plancher tactile du projet (.btn-sm)');
+has(/#ficheMain #fichePkgMore\.l533-on\{display:inline-block\}/,'L533 : le bouton ne s affiche QUE quand du texte est cache, et la zone cliquable s arrete au texte');
+has(/body\.atelier #ficheMain #fichePkgMore\{min-height:48px/,'L533 : mode atelier — plancher tactile 48 px (passe adverse : 40 px etait sous le plancher du projet)');
+has(/setAttribute\('aria-controls','fichePkgLine'\); b\.setAttribute\('aria-expanded','false'\);/,'L533 : doctrine a11y L357 — le bouton dit ce qu il deplie et dans quel etat');
+has(/if\(el\.dataset\.l533Sig!==h\)\{ el\.dataset\.l533Sig=h; el\.classList\.remove\('l533-open'\); \}/,'L533 : l etat deplie ne suit pas le texte d une AUTRE commande (passe adverse : il fuitait) ; un re-rendu identique ne replie rien');
+has(/^#fichePkgMore\{display:none\}/m,'L533 : portrait = layout historique intact (regle 3) — ni bandeau ni bouton');
+has(/if\(!el\.offsetParent\) return;/,'L533 : ecran cache → aucune mesure (scrollHeight vaudrait 0 et le bouton apparaitrait a tort — lecon L522)');
+has(/b\.classList\.toggle\('l533-on',open\|\|el\.scrollHeight>el\.clientHeight\+2\);/,'L533 : la troncature est MESUREE, jamais devinee sur la longueur du texte');
+has(/el\.classList\.add\('l510-vide'\); try\{ _l533PkgFit\(\); \}catch\(_\)\{ \} return; \}/,'L533 : client SANS regle d emballage → la branche « vide » mesure aussi (sinon le bouton restait sous un bandeau vide — preuve navigateur)');
+has(/try\{ ev\.stopPropagation\(\); \}catch\(_\)\{ \} _l533PkgToggle\(\);/,'L533 : le tap ne remonte pas au <button> de l en-tete (qui se replierait sous le doigt)');
+has(/b\.textContent=open\?'▲ Replier':'▼ Voir la suite de l’emballage';/,'L533 : fleches ▲▼ (les ▴▾ fins n etaient pas rendus par la police de l app)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
