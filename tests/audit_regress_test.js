@@ -2083,7 +2083,7 @@ console.log('── L510 : emballage / cerclage / consignes lisibles par l opér
 has(/function _l510PkgLine/,'L510 : la ligne emballage lecture seule existe');
 has(/try\{ _l510PkgLine\(\); \}catch\(_\)\{ \}/,'L510 : rafraîchie par renderFicheHeadPills (chargement, partage, changement de machine, coupées)');
 has(/^#fichePkgLine\{display:none\}/m,'L510 : masquée par défaut → portrait inchangé (règle 3)');
-has(/#ficheMain #fichePkgLine\{display:-webkit-box;-webkit-line-clamp:3/,'L510 : affichée en paysage, 3 lignes max');
+has(/#ficheMain #fichePkgLine\{display:-webkit-box;-webkit-line-clamp:none/,'L510 : affichée en paysage — [L534 · decision Celine 22/09] sans limite de lignes (« c est mieux s il voit tout » ; la limite de 3 lignes du 08/09 valait pour une note deux fois plus courte)');
 has(/v\('fNotesEmballage','planNotesEmballage'\)/,'L510 : les consignes libres de Dominique (Instructions spécifiques) sont reprises, avec repli sur le Plan');
 
 console.log('── L511 : la machine se choisit à chaque commande (décision Céline + Dominique 09/09, incident FEBA/MAVEG du 08/09) ──');
@@ -2556,7 +2556,7 @@ has(/PP = petite palette · GP = grande palette\./,'L532 : la regle Cougnaud exp
 has(/DQ1006 Bleu 600ml — bob\/pile : 14mm=8 PP \| 19mm=6 PP \| 24mm=6 PP \| 30mm=7 GP \| 36mm=6 GP/,'L532 : DQ1006 bleu — bobineaux par pile et palette (fiche « commande cougnaud 08 2025 »)');
 has(/DQ1006 Bleu 600ml — 20 piles de N bobineaux : 40mm=19 GP \| 45mm=11 PP \| 50mm=15 GP \| 65mm=7 PP \| 81mm=6 PP \| 90mm=6 PP/,'L532 : DQ1006 bleu — 20 piles de N bobineaux');
 has(/KX1011-1 noir blanc 500ml — bob\/carton : 14mm=16 \| 19mm=11 \| 24mm=9 \| 30mm=7 \| 36mm=6 \| 40mm=5 \| 45mm=4 \| 50mm=4 \| 65mm=3 \| 81mm=2 \| 90mm=2 \| 100mm=2 \| 110mm=2 \| 130mm=1/,'L532 : KX1011-1 — bobineaux par carton');
-has(/^const _L532_PKG_FORCE=\['Cougnaud','BOUVET'\];/m,'L532 : regle MISE A JOUR dans le code → le code gagne sur la table partagee pour cette cle (sinon la mise a jour restait invisible)');
+has(/^const _L532_PKG_FORCE=\['Cougnaud','BOUVET','VEKA'\];/m,'L532 : regle MISE A JOUR dans le code → le code gagne sur la table partagee pour cette cle (sinon la mise a jour restait invisible)');
 has(/\['palette','type','etiquetage','cerclage','notes'\]\.every\(function\(f\)\{ return String\(a\[f\]==null\?'':a\[f\]\)===String\(b\[f\]==null\?'':b\[f\]\); \}\)/,'L532 : fusion — comparaison CHAMP PAR CHAMP (une table revenue de Firestore a ses cles triees)');
 has(/\{o:'⚡ SPÉCIFICITÉ : Mandrins PARFAITS exigés \+ caisse\/carton mixte\.\\nDQ1006 Bleu 600ml \(bob\/pile par largeur 14-90mm\)\./,'L532 : les commandes et plans deja enregistres avec l ancienne note Cougnaud affichent la nouvelle (patron L297)');
 has(/DQ1009 Bleu 600ml : 20mm=11\/p ×48p \(528\) \| 30mm=7\/p ×48p \(336\) — 20 et 30 mm CERCLÉS \| 40\/55\/70mm/,'L532 : BOUVET — DQ1009 bleu : totaux entre parentheses, « 20 et 30 mm CERCLÉS » (correction Celine 18/09 : 360 / 260 / 200 non repris)');
@@ -2564,8 +2564,9 @@ has(/DQ1000-1 transp 500ml — CERCLER toutes les largeurs : 20mm=5\/p \| 30mm=5
 
 // ── [L533 · signalement JF 21/09/2026, VEKA 4501964870 sur CEVENINI] « Pas de cerclage veka 40mm pour la ref kx1006 » :
 // le ratio EXISTE dans la regle VEKA mais la ligne emballage est coupee a 3 lignes (L510) et « 40mm=4 » tombait dans la 4e ──
-has(/Bob\/pile cerclée \(KX1075\/1006-1\) : 15mm=11 \| 20mm=8 \| 25mm=7 \| 30mm=6 \| 35mm=5 \| 40mm=4/,'L533 : le ratio VEKA 40 mm est bien dans la regle (la donnee n a jamais manque — c est son AFFICHAGE qui coupait)');
-has(/#ficheMain #fichePkgLine\{[^}]*-webkit-line-clamp:3/,'L533 : la coupure a 3 lignes de L510 est CONSERVEE par defaut (decision Celine 08/09 : le bandeau n envahit pas l ecran)');
+// [L534 · verification Celine / atelier 21-22/09] lecture INCOMPLETE : la donnee ETAIT fausse (« 40mm=4 » = ratio du KX1075) — voir les marqueurs L534 plus bas ; la coupure a 3 lignes est levee (decision Celine 22/09)
+has(/\{o:'⚡ SPÉCIFICITÉ : NE PAS filmer\.[^\n]*Bob\/pile cerclée \(KX1075\/1006-1\) : 15mm=11 \| 20mm=8 \| 25mm=7 \| 30mm=6 \| 35mm=5 \| 40mm=4/,'L533 → L534 : l ancienne ligne fusionnee ne subsiste que comme CLE DE MIGRATION — verification Celine / atelier 21-22/09 : la donnee ETAIT fausse (« 40mm=4 » = ratio du KX1075), le L533 (affichage) est conserve');
+has(/#ficheMain #fichePkgLine\{[^}]*-webkit-line-clamp:none/,'L533 → L534 : la coupure a 3 lignes est LEVEE (decision Celine 22/09 : « c est mieux s il voit tout ») ; le bouton « Voir la suite » du L533 reste en place, dormant');
 has(/#ficheMain #fichePkgLine\.l533-open\{-webkit-line-clamp:unset;display:block\}[\s\S]{0,400}#ficheMain #fichePkgLine\.l510-vide\{display:none\}/,'L533 : etat deplie — la suite du texte devient atteignable, et la regle est AVANT .l510-vide (a specificite egale la derniere gagne : un bandeau vide reste masque)');
 has(/#ficheMain #fichePkgMore\{display:none;[^}]*min-height:44px/,'L533 : bouton masque par defaut, cible de 44 px — plancher tactile du projet (.btn-sm)');
 has(/#ficheMain #fichePkgMore\.l533-on\{display:inline-block\}/,'L533 : le bouton ne s affiche QUE quand du texte est cache, et la zone cliquable s arrete au texte');
@@ -2579,5 +2580,16 @@ has(/el\.classList\.add\('l510-vide'\); try\{ _l533PkgFit\(\); \}catch\(_\)\{ \}
 has(/try\{ ev\.stopPropagation\(\); \}catch\(_\)\{ \} _l533PkgToggle\(\);/,'L533 : le tap ne remonte pas au <button> de l en-tete (qui se replierait sous le doigt)');
 has(/b\.textContent=open\?'▲ Replier':'▼ Voir la suite de l’emballage';/,'L533 : fleches ▲▼ (les ▴▾ fins n etaient pas rendus par la police de l app)');
 
+console.log('── L534 : VEKA — cerclage PAR reference et par impression (signalement JF 21/09, verifie par Celine avec l atelier les 21-22/09 : pas de cerclage 40mm pour le KX1006-1) ──');
+has(/^const _L532_PKG_FORCE=\['Cougnaud','BOUVET','VEKA'\];/m,'L534 : VEKA liste dans _L532_PKG_FORCE (le code gagne sur la table partagee, sinon la correction restait invisible)');
+has(/^  'VEKA':\{[^\n]*\n    notes:'[^\n]*\\nKX1006-1 Profilé en 700ml : bob\/pile cerclée 15mm=11 \| 20mm=8 \| 25mm=7\\nKX1006-1 Profilé en 1000ml : bob\/pile cerclée 30mm=5 \| 35mm=5\\nKX1006-1 impression VEKA en 1000ml : bob\/pile cerclée 15mm=11 \| 20mm=8 \| 25mm=7 \| 30mm=5 \| 35mm=5\\nKX1075 : bob\/pile cerclée 20mm=8 \| 25mm=7 \| 30mm=6 \| 35mm=5 \| 40mm=4\\nDQ1009 : bob\/pile cerclée 20mm=10'\},/m,'L534 : VEKA — une ligne par reference ET par impression (Profile 700 / Profile 1000 / impression VEKA 1000 / KX1075 / DQ1009), chaque ligne avec son unite ; seules les laizes cerclees sont ecrites (Celine 22/09 : « pas besoin de cerclage en 40mm ») ; ancre sur la REGLE, pas sur sa copie de migration');
+has(/^  \{o:'⚡ SPÉCIFICITÉ : NE PAS filmer\. Réhausses obligatoires, palettes solides\.\\n⚠ Alterner bobines pile & face · télescopage ≤10mm\.\\nGerbage autorisé par référence UNIQUEMENT\.\\nBob\/pile cerclée \(KX1075\/1006-1\)/m,'L534 : les commandes et plans VEKA deja enregistres avec la ligne fusionnee sont migres (papier, PDF, planning, rechargement)');
+absent(/^    notes:'[^\n]*Bob\/pile cerclée \(KX1075\/1006-1\)/m,'L534 : la ligne fusionnee « (KX1075/1006-1) » n existe plus dans AUCUNE regle de PKG_CLIENTS');
+has(/^function _l534Mig\(t\)\{ return \(t==null\|\|typeof _migrateOldNotes!=='function'\)\?t:_migrateOldNotes\(t\); \}/m,'L534 : _l534Mig — migration des anciennes notes, null / undefined rendus tels quels');
+has(/const notes=_l534Mig\(v\('fNotesEmballage','planNotesEmballage'\)\)\.split/,'L534 : tablette — la ligne emballage migre la note a la lecture (la commande EN COURS recoit la consigne corrigee)');
+has(/g\('planNotesEmballage'\)\.value=_l534Mig\(st\.plan\.notes\);/,'L534 : reprise de brouillon — note du plan restauree migree');
+has(/setV\('fNotesEmballage',_l534Mig\(st\.fiche\.notes\)\);/,'L534 : reprise de fiche — note d emballage restauree migree');
+absent(/esc\(c\.notes\)/,'L534 : clients B/C/D — plus aucune note d emballage sortie brute (plan papier, PDF, ecrans)');
+has(/#ficheMain #fichePkgLine\{display:-webkit-box;-webkit-line-clamp:none;/,'L534 : tablette — plus de coupure de la ligne emballage (decision Celine 22/09) ; bouton du L533 conserve, dormant');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

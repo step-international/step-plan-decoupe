@@ -4,24 +4,27 @@
 // 1194x800 — 4 lignes reelles, 3 affichees, et « 40mm=4 » tombe dans la 4e. L operateur ne pouvait PAS le lire.
 // (La capture jointe au signalement, elle, montrait le texte entier : html2canvas ignore le line-clamp — d ou le
 // « mais c est ecrit » cote bureau.) Ce lot rend la suite ATTEIGNABLE : un bouton « voir la suite » quand ca depasse.
+// [L534 · verification Celine / atelier 21-22/09] la lecture ci-dessus etait INCOMPLETE : la donnee ETAIT fausse (« 40mm=4 » = ratio du KX1075 applique au KX1006-1),
+// corrigee dans la regle VEKA (ecrite par reference et par impression). Verifications n°1 et n°2 et celle de la coupure recalees ; le bouton reste en place, dormant :
+// la coupure a 3 lignes est levee sur decision de Celine du 22/09 (« pour l affichage c est mieux s il voit tout »).
 const fs=require('fs');
 const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){const re=new RegExp('^[ \\t]*(?:async\\s+)?function\\s+'+n+'\\s*\\(','m');const m=src.match(re);if(!m)throw new Error('introuvable '+n);let i=m.index+m[0].length-m[0].trimStart().length;let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}
 let fail=0,total=0; const ok=(c,m)=>{ total++; console.log((c?'✅ ':'❌ ')+m); if(!c)fail++; };
 
-console.log('── 1. la donnee existe bien : la regle VEKA porte le ratio 40 mm ──');
+console.log('── 1. [L534] la donnee ETAIT fausse (verification Celine / atelier 21-22/09) : la regle VEKA est ecrite par reference et par impression ──');
 const mP=src.match(/^var PKG_CLIENTS=(\{[\s\S]*?\n\});/m); if(!mP) throw new Error('introuvable PKG_CLIENTS');
 const PKG=eval('('+mP[1]+')');
 const NV=(PKG['VEKA']||{}).notes||'';
-ok(/Bob\/pile cerclée \(KX1075\/1006-1\)[^\n]*40mm=4/.test(NV),'VEKA : « Bob/pile cerclée (KX1075/1006-1) … 40mm=4 » est dans la regle (rien a corriger dans la donnee)');
-ok(NV.split('\n').length>=5,'la note VEKA fait 5 lignes : elle NE TIENT PAS dans les 3 lignes affichees → il faut pouvoir la derouler');
+ok(!/KX1075\/1006-1/.test(NV)&&/^KX1006-1 Profilé en 1000ml : bob\/pile cerclée 30mm=5 \| 35mm=5$/m.test(NV),'[L534 · Celine / atelier 21-22/09] la donnee ETAIT fausse : « 40mm=4 » etait le ratio du KX1075 applique au KX1006-1 — la regle est ecrite PAR reference et par impression (L533 lisait le signalement comme un defaut d affichage SEUL ; son bouton est conserve)');
+ok(NV.split('\n').length>=5,'la note VEKA fait au moins 5 lignes (8 depuis L534) : elle ne tenait pas dans 3 lignes — [L534 · decision Celine 22/09] plus de limite, elle se lit en entier');
 
 console.log('── 2. CSS : l etat deplie existe, le bouton est masque par defaut ──');
 ok(/#ficheMain #fichePkgLine\.l533-open\{[^}]*-webkit-line-clamp:\s*unset/.test(src),'.l533-open retire la coupure a 3 lignes');
 ok(/#ficheMain #fichePkgMore\{[^}]*display:none/.test(src),'#fichePkgMore est masque par defaut (paysage)');
 ok(/#ficheMain #fichePkgMore\.l533-on\{[^}]*display:inline-block/.test(src),'.l533-on affiche le bouton');
 ok(/^#fichePkgMore\{display:none\}/m.test(src),'portrait (hors @media) : le bouton n existe pas non plus — regle 3, layout historique intact');
-ok(/#ficheMain #fichePkgLine\{[^}]*-webkit-line-clamp:3/.test(src),'la coupure a 3 lignes de L510 est CONSERVEE (decision Celine 08/09 : le bandeau n envahit pas l ecran)');
+ok(/#ficheMain #fichePkgLine\{[^}]*-webkit-line-clamp:none/.test(src),'[L534 · decision Celine 22/09 : « pour l affichage c est mieux s il voit tout »] plus de coupure par defaut (la decision du 08/09 valait pour une note deux fois plus courte) ; le bouton « Voir la suite » reste en place, dormant');
 
 console.log('── 3. _l533PkgFit : mesure, garde-fous, libelles ──');
 const FIT=fnOf('_l533PkgFit');
