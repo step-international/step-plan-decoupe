@@ -21,7 +21,7 @@ const CHROME = process.env.CHROME_BIN || (process.platform === 'win32'
 const udd = mkdtempSync(join(tmpdir(), 'stepsim-'));
 const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${udd}`, '--no-first-run', '--disable-gpu', '--window-size=1180,820', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function waitPort() { for (let i = 0; i < 100; i++) { try { const r = await fetch(`http://127.0.0.1:${PORT}/json/version`); if (r.ok) return await r.json(); } catch { } await sleep(100); } throw new Error('chrome not up'); }
+async function waitPort() { for (let i = 0; i < 300; i++) { try { const r = await fetch(`http://127.0.0.1:${PORT}/json/version`); if (r.ok) return await r.json(); } catch { } await sleep(100); } throw new Error('chrome not up (30 s) — CHROME_BIN=' + CHROME); }
 
 // ---------- script exécuté DANS la page : une commande aléatoire de bout en bout, retourne un rapport ----------
 const PAGE_SETUP = `

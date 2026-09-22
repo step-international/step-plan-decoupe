@@ -19,7 +19,7 @@ const CHROME = process.env.CHROME_BIN || (process.platform === 'win32'
 const udd = mkdtempSync(join(tmpdir(), 'stepshot-'));
 const chrome = spawn(CHROME, [`--headless=new`, `--remote-debugging-port=${PORT}`, `--user-data-dir=${udd}`, '--no-first-run', '--no-default-browser-check', '--disable-gpu', `--window-size=${W},${H}`, '--hide-scrollbars', '--force-device-scale-factor=1', 'about:blank'], { stdio: 'ignore' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function waitPort() { for (let i = 0; i < 100; i++) { try { const r = await fetch(`http://127.0.0.1:${PORT}/json/version`); if (r.ok) return await r.json(); } catch { } await sleep(100); } throw new Error('chrome not up'); }
+async function waitPort() { for (let i = 0; i < 300; i++) { try { const r = await fetch(`http://127.0.0.1:${PORT}/json/version`); if (r.ok) return await r.json(); } catch { } await sleep(100); } throw new Error('chrome not up (30 s) — CHROME_BIN=' + CHROME); }
 
 // ---- scènes : setup JS exécuté dans la page (session simulée + mode entraînement = zéro écriture) ----
 const SETUP = {
