@@ -94,11 +94,30 @@ jobs:
     timeout-minutes: 20
     env:
       TZ: Europe/Paris
-      CHROME_BIN: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
+      # [22/09/2026] le job supposait Chrome preinstalle a /usr/bin/google-chrome. L image ubuntu-latest a change :
+      # « Error: chrome not up » sur le lot L533, alors que les 5 publications du 18/09 etaient vertes. Le harnais
+      # (sim200.mjs, shot.mjs) lit CHROME_BIN : on le RESOUT, et on installe seulement si rien n est trouve.
+      - name: Chrome (chemin resolu, installe seulement si absent)
+        run: |
+          set -euo pipefail
+          BIN=""
+          for c in /usr/bin/google-chrome /usr/bin/google-chrome-stable /usr/bin/chromium-browser /usr/bin/chromium /opt/google/chrome/chrome /snap/bin/chromium; do
+            if [ -x "$c" ]; then BIN="$c"; break; fi
+          done
+          if [ -z "$BIN" ]; then
+            echo "aucun Chrome dans l image du runner : installation de google-chrome-stable"
+            wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq /tmp/chrome.deb
+            BIN=/usr/bin/google-chrome
+          fi
+          echo "CHROME_BIN=$BIN" >> "$GITHUB_ENV"
+          echo "Chrome : $BIN"
+          "$BIN" --version
       - name: Serveur local :8000 (version servie = version du depot)
         run: |
           set -euo pipefail
