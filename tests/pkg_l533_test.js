@@ -37,7 +37,7 @@ ok(/el\.scrollHeight>el\.clientHeight\+2/.test(FIT),'la troncature est MESUREE (
 ok(/▼ Voir la suite/.test(FIT)&&/▲ Replier/.test(FIT),'deux libelles avec des fleches REELLEMENT rendues par la police (▲▼, pas ▴▾)');
 ok(/min-height:44px/.test(src.slice(src.indexOf('#ficheMain #fichePkgMore{'),src.indexOf('#ficheMain #fichePkgMore{')+400)),'cible tactile : le plancher du projet est 44 px (.btn-sm), pas 40 (passe adverse)');
 ok(/body\.atelier #ficheMain #fichePkgMore\{min-height:48px/.test(src),'mode atelier : 48 px, comme .lb-act / .lc-act');
-ok(/#ficheMain #fichePkgMore\.l533-on\{display:inline-block\}/.test(src),'zone cliquable limitee au texte (pas une bande pleine largeur invisible au-dessus des cartes bobines)');
+ok(/#ficheMain #fichePkgMore\.l533-on\{display:inline-block;align-self:flex-start\}/.test(src),'[L535 · mesure navigateur] zone cliquable limitee au texte : inline-block SEUL etait inerte (#ficheMain est un flex column → blockification, 974 px mesures au lieu de 238) ; align-self:flex-start ramene la boite au texte, hauteur 48 px conservee');
 ok(src.indexOf("#ficheMain #fichePkgLine.l533-open")<src.indexOf("#ficheMain #fichePkgLine.l510-vide"),'ORDRE CSS : .l533-open AVANT .l510-vide — a specificite egale la derniere gagne, un bandeau vide reste masque meme s il a garde la classe depliee');
 
 console.log('── 3bis. accessibilite (doctrine L357 du projet) ──');

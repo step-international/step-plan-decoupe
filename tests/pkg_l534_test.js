@@ -52,6 +52,14 @@ ok(N!==OLDV&&MIG(OLDV)===N,'ancienne note EXACTE → nouvelle note a l impressio
 ok(MIG(OLDV+'\nattention palette 2')===N+'\nattention palette 2','une ligne ajoutee a la main APRES l ancienne note est conservee');
 ok(MIG('NE PAS filmer. Bob/pile cerclée (KX1075/1006-1) : 40mm=4')==='NE PAS filmer. Bob/pile cerclée (KX1075/1006-1) : 40mm=4','un texte retouche a la main (prefixe different) n est JAMAIS denature');
 ok(MIG(N)===N,'la nouvelle note est stable (pas de double migration)');
+console.log('── 4 ter. [L535 · audit adverse du 23/09, JUMEAUX du L534] les DEUX notes VEKA encore plus anciennes portent le MEME ratio faux ──');
+const OLDV2='⚡ SPÉCIFICITÉ : NE PAS filmer + réhausses + gerbage par réf. + télescopage ≤10mm + pile&face.\n⚠ Alterner bobines pile & face. Réhausses obligatoires.\nPalettes solides. Gerbage autorisé par référence UNIQUEMENT.\nBob/pile cerclée (KX1075/1006-1) : 15mm=11 | 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : 20mm=10/pile';   /* regle VEKA du 01/06 au 30/07/2026 (reecrite par le L292) */
+const OLDV3='⚠ Alterner bobines pile & face. Réhausses obligatoires. NE PAS filmer les palettes. Palettes solides. Gerbage autorisé par référence uniquement. Tolérance télescopage 10mm.\nBob/pile cerclée (KX) : 15mm=11 | 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4 — DQ1009 : 20mm=10';   /* regle VEKA d origine (01/06/2026) */
+ok(/40mm=4/.test(OLDV2)&&/40mm=4/.test(OLDV3)&&/30mm=6/.test(OLDV2)&&/30mm=6/.test(OLDV3),'controle du test : les deux textes plus anciens portent bien le ratio declare FAUX par l atelier (40mm=4 et 30mm=6 pour le KX1006-1)');
+ok(MIG(OLDV2)===N,'plan / fiche / brouillon VEKA enregistre entre le 01/06 et le 30/07/2026 → consigne CORRIGEE partout ou la migration passe (tablette, papier, PDF, planning)');
+ok(MIG(OLDV3)===N,'plan / fiche VEKA d origine (01/06/2026) → idem');
+ok(MIG(OLDV2+'\nconsigne ajoutee par Dominique')===N+'\nconsigne ajoutee par Dominique'&&MIG(OLDV3+'\nconsigne ajoutee par Dominique')===N+'\nconsigne ajoutee par Dominique','une consigne ajoutee A LA MAIN apres l ancienne note est conservee (patron L297)');
+ok(_OLD_NOTES.filter(function(m){ return /Bob\/pile cerclée \(KX/.test(m.o); }).length===3&&_OLD_NOTES.filter(function(m){ return m.n===N; }).length===3,'les 3 anciennes redactions de la regle VEKA sont couvertes, et toutes pointent vers la MEME note corrigee');
 console.log('── 4 bis. la commande VEKA EN COURS : tablette, reprise de brouillon, clients B/C/D (l ancien texte ne doit plus sortir NULLE PART) ──');
 { global._migrateOldNotes=MIG; const MIG2=eval('('+fnOf('_l534Mig')+')');   /* _l534Mig lit _migrateOldNotes comme un global, au moment de l appel */
   ok(MIG2(OLDV)===N&&MIG2(null)===null&&MIG2(undefined)===undefined&&MIG2('')==='','_l534Mig : ancienne note → nouvelle ; null / undefined / vide rendus TELS QUELS (le comportement des champs restaures ne change pas)');
