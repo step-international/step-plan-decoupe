@@ -2608,5 +2608,10 @@ has(/get lbl\(\)\{ return _l537Supplier\('bk'\); \}/,'L537 : libelle fournisseur
 has(/localStorage\.getItem\('step_refs_v1'\)\|\|'null'\)/,'L537 : cache refs relu en synchrone avant init()');
 has(/try\{ _saveClientOptsHtml=null; Object\.keys\(_saveRefOptsByClient\)/,'L537 : filtres Donnees > Plans invalides quand le referentiel change (memo L80 jamais invalide)');
 
+// ── [L538 · 24/09/2026] STOCKAGE DES PHOTOS EN EUROPE : le bucket par defaut de l app est europe-west1 ; l ancien (us-east1)
+//    reste lisible via refFromURL (le bucket est porte par chaque URL) pendant la reecriture des URLs en base. ──
+has(/storageBucket:"plan-de-decoupe-eu",/,'L538 : bucket par defaut = plan-de-decoupe-eu (Europe)');
+absent(/storageBucket:"plan-de-decoupe\.firebasestorage\.app"/,'L538 : plus de bucket americain par defaut');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
