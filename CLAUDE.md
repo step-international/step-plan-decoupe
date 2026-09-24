@@ -18,7 +18,7 @@
 2. **Sorties papier / PDF / étiquettes : aucun changement de format sans demande explicite d'un admin** (Céline ou Esteban — documents qualité ISO). Jamais « en passant » dans un autre lot ; un changement demandé passe par la batterie et son commit dit ce qui change sur le papier.
 3. **Portrait (tablette verticale) = layout historique.** Tout changement visuel se scope en `@media(min-width:1100px)` (paysage).
 4. **Les `confirm()` de sécurité restent** (dé-marquage d'une bobine coupée, reset chrono, suppressions). Seuls les dialogues « conservateurs » ont été retirés sur décision d'Esteban (L390). **L434** : le confirm de l'ordre de coupe et celui de ↺ Réinitialiser sont retirés sur demande explicite d'Esteban — règle de remplacement : ne jamais retirer un garde-fou sans **supprimer la perte** qu'il protégeait (étiquettes préservées à travers la régénération) ou sans offrir une **annulation** (bandeau « ↩ Annuler » 15 s).
-5. **Jamais de suppression de données de production. Jamais toucher à la console Firebase / aux règles Firestore** — Claude ne les modifie jamais lui-même : il prépare `firestore.rules` et les étapes, un propriétaire du projet (Esteban ou Christian) publie en console.
+5. **Jamais de suppression de données de production. Jamais toucher à la console Firebase / aux règles Firestore** — Claude ne les modifie jamais lui-même : il prépare `firestore.rules` et les étapes, un propriétaire du projet (Esteban ou Christian) publie en console. *(Exception datée, sur demande explicite d'Esteban le 24/09/2026 : règles Firestore `mail.to.size()>=1` et règles Storage du nouveau bucket EU déployées par Claude via une config temporaire hors dépôt — voir mémoire « continuité ». La règle reste : sans demande explicite du propriétaire, Claude ne publie rien en console.)*
 6. Un lot de modifications = **APP_VERSION bumpé** (`'AAAA.MM.JJ-LNNN'`, LNNN incrémenté) + un **marqueur** dans `tests/audit_regress_test.js` pour tout correctif important.
 7. Écrire dans le fichier via des scripts : attention aux commentaires `//` qui avalent la fin de ligne — toujours re-vérifier la syntaxe (étape 1 ci-dessous).
 
@@ -28,7 +28,7 @@ bash tests/battery.sh
 ```
 Il enchaîne, dans l'ordre et en s'arrêtant au premier rouge : version bumpée vs `origin/main` → syntaxe des
 3 scripts inline (`tests/syntax_test.js`) → moteur gelé (empreintes SHA-256 figées) → tous les `tests/*_test.js`
-(liste dérivée du disque) → gardien de régression (jugé par son CODE DE SORTIE) → serveur `:8000` → simulation
+(liste dérivée du disque) → gardien de régression (jugé par son CODE DE SORTIE) → construction du fichier public `_site/` + serveur `:8010` → simulation sur le fichier CONSTRUIT
 (plancher 8 scénarios, rapport committé protégé) → 4 smokes avec un VRAI capteur d'erreurs → recensement des
 écritures Firestore non bornées (doit être vide) et des `await logAudit(` (doit être 0).
 **Ne jamais recopier ces étapes à la main** : c'est exactement comme ça que `grep -c "❌"` (sort en code 1 quand tout
@@ -71,8 +71,9 @@ sur le partage réseau `\192.168.0.250\commun\`. **La checklist ci-dessus s'appl
 avec ces différences :
 
 - **Étape 5 (miroir) : à sauter.** Le dossier `/Users/EstebanR/Documents/…` n'existe que sur le Mac.
-- **Étape 4 (smoke)** : le serveur local se lance avec `python3 -m http.server 8000` depuis la racine du
-  dépôt, comme sur Mac. `shot.mjs` choisit Chrome selon la plateforme (`CHROME_BIN` pour forcer un chemin).
+- **Étape 4 (smoke)** : depuis le 24/09/2026 la batterie construit elle-même le fichier PUBLIC (`node tests/build_public.mjs` → `_site/`,
+  source moins commentaires, arbre syntaxique prouvé identique) et le sert sur `:8010` : plus aucun serveur à lancer à la main.
+  `shot.mjs` et `sim200.mjs` acceptent `--url`. `shot.mjs` choisit Chrome selon la plateforme (`CHROME_BIN` pour forcer un chemin).
 - Outils installés le 24/08/2026 : Node 24, Python 3.13 (la commande `python3` est un relais posé dans
   `C:\Users\admin\bin` — le raccourci Microsoft Store la masquait), GitHub CLI, et `PYTHONUTF8=1`.
 - Réglages Git obligatoires, déjà en place : `core.autocrlf false` (sinon `index.html` est réécrit en CRLF
@@ -87,20 +88,20 @@ avec ces différences :
 ## Où sont les choses
 
 ### ⚠ Publication GitHub Pages = LISTE BLANCHE (depuis le 24/08/2026)
-Le site public ne contient QUE ce que le workflow `.github/workflows/static.yml` copie dans `_site`
-(étape « Assembler le site public », ligne `cp index.html manifest.json sw.js _site/`). Tout le reste
-du dépôt répond **404 en production, sans message d'erreur**. Si tu ajoutes un fichier dont l'application
-a besoin au runtime (icône, police, asset), tu DOIS l'ajouter à cette ligne `cp`, sinon il ne sera
-jamais servi. (Note : les icônes `icon-192*.png` / `icon-512*.png` sont dans le dépôt depuis L473 et copiées par le workflow.)
+Le site public ne contient QUE ce que `tests/build_public.mjs` écrit dans `_site/` (appelé par le workflow
+`.github/workflows/static.yml`, étape « Assembler le site public », et par la batterie) : `index.html` et `sw.js`
+SANS leurs commentaires (arbre syntaxique prouvé identique), `manifest.json`, et les icônes `icon-*.png`. Tout le
+reste du dépôt répond **404 en production, sans message d'erreur**. Si tu ajoutes un fichier dont l'application
+a besoin au runtime (police, asset), tu DOIS l'ajouter dans `tests/build_public.mjs`, sinon il ne sera jamais servi. (Note : les icônes `icon-192*.png` / `icon-512*.png` sont dans le dépôt depuis L473 et copiées par le workflow.)
 
 ### Deux machines poussent sur `main`
 Un clone Windows existe (`K:\STEP INTERNATIONAL\ESTEBAN Alternance 2025 2026\claude\claude index\`).
 Si un push est rejeté (« fetch first » / non fast-forward) : `git pull --rebase` puis re-pousser —
 les fichiers des deux machines ne se recouvrent pas.
-- **Catalogue clients** : `CLIENT_DATA` dans `index.html`. **Règles d'emballage par client** : `PKG_CLIENTS`. Pour ajouter un client/une référence : copier la structure d'une entrée existante similaire.
+- **Catalogue clients et règles d'emballage** : depuis L537 (24/09/2026) PLUS RIEN dans `index.html` (servi publiquement). Clients et références : onglet **Clients** de l'app (écrit Firestore `config/clients`). Règles d'emballage (`config/clients.pkgClients`), table Legrand, libellés fournisseurs, destinataires des signalements et migration des anciennes notes (`config/refs`) : console Firestore, par Esteban ou Christian, puis contrôle avec `~/Documents/step/prep-suite-expo-publique/verif_config_clients.js` (privé, hors dépôt). Un destinataire en plus = AUSSI la liste `hasOnly` de `firestore.rules`. L'app relit son cache local (`step_clients_v1`, `step_refs_v1`) au démarrage et s'abonne après connexion.
 - **Assistant IA de la bulle 💬** : `functions/index.js` (Cloud Function `assistReply`). **Règles Firestore** : `firestore.rules` (publication en console = un propriétaire du projet, Esteban ou Christian).
 - **Routine cloud « signalements »** (mails 💬 des opérateurs traités automatiquement, décision Esteban 15/09/2026) : mode d'emploi dans `passation/ROUTINE-SIGNALEMENTS.md` ; ses PR passent le job `verifier` de la CI, les cas SIMPLES sont fusionnés sans « go ».
-- **Tests et outils** : dossier `tests/` (batterie, simulateur `sim200.mjs`, captures `shot.mjs` — serveur local `python3 -m http.server 8000` requis pour shot).
+- **Tests et outils** : dossier `tests/` (batterie, simulateur `sim200.mjs`, captures `shot.mjs` — la batterie construit et sert `_site/` sur `:8010` ; hors batterie, servir `_site/` soi-même et passer `--url`). Fixture de test `tests/fixtures/referentiel_test.json` (clients FICTIFS) injectée dans localStorage avant le chargement.
 - **Journal du chantier** : messages de commit `git log --oneline` (marqueurs LNNN).
 
 ## Leçons durement apprises (audit du 24/08 — à respecter pour chaque lot UI)

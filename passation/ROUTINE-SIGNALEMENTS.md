@@ -10,8 +10,7 @@ Ce fichier EST le mode d'emploi que la routine suit. Il est lu après `CLAUDE.md
 ## 1. Ce que la routine reçoit
 
 - Boîte Gmail connectée sur claude.ai (connecteur) : la boîte qui reçoit les mails 💬. Les destinataires de
-  l'application sont dans `REPORT_RECIPIENTS` (`index.html`) : esterozier42480@gmail.com,
-  sales@step-international.com, celine.rozier.chabert@gmail.com.
+  l'application sont dans Firestore `config/refs` (reportTo), bornés par `firestore.rules` : les 3 adresses de l'équipe.
 - Un mail 💬 a pour sujet `STEP <type> · <écran> · <initiales> · <version>` et contient le texte de
   l'opérateur, le contexte technique et souvent une ou deux captures d'écran.
 - Recherche à chaque passage, TROIS conditions cumulatives : (1) expéditeur = l'adresse d'envoi de l'extension

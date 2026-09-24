@@ -38,9 +38,9 @@ Ces modifications ne touchent qu'à des listes, jamais au calcul.
 
 - Ajouter un client, avec ses références habituelles
 - Ajouter ou modifier une référence produit
-- Modifier une règle d'emballage d'un client
+- Modifier une règle d'emballage d'un client → depuis le 24/09/2026 : dans la base (Firestore `config/clients`), par Esteban ou Christian, plus dans le code
 - Corriger un texte, un libellé, une faute
-- Ajouter quelqu'un aux mails de signalement
+- Ajouter quelqu'un aux mails de signalement → depuis le 24/09/2026 : Firestore `config/refs` (reportTo) ET la liste des règles Firestore, par Esteban ou Christian
 
 ## 🔴 Zone rouge — prudence : faire tester et expliquer par Claude avant de publier
 
@@ -129,12 +129,11 @@ plus on agit vite, moins on perd.
 
 ## À faire
 
-### Un jour : sortir `CLIENT_DATA` du code
+### FAIT le 24/09/2026 (L537) : `CLIENT_DATA` est sorti du code
 
-Les 85 clients et les 19 règles d'emballage sont écrits **dans `index.html`**, pas dans la base.
-C'est pour ça qu'ajouter un client oblige à republier le logiciel entier. Les déplacer vers
-Firestore rendrait ces modifications immédiates, sans publication ni risque.
-Plusieurs jours de travail — **à faire tranquillement, pas avant la passation**.
+Les clients, références et règles d'emballage vivent dans la base (Firestore `config/clients`, onglet Clients de
+l'app pour les clients/références) ; table Legrand, destinataires, anciennes notes dans `config/refs`. Le fichier
+publié ne contient plus aucune donnée métier ni commentaire.
 
 ---
 
