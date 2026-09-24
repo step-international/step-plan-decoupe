@@ -52,29 +52,27 @@ for _B in $_BASES; do
 done
 [ "$_DONE" = "1" ] || echo "lot d outillage (index.html inchange) : meta-gardien sans objet"
 
-step "5. serveur local :8000 (sinon sims et smokes sont FAUSSEMENT verts)"
-# [L504] pas de tube vers grep -q : sous pipefail, grep ferme le tube et curl sort en 23 -> FAUX ROUGE (vu au 1er passage reel).
-# Si aucun serveur ne repond, la batterie lance le sien (et le coupe a la fin) : le chemin est autonome.
+step "5. fichier PUBLIC construit (source moins commentaires, arbre syntaxique prouve identique) et servi sur :8010"
+# [L537 · outillage 24/09/2026] Pages ne sert PAS le source : il sert _site/index.html, le source MOINS les commentaires
+# (tests/build_public.mjs, qui refuse de produire quoi que ce soit si l arbre syntaxique change). Sims et smokes testent
+# donc CE fichier-la, sur un serveur dedie :8010 lance et coupe par la batterie (:8000 reste a l usage manuel).
+node tests/build_public.mjs || { red "construction du fichier public en echec : rien a tester, rien a publier"; exit 1; }
 _SRV_PID=""
-if ! curl -fsS --max-time 3 -o /dev/null http://127.0.0.1:8000/index.html 2>/dev/null; then
-  (cd "$ROOT" && exec python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1) & _SRV_PID=$!   # exec : le PID est celui de python (sinon le trap tuait le sous-shell et laissait un serveur orphelin)
-  trap '[ -n "$_SRV_PID" ] && kill "$_SRV_PID" 2>/dev/null' EXIT
-  for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS --max-time 1 -o /dev/null http://127.0.0.1:8000/index.html 2>/dev/null && break; sleep 0.5; done
-  echo "serveur :8000 lance par la batterie (pid $_SRV_PID)"
-fi
+( cd "$ROOT/_site" && exec python3 -m http.server 8010 --bind 127.0.0.1 >/dev/null 2>&1 ) & _SRV_PID=$!
+trap '[ -n "$_SRV_PID" ] && kill "$_SRV_PID" 2>/dev/null' EXIT
+for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS --max-time 1 -o /dev/null http://127.0.0.1:8010/index.html 2>/dev/null && break; sleep 0.5; done
+BAT_URL="http://127.0.0.1:8010/"
 _TMP_SERVED="$(mktemp)"
-curl -fsS --max-time 10 -o "$_TMP_SERVED" http://127.0.0.1:8000/index.html || { red "serveur :8000 absent ou ne sert pas index.html"; exit 1; }
+curl -fsS --max-time 10 -o "$_TMP_SERVED" "${BAT_URL}index.html" || { red "serveur :8010 absent ou ne sert pas _site/index.html"; exit 1; }
 SERVED="$(grep -o "APP_VERSION='[^']*'" "$_TMP_SERVED" | head -1 | cut -d"'" -f2 || true)"; rm -f "$_TMP_SERVED"
-[ -n "$SERVED" ] || { red "le serveur :8000 ne sert pas un index.html (APP_VERSION introuvable)"; exit 1; }
-# la version SERVIE doit etre la version LOCALE : un serveur pointe sur un autre dossier (miroir Documents, worktree)
-# rendrait sims et smokes verts sur un fichier qui n est pas celui qu on va pousser
+[ -n "$SERVED" ] || { red "le serveur :8010 ne sert pas un index.html (APP_VERSION introuvable)"; exit 1; }
 LOCAL_V="$(printf '%s' "$LOCAL" | cut -d"'" -f2)"
-[ "$SERVED" = "$LOCAL_V" ] || { red "le serveur :8000 sert $SERVED alors que le fichier local est $LOCAL_V : mauvais dossier servi"; exit 1; }
-echo "serveur :8000 OK, sert bien $SERVED"
+[ "$SERVED" = "$LOCAL_V" ] || { red "le serveur :8010 sert $SERVED alors que le fichier local est $LOCAL_V : mauvais dossier servi"; exit 1; }
+echo "serveur :8010 OK, sert le fichier PUBLIC $SERVED (source moins commentaires)"
 echo "ok"
 
 step "6. simulation (plancher 8 scenarios, jamais --n 4 : ecrase le rapport committe)"
-node tests/sim200.mjs --n 8 --seed 7 --multi 0.5 >/tmp/_bat_$$.log 2>&1 || { tail -12 /tmp/_bat_$$.log; red "sim : sim200.mjs sort en erreur (code de sortie)"; exit 1; }
+node tests/sim200.mjs --n 8 --seed 7 --multi 0.5 --url "$BAT_URL" >/tmp/_bat_$$.log 2>&1 || { tail -12 /tmp/_bat_$$.log; red "sim : sim200.mjs sort en erreur (code de sortie)"; exit 1; }
 grep -q "🏆" /tmp/_bat_$$.log || { tail -12 /tmp/_bat_$$.log; red "sim : anomalie"; exit 1; }
 # [L504] les compteurs vivent sous r.summary (lire r.n direct rendait la batterie ROUGE sur un rapport vert)
 node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if((s.withBugs||0)+(s.jsErrors||0)+(s.domGuards||0)>0||(s.n||0)<8){console.log(JSON.stringify(s));process.exit(1)} console.log('rapport relu : n='+s.n+' bugs='+(s.withBugs||0)+' errs='+(s.jsErrors||0)+' gardes='+(s.domGuards||0))"
@@ -83,7 +81,7 @@ tail -1 /tmp/_bat_$$.log
 step "7. smokes (le capteur doit EXISTER : 0 erreur ne vaut rien si rien ne compte)"
 for s in plan fiche fiche-start fiche-cut donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
   # [L506 · verification adverse] le CODE DE SORTIE juge (le || true le jetait : une smoke rouge passait verte) ; le grep n est qu un 2e filet, sentinelles de shot.mjs comprises (il echoue en francais)
-  if ! node tests/shot.mjs --scene "$s" --out "/tmp/_bat_${s}_$$.png" --json >"/tmp/_bat_${s}_$$.log" 2>&1; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : shot.mjs sort en erreur"; exit 1; fi
+  if ! node tests/shot.mjs --scene "$s" --url "$BAT_URL" --out "/tmp/_bat_${s}_$$.png" --json >"/tmp/_bat_${s}_$$.log" 2>&1; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : shot.mjs sort en erreur"; exit 1; fi
   if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_bat_${s}_$$.log"; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : sentinelle d erreur dans la sortie"; exit 1; fi
   printf '%-9s ok\n' "$s"
 done

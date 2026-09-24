@@ -3,7 +3,8 @@
 // Usage : node shot.mjs --scene plan|fiche|donnees|analyse|fiche-start --w 1180 --h 820 [--full] [--out out.png] [--js "expr"] [--json]
 // Prérequis : serveur local http://127.0.0.1:8000 (python3 -m http.server dans ~/step-plan-decoupe)
 import { spawn } from 'node:child_process';
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, readFileSync } from 'node:fs';
+const FIX = JSON.parse(readFileSync(new URL('./fixtures/referentiel_test.json', import.meta.url), 'utf8'));   // [L537] referentiel de TEST injecte avant le chargement
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,7 +30,8 @@ const SETUP = {
     startTraining();
     (function(){ const st=document.createElement('style'); st.id='__auditNoHatch'; st.textContent='body.training::before,body.training::after{display:none!important} #trainingBanner{display:none!important} .toast,#globalToast{display:none!important} body.training #sendPlanWrap{bottom:0!important} body.training #actionBar{bottom:0!important}'; document.head.appendChild(st); })();
     window.__set=(id,v)=>{const e=document.getElementById(id); if(e){e.value=v; e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true}));}};
-    __set('planClient','EPCO'); onClientChange&&onClientChange();
+    __set('planClient','CLIENT TEST A'); onClientChange&&onClientChange();
+    if(document.getElementById('planClient').value!=='CLIENT TEST A') throw new Error('fixture non chargee : le client de test est absent du menu (cache step_clients_v1 non lu)');   /* [L537] bruyant, jamais silencieux */
     __set('planRef','41312809 - TacFlex® KX1045-1'); __set('planNumCmd','CMD-2026-0871');
     (function(){ const rows=document.querySelector('.ref-block .rb-rows'); rows.innerHTML=''; rows.appendChild(makeOrderRow('9','502')); rows.appendChild(makeOrderRow('3','612')); rows.appendChild(makeOrderRow('65','157')); })();
     document.querySelectorAll('#refBlocks .ref-block').forEach(b=>{ try{ const u=b.querySelector('[data-op-useful]'); const m=parseFloat(String(b.querySelector('[data-rb=mother]')?.value||'').replace(',','.'))||0; const e=parseFloat(String(b.querySelector('[data-rb=edge]')?.value||'').replace(',','.'))||0; const v=(typeof clampUseful==='function')?clampUseful(m-e):(m-e); if(u&&v>0){ u.value=String(v); u.dispatchEvent(new Event('input',{bubbles:true})); } }catch(_){} });   /* [L527] laize TAPEE (sinon VALIDER refuse et le chrono ne demarre pas) */
@@ -67,6 +69,11 @@ const SETUP = {
   const cdpErrors = [];
   ws.addEventListener('message', ev => { try { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') cdpErrors.push(String((m.params.exceptionDetails.exception||{}).description || m.params.exceptionDetails.text).split('\n')[0]); } catch {} });
   await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
+  /* [L537 · outillage] le referentiel (clients, regles, table Legrand, destinataires…) n est PLUS dans le fichier servi :
+     il vient de Firestore apres connexion et du cache local au demarrage. Un navigateur de test n a ni l un ni l autre :
+     on pose la FIXTURE (noms fictifs, references reelles) dans localStorage AVANT le chargement — le chemin exact d une
+     tablette qui redemarre sur son cache. Sans elle : listes vides, et un faux vert silencieux. */
+  await S('Page.addScriptToEvaluateOnNewDocument', { source: "try{localStorage.setItem('step_clients_v1'," + JSON.stringify(JSON.stringify({ clientData: FIX.clientData, pkgClients: FIX.pkgClients })) + ");localStorage.setItem('step_refs_v1'," + JSON.stringify(JSON.stringify(FIX.refs)) + ");}catch(e){}" });
   await S('Page.navigate', { url: URL_ });
   await sleep(2500);
   const evalJs = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result.exceptionDetails) return { error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }; return r.result.result?.value; };

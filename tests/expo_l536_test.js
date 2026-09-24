@@ -25,7 +25,7 @@ ok(/function bkAnalyseImport\(/.test(src),'bkAnalyseImport : l analyse de la lis
 ok(/id="bkImportText"/.test(src),'la zone ou l on colle la liste existe toujours');
 ok(/id="bkImportText"[^>]*placeholder="matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage,calloff_m2,pal,delnote,deldate/.test(src),'le FORMAT attendu est montre en exemple gris dans la zone (en-tete des colonnes), sans aucune donnee reelle');
 ok(!/id="bkImportText"[^>]*placeholder="[^"]*41\d{6}/.test(src),'l exemple de format de la zone d import ne contient aucun vrai numero d article (le champ « Reference » de l ecran stock garde son propre exemple : une reference deja presente dans le catalogue, lot separe)');
-ok(/lbl:'Bischof \+ Klein'/.test(src),'le libelle du fournisseur dans l ecran stock est conserve (fonctionnel, affiche a l ecran — sa confidentialite est une decision a part)');
+ok(!rx(_d('QmlzY2hvZiArIEtsZWlu')).test(src),'[L537] le nom du fournisseur n est plus dans le fichier (libelle lu dans config/refs, repli neutre « Fournisseur »)');
 
 console.log('── 3. plus aucun commentaire nominatif sur un salarie ──');
 ok(!rx(P1).test(src),'prenom 1 (forme sans accent, celle des commentaires) : absent');
@@ -38,8 +38,8 @@ ok(/\[L414 · demande Esteban\] affichage modifie \(uid, ini et historique INTAC
 ok(/Débloque les commandes du type « bobine mère changée en cours de découpe »/.test(src),'commentaire de applyFichePlanChange : le prenom remplace par la description du cas');
 
 console.log('── 4. rien d autre n a bouge ──');
-ok((function(){ const m=src.match(/var REPORT_RECIPIENTS=\[([^\]]*)\]/); return !!m&&m[1].split(',').length===3; })(),'les 3 destinataires des signalements sont inchanges (les sortir du fichier = lot separe, decision Celine/Christian)');
-ok(/var CLIENT_DATA = \{/.test(src)&&/var PKG_CLIENTS=\{/.test(src),'le catalogue clients embarque est inchange (lot separe, decision Celine/Christian)');
+ok(/var REPORT_RECIPIENTS=\[\];/.test(src)&&!/@gmail\.com|@step-international\.com/.test(src),'[L537] plus aucune adresse e-mail dans le fichier : destinataires lus dans config/refs (la regle Firestore mail les borne cote serveur)');
+ok(/var CLIENT_DATA = \{\n\};/.test(src)&&/var PKG_CLIENTS=\{\n\};/.test(src),'[L537] le catalogue clients et les regles d emballage ne sont PLUS embarques (graines vides ; Firestore config/clients + cache local)');
 
 console.log((fail?'\n💥 '+fail+' echec(s)':'\n🏆 expo_l536 OK')+' — '+total+' verifications');
 process.exit(fail?1:0);

@@ -351,7 +351,6 @@ has(/bobine\(s\) d\\'une réf RENOMMÉE ou RETIRÉE du plan/,'L296 : lignes ORPH
 has(/Production sous une réf ABSENTE du plan/,'L296 : la production d\'une réf renommée n\'est plus classée « Coupé EN PLUS » (fausse trace ISO) — boîte dédiée « à vérifier »');
 
 console.log('── L280 : brouillons (machine + anti-doublon), graphiques lames, client Mtechnologie (demandes Esteban) ──');
-has(/"Mtechnologie": \[\{ref:"GHX173A",largeur:1290,longueur:1000\}\]/,'L280 : client Mtechnologie + réf GHX173A (1290 mm, 1000 ml) créés');
 has(/const _post=d\.ownerPost\|\|_fMach\|\|_pMach\|\|'';/,'L280 : brouillon affiche la MACHINE même sans initiales d\'opérateur (plus de « ? » seul)');
 has(/drafts=drafts\.filter\(d=>\{ if\(!d\.planDraft\) return true; const n=_numOf\(d\); if\(!n\|\|!\(n in _ficheNewest\)\) return true; return \(Date\.parse\(d\.savedAt\|\|0\)\|\|0\)>_ficheNewest\[n\]\+60000; \}\)/,'L280→L287 : doublon « saisie de plan » masqué SEULEMENT si la fiche est aussi récente (un brouillon plan plus frais — chutes saisies après 16h15 — reste visible)');
 has(/barres à coins HAUTS arrondis/,'L280 : graphiques lames modernisés (coins arrondis, dégradé, ombre, liseré)');
@@ -436,7 +435,6 @@ console.log('── L291 : suite audit 30/07 (PDF-depuis-fiche + surplus + doLoa
 has(/\|'\+\(l\.phaseEnd\?'P':''\)/,'L291 : FIN DE PHASE conservée sur le PDF-depuis-fiche (marquage « Solde à CONSERVER » plus jamais fusionné)');
 has(/const cmd=\{\}, _disp=\{\};/,'L291 : récap « Coupé EN PLUS » clé par nom NORMALISÉ (une casse/espace ≠ ne fabrique plus une fausse sur-coupe totale)');
 has(/signatures autosave posées sur l'état FINAL chargé \(swap compris\)/,'L291 : doLoad pose les signatures d autosave sur l état chargé (déplacées APRÈS le swap machine en L376) — la sauvegarde auto de la commande précédente survit');
-has(/\{ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000\}/,'L290→L295 : réf DH1006-2 transparent 1000 ml (« DH100-2 » = faute de frappe confirmée par Esteban) — MOREY + FEILO SYLVANIA + EPSOTECH');
 absent(/DH100-2",largeur/,'L295 : plus aucune réf « DH100-2 » (faute de frappe corrigée)');
 
 console.log('── L295 : colonne manuscrite + bi-machine option A (choix Esteban 30/07) ──');
@@ -444,7 +442,6 @@ has(/coupeCol:true,/,'L295 : PDF fiche — colonne « ✍ Bobines coupées final
 has(/const refKey=c=>_refIdKey\(c\)\+'¦⚙'\+\(\(c&&c\.machine\)\|\|''\)/,'L295 : recalcul par clé COMPOSITE base+machine (option A) — chaque bloc machine garde sa part, ses rouleaux, sa machine');
 has(/JAMAIS d'orpheline, sinon reliquat = commande complète/,'L295 : lignes re-taguées rattachées au 1er bloc de la clé de base (anti-surproduction)');
 has(/clé de BASE \(jamais la composite interne\)/,'L295 : l.refIdKey resynchronisé en clé de BASE (la composite ne fuit jamais dans les données)');
-has(/\{ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500\}/,'L290 : réf DH1006-2 micro perf 500 ml créée (MOREY + FEILO SYLVANIA + EPSOTECH)');
 absent(/"MOREY": \[\{ref:"41116850 - TacFlex® DH1006-2"/,'L290 : l\'ancienne réf unique MOREY a bien été remplacée');
 has(/function _syncRefDonePills\(\)/,'L288 T4 : réf finie → carte repliée en pastille « ✓ Réf N terminée (déplier) », recorriger accessible, matching par refIdKey');
 has(/Valide d\\'abord la bobine mère de la réf en cours/,'L288 T5 : chrono multi-réf bloqué → toast qui nomme le VRAI geste + scroll/pulse du bloc actif (fini le motif « dimension modifiée » faux)');
@@ -465,7 +462,6 @@ has(/replace\(\/\\s\*\\\(\[\^\)\]\*\\\)\\s\*\$\/,''\)\)\}<\/b>/,'L293 : parenth�
 has(/_l497RefLbl.c..' · '/,'L293 → recalibré L497 : étiquettes BOB toujours en nom court — _l497RefLbl = refDisp + métrage UNIQUEMENT entre réfs homonymes (signalement MR 04/09)');
 has(/frs-name">🎞 \$\{esc\(refDisp\(ref\)\)\}/,'L293 : séparateurs de réf de la fiche en nom court (dataset complet préservé pour le matching)');
 has(/pas de doublon : n° déjà présent dans le nom client/,'L292 : N° Cmd supprimé du PDF quand le numéro figure déjà dans le nom client');
-has(/Cerclage : automatique \(film KX, toutes largeurs\)/,'L292 : SPÉCIFICITÉ LIMA réécrite courte (papier vert 1×, cerclage 1×)');
 has(/la ligne « Film KX détecté → cerclage automatique » ne/,'L292 : plus d\'ajout auto « Film KX » quand les règles client le disent déjà (fini le triple cerclage)');
 
 console.log('── L294 : audit 30/07 — partage/chrono/réinit ──');
@@ -477,7 +473,6 @@ has(/NE PURGER les brouillons auto QUE s'ils reflètent l'écran/,'L294 : ↺ R�
 
 console.log('── L295 (revue) + L297 : réventilation inter-blocs, migration textes, papier gamifié ──');
 has(/RÉVENTILATION inter-blocs d'une même clé de BASE/,'L295 (revue B1) : excédent committed d\'un bloc → couvre le reliquat des blocs frères AVANT surplus (anti-surproduction bi-machine, bannière équilibre refermable)');
-has(/const _OLD_NOTES=\[/,'L297 : migration des anciens textes SPÉCIFICITÉ stockés (correspondance EXACTE — un texte édité main n\'est jamais dénaturé)');
 has(/function _chkBoxes\(n\)/,'L297 : cases ☐ par bobine sur le papier fiche (gamification demande Esteban) + compteur manuscrit Coupées __/N');
 has(/tr:nth-child\(even\):not\(\[style\*="background"\]\) td\{background:#fafbfc\}/,'L297 (revue) : zébrage léger SANS écraser les fonds spéciaux inline (ligne ♻ turquoise, solde jaune)');
 has(/genPlanSig:\(_ficheGenPlanSig\|\|null\)/,'L297 (revue) : signature du plan PERSISTÉE dans l\'état (comme genChutes) — jamais re-dérivée à la restauration');
@@ -712,7 +707,6 @@ has(/setTimeout\(promptOperatorTakeover,400\)/,'L331 : branché sur ▶ Reprendr
 
 console.log('── L332 : LOTS 26/27 — bulle de signalement + mail auto (§2.23) ──');
 has(/id="reportBubble"/,'L332 : bulle permanente bas-droite (grise, jamais ambre)');
-has(/REPORT_RECIPIENTS=\['esterozier42480@gmail\.com','sales@step-international\.com','celine\.rozier\.chabert@gmail\.com'\]/,'L332 (élargi L392) : mail auto aux 3 adresses (Esteban ×2 + Céline)');
 has(/collection\('mail'\)\.add/,'L332 : écrit dans la collection « mail » (extension Trigger Email) via boundedWrite (file hors-ligne)');
 has(/function reportAuto/,'L332 : erreurs JS remontées auto (regroupement 1\/h\/signature, silence sur refus métier)');
 has(/reportAuto\(\(e\.error&&e\.error\.message\)/,'L332 : greffé sur window.error SANS changer son comportement (console+toast conservés)');
@@ -1204,7 +1198,6 @@ absent(/Commande volumineuse \(nombreuses laizes distinctes/,'L391 : bannière �
 has(/petit, à droite des onglets — plus de bande dédiée/,'L391 : 📥 Historique complet discret dans la rangée d onglets');
 
 console.log('── L392 : destinataires signalements ──');
-has(/celine\.rozier\.chabert@gmail\.com/,'L392 : Céline reçoit les signalements de la bulle 💬');
 
 console.log('── L393 : bobine mère fluide + compteurs synchronisés (22/08) ──');
 has(/#nowBar\{display:none!important\}/,'L393 : bandeau « MAINTENANT / Y ALLER » supprimé (photo Esteban)');
@@ -1554,7 +1547,6 @@ has(/le chiffre TOUJOURS visible/,'L468 : m² affiche au-dessus de chaque point'
 has(/echelle visible/,'L468 : echelle Y sur la courbe production');
 
 console.log('── L466-L467 : mandrins DQ1002 ──');
-has(/45:\{c:"0453",k:5/,'L466 : mandrin 45 mm DQ1002 imprime');
 has(/SIB_OK=\{'41319526':\{26:1,44:1,61:1,63:1,66:1,86:1\}\}/,'L467→L474 : repli mandrin RESTREINT (transparent→imprime, laizes dictees seulement — les codes divergent a laize egale)');
 
 console.log('── L465 : cadrage final Analyse (retours + QCM) ──');
@@ -1658,7 +1650,6 @@ has(/le re-rendu RE-SEEDait la validation/,'L450 : MODIFIER de-valide AUSSI cote
 has(/On complete les trous a la\n       CONSTRUCTION du tableau, ref par ref/,'L450 : le tableau conditionnement complete les codes depuis la table Legrand');
 
 console.log('── L449 : catalogue Legrand France — DQ1002 transparent ──');
-has(/41319526 - TacFlex® DQ1002",largeur:2100,longueur:1500\},\/\* \[L449/,'L449 : la ref transparente 41319526 existe pour Legrand France (code mandrin 3968 trouvable)');
 
 console.log('── L448 : tolerance palettes 6 · operateur au Plan · tri plans ──');
 has(/var L448_PAL_TOL=6/,'L448 : tolerance palettes relevee a 6 (decision Esteban 28\/08)');
@@ -2281,7 +2272,6 @@ has(/^function _l519PreselIni\(\)\{ try\{ return \(typeof currentRole!=='undefin
 has(/if\(currentUser&&currentUser\.ini&&_l519PreselIni\(\)\)\{\n    const h=document\.getElementById\('fInitiales'\);if\(h\)h\.value=currentUser\.ini;/,'L519 : applyRole — pre-selection gardee par le role');
 has(/if\(currentUser&&currentUser\.ini&&_l519PreselIni\(\)\)\{\n    document\.getElementById\('fInitiales'\)\.value=currentUser\.ini;/,'L519 : reset de fiche — pre-selection gardee par le role (admin/pilotage tombent dans le else = initiales videes)');
 has(/try\{ _l435ChgTouch\(id==='fLameChg'\?'lame':\(id==='fMachChg'\?'mach':'op2'\)\); \}catch\(e\)\{\}/,'L519 : (de)cocher une case de changement = retouche (chg-ok + horodatage purges) — passe adverse : re-cochee, la pastille restait eteinte');
-has(/\{ref:"41317395 - TacFlex® KX1006-1",largeur:1260,longueur:700\}/,'L519 : graine de repli VEKA KX1006-1 700 ml alignee sur le referentiel Firestore');
 
 console.log('── L520 : brouillons visibles par les operateurs = ceux des 3 postes machine (demande Esteban 15/09/2026) ──');
 has(/^function _l520DraftVisible\(d,ctx\)\{/m,'L520 : predicat PUR de visibilite (tests/drafts_l520_test.js)');
@@ -2506,10 +2496,7 @@ has(/onclick="_l528ExportVolumes\(\)">⬇ CSV volumes livrés \(12 mois terminé
 absent(/const hdr='Client;/,'L528 : AUCUN second « const hdr= » (csv_l517_test.js:30 lit la PREMIERE occurrence) — filet, pas un marqueur discriminant');
 
 // ── [L529 · demande Celine 18/09/2026] note d emballage du client Suys ──
-has(/'Suys':\{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard \(≤39mm \+ tous KX\)',/,'L531 : regle d emballage du client Suys dans le code');
-has(/DH1004 imprimé → écrire à la main la largeur dans le mandrin/,'L531 : la consigne Suys (DH1004 imprime : largeur ecrite a la main dans le mandrin)');
 has(/^function _l529PkgMerge\(remote\)\{/m,'L531 : la table partagee (Firestore / cache local) ne peut plus effacer une regle ajoutee au code');
-has(/^const _L529_PKG_PATCHES=\['Suys'\];/m,'L531 : seules les cles LISTEES sont re-ajoutees (la table partagee gagne sur ses propres cles)');
 has(/PKG_CLIENTS=_l529PkgMerge\(d\.pkgClients\);/,'L531 : fusion au seul point de convergence (_l486Apply)');
 
 // ── [L530 · decisions Celine 18/09/2026] m² coupés (bobines mères) / m² découpés (bobineaux) / m² livrés ──
@@ -2552,20 +2539,11 @@ has(/else \{ delete _b20\[i\]\.dataset\.opValidated; try\{ if\(typeof ficheRefVa
 has(/delete o\.laizeOk; delete o\.lotOk; delete o\.lot; return o;/,'L531 : le rang « lot » (derive, _l527AssignLots) sort de la signature du plan — un plan homonyme d avant L527 ne fait plus regenerer sa fiche');
 
 // ── [L532 · demande Celine 18/09/2026] regle d emballage Cougnaud : chiffres de la fiche atelier (PP / GP, par pile, 20 piles de, par carton) ──
-has(/PP = petite palette · GP = grande palette\./,'L532 : la regle Cougnaud explique PP et GP');
-has(/DQ1006 Bleu 600ml — bob\/pile : 14mm=8 PP \| 19mm=6 PP \| 24mm=6 PP \| 30mm=7 GP \| 36mm=6 GP/,'L532 : DQ1006 bleu — bobineaux par pile et palette (fiche « commande cougnaud 08 2025 »)');
-has(/DQ1006 Bleu 600ml — 20 piles de N bobineaux : 40mm=19 GP \| 45mm=11 PP \| 50mm=15 GP \| 65mm=7 PP \| 81mm=6 PP \| 90mm=6 PP/,'L532 : DQ1006 bleu — 20 piles de N bobineaux');
-has(/KX1011-1 noir blanc 500ml — bob\/carton : 14mm=16 \| 19mm=11 \| 24mm=9 \| 30mm=7 \| 36mm=6 \| 40mm=5 \| 45mm=4 \| 50mm=4 \| 65mm=3 \| 81mm=2 \| 90mm=2 \| 100mm=2 \| 110mm=2 \| 130mm=1/,'L532 : KX1011-1 — bobineaux par carton');
-has(/^const _L532_PKG_FORCE=\['Cougnaud','BOUVET','VEKA'\];/m,'L532 : regle MISE A JOUR dans le code → le code gagne sur la table partagee pour cette cle (sinon la mise a jour restait invisible)');
 has(/\['palette','type','etiquetage','cerclage','notes'\]\.every\(function\(f\)\{ return String\(a\[f\]==null\?'':a\[f\]\)===String\(b\[f\]==null\?'':b\[f\]\); \}\)/,'L532 : fusion — comparaison CHAMP PAR CHAMP (une table revenue de Firestore a ses cles triees)');
-has(/\{o:'⚡ SPÉCIFICITÉ : Mandrins PARFAITS exigés \+ caisse\/carton mixte\.\\nDQ1006 Bleu 600ml \(bob\/pile par largeur 14-90mm\)\./,'L532 : les commandes et plans deja enregistres avec l ancienne note Cougnaud affichent la nouvelle (patron L297)');
-has(/DQ1009 Bleu 600ml : 20mm=11\/p ×48p \(528\) \| 30mm=7\/p ×48p \(336\) — 20 et 30 mm CERCLÉS \| 40\/55\/70mm/,'L532 : BOUVET — DQ1009 bleu : totaux entre parentheses, « 20 et 30 mm CERCLÉS » (correction Celine 18/09 : 360 / 260 / 200 non repris)');
-has(/DQ1000-1 transp 500ml — CERCLER toutes les largeurs : 20mm=5\/p \| 30mm=5\/p \| 40mm=4\/p \| 50mm=4\/p \| 70mm=3\/p/,'L532 : BOUVET — DQ1000-1 : « CERCLER toutes les largeurs » (la mention manquait)');
 
 // ── [L533 · signalement JF 21/09/2026, VEKA 4501964870 sur CEVENINI] « Pas de cerclage veka 40mm pour la ref kx1006 » :
 // le ratio EXISTE dans la regle VEKA mais la ligne emballage est coupee a 3 lignes (L510) et « 40mm=4 » tombait dans la 4e ──
 // [L534 · verification Celine / atelier 21-22/09] lecture INCOMPLETE : la donnee ETAIT fausse (« 40mm=4 » = ratio du KX1075) — voir les marqueurs L534 plus bas ; la coupure a 3 lignes est levee (decision Celine 22/09)
-has(/\{o:'⚡ SPÉCIFICITÉ : NE PAS filmer\.[^\n]*Bob\/pile cerclée \(KX1075\/1006-1\) : 15mm=11 \| 20mm=8 \| 25mm=7 \| 30mm=6 \| 35mm=5 \| 40mm=4/,'L533 → L534 : l ancienne ligne fusionnee ne subsiste que comme CLE DE MIGRATION — verification Celine / atelier 21-22/09 : la donnee ETAIT fausse (« 40mm=4 » = ratio du KX1075), le L533 (affichage) est conserve');
 has(/#ficheMain #fichePkgLine\{[^}]*-webkit-line-clamp:none/,'L533 → L534 : la coupure a 3 lignes est LEVEE (decision Celine 22/09 : « c est mieux s il voit tout ») ; le bouton « Voir la suite » du L533 reste en place, dormant');
 has(/#ficheMain #fichePkgLine\.l533-open\{-webkit-line-clamp:unset;display:block\}[\s\S]{0,2000}#ficheMain #fichePkgLine\.l510-vide\{display:none\}/,'L533 : etat deplie — la suite du texte devient atteignable, et la regle est AVANT .l510-vide (a specificite egale la derniere gagne : un bandeau vide reste masque)');
 has(/#ficheMain #fichePkgMore\{display:none;[^}]*min-height:44px/,'L533 : bouton masque par defaut, cible de 44 px — plancher tactile du projet (.btn-sm)');
@@ -2581,9 +2559,6 @@ has(/try\{ ev\.stopPropagation\(\); \}catch\(_\)\{ \} _l533PkgToggle\(\);/,'L533
 has(/b\.textContent=open\?'▲ Replier':'▼ Voir la suite de l’emballage';/,'L533 : fleches ▲▼ (les ▴▾ fins n etaient pas rendus par la police de l app)');
 
 console.log('── L534 : VEKA — cerclage PAR reference et par impression (signalement JF 21/09, verifie par Celine avec l atelier les 21-22/09 : pas de cerclage 40mm pour le KX1006-1) ──');
-has(/^const _L532_PKG_FORCE=\['Cougnaud','BOUVET','VEKA'\];/m,'L534 : VEKA liste dans _L532_PKG_FORCE (le code gagne sur la table partagee, sinon la correction restait invisible)');
-has(/^  'VEKA':\{[^\n]*\n    notes:'[^\n]*\\nKX1006-1 Profilé en 700ml : bob\/pile cerclée 15mm=11 \| 20mm=8 \| 25mm=7\\nKX1006-1 Profilé en 1000ml : bob\/pile cerclée 30mm=5 \| 35mm=5\\nKX1006-1 impression VEKA en 1000ml : bob\/pile cerclée 15mm=11 \| 20mm=8 \| 25mm=7 \| 30mm=5 \| 35mm=5\\nKX1075 : bob\/pile cerclée 20mm=8 \| 25mm=7 \| 30mm=6 \| 35mm=5 \| 40mm=4\\nDQ1009 : bob\/pile cerclée 20mm=10'\},/m,'L534 : VEKA — une ligne par reference ET par impression (Profile 700 / Profile 1000 / impression VEKA 1000 / KX1075 / DQ1009), chaque ligne avec son unite ; seules les laizes cerclees sont ecrites (Celine 22/09 : « pas besoin de cerclage en 40mm ») ; ancre sur la REGLE, pas sur sa copie de migration');
-has(/^  \{o:'⚡ SPÉCIFICITÉ : NE PAS filmer\. Réhausses obligatoires, palettes solides\.\\n⚠ Alterner bobines pile & face · télescopage ≤10mm\.\\nGerbage autorisé par référence UNIQUEMENT\.\\nBob\/pile cerclée \(KX1075\/1006-1\)/m,'L534 : les commandes et plans VEKA deja enregistres avec la ligne fusionnee sont migres (papier, PDF, planning, rechargement)');
 absent(/^    notes:'[^\n]*Bob\/pile cerclée \(KX1075\/1006-1\)/m,'L534 : la ligne fusionnee « (KX1075/1006-1) » n existe plus dans AUCUNE regle de PKG_CLIENTS');
 has(/^function _l534Mig\(t\)\{ return \(t==null\|\|typeof _migrateOldNotes!=='function'\)\?t:_migrateOldNotes\(t\); \}/m,'L534 : _l534Mig — migration des anciennes notes, null / undefined rendus tels quels');
 has(/const notes=_l534Mig\(v\('fNotesEmballage','planNotesEmballage'\)\)\.split/,'L534 : tablette — la ligne emballage migre la note a la lecture (la commande EN COURS recoit la consigne corrigee)');
@@ -2593,8 +2568,6 @@ absent(/esc\(c\.notes\)/,'L534 : clients B/C/D — plus aucune note d emballage 
 has(/#ficheMain #fichePkgLine\{display:-webkit-box;-webkit-line-clamp:none;/,'L534 : tablette — plus de coupure de la ligne emballage (decision Celine 22/09) ; bouton du L533 conserve, dormant');
 
 console.log('── L535 : audit adverse du 23/09 sur le diff du 22/09 (L533 + L534 + outillage) — 8 signalements, 5 reels ──');
-has(/\{o:'⚡ SPÉCIFICITÉ : NE PAS filmer \+ réhausses \+ gerbage par réf\. \+ télescopage ≤10mm \+ pile&face\./,'L535 : JUMEAU du L534 — la note VEKA d AVANT le L292 (30/07/2026) porte le MEME ratio faux « (KX1075/1006-1) … 40mm=4 » ; sans cette cle, tout plan / toute fiche VEKA plus ancien ressortait avec la consigne fausse sur la tablette, le papier et le PDF');
-has(/\{o:'⚠ Alterner bobines pile & face\. Réhausses obligatoires\. NE PAS filmer les palettes\./,'L535 : JUMEAU du L534 — meme chose pour la note VEKA d origine (01/06/2026, « Bob/pile cerclee (KX) … 40mm=4 »)');
 has(/#ficheMain #fichePkgMore\.l533-on\{display:inline-block;align-self:flex-start\}/,'L535 : cible tactile du bouton « Voir la suite » ramenee au texte (MESURE navigateur : 974 px de bande cliquable pleine largeur avant, 238 px apres) — inline-block est blockifie par le flex column de #ficheMain');
 
 // ── [L536 · audit « que voit un inconnu ? » 24/09/2026, question de Celine] index.html est PUBLIC (GitHub Pages) :
@@ -2606,6 +2579,34 @@ absent(/function bkFillSample\(|function bkRemplacerParXls\(/,'L536 : les deux r
 has(/placeholder="matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage,calloff_m2,pal,delnote,deldate/,'L536 : le format est montre en exemple gris, sans donnee');
 absent(new RegExp(['VGFpZWI=','TWFyb3VhbmU=','Y2hleiBKb3JkYW4='].map(function(b){ return Buffer.from(b,'base64').toString('utf8'); }).join('|')),'L536 : plus de commentaire nominatif sur un salarie (les prenoms controles sont encodes : ce fichier est public aussi)');
 has(/« pourquoi je ne vois pas le temps d un operateur \? »/,'L536 : le commentaire L519 reste, anonymise');
+
+// ── [L537 · 24/09/2026] PLUS AUCUNE DONNEE METIER DANS LE FICHIER SERVI. Les 27 marqueurs de CONTENU (clients, references,
+//    regles d emballage Suys/Cougnaud/BOUVET/VEKA/LIMA, table Legrand, adresses, anciennes notes) sont retires : ce contenu vit dans
+//    Firestore (config/clients + config/refs) et se controle par un script PRIVE hors depot. Ici : les mecanismes et l absence. ──
+const _l537b=function(b){ return Buffer.from(b,'base64').toString('utf8').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); };   /* decode + echappe : « + » serait un quantificateur */
+has(/^var CLIENT_DATA = \{\n\};/m,'L537 : graine clients VIDE (Firestore config/clients + cache local step_clients_v1)');
+has(/^var PKG_CLIENTS=\{\n\};/m,'L537 : graine des regles d emballage VIDE');
+has(/^var LEGRAND_PKG=\{\};/m,'L537 : table Legrand VIDE (config/refs.legrandPkg)');
+has(/^var _OLD_NOTES=\[\];/m,'L537 : migration des anciennes notes VIDE (config/refs.oldNotes)');
+has(/^var REPORT_RECIPIENTS=\[\];/m,'L537 : destinataires VIDES (config/refs.reportTo ; la regle Firestore mail borne les adresses)');
+has(/^const _L529_PKG_PATCHES=\[\];/m,'L537 : liste de patch vide (plus de regle dans le code)');
+has(/^const _L532_PKG_FORCE=\[\];/m,'L537 : liste de forcage vide (regles corrigees publiees dans config/clients, empreintes verifiees le 24/09)');
+absent(/@gmail\.com|@step-international\.com/,'L537 : aucune adresse e-mail dans le fichier');
+absent(new RegExp(_l537b('QmlzY2hvZiArIEtsZWlu')),'L537 : nom du fournisseur absent (libelle config/refs, repli « Fournisseur »)');
+absent(new RegExp(_l537b('Ik10ZWNobm9sb2dpZSI6')),'L537 : premiere entree de l ancien catalogue absente');
+absent(new RegExp(_l537b('REgxMDA0IGltcHJpbcOp')),'L537 : consigne d emballage d un client absente');
+absent(new RegExp(_l537b('NDU6e2M6IjA0NTMiLGs6NQ==')),'L537 : codes mandrin Legrand absents');
+has(/localStorage\.getItem\('step_clients_v1'\)\|\|'null'\)/,'L537 : cache clients relu en SYNCHRONE au demarrage (le role des graines)');
+has(/function _l537ApplyRefs\(d,src\)/,'L537 : referentiel complementaire (config/refs : legrandPkg, suppliers, reportTo, oldNotes)');
+has(/try\{ _l537LoadRefs\(\); \}catch\(e\)\{\}/,'L537 : abonnement config/refs a la connexion');
+has(/try\{ _l537StopRefs\(\); \}catch\(_\)\{ \}/,'L537 : desabonnement a la deconnexion');
+has(/return _l537FetchRefs\(4000\)\.then/,'L537 : signalement sans destinataire connu → lecture unique bornee puis refus honnete (jamais to:[])');
+has(/else if\(mEl&&Object\.keys\(LEGRAND_PKG\|\|\{\}\)\.length\)\{ mEl\.value=''; \}/,'L537 : autofill Legrand n efface JAMAIS un code quand la table n est pas chargee');
+has(/if\(nC<10\)\{ showToast\('Catalogue en mémoire anormalement petit/,'L537 : publication refusee sur catalogue appauvri (jamais ecraser config/clients par une liste vide)');
+has(/function _l537CatalogCheck\(\)/,'L537 : bandeau « liste clients non chargee » (plus de degradation silencieuse)');
+has(/get lbl\(\)\{ return _l537Supplier\('bk'\); \}/,'L537 : libelle fournisseur lu dans config/refs');
+has(/localStorage\.getItem\('step_refs_v1'\)\|\|'null'\)/,'L537 : cache refs relu en synchrone avant init()');
+has(/try\{ _saveClientOptsHtml=null; Object\.keys\(_saveRefOptsByClient\)/,'L537 : filtres Donnees > Plans invalides quand le referentiel change (memo L80 jamais invalide)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

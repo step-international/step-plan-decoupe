@@ -3,7 +3,10 @@
 # [passation 2026.08.24] On ne publie PLUS le dépôt entier (`path: '.'`).
 # Motif : GitHub Pages servait publiquement firestore.rules, storage.rules,
 # functions/index.js, CLAUDE.md, tests/ et graphify-out/ — vérifié en HTTP 200.
-# Seuls les 3 fichiers dont l'application a besoin au runtime sont publiés.
+# Seuls les 3 fichiers dont l'application a besoin au runtime sont publiés — et, depuis le 24/09/2026,
+# index.html et sw.js sont publiés SANS leurs commentaires JS/CSS/HTML (tests/build_public.mjs, arbre syntaxique
+# prouvé identique ; avis de licence /*! */ conservés) : la version de travail les garde. Restent, par construction,
+# les commentaires HTML écrits DANS des chaînes JS (gabarits d'écran) : ce sont des chaînes, pas des commentaires.
 # Le service worker (sw.js) ne met en cache que index.html + les SDK Firebase,
 # et manifest.json ne déclare aucune icône : cette liste est donc complète.
 name: Deploy static content to Pages
@@ -118,10 +121,11 @@ jobs:
           echo "CHROME_BIN=$BIN" >> "$GITHUB_ENV"
           echo "Chrome : $BIN"
           "$BIN" --version
-      - name: Serveur local :8000 (version servie = version du depot)
+      - name: Fichier public construit (source moins commentaires) et servi sur :8000 — ce que Pages servira
         run: |
           set -euo pipefail
-          (python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          node tests/build_public.mjs
+          (cd _site && python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1 &)
           for i in $(seq 1 20); do curl -fsS --max-time 1 -o /dev/null http://127.0.0.1:8000/index.html 2>/dev/null && break; sleep 0.5; done
           curl -fsS http://127.0.0.1:8000/index.html | grep -o "APP_VERSION='[^']*'" | head -1
       - name: Simulation (plancher 8 scenarios, rapport relu)
@@ -154,11 +158,11 @@ jobs:
       - name: Assembler le site public
         run: |
           set -euo pipefail
-          mkdir -p _site
-          # Les 3 fichiers indispensables : leur absence casse la production.
-          cp index.html manifest.json sw.js _site/
-          # Icônes si un jour ajoutées à la racine (icon-192.png est en 404 aujourd'hui).
-          cp icon-*.png _site/ 2>/dev/null || true
+          # [L537 · outillage 24/09/2026] le fichier public = le source MOINS les commentaires (26 000 lignes de
+          # journal de bord qui citaient clients, salaries, incidents). tests/build_public.mjs reparse chaque script
+          # et exige un arbre syntaxique identique avant/apres, sinon sortie 1 et rien n est publie. Meme construction
+          # que celle testee par le job smoke (sims + 6 scenes sur _site/).
+          node tests/build_public.mjs
           echo "--- contenu publie ---"
           ls -l _site
       - name: Upload artifact

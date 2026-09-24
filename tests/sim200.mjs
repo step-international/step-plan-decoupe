@@ -7,6 +7,7 @@
 // aucune erreur JS, aucun _domGuardWarn, resetAll propre. Sortie : rapport JSON + résumé texte.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+const FIX = JSON.parse(readFileSync(new URL('./fixtures/referentiel_test.json', import.meta.url), 'utf8'));   // [L537] referentiel de TEST injecte avant le chargement
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -45,6 +46,7 @@ const PAGE_ONE = `(async function(k){
     // 1) plan
     resetAll(); showPage(0);
     const clients=Object.keys(CLIENT_DATA).filter(c=>Array.isArray(CLIENT_DATA[c])&&CLIENT_DATA[c].length);
+    if(!clients.length){ bug('catalogue vide : fixture non injectee (step_clients_v1) — la simulation ne teste rien'); return rep; }   /* [L537] jamais un faux vert par skip */
     const cli=pick(clients); set('planClient',cli); if(typeof onClientChange==='function') onClientChange();
     const refs=[...(document.getElementById('planRef')||{}).options||[]].map(o=>o.value).filter(Boolean);
     if(!refs.length){ rep.skip='client sans réf'; return rep; }
@@ -133,6 +135,11 @@ const PAGE_ONE = `(async function(k){
   const S = (m, p) => send(m, p, sessionId);
   await S('Page.enable'); await S('Runtime.enable');
   await S('Emulation.setDeviceMetricsOverride', { width: 1180, height: 820, deviceScaleFactor: 1, mobile: false });
+  /* [L537 · outillage] le referentiel (clients, regles, table Legrand, destinataires…) n est PLUS dans le fichier servi :
+     il vient de Firestore apres connexion et du cache local au demarrage. Un navigateur de test n a ni l un ni l autre :
+     on pose la FIXTURE (noms fictifs, references reelles) dans localStorage AVANT le chargement — le chemin exact d une
+     tablette qui redemarre sur son cache. Sans elle : listes vides, et un faux vert silencieux. */
+  await S('Page.addScriptToEvaluateOnNewDocument', { source: "try{localStorage.setItem('step_clients_v1'," + JSON.stringify(JSON.stringify({ clientData: FIX.clientData, pkgClients: FIX.pkgClients })) + ");localStorage.setItem('step_refs_v1'," + JSON.stringify(JSON.stringify(FIX.refs)) + ");}catch(e){}" });
   await S('Page.navigate', { url: URL_ }); await sleep(2500);
   const evalJs = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true, timeout: 120000 }); if (r.result.exceptionDetails) return { error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }; return r.result.result?.value; };
   for (let i = 0; i < 40; i++) { const ok = await evalJs(`typeof applyRole==='function' && typeof recalcPlan==='function' && !!document.getElementById('planClient')`); if (ok === true) break; await sleep(250); }
@@ -145,6 +152,7 @@ const PAGE_ONE = `(async function(k){
     if (args.verbose || (rep && rep.bugs && rep.bugs.length)) console.log(`#${k}`, rep && rep.bugs && rep.bugs.length ? '❌ ' + rep.bugs.join(' | ') : '✅', rep && rep.plan ? `${rep.plan.cli} · ${rep.plan.cards} bob · ${rep.cut ? rep.cut.cut + '/' + rep.cut.T : ''}` : '');
     if (k % 25 === 0) console.log(`… ${k}/${N} (${Math.round((Date.now() - t0) / 1000)} s)`);
   }
+  if (reports.filter(r => r.skip).length === N) { reports.forEach(r => { r.bugs = (r.bugs || []).concat(['toutes les commandes ignorees (skip) : le harnais ne teste rien']); }); }   // [L537]
   const bugs = reports.filter(r => r.bugs && r.bugs.length); const errs = reports.filter(r => (r.errs || []).length); const guards = reports.filter(r => (r.guards || []).length);
   const summary = { n: N, seed: SEED, ok: N - bugs.length, withBugs: bugs.length, jsErrors: errs.length, domGuards: guards.length, secs: Math.round((Date.now() - t0) / 1000),
     bugKinds: Object.entries(bugs.flatMap(r => r.bugs).reduce((m, b) => { const kk = b.replace(/\d+/g, 'n').slice(0, 70); m[kk] = (m[kk] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]),

@@ -13,11 +13,10 @@ function fnOf(n){const re=new RegExp('^[ \\t]*(?:async\\s+)?function\\s+'+n+'\\s
 let fail=0,total=0; const ok=(c,m)=>{ total++; console.log((c?'✅ ':'❌ ')+m); if(!c)fail++; };
 
 console.log('── 1. [L534] la donnee ETAIT fausse (verification Celine / atelier 21-22/09) : la regle VEKA est ecrite par reference et par impression ──');
-const mP=src.match(/^var PKG_CLIENTS=(\{[\s\S]*?\n\});/m); if(!mP) throw new Error('introuvable PKG_CLIENTS');
-const PKG=eval('('+mP[1]+')');
-const NV=(PKG['VEKA']||{}).notes||'';
-ok(!/KX1075\/1006-1/.test(NV)&&/^KX1006-1 Profilé en 1000ml : bob\/pile cerclée 30mm=5 \| 35mm=5$/m.test(NV),'[L534 · Celine / atelier 21-22/09] la donnee ETAIT fausse : « 40mm=4 » etait le ratio du KX1075 applique au KX1006-1 — la regle est ecrite PAR reference et par impression (L533 lisait le signalement comme un defaut d affichage SEUL ; son bouton est conserve)');
-ok(NV.split('\n').length>=5,'la note VEKA fait au moins 5 lignes (8 depuis L534) : elle ne tenait pas dans 3 lignes — [L534 · decision Celine 22/09] plus de limite, elle se lit en entier');
+/* [L537] les regles d emballage ne sont plus dans le fichier : la verification de CONTENU de la regle VEKA (une ligne par
+   reference et par impression, 8 lignes) se fait sur Firestore config/clients par un controle PRIVE (hors depot public :
+   ~/Documents/step/prep-suite-expo-publique/verif_config_clients.js). Ici : la graine est bien vide. */
+ok(/^var PKG_CLIENTS=\{\n\};/m.test(src),'[L537] plus de regle d emballage dans le fichier public (graine vide)');
 
 console.log('── 2. CSS : l etat deplie existe, le bouton est masque par defaut ──');
 ok(/#ficheMain #fichePkgLine\.l533-open\{[^}]*-webkit-line-clamp:\s*unset/.test(src),'.l533-open retire la coupure a 3 lignes');

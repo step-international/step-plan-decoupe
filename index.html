@@ -3367,7 +3367,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.24-L536';
+const APP_VERSION='2026.09.24-L537';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3489,7 +3489,7 @@ if(db){
 // [L332 · LOT 26/27 · §2.23] REMONTÉE TERRAIN — un seul canal : collection Firestore « mail » (format de
 // l'extension Firebase « Trigger Email ») -> envoi auto aux destinataires. Zéro donnée sensible (identifiants +
 // contexte technique, jamais de photo/BL). File hors-ligne via boundedWrite. Bloqué en entraînement.
-var REPORT_RECIPIENTS=['esterozier42480@gmail.com','sales@step-international.com','celine.rozier.chabert@gmail.com'];   /* [L392 · demande Céline 21/08] la responsable qualité reçoit aussi les signalements atelier */
+var REPORT_RECIPIENTS=[];   /* [L537 · 24/09/2026] destinataires lus dans Firestore config/refs (reportTo) apres connexion, cache local step_refs_v1 — plus d adresse dans le fichier public ; la regle Firestore `mail` borne toujours les adresses cote serveur. [L392 · demande Céline 21/08] la responsable qualité reçoit aussi les signalements atelier */
 var _repTrail=[], _lastJsError=null, _reportAutoAt={}, _repKind='bug';
 function _pushTrail(s){ try{ _repTrail.push(s); if(_repTrail.length>3) _repTrail.shift(); }catch(e){} }
 function _reportCtx(){
@@ -3523,6 +3523,10 @@ function _reportWrite(kind,texte,err){
   try{
     if(typeof trainingGuard==='function' && trainingGuard()) return Promise.resolve(false);   // pas d'incident en entraînement
     if(!db) return Promise.resolve(false);
+    if(!(Array.isArray(REPORT_RECIPIENTS)&&REPORT_RECIPIENTS.length)){   /* [L537] destinataires pas encore lus (config/refs) : lecture unique bornee, sinon refus HONNETE — un mail avec to:[] passerait la regle et se perdrait en silence */
+      var _l537shots=arguments.length>3?arguments[3]:null, _l537args=[kind,texte,err,_l537shots];
+      return _l537FetchRefs(4000).then(function(){ return (Array.isArray(REPORT_RECIPIENTS)&&REPORT_RECIPIENTS.length)?_reportWrite.apply(null,_l537args):false; });
+    }
     var ctx=_reportCtx();
     var lbl={bug:'⚠ Ça ne marche pas',idee:'💡 Idée',question:'❓ Incompréhension',auto:'⚠ Erreur technique'}[kind]||kind;
     var subj='STEP '+lbl+' · '+(ctx.ecran||'')+(ctx.ini?(' · '+ctx.ini):'')+' · '+(ctx.version||'');
@@ -4506,7 +4510,9 @@ document.addEventListener('keydown',function(e){
         currentUser=Object.assign({}, profile);
         applyRole();
         try{ _l380CheckEnabled(); }catch(e){}
-        try{ _l486LoadClients(); }catch(e){}   // [L486] clients + regles d emballage partages (Firestore, repli graines embarquees)   // [L381 · fix audit n°4] l'interrupteur assistant se relit à CHAQUE auth (le check du boot pouvait tomber avant la connexion → permission-denied avalé = assistant muet toute la session)
+        try{ _l486LoadClients(); }catch(e){}
+        try{ _l537LoadRefs(); }catch(e){}   // [L537] table Legrand, fournisseurs, destinataires, anciennes notes : Firestore config/refs (cache local step_refs_v1)
+        // [L486] clients + regles d emballage partages (Firestore, repli graines embarquees)   // [L381 · fix audit n°4] l'interrupteur assistant se relit à CHAQUE auth (le check du boot pouvait tomber avant la connexion → permission-denied avalé = assistant muet toute la session)
         // Rafraîchir le token App Check AVANT de charger les données, pour éviter
         // un token reCAPTCHA périmé qui ferait échouer les écritures Firestore/Storage.
         await refreshAppCheckToken();
@@ -4558,7 +4564,7 @@ document.addEventListener('keydown',function(e){
       const _lab=document.getElementById('lameAlertBanner'); if(_lab) _lab.style.display='none';
       if(typeof _syncTopBanner==='function')_syncTopBanner();
       stopBrouillons();
-      try{ _l486StopClients(); }catch(_){ }   /* [L493] detacher l abonnement referentiel (le catch est obligatoire ici : une exception faisait sauter TOUT le nettoyage) */
+      try{ _l486StopClients(); }catch(_){ }   try{ _l537StopRefs(); }catch(_){ }   /* [L493] detacher l abonnement referentiel (le catch est obligatoire ici : une exception faisait sauter TOUT le nettoyage) */
       // [L73 · Lot 5 · B34] l'« historique complet » appartient à la SESSION : au re-login,
       // loadFirestoreData ne recharge que le récent (200/500/200) — sans ce reset, les
       // exports/Analyse croyaient encore l'historique (complet ou tronqué) de la session
@@ -4594,323 +4600,19 @@ document.addEventListener('keydown',function(e){
 })();
 
 // ============================================================
-// DONNÉES CLIENTS — extraites de l'Excel STEP International
+// DONNÉES CLIENTS — [L537 · 24/09/2026] PLUS AUCUNE DONNEE EMBARQUEE : index.html est servi publiquement
 // ============================================================
-/* [L486 · backlog #43] CLIENT_DATA et PKG_CLIENTS sont des GRAINES embarquees : elles restent la
-   verite au 1er lancement et le repli permanent si Firestore est muet. Au demarrage, _l486LoadClients()
-   les REMPLACE par le doc config/clients quand il existe et qu il est valide — ajouter un client ne
-   demande donc plus de republier l app. `var` (et non `const`) pour permettre cette reassignation. */
+/* [L486 · backlog #43 → L537] CLIENT_DATA et PKG_CLIENTS vivent dans Firestore (doc config/clients) : lus en temps reel
+   apres connexion (_l486LoadClients), rejoues depuis le cache local step_clients_v1 au demarrage (ci-dessous, en
+   SYNCHRONE, avant la construction des menus — le role que tenaient les graines). Un poste sans cache ni reseau voit
+   un bandeau « liste clients non chargee » (_l537CatalogCheck) au lieu d une liste vide silencieuse. `var` (et non
+   `const`) pour permettre la reassignation. Les regles d emballage se modifient dans la base partagee. */
 var CLIENT_DATA_SEED=null, PKG_CLIENTS_SEED=null;
 var CLIENT_DATA = {
-  "Mtechnologie": [{ref:"GHX173A",largeur:1290,longueur:1000}],   // [L280 · demande Esteban 29/07]
-  "Best Aluminium": [{ref:"TacFlex® DH1006 micro perf",largeur:2200,longueur:1000}],
-  "ACCOPLAST": [{ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600}],
-  "ACTA": [
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500},
-    {ref:"41116775 - TacFlex® DC1000",largeur:2140,longueur:1000}
-  ],
-  "ADHETEC": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "AFEXTRUSION": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312806 - TacFlex® KX1045-1",largeur:2100,longueur:250},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500}
-  ],
-  "Alphacan 25": [
-    {ref:"41117930 - TacFlex® AK1000",largeur:2100,longueur:600},
-    {ref:"41117866 - TacFlex® AC1000",largeur:2100,longueur:600},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500},
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100}
-  ],
-  "Alphacan 72": [
-    {ref:"41117930 - TacFlex® AK1000",largeur:2100,longueur:600},
-    {ref:"41117866 - TacFlex® AC1000",largeur:2100,longueur:600},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500},
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100}
-  ],
-  "Alphacan 81": [
-    {ref:"41117930 - TacFlex® AK1000",largeur:2100,longueur:600},
-    {ref:"41117866 - TacFlex® AC1000",largeur:2100,longueur:600},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500},
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100}
-  ],
-  "Alphacan 85": [
-    {ref:"41117930 - TacFlex® AK1000",largeur:2100,longueur:600},
-    {ref:"41117866 - TacFlex® AC1000",largeur:2100,longueur:600},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500},
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100}
-  ],
-  "AREXIS": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "ASTIC": [
-    {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350},
-    {ref:"41319080 - TacFlex® DQ1006",largeur:2100,longueur:600},
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500},
-    {ref:"41117715 - TacFlex® DH1006-2",largeur:2200,longueur:200},
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
-    {ref:"41319987 - TacFlex® DQ1006-1",largeur:2100,longueur:800},
-    {ref:"41116775 - TacFlex® DC1000",largeur:2140,longueur:1000},
-    {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500}
-  ],
-  "BAIE PLAST": [
-    {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}
-  ],
-  "BIASON": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "BONZI": [
-    {ref:"41117715 - TacFlex® DH1006-2",largeur:2200,longueur:200},
-    {ref:"TacFlex® DH1006-2 100m",largeur:2200,longueur:100}
-  ],
-  "BOUVET": [
-    {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500}
-  ],
-  "Bouyer Leroux - groupe Maine": [
-    {ref:"41319831 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319080 - TacFlex® DQ1006",largeur:2100,longueur:600}
-  ],
-  "CARRETIER ROBIN": [
-    {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500}
-  ],
-  "COLORALU": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
-  ],
-  "COLSAN": [
-    {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
-    {ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}
-  ],
-  "CONTISTEEL": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "CORTIZO": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250},
-    {ref:"41319504 - TacFlex® KX1045-1",largeur:2100,longueur:500}
-  ],
-  "Cougnaud": [
-    {ref:"41319831 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319080 - TacFlex® DQ1006",largeur:2100,longueur:600},
-    {ref:"41319389/41319054 - TacFlex® KX1011-1",largeur:1050,longueur:500}
-  ],
-  "CS/Wattom/Kanda": [
-    {ref:"41319831 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350},
-    {ref:"41116775 - TacFlex® DC1000",largeur:2140,longueur:1000},
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}
-  ],
-  "CUISINES AS": [{ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500}],
-  "CUISINES MOREL": [
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500},
-    {ref:"41116775 - TacFlex® DC1000",largeur:2140,longueur:1000}
-  ],
-  "DECOTHEC": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "EPCO": [
-    {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500}
-  ],
-  "EPSOTECH": [
-    {ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000},   // [L290→L295] transparent 1000 ml (« DH100-2 » était une faute de frappe — confirmé Esteban 30/07)
-    {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
-  ],
-  "EXAL": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
-  ],
-  "EXLABESA": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
-  ],
-  "EXTOL": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
-  ],
-  "FEILO SYLVANIA": [
-    {ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000},   // [L290→L295] transparent 1000 ml (« DH100-2 » = faute de frappe confirmée)
-    {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
-  ],
-  "GAMPLAST": [{ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500}],
-  "GK TECHNIQUES": [
-    {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319831 - TacFlex® DQ1009",largeur:2100,longueur:600}
-  ],
-  "Gravic Hongrie": [
-    {ref:"41116775 - TacFlex® DC1000",largeur:2140,longueur:1000},
-    {ref:"41117500 - SK 6008AD32",largeur:260,longueur:2300},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41116289 - SK 51405A",largeur:2100,longueur:250},
-    {ref:"41117489 - SK 51405A",largeur:2100,longueur:1000}
-  ],
-  "Gravic Tunisie": [
-    {ref:"41116775 - TacFlex® DC1000",largeur:2140,longueur:1000},
-    {ref:"41117500 - SK 6008AD32",largeur:260,longueur:2300},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41116289 - SK 51405A",largeur:2100,longueur:250},
-    {ref:"41118237 - SK 51405A",largeur:2100,longueur:500},
-    {ref:"41117489 - SK 51405A",largeur:2100,longueur:1000}
-  ],
-  "Hydro Sapa": [
-    {ref:"TacFlex® KX1045-1 166m",largeur:2100,longueur:166}
-  ],
-  "LCM Emballages": [
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
-    {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
-  ],
-  "Legrand France": [
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41319051 - TacFlex® DQ1002",largeur:2100,longueur:1500},
-    {ref:"41319526 - TacFlex® DQ1002",largeur:2100,longueur:1500},/* [L449 · Excel Legrand 16/06/26 + photo Esteban 28/08] DQ1002 TRANSPARENT : la réf existait pour Polska/Spain mais PAS pour Legrand France → la commande transparente était saisie sous la réf IMPRIMÉE (41319051) et le code mandrin 45 mm (3968, écrit au stylo sur le PDF) restait introuvable — la table LEGRAND_PKG["41319526"] portait déjà tous les codes */
-    {ref:"41315709 - TacFlex® DQ1042-1",largeur:2100,longueur:1300},
-    {ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500}
-  ],
-  "Legrand Polska": [
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41319051 - TacFlex® DQ1002",largeur:2100,longueur:1500},
-    {ref:"41319526 - TacFlex® DQ1002",largeur:2100,longueur:1500}
-  ],
-  "Legrand Spain": [
-    {ref:"41319051 - TacFlex® DQ1002",largeur:2100,longueur:1500},
-    {ref:"41319526 - TacFlex® DQ1002",largeur:2100,longueur:1500}
-  ],
-  "Les Zelles": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "LETBEK": [{ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}],
-  "MOREY": [
-    {ref:"TacFlex® DH1006-2",largeur:2200,longueur:1000},   // [L290→L295] transparent 1000 ml (« DH100-2 » était une faute de frappe — confirmé Esteban 30/07)
-    {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
-  ],
-  "MOSA GLAS": [{ref:"TacFlex® DQ1009 vert",largeur:2100,longueur:1000}],
-  "MOSS": [
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
-    {ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}
-  ],
-  "NORMABAIE": [
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250},
-    {ref:"41319389/41319054 - TacFlex® KX1011-1",largeur:1050,longueur:500}
-  ],
-  "OMNIPLAST": [{ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600}],
-  "PACOTTE & PIGNOTTE": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "PBI": [{ref:"41319831 - TacFlex® DQ1009",largeur:2100,longueur:600}],
-  "PLASTEC": [
-    {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319831 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}
-  ],
-  "PLASTEMBAL": [{ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}],
-  "PLASTICINO": [{ref:"41319080 - TacFlex® DQ1006",largeur:2100,longueur:600}],
-  "PLASTIL FR": [{ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600}],
-  "PRIMA": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100}
-  ],
-  "LIMA": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312806 - TacFlex® KX1045-1",largeur:2100,longueur:250},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:500}
-  ],
-  "PROFILS SYSTEMS": [
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500},
-    {ref:"41117882 - TacFlex® DF1004-1",largeur:2100,longueur:1000}
-  ],
-  "PYRAM PRIEUR": [
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41116775 - TacFlex® DC1000",largeur:2140,longueur:1000}
-  ],
-  "REINAL ALGIS": [{ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}],
-  "RIDORET/ROCHE/Menuiseries": [
-    {ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500}
-  ],
-  "ROSSI": [{ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}],
-  "ROUX SOLUTIONS BOIS": [
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41315237 - TacFlex® DQ1041",largeur:2100,longueur:500}
-  ],
-  "SEKISUI": [{ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600}],
-  "SEPALUMIC/SEPACOLOR": [{ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}],
-  "SFP Isobat": [{ref:"41116850 - TacFlex® DH1006-2",largeur:2200,longueur:500}],
-  "SILAC": [{ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}],
-  "Socredis": [
-    {ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350},
-    {ref:"41319834 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500}
-  ],
-  "Suys": [
-    {ref:"41314107 - TacFlex® DH1004",largeur:2100,longueur:1500},
-    {ref:"41116929 - TacFlex® DQ1000-1",largeur:2100,longueur:500},
-    {ref:"41319504 - TacFlex® KX1035",largeur:2100,longueur:500},
-    {ref:"41117882 - TacFlex® DF1004-1",largeur:2100,longueur:1000},
-    {ref:"41319391 - TacFlex® KX1050",largeur:1050,longueur:500}
-  ],
-  "TECNO PROFILS": [{ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600}],
-  "THERMOPLAST": [
-    {ref:"41319831 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41319829 - TacFlex® DQ1009",largeur:2100,longueur:350}
-  ],
-  "TLV": [
-    {ref:"41312799 - TacFlex® KX1045-1",largeur:2100,longueur:100},
-    {ref:"41312809 - TacFlex® KX1045-1",largeur:2100,longueur:250}
-  ],
-  "VEKA": [
-    {ref:"41313870 - TacFlex® KX1006-1",largeur:1260,longueur:1000},
-    {ref:"41317395 - TacFlex® KX1006-1",largeur:1260,longueur:700},
-    {ref:"41319832 - TacFlex® DQ1009",largeur:2100,longueur:600},
-    {ref:"41315627 - TacFlex® KX1075",largeur:1050,longueur:500},
-    {ref:"41317239 - TacFlex® KX1075",largeur:1050,longueur:500}
-  ],
-  "AGOFORM ALLEMAGNE": [
-    {ref:"TacFlex® KX1045",largeur:2100,longueur:250}
-  ],
-  "ALUPLAST AUSTRIA": [
-    {ref:"TacFlex® KX1045",largeur:2100,longueur:250}
-  ],
-  "DECEUNINCK NV": [
-    {ref:"TacFlex® 1056 neutr",largeur:2100,longueur:500},
-    {ref:"TacFlex® KX1056",largeur:2100,longueur:500},
-    {ref:"TacFlex® KX1047 DEC",largeur:1250,longueur:1000},
-    {ref:"TacFlex® KX1047 neutr",largeur:1250,longueur:1000}
-  ],
-  "DEUTSCH REIHENHAUS ALLEMAGNE": [
-    {ref:"TacFlex® DH1006 transparent",largeur:2200,longueur:500}
-  ],
-  "JOMA POLYTEC": [
-    {ref:"TacFlex® DQ1009 vert",largeur:2100,longueur:600}
-  ],
-  "JOST PLASTEC": [
-    {ref:"TacFlex® DH1006-2 micro perf",largeur:2200,longueur:500}
-  ],
-  "KOHLERWOODCAP PAYS-BAS": [
-    {ref:"TacFlex® DH1006 transparent",largeur:2200,longueur:500}
-  ],
-  "OKNOPLAST POLOGNE": [
-    {ref:"TacFlex® KX1035",largeur:2100,longueur:500}
-  ],
-  "PROFINE FRANCE": [
-    {ref:"TacFlex® KX1011 noir blanc",largeur:1050,longueur:500}
-  ],
-  "REHAU ALLEMAGNE": [
-    {ref:"TacFlex® KX1045 unprinted",largeur:2100,longueur:250}
-  ],
-  "SLS KUNSTOFFVERABEITUNGS": [
-    {ref:"TacFlex® DQ1006",largeur:2100,longueur:600}
-  ],
-  "TOMBURN GRANDE-BRETAGNE": [
-    {ref:"TacFlex® KX1045",largeur:2100,longueur:250}
-  ]
 };
+var PKG_CLIENTS={
+};
+try{ var _l537c=JSON.parse(localStorage.getItem('step_clients_v1')||'null'); if(_l537c){ if(_l486Valid(_l537c.clientData)) CLIENT_DATA=_l537c.clientData; if(_l486Valid(_l537c.pkgClients)) PKG_CLIENTS=_l537c.pkgClients; } }catch(_){ }   /* [L537] dernier referentiel connu, AVANT tout rendu */
 // [L110] Client spécial « ÉCHANTILLON » : toutes les références du catalogue sélectionnables
 // (essais / échantillons). Union des réfs clients (dédoublonnées par libellé, triées) →
 // présent partout où CLIENT_DATA est lu (selects plan, estimateur, préremplissage laize/métrage).
@@ -4923,60 +4625,6 @@ CLIENT_DATA['ÉCHANTILLON']=(function(){const seen=new Set(),out=[];Object.value
 // Pile max 25cm. Écrire la largeur sur la planchette.
 var PKG_DEFAULT={palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',notes:'Règles par défaut : cerclage ≤39mm + tous KX + DQ1000-1. Pile max 25cm. Largeur sur planchette.'};
 
-var PKG_CLIENTS={
-  'EPCO':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Bobines DEBOUT en caisse palette, 2 étages.\nAjouter 1-2 bobines pour éviter chutes à stocker.\nPlans autorisés : 3×502+1×612 | 4×502 | 2×502+2×557 | 3×612 | 3×502+1×557\nArticles : KX1035 / KX1045-1 noir blanc 500ml — Largeurs : 502 / 557 / 612mm'},
-
-  'Alphacan 25':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Élargi (≤40mm)',
-    notes:'⚡ SPÉCIFICITÉ : Commande par multiple de 15 · cerclage élargi ≤40mm.\nÉviter les palettes mixées.'},
-  'Alphacan 72':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Élargi (≤40mm)',
-    notes:'⚡ SPÉCIFICITÉ : Commande par multiple de 15 · cerclage élargi ≤40mm.\nÉviter les palettes mixées.'},
-  'Alphacan 81':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Élargi (≤40mm)',
-    notes:'⚡ SPÉCIFICITÉ : Commande par multiple de 15 · cerclage élargi ≤40mm.\nÉviter les palettes mixées.'},
-  'Alphacan 85':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Élargi (≤40mm)',
-    notes:'⚡ SPÉCIFICITÉ : 15 bobines au sol, montées couche par couche avec un carton entre chaque.\nCommande par multiple de 15 · cerclage élargi ≤40mm.\nÉviter les palettes mixées.'},
-
-  'Gravic Hongrie':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Chute FACTURÉE → plan au plus juste, chute découpée et mise dans la palette.\nÉtiquetage standard seul.'},
-
-  'Gravic Tunisie':{palette:'80×120',type:'Caisse',etiquetage:'Standard + étiquette mandrin',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Chute FACTURÉE (idem Hongrie) → plan au plus juste, chute dans la palette.\nÉtiquette dans les mandrins : réf + n° commande + n° lot BK.'},
-
-  'Legrand France':{palette:'100×120',type:'Carton',etiquetage:'Spécifique',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Cartons 100×120.\nImpression mandrin : réf (4 derniers chiffres Legrand) + date + n° lot interne + n° bobine mère.\nPetites quantités → palette de divers. Fiche détails palette obligatoire.\nArticles : DQ1000-1 500ml, DQ1002 1500ml, DQ1042-1 1300ml, DQ1041 500ml, KX1050 500ml'},
-
-  'Legrand Polska':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Aucun',
-    notes:'⚡ SPÉCIFICITÉ : Bobines en VRAC — aucun cerclage. Caisse 80×120, étiquetage standard.\nArticles : DQ1002 IMP PW 1500ml, DQ1002 IMP LEGRAND 1500ml, DQ1002 TRANSPARENT 1500ml, DQ1000 transp 500ml'},
-
-  'Legrand Spain':{palette:'100×120',type:'Carton',etiquetage:'Standard bobines + spécifique carton',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Étiquetage standard bobines + étiquette spécifique carton. Cartons 100×120.\nArticle : DQ1002 IMP LEGRAND 1500ml.\nRatio bob/carton : 28mm=8/C cerclés, 44mm=5/C, 48mm=5/C, 56mm=3/C, 59mm=3/C, 61mm=3/C, 63mm=3/C, 66mm=3/C, 75mm=3/C, 90mm=2/C, 110mm=2/C, 150mm=1/C'},
-
-  'BOUVET':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : 20 bobines au sol pour 40-55-70mm.\nDQ1009 Bleu 600ml : 20mm=11/p ×48p (528) | 30mm=7/p ×48p (336) — 20 et 30 mm CERCLÉS | 40/55/70mm\nDQ1000-1 transp 500ml — CERCLER toutes les largeurs : 20mm=5/p | 30mm=5/p | 40mm=4/p | 50mm=4/p | 70mm=3/p'},   /* [L532 · demande Celine 18/09/2026] complements de la fiche atelier « commande bouvet.doc » : totaux entre parentheses, cerclage du DQ1000-1 ; corrections de Celine (18/09) : les chiffres 360 / 260 / 200 de la fiche ne sont PAS repris, « 20 et 30 mm cercles » ajoute */
-
-  'Cougnaud':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Mandrins PARFAITS exigés + caisse/carton mixte. PP = petite palette · GP = grande palette.\nDQ1006 Bleu 600ml — bob/pile : 14mm=8 PP | 19mm=6 PP | 24mm=6 PP | 30mm=7 GP | 36mm=6 GP\nDQ1006 Bleu 600ml — 20 piles de N bobineaux : 40mm=19 GP | 45mm=11 PP | 50mm=15 GP | 65mm=7 PP | 81mm=6 PP | 90mm=6 PP\nKX1011-1 noir blanc 500ml — bob/carton : 14mm=16 | 19mm=11 | 24mm=9 | 30mm=7 | 36mm=6 | 40mm=5 | 45mm=4 | 50mm=4 | 65mm=3 | 81mm=2 | 90mm=2 | 100mm=2 | 110mm=2 | 130mm=1\nDQ1009 vert 600ml : 19mm=6/p, 2p/carton.'},   /* [L532 · demande Celine 18/09/2026] chiffres de la fiche atelier « commande cougnaud 08 2025.doc » (PP = petite palette, GP = grande palette) : l ancienne note renvoyait a la fiche sans les donner */
-
-  'CS/Wattom/Kanda':{palette:'100×120',type:'Pyramide',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Pyramide 100×120, 2 palettes × 20 bobines.\nArticle : DQ1009 transp 350ml — Largeurs : 1300mm, 100mm'},
-
-  'Les Zelles':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : ⚠ Largeur 930mm → type PYRAMIDE (pas caisse). Casser les palettes.\nPlans spécifiques : 2×930+300 | 4×540 | 2×540+930 | 7×300 | 5×300+540 | 3×730 (très juste)\nArticle : DH1006 micro perf 500ml — Codes : 300mm=9000347003, 540/730mm=9000347004, 930mm=9000347005'},
-
-  'PRIMA':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Papier vert entre les bobines · cerclage standard ≤39mm.\nArticle : KX1045 noir blanc 100ml (100ml seul).\nBob/pile : 20mm=11 | 30mm=7 | 40mm=6 | 50mm=4 | 60mm=4 | 70mm=3 | 80mm=2 | 100mm=2'},
-
-  'LIMA':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : Papier vert entre les bobines.\nCerclage : automatique (film KX, toutes largeurs).\nArticles : KX1045 noir blanc 100/250/500ml.\nBob/pile : 20mm=11 | 30mm=7 | 40mm=6 | 50mm=4 | 60mm=4 | 70mm=3 | 80mm=2 | 100mm=2'},   // [L292 · demande Esteban 30/07] réécrit court : « Papier vert » 1×, cerclage 1× (les 2 mentions « sans seuil / à confirmer » disaient la même chose)
-
-  'VEKA':{palette:'80×120',type:'Palette nue + réhausses',etiquetage:'Standard',cerclage:'Par piles cerclées (ratio fourni)',
-    notes:'⚡ SPÉCIFICITÉ : NE PAS filmer. Réhausses obligatoires, palettes solides.\n⚠ Alterner bobines pile & face · télescopage ≤10mm.\nGerbage autorisé par référence UNIQUEMENT.\nKX1006-1 Profilé en 700ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7\nKX1006-1 Profilé en 1000ml : bob/pile cerclée 30mm=5 | 35mm=5\nKX1006-1 impression VEKA en 1000ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7 | 30mm=5 | 35mm=5\nKX1075 : bob/pile cerclée 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : bob/pile cerclée 20mm=10'},   /* [L534 · signalement JF 21/09/2026, verifie par Celine avec l atelier les 21-22/09] cerclage PAR reference ET par impression : l ancienne ligne « Bob/pile cerclee (KX1075/1006-1) » appliquait au KX1006-1 les chiffres du KX1075 (40 mm cercle a tort, 30 mm par 6 au lieu de 5). KX1006-1 = Celine (Profile : 700 ml en 15/20/25, 1000 ml en 30/35 par 5 ; impression VEKA : 1000 ml seulement, 15 a 35 ; le 40 mm n est plus liste donc plus cercle — Celine 22/09 « pas besoin de cerclage en 40mm » : la mention n est pas ecrite, meme convention que KX1075 et DQ1009 ; « tout en rehausse chez VEKA ») ; KX1075 et DQ1009 = fiches atelier, rien n est affirme au-dela des laizes qu elles marquent « cerclees ». Le L533 d Esteban (22/09, meme signalement lu comme un defaut d affichage) est conserve : 3 lignes + bouton « Voir la suite ». */
-
-  'Bouyer Leroux - groupe Maine':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',notes:'Règles par défaut.'},
-  'CARRETIER ROBIN':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',notes:'Règles par défaut.'},
-  'Suys':{palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:'Standard (≤39mm + tous KX)',
-    notes:'⚡ SPÉCIFICITÉ : DH1004 imprimé → écrire à la main la largeur dans le mandrin.\nRègles par défaut : cerclage ≤39mm + tous KX + DQ1000-1. Pile max 25cm. Largeur sur planchette.'}   /* [L529 · demande Celine 18/09/2026] la regle est par CLIENT : la consigne nomme l article (DH1004 imprime) pour les autres references Suys */
-};
 
 // [L410 · demande Esteban] LA resolution packaging, partagee A/B/C/D : cle exacte, sinon
 // inclusion bidirectionnelle normalisee (« PRIMA pour le 25 06 26 » -> regle PRIMA), sinon null.
@@ -4985,8 +4633,8 @@ var PKG_CLIENTS={
    Avant : chaque nouveau client obligeait a rouvrir le code et republier l app.
    Maintenant : le doc Firestore config/clients {clientData, pkgClients} prend le pas
    sur les graines embarquees. Regles de surete :
-   · les GRAINES restent en memoire (CLIENT_DATA_SEED / PKG_CLIENTS_SEED) : un doc vide,
-     malforme ou une lecture qui echoue ne peut JAMAIS vider la liste des clients ;
+   · [L537] plus de graine dans le fichier : le cache local step_clients_v1 tient ce role ; un doc vide,
+     malforme ou une lecture qui echoue est ignore (_l486Valid) et ne vide jamais la liste en memoire ;
    · un cache localStorage sert au demarrage hors-ligne (l atelier coupe sans reseau) ;
    · l ecriture est reservee aux comptes qui gerent les donnees, et la regle Firestore
      `config` en ecriture est aujourd hui isAdmin() : un compte pilotage recoit un toast
@@ -5004,19 +4652,64 @@ function _l486Valid(o,minKeys){ try{ return !!o&&typeof o==='object'&&!Array.isA
 /* [L493] jumeau de stopBrouillons. On NE VIDE PAS CLIENT_DATA/PKG_CLIENTS : le referentiel doit rester
    en memoire (ecran de login, poste hors-ligne). On repart d un etat « jamais lu » pour la session suivante. */
 function _l486StopClients(){ if(_l486Unsub){ try{ _l486Unsub(); }catch(_){ } _l486Unsub=null; } _l486SeenAt=undefined; _l486Retries=0; }
+/* [L537] bandeau HONNETE quand la liste des clients n est pas la (ni cache, ni Firestore) : avant, les graines masquaient ce cas ;
+   sans liste, les regles d emballage tombent sur PKG_DEFAULT en silence — l operateur doit le SAVOIR. */
+function _l537CatalogCheck(){ try{ var n=Object.keys(CLIENT_DATA||{}).filter(function(k){ return k!=='ÉCHANTILLON'; }).length; var b=document.getElementById('l537CatalogBanner');
+  if(n>0){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.id='l537CatalogBanner'; b.setAttribute('role','alert'); b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#b3261e;color:#fff;font:600 15px/1.35 system-ui,sans-serif;padding:12px 16px;text-align:center'; document.body.appendChild(b); }
+  b.textContent='⚠ Liste des clients non chargée sur ce poste — connecte le réseau puis recharge la page (règles d’emballage indisponibles).'; }catch(_){ } }
+/* ============================================================
+   [L537 · 24/09/2026] REFERENTIEL COMPLEMENTAIRE (doc unique config/refs) : table Legrand (legrandPkg), libelles
+   fournisseurs (suppliers), destinataires des signalements (reportTo), migration des anciennes notes (oldNotes).
+   Doc SEPARE de config/clients : _l486Publish reecrit config/clients EN ENTIER (merge:false), un champ ajoute la
+   serait efface a la prochaine publication de l onglet Clients. Meme motif que L486/L493 : abonnement apres
+   connexion, garde d idempotence, repli borne, cache local step_refs_v1 applique en SYNCHRONE au demarrage (juste
+   avant init(), toutes les variables etant alors declarees). Lecture : comptes connus (regle config isKnown) ; ecriture : admin. */
+var _L537_REFS={suppliers:null}, _l537Unsub=null, _l537Retries=0, _l537Loaded=false;
+function _l537Supplier(k){ try{ return (_L537_REFS.suppliers&&_L537_REFS.suppliers[k])||'Fournisseur'; }catch(_){ return 'Fournisseur'; } }
+function _l537ApplyRefs(d,src){
+  var n=0;
+  try{ if(_l486Valid(d&&d.legrandPkg)){ LEGRAND_PKG=d.legrandPkg; n++; } }catch(_){ }
+  try{ if(_l486Valid(d&&d.suppliers)){ _L537_REFS.suppliers=d.suppliers; n++; } }catch(_){ }
+  try{ if(Array.isArray(d&&d.reportTo)&&d.reportTo.length){ REPORT_RECIPIENTS=d.reportTo.slice(); n++; } }catch(_){ }
+  try{ if(Array.isArray(d&&d.oldNotes)&&d.oldNotes.length){ _OLD_NOTES=d.oldNotes.slice(); n++; } }catch(_){ }
+  if(n){ _l537Loaded=true;
+    try{ if(typeof autofillLegrandAll==='function') autofillLegrandAll(); }catch(_){ }   /* codes mandrin des lignes Legrand deja saisies */
+    try{ console.log('[L537] referentiel complementaire charge depuis '+src+' ('+n+' champ(s))'); }catch(_){ } }
+  return n;
+}
+function _l537FetchRefs(ms){   /* lecture unique bornee (signalement alors que les destinataires ne sont pas connus) */
+  return new Promise(function(res){ var done=false; var t=setTimeout(function(){ if(!done){ done=true; res(false); } },ms||4000);
+    try{ if(!db) throw new Error('db'); db.collection('config').doc('refs').get().then(function(doc){ if(doc.exists&&doc.data()&&_l537ApplyRefs(doc.data(),'lecture unique')){ try{ localStorage.setItem('step_refs_v1',JSON.stringify(doc.data())); }catch(_){ } } if(!done){ done=true; clearTimeout(t); res(true); } }).catch(function(){ if(!done){ done=true; clearTimeout(t); res(false); } }); }
+    catch(_){ if(!done){ done=true; clearTimeout(t); res(false); } } });
+}
+function _l537LoadRefs(){
+  try{ if(!db||_l537Unsub) return;
+    _l537Unsub=db.collection('config').doc('refs').onSnapshot(function(doc){
+      _l537Retries=0;
+      if(!doc.exists||!doc.data()) return;   /* pas encore publie : cache local ou rien */
+      if(_l537ApplyRefs(doc.data(),'Firestore')){ try{ localStorage.setItem('step_refs_v1',JSON.stringify(doc.data())); }catch(_){ } }
+    },function(e){
+      try{ console.warn('[L537] abonnement config/refs interrompu — cache conserve',e); }catch(_){ }
+      _l537Unsub=null;
+      if(_l537Retries<5){ var n=++_l537Retries; setTimeout(function(){ if(!_l537Unsub){ try{ _l537LoadRefs(); }catch(_){ } } },8000*n); }
+    });
+  }catch(e){ try{ console.warn('[L537] abonnement config/refs impossible',e); }catch(_){ } }
+}
+function _l537StopRefs(){ if(_l537Unsub){ try{ _l537Unsub(); }catch(_){ } _l537Unsub=null; } _l537Retries=0; }
 /* [L529 · demande Celine 18/09/2026] Les regles d emballage n ont PAS d ecran d edition (onglet Clients = references seulement) : elles vivent dans le code.
    Or _l486Apply REMPLACE la table du code par la table partagee (Firestore config/clients, rejouee aussi depuis le cache local) : une regle ajoutee au code
    apres la 1re publication d un admin etait ecrasee en silence. Fusion MINIMALE : seules les cles listees ici sont re-ajoutees, et seulement quand la table
    recue ne les porte pas — la table partagee GAGNE toujours sur ses propres cles, rien n est ecrit en base (la prochaine publication d un admin emportera la
    regle avec le reste, _l486Publish fige PKG_CLIENTS tel qu en memoire). Ajouter un client ici = ajouter son entree dans PKG_CLIENTS ET son nom dans la liste. */
-const _L529_PKG_PATCHES=['Suys'];
-const _L532_PKG_FORCE=['Cougnaud','BOUVET','VEKA'];   /* [L532] regles MISES A JOUR dans le code : le code GAGNE sur la table partagee pour ces cles. Sans cela la mise a jour restait invisible — la table partagee (copie de la table du code a la derniere publication d un admin) la remplace entierement. Tant qu il n existe pas d ecran d edition des regles d emballage, lister ici tout client dont la regle change dans le code. */
+const _L529_PKG_PATCHES=[];   /* [L537] vide : plus aucune regle dans le code, la table partagee (config/clients) est la seule verite ; la fusion reste en place, inerte */
+const _L532_PKG_FORCE=[];   /* [L532 → L537] vide : les regles corrigees du code ont ete publiees dans config/clients (verifie le 24/09 : empreintes identiques) */
 function _l529PkgMerge(remote){ try{ const seed=PKG_CLIENTS_SEED; if(!seed||!remote||typeof remote!=='object') return remote; let out=null; _L529_PKG_PATCHES.forEach(function(k){ if(seed[k]&&!(k in remote)){ if(!out) out=Object.assign({},remote); out[k]=seed[k]; } }); _L532_PKG_FORCE.forEach(function(k){ const a=seed[k], b=remote[k]; if(a&&!(b&&['palette','type','etiquetage','cerclage','notes'].every(function(f){ return String(a[f]==null?'':a[f])===String(b[f]==null?'':b[f]); }))){ if(!out) out=Object.assign({},remote); out[k]=a; } });   /* comparaison CHAMP PAR CHAMP : une table revenue de Firestore a ses cles triees, JSON.stringify la disait « differente » a chaque passage */ return out||remote; }catch(_){ return remote; } }
 function _l486Apply(d,src){
   var n=0;
   try{ if(_l486Valid(d&&d.clientData)){ CLIENT_DATA=d.clientData; n++; } }catch(_){ }
   try{ if(_l486Valid(d&&d.pkgClients)){ PKG_CLIENTS=_l529PkgMerge(d.pkgClients); n++; } }catch(_){ }
-  if(n){ _l486Loaded=true; try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488] la liste du Plan suit le referentiel */
+  if(n){ _l486Loaded=true; try{ _l537CatalogCheck(); }catch(_){ } try{ _l488RefreshClientUI(); }catch(_){ }   /* [L488] la liste du Plan suit le referentiel */
     try{ console.log('[L486] clients/emballages charges depuis '+src+' — '+Object.keys(CLIENT_DATA).length+' clients, '+Object.keys(PKG_CLIENTS).length+' regles'); }catch(_){ } }
   return n;
 }
@@ -5031,6 +4724,7 @@ function _l486LoadClients(){
        Firestore ne relance PAS un listener apres erreur : d ou le remise a null + repli borne, motif
        copie de startBrouillons. */
     if(!db||_l486Unsub) return;
+    setTimeout(function(){ try{ _l537CatalogCheck(); }catch(_){ } },7000);   /* [L537] 7 s apres la connexion : liste toujours vide → bandeau */
     _l486Unsub=db.collection('config').doc('clients').onSnapshot(function(doc){
       _l486Retries=0;
       if(!doc.exists||!doc.data()) return;   /* pas encore publie : les graines restent la verite */
@@ -5054,6 +4748,7 @@ async function _l486Publish(btn,silencieux){
   if(!_l486CanEdit()){ showToast('🔒 Réservé à Esteban et Dominique.','err'); return false; }
   if(!db){ showToast('Base indisponible — reconnecte le réseau puis recharge la page.','err'); return false; }
   var nC=Object.keys(CLIENT_DATA||{}).length, nP=Object.keys(PKG_CLIENTS||{}).length;
+  if(nC<10){ showToast('Catalogue en mémoire anormalement petit ('+nC+' client(s)) — publication refusée. Recharge la page connectée au réseau.','err'); if(btn) btn.disabled=false; return false; }   /* [L537] jamais publier une liste vide ou appauvrie */
   if(!silencieux&&typeof confirmDlg==='function'&&!(await confirmDlg('Publier la liste actuelle a TOUS les postes ?\n\n· '+nC+' client(s) avec leurs references\n· '+nP+' regle(s) d emballage\n\nChaque tablette la recevra a son prochain demarrage.',{ok:'Publier'}))) return false;
   if(btn) btn.disabled=true;
   try{
@@ -6898,6 +6593,7 @@ function onParamChange(){
    chaque chargement Firestore, en PRESERVANT la selection en cours (y compris un client texte libre
    absent du catalogue — sinon on effacerait la saisie de l operateur en plein plan). */
 function _l488RefreshClientUI(){
+  try{ _saveClientOptsHtml=null; Object.keys(_saveRefOptsByClient).forEach(function(k){ delete _saveRefOptsByClient[k]; }); }catch(_){ }   /* [L537] les filtres de Donnees > Plans suivent le referentiel (memo L80 jamais invalide) */
   try{
     const sel=document.getElementById('planClient'); const prev=sel?sel.value:'';
     if(sel){
@@ -7839,7 +7535,7 @@ function updateMandrinVisibility(){
   document.querySelectorAll('.order-row .mandrin-cell').forEach(el=>{el.style.display=show?'':'none';});
   if(show) autofillLegrandAll();
 }
-const LEGRAND_PKG={"41315709":{28:{c:"8675",k:8,x:true},40:{c:"0310",k:6,x:true},45:{c:"0157",k:5,x:true},49:{c:"0158",k:5,x:false},57:{c:"0159",k:3,x:false},62:{c:"0160",k:3,x:false},67:{c:"0161",k:3,x:false},76:{c:"0162",k:3,x:false},85:{c:"0309",k:2,x:false},100:{c:"0164",k:2,x:false},125:{c:"0166",k:2,x:false},130:{c:"0167",k:1,x:false},138:{c:"0168",k:1,x:false},160:{c:"0169",k:1,x:false},175:{c:"0308",k:1,x:false},210:{c:"0170",k:1,x:false},220:{c:"0307",k:1,x:false}},"41116929":{45:{c:"0244",k:5,x:true},49:{c:"0243",k:4,x:true},54:{c:"7309",k:4,x:true},57:{c:"0248",k:4,x:true},62:{c:"0246",k:3,x:true},67:{c:"0245",k:3,x:true},71:{c:"0187",k:3,x:true},76:{c:"0247",k:3,x:true},81:{c:"7310",k:2,x:true},93:{c:"0188",k:2,x:true},109:{c:"7311",k:2,x:true}},"41319051":{26:{c:"7274",k:8,x:true},28:{c:"1168",k:7,x:true},30:{c:"7290",k:7,x:true},35:{c:"7291",k:6,x:true},38:{c:"7276",k:6,x:true},40:{c:"7292",k:6,x:false},44:{c:"0453",k:5,x:false},45:{c:"0453",k:5,x:false},/* [L466 · gueulante Esteban 29/08 : PDF commande reelle en 45 mm sans code — sa dictee disait « 44mm:0453 », la commande utilise 45 : les DEUX portent 0453/5 */46:{c:"7285",k:5,x:false},48:{c:"1169",k:5,x:false},50:{c:"7293",k:4,x:false},56:{c:"7277",k:4,x:false},61:{c:"7273",k:3,x:false},63:{c:"7287",k:3,x:false},66:{c:"7270",k:3,x:false},68:{c:"1170",k:3,x:false},72:{c:"7272",k:3,x:false},75:{c:"7281",k:3,x:false},79:{c:"7295",k:3,x:false},84:{c:"7284",k:2,x:false},86:{c:"7288",k:2,x:false},94:{c:"7282",k:2,x:false},100:{c:"8713",k:2,x:false},109:{c:"7271",k:2,x:false},114:{c:"7280",k:2,x:false},123:{c:"7297",k:2,x:false},130:{c:"8714",k:1,x:false},131:{c:"7294",k:1,x:false},147:{c:"7279",k:1,x:false},160:{c:"8715",k:1,x:false},166:{c:"7286",k:1,x:false},176:{c:"7289",k:1,x:false},210:{c:"8716",k:1,x:false},223:{c:"7298",k:1,x:false}},"41319526":{45:{c:"3968",k:5,x:true},50:{c:"1315",k:4,x:false},59:{c:"1316",k:4,x:false},75:{c:"1317",k:3,x:false},90:{c:"2069",k:2,x:false}}};
+var LEGRAND_PKG={};   /* [L537] table Legrand (code mandrin / nb par carton par reference et laize) lue dans Firestore config/refs — cache local step_refs_v1 */
 function legrandRefCode(ref){ return String(ref||'').trim().split(/[\s\-]/)[0].trim(); }
 function legrandPkg(ref,width){ const code=legrandRefCode(ref); const t=LEGRAND_PKG[code]; if(!t) return null; const w=Math.round(parseNum(width));
   if(t[w]) return t[w];
@@ -7860,7 +7556,7 @@ function autofillLegrandRow(rowEl){
   const mEl=rowEl.querySelector('[data-type="mandrin"]');
   const cEl=rowEl.querySelector('[data-type="carton"]');
   if(e){ if(mEl) mEl.value=e.c; if(cEl&&e.k>0) cEl.value=String(e.k); }
-  else if(mEl){ mEl.value=''; }
+  else if(mEl&&Object.keys(LEGRAND_PKG||{}).length){ mEl.value=''; }   /* [L537] table pas encore chargee : on n efface JAMAIS un code deja present */
 }
 function autofillLegrandAll(){
   if(!isLegrandFrName(document.getElementById('planClient')?.value)) return; // [L73 · Lot 5 · B60]
@@ -10007,22 +9703,7 @@ function recutPrintRecap(c){
 // cours (ex. lima) portent l'ANCIEN texte à doublons dans leur état sauvegardé — le catalogue corrigé ne les
 // touche pas. Remplacement à l'impression, par correspondance EXACTE du préfixe (un texte édité main ne matche
 // pas → jamais dénaturé). La ligne « Film KX détecté » devient inutile quand le texte dit déjà le cerclage KX.
-const _OLD_NOTES=[
-  {o:'⚡ SPÉCIFICITÉ : NE PAS filmer. Réhausses obligatoires, palettes solides.\n⚠ Alterner bobines pile & face · télescopage ≤10mm.\nGerbage autorisé par référence UNIQUEMENT.\nBob/pile cerclée (KX1075/1006-1) : 15mm=11 | 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : 20mm=10/pile',
-   n:'⚡ SPÉCIFICITÉ : NE PAS filmer. Réhausses obligatoires, palettes solides.\n⚠ Alterner bobines pile & face · télescopage ≤10mm.\nGerbage autorisé par référence UNIQUEMENT.\nKX1006-1 Profilé en 700ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7\nKX1006-1 Profilé en 1000ml : bob/pile cerclée 30mm=5 | 35mm=5\nKX1006-1 impression VEKA en 1000ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7 | 30mm=5 | 35mm=5\nKX1075 : bob/pile cerclée 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : bob/pile cerclée 20mm=10'},   /* [L534] ancienne note VEKA (ligne fusionnee KX1075/1006-1) → une ligne par reference et par impression */
-  {o:'⚡ SPÉCIFICITÉ : NE PAS filmer + réhausses + gerbage par réf. + télescopage ≤10mm + pile&face.\n⚠ Alterner bobines pile & face. Réhausses obligatoires.\nPalettes solides. Gerbage autorisé par référence UNIQUEMENT.\nBob/pile cerclée (KX1075/1006-1) : 15mm=11 | 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : 20mm=10/pile',
-   n:'⚡ SPÉCIFICITÉ : NE PAS filmer. Réhausses obligatoires, palettes solides.\n⚠ Alterner bobines pile & face · télescopage ≤10mm.\nGerbage autorisé par référence UNIQUEMENT.\nKX1006-1 Profilé en 700ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7\nKX1006-1 Profilé en 1000ml : bob/pile cerclée 30mm=5 | 35mm=5\nKX1006-1 impression VEKA en 1000ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7 | 30mm=5 | 35mm=5\nKX1075 : bob/pile cerclée 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : bob/pile cerclée 20mm=10'},   /* [L535 · audit adverse 23/09, jumeau du L534] note VEKA d AVANT le L292 (30/07/2026) : premieres lignes differentes, MEME ratio faux « (KX1075/1006-1) … 40mm=4 ». Un plan ou une fiche VEKA enregistre avant cette date ne matchait aucune cle : la consigne fausse ressortait intacte sur la tablette, le papier et le PDF. */
-  {o:'⚠ Alterner bobines pile & face. Réhausses obligatoires. NE PAS filmer les palettes. Palettes solides. Gerbage autorisé par référence uniquement. Tolérance télescopage 10mm.\nBob/pile cerclée (KX) : 15mm=11 | 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4 — DQ1009 : 20mm=10',
-   n:'⚡ SPÉCIFICITÉ : NE PAS filmer. Réhausses obligatoires, palettes solides.\n⚠ Alterner bobines pile & face · télescopage ≤10mm.\nGerbage autorisé par référence UNIQUEMENT.\nKX1006-1 Profilé en 700ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7\nKX1006-1 Profilé en 1000ml : bob/pile cerclée 30mm=5 | 35mm=5\nKX1006-1 impression VEKA en 1000ml : bob/pile cerclée 15mm=11 | 20mm=8 | 25mm=7 | 30mm=5 | 35mm=5\nKX1075 : bob/pile cerclée 20mm=8 | 25mm=7 | 30mm=6 | 35mm=5 | 40mm=4\nDQ1009 : bob/pile cerclée 20mm=10'},   /* [L535 · audit adverse 23/09, jumeau du L534] note VEKA d origine (01/06/2026, « Bob/pile cerclee (KX) ») : meme ratio faux, meme traitement. */
-  {o:'⚡ SPÉCIFICITÉ : 20 bobines au sol pour 40-55-70mm.\nDQ1009 Bleu 600ml : 20mm=11/p ×48p, 30mm=7/p ×48p, 40/55/70mm.\nDQ1000-1 transp 500ml : 20mm=5/p, 30mm=5/p, 40mm=4/p, 50mm=4/p, 70mm=3/p',
-   n:'⚡ SPÉCIFICITÉ : 20 bobines au sol pour 40-55-70mm.\nDQ1009 Bleu 600ml : 20mm=11/p ×48p (528) | 30mm=7/p ×48p (336) — 20 et 30 mm CERCLÉS | 40/55/70mm\nDQ1000-1 transp 500ml — CERCLER toutes les largeurs : 20mm=5/p | 30mm=5/p | 40mm=4/p | 50mm=4/p | 70mm=3/p'},   /* [L532] ancienne note Bouvet → note completee */
-  {o:'⚡ SPÉCIFICITÉ : Mandrins PARFAITS exigés + caisse/carton mixte.\nDQ1006 Bleu 600ml (bob/pile par largeur 14-90mm).\nKX1011-1 noir blanc 500ml (bob/carton par largeur 14-130mm).\nDQ1009 vert 600ml : 19mm=6/p, 2p/carton.',
-   n:'⚡ SPÉCIFICITÉ : Mandrins PARFAITS exigés + caisse/carton mixte. PP = petite palette · GP = grande palette.\nDQ1006 Bleu 600ml — bob/pile : 14mm=8 PP | 19mm=6 PP | 24mm=6 PP | 30mm=7 GP | 36mm=6 GP\nDQ1006 Bleu 600ml — 20 piles de N bobineaux : 40mm=19 GP | 45mm=11 PP | 50mm=15 GP | 65mm=7 PP | 81mm=6 PP | 90mm=6 PP\nKX1011-1 noir blanc 500ml — bob/carton : 14mm=16 | 19mm=11 | 24mm=9 | 30mm=7 | 36mm=6 | 40mm=5 | 45mm=4 | 50mm=4 | 65mm=3 | 81mm=2 | 90mm=2 | 100mm=2 | 110mm=2 | 130mm=1\nDQ1009 vert 600ml : 19mm=6/p, 2p/carton.'},   /* [L532] ancienne note Cougnaud (renvoi a la fiche papier) → note chiffree */
-  {o:'⚡ SPÉCIFICITÉ : Papier vert + gamme 100/250/500ml + cerclage sans seuil rappelé (à confirmer).\nPapier vert entre les bobines.\nArticles : KX1045 noir blanc 100/250/500ml.\n⚠ Cerclage : pas de seuil standard rappelé — à confirmer si ≤39mm s\'applique.\nBob/pile : 20mm=11 | 30mm=7 | 40mm=6 | 50mm=4 | 60mm=4 | 70mm=3 | 80mm=2 | 100mm=2',
-   n:'⚡ SPÉCIFICITÉ : Papier vert entre les bobines.\nCerclage : automatique (film KX, toutes largeurs).\nArticles : KX1045 noir blanc 100/250/500ml.\nBob/pile : 20mm=11 | 30mm=7 | 40mm=6 | 50mm=4 | 60mm=4 | 70mm=3 | 80mm=2 | 100mm=2'},
-  {o:'⚡ SPÉCIFICITÉ : Papier vert + 100ml seul + cerclage standard ≤39mm.\nPapier vert entre les bobines.\nArticle : KX1045 noir blanc 100ml.',
-   n:'⚡ SPÉCIFICITÉ : Papier vert entre les bobines · cerclage standard ≤39mm.\nArticle : KX1045 noir blanc 100ml (100ml seul).'}
-];
+var _OLD_NOTES=[];   /* [L537] table de migration des anciennes notes d emballage : Firestore config/refs (oldNotes) */
 /* [L534 · contre-lecture] la commande VEKA EN COURS gardait l ANCIEN texte la ou la migration ne passait pas : ligne emballage de la tablette (_l510PkgLine), reprise de brouillon / de fiche (restoreFicheState), notes des clients B/C/D (plan papier, PDF, 2 ecrans). null / undefined rendus TELS QUELS : le comportement des champs restaures ne change pas. Sur le PAPIER : seule une note B/C/D enregistree avec un ANCIEN texte de regle change (elle sort corrigee, comme celle du client A depuis L297). Non traites, volontairement : l export CSV (archive : le texte tel qu enregistre) et le plan du reste (migre au chargement et a l impression). */
 function _l534Mig(t){ return (t==null||typeof _migrateOldNotes!=='function')?t:_migrateOldNotes(t); }
 function _migrateOldNotes(t){
@@ -15174,7 +14855,7 @@ function canViewStock(){ return currentRole==='admin' || currentRole==='pilotage
 // location) sont rattachés à STEP International par défaut (rétro-compatibilité).
 const STOCK_LOCS=[
   {key:'step',lbl:'STEP International',desc:'matière dispo à couper',col:'#60a5fa'},
-  {key:'bk',  lbl:'Bischof + Klein',  desc:'matière fournisseur (commandée / en attente)',col:'#a78bfa'},
+  {key:'bk',  get lbl(){ return _l537Supplier('bk'); },  desc:'matière fournisseur (commandée / en attente)',col:'#a78bfa'},
   {key:'prod',lbl:'En production',    desc:'matière affectée aux commandes en cours',col:'#f59e0b'}
 ];
 function stockMvtLocKey(m){ return (m&&(m.location==='bk'||m.location==='prod'))?m.location:'step'; }
@@ -15422,7 +15103,7 @@ function stockViewHTML(){
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
         ${tile('STEP International',tStep,'#60a5fa','')}
-        ${tile('Bischof + Klein',tBk,'#a78bfa','en attente')}
+        ${tile(_l537Supplier('bk'),tBk,'#a78bfa','en attente')}
         ${tile('En production',tProd,'#f59e0b','affecté')}
         ${tile('Total disponible (STEP + prod)',dispo,'#4ade80','')}
       </div>
@@ -15835,7 +15516,7 @@ function bkAnalyseImport(){
     // Article matière mère auto-créé s'il n'existe pas (sinon le solde n'apparaîtrait pas dans les tableaux).
     if(!artSeen.has(ref)&&!stockArticlesCache.some(a=>a.ref===ref)){
       artSeen.add(ref);
-      arts.push({ ref, largeur:mm, longueur:ml, surfaceUnit:su, fournisseur:'Bischof + Klein',
+      arts.push({ ref, largeur:mm, longueur:ml, surfaceUnit:su, fournisseur:_l537Supplier('bk'),
         delaiSem:18, seuilM2:0, qtyMiniM2:0, prixM2:0, deleted:false, createdAt:isoNow(), createdBy:op });
     }
     // [L84] 3 ÉTATS chez le fournisseur : « N weeks » = EN STOCK B+K depuis N semaines (date
@@ -19220,10 +18901,10 @@ function renderClients(){
         +'<button class="btn btn-sm" onclick="_l488AddRow()" title="Ajouter une autre référence pour ce client">➕ Une autre référence</button>'
         +'<button class="btn btn-blue" style="min-height:40px" onclick="_l487Valider(this)">✔ Enregistrer pour tous les postes</button>'
       +'</div>'
-      +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+refsAll.length+' référence(s) distincte(s) · source : '+(_l486Loaded?'partagé (Firestore)':'version embarquée dans l’app')+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+refsAll.length+' référence(s) distincte(s) · source : '+(_l486Loaded?'partagé (Firestore)':'cache local (pas encore synchronisé)')+'</div>'
     +'</div>'
     +rows
-    +'<div style="font-size:11.5px;color:var(--muted);padding:0 4px">Les règles d’emballage (palette, cerclage, spécificités) se modifient encore dans le code — dis-moi si tu veux les éditer ici aussi.</div>'
+    +'<div style="font-size:11.5px;color:var(--muted);padding:0 4px">Les règles d’emballage (palette, cerclage, spécificités) se modifient dans la base partagée (console Firestore, document config/clients) — dis-moi si tu veux les éditer ici.</div>'
   +'</div>';
   _l488Seq=0; _l488AddRow();   /* une ligne de reference prete a remplir */
 }
@@ -26412,6 +26093,7 @@ function toggleChangements(){
   const nowHidden=z.classList.toggle('hidden');
   if(!nowHidden&&typeof refreshOp2BobineList==='function'){ try{ refreshOp2BobineList(); }catch(e){} }
 }
+try{ var _l537r=JSON.parse(localStorage.getItem('step_refs_v1')||'null'); if(_l537r) _l537ApplyRefs(_l537r,'cache local'); }catch(_){ }   /* [L537] referentiel complementaire : dernier etat connu, toutes les variables sont declarees ici */
 (function init(){
   try{ initTheme(); }catch(e){}   // [L155] thème clair/sombre appliqué dès le boot (écran de login inclus)
   initClientDropdown();
