@@ -72,6 +72,13 @@ const SETUP = {
   const evalJs = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.result.exceptionDetails) return { error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }; return r.result.result?.value; };
   // attendre que l'app soit initialisée
   for (let i = 0; i < 40; i++) { const ok = await evalJs(`typeof applyRole==='function' && typeof recalcPlan==='function' && !!document.getElementById('planClient')`); if (ok === true) break; await sleep(250); }
+  // [L536 · outillage] ORDRE auth -> setup. Le SDK Firebase resout son etat initial (persistance, reseau) APRES le chargement
+  // de la page ; quand cette resolution arrive apres SETUP, la branche « user==null » de onAuthStateChanged (index.html :
+  // loginOverlay.classList.remove('hidden')) REAFFICHE la connexion par-dessus la scene deja posee -> capture de la page de
+  // connexion, « ECRAN ATTENDU NON AFFICHE » (2 batteries de suite le 24/09 sous VPN lent ; deja vu le 15/09). On attend donc
+  // que l app ait traite son etat d auth initial AVANT de poser la session simulee (15 s max ; sans Firebase, on continue).
+  await evalJs(`(function(){ try{ if(window.firebase&&firebase.auth){ firebase.auth().onAuthStateChanged(function(){ window.__authSettled=true; }); } else { window.__authSettled='no-firebase'; } }catch(e){ window.__authSettled='err:'+e; } })()`);
+  for (let i = 0; i < 60; i++) { const st = await evalJs(`window.__authSettled`); if (st) { if (st !== true) console.error('auth non observable (' + st + ') : setup pose sans attendre'); break; } await sleep(250); }
   if (scene !== 'common' && !Object.prototype.hasOwnProperty.call(SETUP, scene)) { console.error('❌ smoke ' + scene + ' : scene inconnue (SETUP) — une faute de frappe photographiait la scene par defaut en silence'); process.exit(1); }   // [L506]
   const setupErr = await evalJs(`(function(){ try { ${SETUP.common} ${SETUP[scene] || ''} return null; } catch(e){ return String(e && e.stack || e); } })()`);
   if (setupErr) console.error('SETUP ERROR:', setupErr);
