@@ -2,7 +2,7 @@
 // 1. _l519ChgEtat (pure) : la pastille « 🔧 CHANGEMENT EN COURS » s eteint L519_CHG_OFF_MS apres « ✓ Valide »
 //    (coche + non valide = allumee ; validee depuis < delai = allumee ; validee depuis >= delai = eteinte ; non cochee = eteinte).
 // 2. _l519PreselIni : les initiales du compte connecte ne sont PRE-COCHEES que pour un compte OPERATEUR — un compte
-//    admin/pilotage sur une tablette partagee laisse l operateur toucher SES initiales (enquete Taieb : fiches FEBA signees ER).
+//    admin/pilotage sur une tablette partagee laisse l operateur toucher SES initiales (enquete du 15/09 : fiches FEBA signees ER).
 const fs=require('fs');
 const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
 function fnOf(n){const re=new RegExp('^[ \\t]*(?:async\\s+)?function\\s+'+n+'\\s*\\(','m');const m=src.match(re);if(!m)throw new Error('introuvable '+n);let i=m.index+m[0].length-m[0].trimStart().length;let k=src.indexOf('{',i);let d=0;for(let j=k;j<src.length;j++){const c=src[j];if(c==='{')d++;else if(c==='}'){d--;if(d===0)return src.slice(i,j+1);}}throw new Error('accolades '+n);}

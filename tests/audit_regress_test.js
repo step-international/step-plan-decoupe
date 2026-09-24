@@ -1787,7 +1787,7 @@ has(/plus de rejeu : le flux synchrone du ✂ suit chronoRunning/,'L413→L422 :
 
 console.log('── L414 : retouches Esteban 25/08 (6 demandes) ──');
 has(/bouton « \+ Ligne manuelle » retire/,'L414 : bouton ligne manuelle retire (barre + tiroir, addFicheLine conservee)');
-has(/Marouane → Mathieu \(uid, ini et historique INTACTS\)/,'L414 : Marouane renomme Mathieu (affichage seul)');
+has(/\[L414 · demande Esteban\] affichage modifie \(uid, ini et historique INTACTS\)/,'L414 : affichage modifie (uid, ini et historique intacts) — [L536] le fichier public ne dit plus ni quoi ni qui');
 has(/const _shareHiddenUids/,'L414 : Esteban et Christian retires de la liste de partage (comptes intacts)');
 has(/Qté en trop<\/label>/,'L414 : puce « Qte en trop » (bobineaux coupes en plus) de retour');
 has(/quantite EN TROP -> ✂ CHUTES auto, SAUF si un Déchet/,'L414→L419 : Qte en trop -> CHUTES auto (le Dechet pose gagne)');
@@ -2277,7 +2277,7 @@ has(/const chg=\(typeof _l519ChgPill==='function'\)\?_l519ChgPill\(\):/,'L519 : 
 has(/const on=\(typeof _l519ChgPill==='function'\)\?_l519ChgPill\(\):_l79ChgActive\(\);/,'L519 : le bouton 🔧 Changements suit la meme regle');
 has(/try\{ _l519ChgDone\(kind\); \}catch\(e\)\{\}/,'L519 : ✓ Valide horodate et programme l extinction');
 has(/try\{ _l519ChgRefresh\(\); \}catch\(e\)\{\}   \/\* \[L519\] un refus/,'L519 : un refus de pose (lame jetee, inconnue, autre machine) rallume la pastille tout de suite (finally)');
-has(/^function _l519PreselIni\(\)\{ try\{ return \(typeof currentRole!=='undefined'\)&&currentRole==='operateur'; \}/m,'L519 : initiales pre-cochees pour un compte OPERATEUR seulement (enquete Taieb : fiches FEBA signees ER)');
+has(/^function _l519PreselIni\(\)\{ try\{ return \(typeof currentRole!=='undefined'\)&&currentRole==='operateur'; \}/m,'L519 : initiales pre-cochees pour un compte OPERATEUR seulement (enquete du 15/09 : fiches FEBA signees ER)');
 has(/if\(currentUser&&currentUser\.ini&&_l519PreselIni\(\)\)\{\n    const h=document\.getElementById\('fInitiales'\);if\(h\)h\.value=currentUser\.ini;/,'L519 : applyRole — pre-selection gardee par le role');
 has(/if\(currentUser&&currentUser\.ini&&_l519PreselIni\(\)\)\{\n    document\.getElementById\('fInitiales'\)\.value=currentUser\.ini;/,'L519 : reset de fiche — pre-selection gardee par le role (admin/pilotage tombent dans le else = initiales videes)');
 has(/try\{ _l435ChgTouch\(id==='fLameChg'\?'lame':\(id==='fMachChg'\?'mach':'op2'\)\); \}catch\(e\)\{\}/,'L519 : (de)cocher une case de changement = retouche (chg-ok + horodatage purges) — passe adverse : re-cochee, la pastille restait eteinte');
@@ -2596,5 +2596,16 @@ console.log('── L535 : audit adverse du 23/09 sur le diff du 22/09 (L533 + L
 has(/\{o:'⚡ SPÉCIFICITÉ : NE PAS filmer \+ réhausses \+ gerbage par réf\. \+ télescopage ≤10mm \+ pile&face\./,'L535 : JUMEAU du L534 — la note VEKA d AVANT le L292 (30/07/2026) porte le MEME ratio faux « (KX1075/1006-1) … 40mm=4 » ; sans cette cle, tout plan / toute fiche VEKA plus ancien ressortait avec la consigne fausse sur la tablette, le papier et le PDF');
 has(/\{o:'⚠ Alterner bobines pile & face\. Réhausses obligatoires\. NE PAS filmer les palettes\./,'L535 : JUMEAU du L534 — meme chose pour la note VEKA d origine (01/06/2026, « Bob/pile cerclee (KX) … 40mm=4 »)');
 has(/#ficheMain #fichePkgMore\.l533-on\{display:inline-block;align-self:flex-start\}/,'L535 : cible tactile du bouton « Voir la suite » ramenee au texte (MESURE navigateur : 974 px de bande cliquable pleine largeur avant, 238 px apres) — inline-block est blockifie par le flex column de #ficheMain');
+
+// ── [L536 · audit « que voit un inconnu ? » 24/09/2026, question de Celine] index.html est PUBLIC (GitHub Pages) :
+// plus aucun export fournisseur (prix d achat !) ni commentaire nominatif sur un salarie dans le fichier servi ──
+absent(/const BK_XLS_20260526\s*=/,'L536 : export Excel du 26/05 retire du fichier public');
+absent(/const BK_CSV_20260701\s*=/,'L536 : liste du 01/07 retiree du fichier public');
+absent(/^41\d{6},[^\n]*,"\d{1,4},\d{2}",/m,'L536 : aucune ligne « article,…,"prix,xx", » au format B+K ne subsiste');
+absent(/function bkFillSample\(|function bkRemplacerParXls\(/,'L536 : les deux raccourcis d import dates sont retires (ils rechargeaient les exports reels)');
+has(/placeholder="matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage,calloff_m2,pal,delnote,deldate/,'L536 : le format est montre en exemple gris, sans donnee');
+absent(new RegExp(['VGFpZWI=','TWFyb3VhbmU=','Y2hleiBKb3JkYW4='].map(function(b){ return Buffer.from(b,'base64').toString('utf8'); }).join('|')),'L536 : plus de commentaire nominatif sur un salarie (les prenoms controles sont encodes : ce fichier est public aussi)');
+has(/« pourquoi je ne vois pas le temps d un operateur \? »/,'L536 : le commentaire L519 reste, anonymise');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
