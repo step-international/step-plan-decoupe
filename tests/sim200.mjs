@@ -31,7 +31,7 @@ const PAGE_SETUP = `
   window.addEventListener('unhandledrejection',e=>{ try{ __errs.push('unhandled: '+String(e.reason&&e.reason.message||e.reason).slice(0,200)); }catch(_){} });
   (function(){ const o=window._domGuardWarn; if(typeof o==='function'&&!o.__sim){ const w=function(k,m){ try{ __guards.push(k+': '+String(m).slice(0,120)); }catch(_){} return o.apply(this,arguments); }; w.__sim=true; window._domGuardWarn=w; } })();
   window.confirm=function(){ return true; }; window.alert=function(){}; window.prompt=function(){ return null; };
-  currentRole='operateur'; currentUser={role:'operateur',ini:'TB',nom:'Taïeb'}; applyRole(); startTraining();
+  currentRole='operateur'; currentUser={role:'operateur',ini:'OP',nom:'Opérateur test'}; applyRole(); startTraining();
   const st=document.createElement('style'); st.textContent='*{animation:none!important;transition:none!important}'; document.head.appendChild(st);
   window.__rng=(function(seed){ let s=seed>>>0; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; })(${SEED});
 `;
@@ -143,6 +143,12 @@ const PAGE_ONE = `(async function(k){
   await S('Page.navigate', { url: URL_ }); await sleep(2500);
   const evalJs = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true, timeout: 120000 }); if (r.result.exceptionDetails) return { error: r.result.exceptionDetails.text + ' ' + (r.result.exceptionDetails.exception?.description || '') }; return r.result.result?.value; };
   for (let i = 0; i < 40; i++) { const ok = await evalJs(`typeof applyRole==='function' && typeof recalcPlan==='function' && !!document.getElementById('planClient')`); if (ok === true) break; await sleep(250); }
+  /* [L540 · outillage, meme correctif que shot.mjs du 15/09] Firebase resout son etat d auth initial de facon ASYNCHRONE apres le chargement ;
+     quand cette resolution arrive APRES le setup, la branche « user==null » de onAuthStateChanged (index.html) remet currentRole/currentUser
+     a null et VIDE les initiales : toutes les validations de preparation echouent ensuite (8/8 refus « Valide la PREPARATION » sous VPN lent,
+     batterie du 26/09). On attend donc que l app ait traite son etat d auth initial AVANT de poser la session simulee (15 s max ; sans Firebase, on continue). */
+  await evalJs(`(function(){ try{ if(window.firebase&&firebase.auth){ firebase.auth().onAuthStateChanged(function(){ window.__authSettled=true; }); } else { window.__authSettled='no-firebase'; } }catch(e){ window.__authSettled='err:'+e; } })()`);
+  for (let i = 0; i < 60; i++) { const s = await evalJs(`window.__authSettled||false`); if (s) { console.log('auth initiale:', s === true ? 'traitee' : s); break; } await sleep(250); if (i === 59) console.log('auth initiale: NON traitee apres 15 s (on continue)'); }
   const se = await evalJs(`(function(){ try{ ${PAGE_SETUP} return 'ok'; }catch(e){ return 'SETUP ERR '+e; } })()`); console.log('setup:', se);
   const reports = []; const t0 = Date.now();
   for (let k = 1; k <= N; k++) {

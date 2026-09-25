@@ -30,9 +30,11 @@ ok(/try\{ _l486StopClients\(\); \}catch\(_\)\{ \}   try\{ _l537StopRefs\(\); \}c
 console.log('── 3. _l537ApplyRefs : ce qu elle applique, ce qu elle refuse ──');
 global.LEGRAND_PKG={}; global.REPORT_RECIPIENTS=[]; global._OLD_NOTES=[]; global._L537_REFS={suppliers:null}; global._l537Loaded=false; global.console=console;
 global._l486Valid=eval('('+fnOf('_l486Valid')+')');
+global._l540Order=eval('('+fnOf('_l540Order')+')');   /* [L540] ordre stable des profils */
 const APPLY=eval('('+fnOf('_l537ApplyRefs')+')'); const SUP=eval('('+fnOf('_l537Supplier')+')');
 ok(SUP('bk')==='Fournisseur','avant chargement : libelle neutre « Fournisseur » (jamais le nom, jamais undefined)');
-ok(APPLY(FIX.refs,'test')===4&&Object.keys(LEGRAND_PKG).length===2&&REPORT_RECIPIENTS.length===1&&_OLD_NOTES.length===1&&SUP('bk')==='Fournisseur test','document complet → 4 champs appliques (table Legrand, destinataires, anciennes notes, fournisseurs)');
+global.USER_PROFILES={};
+ok(APPLY(FIX.refs,'test')===5&&Object.keys(LEGRAND_PKG).length===2&&REPORT_RECIPIENTS.length===1&&_OLD_NOTES.length===1&&SUP('bk')==='Fournisseur test','document complet → 5 champs appliques (table Legrand, destinataires, anciennes notes, fournisseurs, profils [L540])');
 ok(APPLY({legrandPkg:[],suppliers:'x',reportTo:[],oldNotes:'non'},'test')===0&&Object.keys(LEGRAND_PKG).length===2&&REPORT_RECIPIENTS.length===1,'document malforme → rien n est ecrase (tableau au lieu d objet, liste vide, chaine)');
 ok(APPLY(null,'test')===0&&APPLY(undefined,'test')===0,'document absent → 0, jamais d exception');
 ok(REPORT_RECIPIENTS!==FIX.refs.reportTo&&_OLD_NOTES!==FIX.refs.oldNotes,'copies defensives (slice) : le cache ou le doc ne partagent pas leurs tableaux avec l app');

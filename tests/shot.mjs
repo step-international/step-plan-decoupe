@@ -25,7 +25,7 @@ async function waitPort() { for (let i = 0; i < 300; i++) { try { const r = awai
 // ---- scènes : setup JS exécuté dans la page (session simulée + mode entraînement = zéro écriture) ----
 const SETUP = {
   common: `
-    window.confirm=function(){ return true; }; window.alert=function(){}; currentRole='operateur'; currentUser={role:'operateur',ini:'TB',nom:'Taïeb'}; applyRole();
+    window.confirm=function(){ return true; }; window.alert=function(){}; currentRole='operateur'; currentUser={role:'operateur',ini:'OP',nom:'Opérateur test'}; applyRole();
     try{ document.getElementById('bootOverlay')?.remove(); }catch(e){}   /* [L506 · verification adverse] le voile « Mise a jour des donnees » (8 s sans Firestore) couvrait TOUTES les captures : aucune smoke n a jamais photographie un ecran */
     startTraining();
     (function(){ const st=document.createElement('style'); st.id='__auditNoHatch'; st.textContent='body.training::before,body.training::after{display:none!important} #trainingBanner{display:none!important} .toast,#globalToast{display:none!important} body.training #sendPlanWrap{bottom:0!important} body.training #actionBar{bottom:0!important}'; document.head.appendChild(st); })();
@@ -42,7 +42,7 @@ const SETUP = {
   'fiche-start': `document.querySelectorAll('#refBlocks .ref-block .rb-op-validate').forEach(b=>{ try{ b.click(); }catch(e){} }); showPage(1); __set('fNumLame','L-12'); chronoStart(); window.scrollTo(0,0);`,   // [L507] la PREPARATION de la ref doit etre validee (verrou L420, comme dans sim200) sinon chronoStart refuse en silence
   'fiche-cut': `document.querySelectorAll('#refBlocks .ref-block .rb-op-validate').forEach(b=>{ try{ b.click(); }catch(e){} }); showPage(1); __set('fNumLame','L-12'); chronoStart(); (function(){ const l=ficheLines[0]; const b=document.getElementById('coupeeBtn_'+l.id); b&&b.click(); })(); window.scrollTo(0,0);`,   // [L507 · verification adverse] meme prealable que fiche-start (verrou L420)
   donnees: `stopTraining(); showPage(2); window.scrollTo(0,0);`,
-  analyse: `currentRole='admin'; currentUser={role:'admin',ini:'ER',nom:'Esteban'}; applyRole(); try{ document.getElementById('bootOverlay')?.remove(); }catch(e){} stopTraining(); showPage(2); switchTab('analyse'); window.scrollTo(0,0);`,   // [L506] role admin : pour un operateur switchTab('analyse') rebascule sur « saves » sans erreur (la smoke aurait photographie un autre ecran)   // [L506 · verification adverse] la scene n existait pas : la smoke « analyse » photographiait l ecran Donnees
+  analyse: `currentRole='admin'; currentUser={role:'admin',ini:'AT',nom:'Admin test'}; applyRole(); try{ document.getElementById('bootOverlay')?.remove(); }catch(e){} stopTraining(); showPage(2); switchTab('analyse'); window.scrollTo(0,0);`,   // [L506] role admin : pour un operateur switchTab('analyse') rebascule sur « saves » sans erreur (la smoke aurait photographie un autre ecran)   // [L506 · verification adverse] la scene n existait pas : la smoke « analyse » photographiait l ecran Donnees
   // [L352] en-tête DÉPLIÉE (tap sur les pastilles) — mono-réf
   'fiche-open': `showPage(1); __set('fNumLame','L-12'); toggleFicheHead(true); window.scrollTo(0,0);`,
   // [L352] MULTI-RÉF (2 références EPCO) — bloc « valider la bobine mère » de la réf 1 visible

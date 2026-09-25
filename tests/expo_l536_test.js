@@ -29,10 +29,10 @@ ok(!rx(_d('QmlzY2hvZiArIEtsZWlu')).test(src),'[L537] le nom du fournisseur n est
 
 console.log('── 3. plus aucun commentaire nominatif sur un salarie ──');
 ok(!rx(P1).test(src),'prenom 1 (forme sans accent, celle des commentaires) : absent');
-ok((src.match(rx(P1T,'g'))||[]).length===1&&rx("ini:'TB', nom:'"+P1T+"'").test(src),'prenom 1 (forme accentuee) n apparait plus QUE dans la table des utilisateurs (affichage, fonctionnel)');
+ok(!rx(P1T).test(src),'[L540] prenom 1 (forme accentuee) : absent du fichier (la table des utilisateurs vit dans config/refs)');
 ok(/\[L519 · enquete Esteban 15\/09\/2026 « pourquoi je ne vois pas le temps d un operateur \? »\]/.test(src),'le commentaire L519 est conserve, anonymise (l enquete reste documentee)');
 ok(!rx(P3).test(src),'« chez <prenom 2> » (reproduction d un bug L490) : anonymise');
-ok((src.match(new RegExp('\\b'+P3b+'\\b','g'))||[]).length===(src.match(new RegExp("nom:'"+P3b+"'|Gauss-"+P3b,'g'))||[]).length,'prenom 2 n apparait plus que dans la table des utilisateurs et dans le nom d un algorithme');
+ok((src.match(new RegExp('\\b'+P3b+'\\b','g'))||[]).length===(src.match(new RegExp('Gauss-'+P3b,'g'))||[]).length,'[L540] prenom 2 n apparait plus que dans le nom d un algorithme (Gauss-…)');
 ok(!rx(P2).test(src),'l ancien prenom d usage d un salarie (L414) n est plus dans le fichier public');
 ok(/\[L414 · demande Esteban\] affichage modifie \(uid, ini et historique INTACTS\)/.test(src),'le marqueur L414 est conserve, sans le prenom ni la nature du changement');
 ok(/Débloque les commandes du type « bobine mère changée en cours de découpe »/.test(src),'commentaire de applyFichePlanChange : le prenom remplace par la description du cas');

@@ -3284,14 +3284,7 @@ html.theme-light .fp-num small{color:#8a8a84}
 //         'operateur' (TB, JF, MT) = pas de suppression définitive (archive uniquement)
 // NB (SEC) : aucun e-mail stocké ici — les rôles sont mappés par UID, l'identité d'audit
 // utilise nom/ini. Ne PAS réintroduire d'adresses e-mail (fichier publié sur GitHub Pages → PII/RGPD + liste phishing).
-const USER_PROFILES={
-  'ydobUI1wpNesqnlmNFroyoQLGHm1': {role:'admin',     ini:'ER', nom:'Esté'},
-  'GBGiA5k1hFZgwhHOg1y03wBr7M33': {role:'admin',     ini:'CH', nom:'Christian'},
-  '4vlmpeBW9pUFQP59eCkU51bdVZs2': {role:'pilotage',  ini:'DC', nom:'Dominique'},
-  'smiBhboxTZZKpmJWiRapTxs1P323': {role:'operateur', ini:'JF', nom:'Jordan'},
-  'qlVoly7PsyMndWMnimTY9mKUu532': {role:'operateur', ini:'TB', nom:'Taïeb'},
-  'z1e9TGOTUDZ9KYtGl12i6HnISrv2': {role:'operateur', ini:'MR', nom:'Mathieu'}   // [L404] MT → MR · [L414 · demande Esteban] affichage modifie (uid, ini et historique INTACTS)
-};
+var USER_PROFILES={};   /* [L540 · 25/09/2026] les 6 profils (uid -> role / initiales / prenom d affichage) vivent dans Firestore config/refs (profiles) : cache local step_refs_v1 relu avant init(), abonnement apres connexion, lecture unique bornee au premier demarrage sans cache (onAuthStateChanged). Le SERVEUR reste l autorite (listes d uid dans firestore.rules) : ce tableau ne sert qu a l affichage et a la pre-selection. [L414 · demande Esteban] affichage modifie (uid, ini et historique INTACTS). */
 // [L152 · demande Esteban] comptes MACHINE partagés (créés par Esteban dans Firebase Auth) : reconnus par le
 // LOCAL-PART de l'email (feba@ / maveg@ / cevenini@) — AUCUNE adresse complète stockée (règle anti-PII/phishing
 // ci-dessus respectée ; seuls les comptes créés dans Firebase Auth du projet peuvent se connecter). Mêmes accès
@@ -3368,7 +3361,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.25-L539';
+const APP_VERSION='2026.09.26-L540';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4295,6 +4288,7 @@ async function doLogin(){
     err.style.color='var(--muted)';
     err.textContent='Connexion en cours...';
     await firebase.auth().signInWithEmailAndPassword(email, password);   // [L86 · simpl.4] retour jamais lu (hydratation via onAuthStateChanged)
+    try{ if(!currentRole&&typeof _l540RetryOn==='function') _l540RetryOn(); }catch(_){}   /* [L540 · passe adverse] meme compte retape pendant une session conservee (profil non charge) : Firebase ne rappelle pas onAuthStateChanged pour le meme uid → on rejoue la resolution tout de suite (memes gardes que l essai automatique) */
     // L'état sera hydraté par onAuthStateChanged
   }catch(e){
     err.style.color='';   // [L74 · Design Lot C] retour au rouge pour les vraies erreurs
@@ -4502,11 +4496,16 @@ document.addEventListener('keydown',function(e){
   }   // [L97 · relecture #1] hors-ligne : firebase absent tuait TOUT le script (ReferenceError)
   try{ sessionStorage.removeItem('_fbHeal'); }catch(_){}   // firebase OK → réarmer l'auto-guérison pour une future session
   
-  firebase.auth().onAuthStateChanged(async function(user){
+  firebase.auth().onAuthStateChanged(async function _l540OnAuth(user){
     if(user){
       // Utilisateur authentifié
-      const profile=USER_PROFILES[user.uid]||_machineProfileOf(user.email);   // [L152] comptes machine partagés reconnus par email (feba@/maveg@/cevenini@)
+      const _l540G=++_l540Gen;   /* [L540 · passe adverse] generation de l appel : un appel repris apres son attente ne touche a rien si la session a change entre-temps */
+      let profile=USER_PROFILES[user.uid]||_machineProfileOf(user.email);   // [L152] comptes machine partagés reconnus par email (feba@/maveg@/cevenini@)
+      let _l540Read=true;   /* [L540] false = config/refs NON LU (hors ligne, reseau lent, erreur) — ne vaut jamais « uid absent » */
+      if(!profile){ try{ const le=document.getElementById('loginErr'); le.style.color='var(--muted)'; le.textContent='⏳ Chargement du profil…'; }catch(_){ } _l540Read=await _l537FetchRefs(12000).catch(function(){ return false; }); profile=USER_PROFILES[user.uid]||_machineProfileOf(user.email); }   /* [L540] premier demarrage sans cache : les profils sont lus une fois dans config/refs AVANT de conclure « UID non reconnu » (12 s > bascule hors-ligne du SDK Firestore a 10 s : le cache IndexedDB a le temps de repondre) ; l ecran de connexion reste visible pendant la lecture, on dit ce qui se passe */
+      if(_l540G!==_l540Gen) return;   /* [L540 · passe adverse] appel perime : la session a change pendant la lecture (autre compte sur un poste partage, deconnexion) — l appel de la session courante a deja la main */
       if(profile){
+        _l540RetryStop();
         currentRole=profile.role;
         currentUser=Object.assign({}, profile);
         applyRole();
@@ -4538,6 +4537,13 @@ document.addEventListener('keydown',function(e){
            REVEILLER la reprise maintenant que l'operateur est identifie — c'est le moment ou autosaveId()
            devient juste (avant, _uid() vaut 'anon' et l'identifiant du brouillon ne correspond a rien). */
         [0,1200,4000,9000,20000].forEach(function(ms){ setTimeout(function(){ try{ window._l428TryResume(); }catch(e){} },ms); });
+      }else if(!(_l540Read&&Object.keys(USER_PROFILES).length)){
+        /* [L540 · passe adverse] referentiel NON LU (hors ligne, reseau lent, cache sans profils) : la session est CONSERVEE — en L539 les 6 comptes
+           personnels etaient toujours resolus dans le fichier, une deconnexion ici serait une regression (hors ligne, impossible de se reconnecter).
+           Le serveur reste l autorite (firestore.rules) : garder une session non resolue ne donne aucun droit. Nouvel essai au retour du reseau ou dans 15 s. */
+        console.warn('[L540] profils indisponibles ('+_l540Read+') — session conservee, nouvel essai');
+        try{ const le=document.getElementById('loginErr'); le.style.color='var(--muted)'; le.textContent=(_l540Read==='denied')?'⛔ Accès refusé par le serveur (compte non autorisé ou vérification App Check) — préviens l’admin · nouvel essai automatique…':(_l540Read?'⏳ Profils pas encore publiés — nouvel essai automatique…':'📡 Profil non chargé (réseau) — nouvel essai automatique…'); }catch(_){ }
+        _l540RetryArm(user.uid,_l540OnAuth);
       }else{
         // UID non reconnu — déconnecter
         console.warn('UID non reconnu:',user.uid);
@@ -4545,6 +4551,8 @@ document.addEventListener('keydown',function(e){
       }
     }else{
       // Utilisateur déconnecté
+      _l540Gen++;   /* [L540] tout appel encore en attente pour l ancienne session devient perime */
+      try{ _l540RetryStop(); }catch(_){}   /* [L540] plus d essai de resolution du profil apres deconnexion */
       try{ stopAppCheckRefreshLoop(); }catch(_){}   // [L136 · audit CRITIQUE] wrap défensif : un appel qui jette ne doit plus jamais avorter le nettoyage chrono/session en cascade (poste partagé)
       // [L136 · audit CRITIQUE] `stopVersionWatcher()` RETIRÉ : la fonction n'existe plus (watcher supprimé L96) →
       // ReferenceError qui sautait TOUT le nettoyage ci-dessous (chrono ROB-1, Wake Lock, CHRONO_LS_KEY, timers,
@@ -4668,10 +4676,12 @@ function _l537CatalogCheck(){ try{ var n=Object.keys(CLIENT_DATA||{}).filter(fun
    avant init(), toutes les variables etant alors declarees). Lecture : comptes connus (regle config isKnown) ; ecriture : admin. */
 var _L537_REFS={suppliers:null}, _l537Unsub=null, _l537Retries=0, _l537Loaded=false;
 function _l537Supplier(k){ try{ return (_L537_REFS.suppliers&&_L537_REFS.suppliers[k])||'Fournisseur'; }catch(_){ return 'Fournisseur'; } }
+function _l540Bk(){ try{ return (_L537_REFS.suppliers&&_L537_REFS.suppliers.bkShort)||'Fourn.'; }catch(_){ return 'Fourn.'; } }   /* [L540] abreviation du fournisseur (ecran stock), lue dans config/refs */
 function _l537ApplyRefs(d,src){
   var n=0;
   try{ if(_l486Valid(d&&d.legrandPkg)){ LEGRAND_PKG=d.legrandPkg; n++; } }catch(_){ }
   try{ if(_l486Valid(d&&d.suppliers)){ _L537_REFS.suppliers=d.suppliers; n++; } }catch(_){ }
+  try{ if(_l486Valid(d&&d.profiles)){ USER_PROFILES=_l540Order(d.profiles); n++; } }catch(_){ }   /* [L540] profils d affichage, ordre stable */
   try{ if(Array.isArray(d&&d.reportTo)&&d.reportTo.length){ REPORT_RECIPIENTS=d.reportTo.slice(); n++; } }catch(_){ }
   try{ if(Array.isArray(d&&d.oldNotes)&&d.oldNotes.length){ _OLD_NOTES=d.oldNotes.slice(); n++; } }catch(_){ }
   if(n){ _l537Loaded=true;
@@ -4681,8 +4691,19 @@ function _l537ApplyRefs(d,src){
 }
 function _l537FetchRefs(ms){   /* lecture unique bornee (signalement alors que les destinataires ne sont pas connus) */
   return new Promise(function(res){ var done=false; var t=setTimeout(function(){ if(!done){ done=true; res(false); } },ms||4000);
-    try{ if(!db) throw new Error('db'); db.collection('config').doc('refs').get().then(function(doc){ if(doc.exists&&doc.data()&&_l537ApplyRefs(doc.data(),'lecture unique')){ try{ localStorage.setItem('step_refs_v1',JSON.stringify(doc.data())); }catch(_){ } } if(!done){ done=true; clearTimeout(t); res(true); } }).catch(function(){ if(!done){ done=true; clearTimeout(t); res(false); } }); }
+    try{ if(!db) throw new Error('db'); db.collection('config').doc('refs').get().then(function(doc){ if(doc.exists&&doc.data()&&_l537ApplyRefs(doc.data(),'lecture unique')){ try{ localStorage.setItem('step_refs_v1',JSON.stringify(doc.data())); }catch(_){ } } if(!done){ done=true; clearTimeout(t); res(!(doc.metadata&&doc.metadata.fromCache)); } })   /* [L540] servi par le cache IndexedDB (SDK passe hors ligne) = profils appliques mais PAS un verdict serveur : jamais de deconnexion sur une copie ancienne */.catch(function(e){ if(!done){ done=true; clearTimeout(t); res((e&&e.code==='permission-denied')?'denied':false); } }); }   /* [L540] refus serveur (regles / App Check) distingue de « non lu » ; l autre appelant (_reportWrite) ignore la valeur */
     catch(_){ if(!done){ done=true; clearTimeout(t); res(false); } } });
+}
+var _l540RetryT=null, _l540RetryOn=null, _l540Gen=0;
+function _l540RetryStop(){ try{ if(_l540RetryT){ clearTimeout(_l540RetryT); _l540RetryT=null; } if(_l540RetryOn){ window.removeEventListener('online',_l540RetryOn); _l540RetryOn=null; } }catch(_){ } }
+function _l540RetryArm(uid,fn){   /* [L540] profil non resolu faute de referentiel : rejouer la resolution (fn = rappel d authentification) au retour du reseau ou dans 15 s, UNE fois, seulement si la meme session est toujours la et n a pas ete resolue entre-temps */
+  _l540RetryStop();
+  var go=function(){ _l540RetryStop(); try{ var u=firebase.auth().currentUser; if(u&&u.uid===uid&&!currentRole){ var r=fn(u); if(r&&r.catch) r.catch(function(e){ try{ console.warn('[L540] nouvel essai:',e); }catch(_){ } }); } }catch(_){ } };
+  _l540RetryOn=go; try{ window.addEventListener('online',go); }catch(_){ }
+  _l540RetryT=setTimeout(go,15000);
+}
+function _l540Order(p){   /* [L540 · passe adverse] Firestore renvoie les cles d une map TRIEES : ordre d affichage rendu stable (champ ordre, puis initiales) — identique a l ancienne table */
+  try{ return Object.keys(p).filter(function(k){ var v=p[k]; return !!v&&typeof v==='object'&&!Array.isArray(v); }).sort(function(a,b){ var A=p[a]||{},B=p[b]||{}; return ((Number(A.ordre)||99)-(Number(B.ordre)||99))||String(A.ini||'').localeCompare(String(B.ini||'')); }).reduce(function(o,k){ o[k]=p[k]; return o; },{}); }catch(_){ return p; }
 }
 function _l537LoadRefs(){
   try{ if(!db||_l537Unsub) return;
@@ -15018,7 +15039,7 @@ function stockArticleCardHTML(a,soldePre,usablePre){
           ${a.fournisseur?`<span>Fournisseur</span><span style="color:var(--text)">${esc(a.fournisseur)}</span>`:''}
           ${a.delaiSem?`<span>Délai appro.</span><span style="color:var(--text)"><b style="color:var(--orange)">${a.delaiSem} sem.</b></span>`:''}
           ${a.seuilM2?`<span>Seuil mini</span><span style="color:var(--text)">${Number(a.seuilM2).toLocaleString('fr-FR')} m² <span style="color:var(--muted)">(sur stock utilisable)</span></span>`:''}
-          ${bkPend>0.5?`<span>Dont B+K en attente</span><span style="color:var(--orange)">${Math.round(bkPend).toLocaleString('fr-FR')} m² <span style="color:var(--muted)">(commandé, non reçu — hors seuil)</span></span>`:''}
+          ${bkPend>0.5?`<span>Dont ${_l540Bk()} en attente</span><span style="color:var(--orange)">${Math.round(bkPend).toLocaleString('fr-FR')} m² <span style="color:var(--muted)">(commandé, non reçu — hors seuil)</span></span>`:''}
           ${a.prixM2?`<span>Prix d'achat</span><span style="color:var(--text)">${Number(a.prixM2).toLocaleString('fr-FR')} €/m²</span>`:''}
         </div>
       </div>
@@ -15075,7 +15096,7 @@ function stockViewHTML(){
   const mvts=stockMouvementsCache.slice().filter(m=>!_sf||nrm(m.ref).includes(_sf)).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,40);   // [L94] filtre par référence
   const typeColor={entree:'#4ade80',sortie:'#f87171',correction:'#999'};
   const typeLabel={entree:'Entrée',sortie:'Sortie',correction:'Correction'};
-  const locLabel={step:'STEP',bk:'B+K',prod:'Prod'};
+  const locLabel={step:'STEP',bk:_l540Bk(),prod:'Prod'};
   const log=mvts.map(m=>{
     const annule=!!m.corrigePar, estCorr=!!m.corrige;
     const act=(annule||estCorr)?'':`<button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="annulStockMouvement('${m.id}')" aria-label="Annuler ce mouvement" title="Annuler ce mouvement (contre-écriture tracée)">↺</button>`;
@@ -15144,7 +15165,7 @@ function stockViewHTML(){
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <div class="section-title" style="margin-bottom:0">📥 Import fournisseur (Excel / CSV)</div>
       </div><details ${stockSecOpen.imp?'open':''} ontoggle="stockSecOpen.imp=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Colle la liste des commandes ouvertes B+K. Chaque ligne crée une <b>entrée B+K</b> datée de sa semaine « On stock » (KW → date réelle) ; les lignes avec BL créent en plus la <b>réception</b> (sortie B+K → entrée STEP). Réimporter la même liste ne crée aucun doublon.</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Colle la liste des commandes ouvertes ${_l540Bk()}. Chaque ligne crée une <b>entrée ${_l540Bk()}</b> datée de sa semaine « On stock » (KW → date réelle) ; les lignes avec BL créent en plus la <b>réception</b> (sortie ${_l540Bk()} → entrée STEP). Réimporter la même liste ne crée aucun doublon.</div>
       <textarea id="bkImportText" rows="5" style="width:100%;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:12px;padding:8px" placeholder="matno,typ,mm,ml,ar,batch,qty_m2,price,req,onstock,storage,calloff_m2,pal,delnote,deldate — collage direct depuis Excel accepté (en-tête facultatif)"></textarea>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-blue" onclick="bkAnalyseImport()">🔎 Analyser</button>
@@ -15182,7 +15203,7 @@ function stockViewHTML(){
         <div class="section-title" style="margin-bottom:0">🔮 Prévision d'approvisionnement</div>
         <label class="u-meta">Horizon&nbsp;<input id="stockHorizonSem" type="number" min="1" value="18" oninput="stockForecastRenderDebounced()" style="width:64px;padding:5px 7px;border-radius:7px;border:1px solid var(--border2);background:var(--card);color:var(--text)"> sem.</label>
       </div><details ${stockSecOpen.prev?'open':''} ontoggle="stockSecOpen.prev=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);margin:2px 0 8px;user-select:none">▾ afficher / replier</summary>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Stock = disponible (STEP International + en production ; B+K non compté tant qu'il n'est pas reçu). Consommation déduite des sorties des 90 derniers jours.</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Stock = disponible (STEP International + en production ; ${_l540Bk()} non compté tant qu'il n'est pas reçu). Consommation déduite des sorties des 90 derniers jours.</div>
       <div id="stockForecast"></div></details>
     </div>
 
@@ -15500,7 +15521,7 @@ function bkAnalyseImport(){
   const el=stkEl('bkImportText'), out=stkEl('bkPreview'), btn=stkEl('bkImportBtn');
   if(!el||!out) return;
   const rows=_bkParseTable(el.value);
-  if(!rows.length){ out.innerHTML='<div style="color:var(--red);font-size:13px">Aucune ligne article reconnue. Colle la liste B+K (Excel ou CSV) — colonnes matno, typ, mm, ml…</div>'; if(btn) btn.classList.add('hidden'); _bkPlanned=null; return; }
+  if(!rows.length){ out.innerHTML='<div style="color:var(--red);font-size:13px">Aucune ligne article reconnue. Colle la liste '+_l540Bk()+' (Excel ou CSV) — colonnes matno, typ, mm, ml…</div>'; if(btn) btn.classList.add('hidden'); _bkPlanned=null; return; }
   const op=currentUser?currentUser.ini:'?';
   const noteHas=tok=>stockMouvementsCache.some(m=>!m.deleted&&!m.corrigePar&&!m.corrige&&String(m.note||'').includes(tok));   // [L94] un mouvement ANNULÉ ne bloque plus la ré-importation · [L136 · audit #11] exclut AUSSI les contre-écritures (m.corrige) : annulStockMouvement recopie le jeton [BK:…] dans sa note → sans ça la ré-import après annulation MANUELLE (↺) était ignorée à tort (« déjà importé »)
   const arts=[], mvts=[]; let skipped=0;
@@ -15525,9 +15546,9 @@ function bkAnalyseImport(){
     // EN PRODUCTION (pas encore produit, date = lundi de la semaine prévue) ; sinon à confirmer.
     const stW=parseInt((String(r.storage||'').match(/(\d+)/)||[])[1]||'',10);
     let mvDate, etat;
-    if(stW>0){ mvDate=new Date(Date.now()-stW*7*86400000).toISOString(); etat='EN STOCK B+K depuis '+stW+' semaine(s)'; }
+    if(stW>0){ mvDate=new Date(Date.now()-stW*7*86400000).toISOString(); etat='EN STOCK '+_l540Bk()+' depuis '+stW+' semaine(s)'; }
     else if(kw){ mvDate=_bkKwToIso(kw)||isoNow(); etat='EN PRODUCTION — dispo '+kw; }
-    else { mvDate=isoNow(); etat='chez B+K — date à confirmer'; }
+    else { mvDate=isoNow(); etat='chez '+_l540Bk()+' — date à confirmer'; }
     if(qty>0){
       const tok=`[BK:${matno}/${r.batch||'?'}/${qty}]`;
       if(noteHas(tok)){ skipped++; }
@@ -15551,12 +15572,12 @@ function bkAnalyseImport(){
         mvts.push({ date:shipDate, type:'sortie', ref, m2:-ship, location:'bk', rouleaux:rl, bl,
           note:`Camion vers STEP${bl?' · BL '+bl:''}${_dd?' · le '+_dd:''}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
         mvts.push({ date:shipDate, type:'entree', ref, m2:ship, location:'step', rouleaux:rl, bl,
-          note:`Réception B+K${bl?' · BL '+bl:''}${_dd?' · le '+_dd:''}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
+          note:`Réception ${_l540Bk()}${bl?' · BL '+bl:''}${_dd?' · le '+_dd:''}${r.pal?' · '+r.pal+' palette(s)':''} ${tokCo}`, op, deleted:false });
       }
     }
   });
   _bkPlanned={arts,mvts};
-  const locLbl={bk:'B+K',step:'STEP'};
+  const locLbl={bk:_l540Bk(),step:'STEP'};
   const prev=mvts.slice(0,80).map(m=>`<tr>
     <td style="padding:4px 6px;border-bottom:1px solid var(--border)">${new Date(m.date).toLocaleDateString('fr-FR')}</td>
     <td style="padding:4px 6px;border-bottom:1px solid var(--border);color:${m.m2>=0?'#4ade80':'#f87171'}">${m.type==='entree'?'Entrée':'Sortie'} ${locLbl[m.location]}</td>
@@ -15613,10 +15634,10 @@ async function bkRunImport(btn){
     }
     arts.forEach((a,i)=>{ a.id=artRefs[i].id; stockArticlesCache.push(a); });
     mvts.forEach((m,i)=>{ m.id=mvtRefs[i].id; stockMouvementsCache.unshift(m); });
-    logAudit('create','stockMouvements','import-bk',`Import fournisseur B+K : ${mvts.length} mouvement(s), ${arts.length} article(s) — total ${mvts.reduce((s,m)=>s+m.m2,0).toLocaleString('fr-FR')} m² net`).catch(()=>{});
+    logAudit('create','stockMouvements','import-bk',`Import fournisseur ${_l540Bk()} : ${mvts.length} mouvement(s), ${arts.length} article(s) — total ${mvts.reduce((s,m)=>s+m.m2,0).toLocaleString('fr-FR')} m² net`).catch(()=>{});
     _bkPlanned=null;
     renderStock();
-    showToast(`✓ Import B+K terminé : ${mvts.length} mouvement(s), ${arts.length} article(s)`,'ok');
+    showToast(`✓ Import ${_l540Bk()} terminé : ${mvts.length} mouvement(s), ${arts.length} article(s)`,'ok');
   }catch(e){
     showToast(String(e&&e.message)==='__TIMEOUT__'?'⏳ Réseau lent — import interrompu, rien n\'est perdu : réessaie (l\'anti-doublon empêche tout double).':'Erreur import : '+e.message,'err');
     if(btn){ btn.disabled=false; btn.textContent='✓ Importer'; }
@@ -18821,7 +18842,7 @@ function _l508Harmoniser(){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9200;display:flex;align-items:center;justify-content:center;padding:18px';
   ov.innerHTML='<div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;max-width:820px;width:100%;max-height:88vh;display:flex;flex-direction:column;padding:18px 20px">'
     +'<div style="font-size:16px;font-weight:800">🔤 Harmoniser les noms de références</div>'
-    +'<div style="font-size:12.5px;color:var(--muted);margin:4px 0 12px"><b>'+changes.length+'</b> ligne(s) seront renommées ('+lignes.length+' nom(s) distinct(s)). Le n° B+K est conservé, l\'épaisseur n\'est pas ajoutée. Les noms déjà complets et les références hors référentiel (GHX173A, KX1056…) ne bougent pas. Vérifie avant d\'appliquer.</div>'
+    +'<div style="font-size:12.5px;color:var(--muted);margin:4px 0 12px"><b>'+changes.length+'</b> ligne(s) seront renommées ('+lignes.length+' nom(s) distinct(s)). Le n° '+_l540Bk()+' est conservé, l\'épaisseur n\'est pas ajoutée. Les noms déjà complets et les références hors référentiel (GHX173A, KX1056…) ne bougent pas. Vérifie avant d\'appliquer.</div>'
     +'<div style="overflow:auto;border:1px solid var(--border2);border-radius:10px;flex:1"><table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>'
       +'<th style="'+th+'">Nom actuel</th><th style="'+th+'"></th><th style="'+th+'">Nom harmonisé</th><th style="'+th+';text-align:right">clients</th></tr></thead>'
       +'<tbody>'+rows+'</tbody></table></div>'
@@ -23876,8 +23897,8 @@ function _loadMachineUids(){
 function _iniOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].ini)||_machineUids[uid]||'?'; }
 function _nomOf(uid){ return (USER_PROFILES[uid]&&USER_PROFILES[uid].nom)||(_machineUids[uid]?('Poste '+_machineUids[uid]):_iniOf(uid)); }
 function _opColor(uid){ if(_machineUids[uid]&&!USER_PROFILES[uid]){ const mk=String(_machineUids[uid]).toLowerCase(); if(mk==='feba')return'#4f9df2'; if(mk==='maveg')return'#2fb85f'; if(mk==='cevenini')return'#9b7cf0'; } return OP_COLORS[_iniOf(uid)]||OP_COLORS['?']; }
-const _shareHiddenUids={'ydobUI1wpNesqnlmNFroyoQLGHm1':1,'GBGiA5k1hFZgwhHOg1y03wBr7M33':1};   /* [L414 · demande Esteban] Esteban (ER) et Christian (CH) sortent de la LISTE DE PARTAGE — comptes, roles, historique et couleurs INTACTS */
-function _shareOtherUids(){ const me=_uid(); return Object.keys(USER_PROFILES).concat(Object.keys(_machineUids).filter(function(u){return !USER_PROFILES[u];})).filter(function(u){return u!==me&&!_shareHiddenUids[u];}); }
+function _shareHidden(u){ try{ return !!(USER_PROFILES[u]&&USER_PROFILES[u].role==='admin'); }catch(_){ return false; } }   /* [L414 · demande Esteban → L540] les comptes ADMIN sortent de la liste de partage — comptes, roles, historique et couleurs INTACTS (avant : deux uid codes en dur dans le fichier public) */
+function _shareOtherUids(){ const me=_uid(); return Object.keys(USER_PROFILES).concat(Object.keys(_machineUids).filter(function(u){return !USER_PROFILES[u];})).filter(function(u){return u!==me&&!_shareHidden(u);}); }
 function toggleSharePanel(show){
   const p=document.getElementById('sharePanel'); if(!p) return;
   if(show && _viewingSharedId){ showToast('🔒 Tu consultes la commande d\'un collègue (miroir) — quitte la vue avant de partager à ton tour.','err'); return; }   // [L103 · audit-max]

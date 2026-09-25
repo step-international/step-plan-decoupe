@@ -1779,7 +1779,7 @@ has(/plus de rejeu : le flux synchrone du ✂ suit chronoRunning/,'L413→L422 :
 console.log('── L414 : retouches Esteban 25/08 (6 demandes) ──');
 has(/bouton « \+ Ligne manuelle » retire/,'L414 : bouton ligne manuelle retire (barre + tiroir, addFicheLine conservee)');
 has(/\[L414 · demande Esteban\] affichage modifie \(uid, ini et historique INTACTS\)/,'L414 : affichage modifie (uid, ini et historique intacts) — [L536] le fichier public ne dit plus ni quoi ni qui');
-has(/const _shareHiddenUids/,'L414 : Esteban et Christian retires de la liste de partage (comptes intacts)');
+has(/function _shareHidden\(u\)\{ try\{ return !!\(USER_PROFILES\[u\]&&USER_PROFILES\[u\]\.role==='admin'\); \}/,'L414 : Esteban et Christian retires de la liste de partage (comptes intacts)');
 has(/Qté en trop<\/label>/,'L414 : puce « Qte en trop » (bobineaux coupes en plus) de retour');
 has(/quantite EN TROP -> ✂ CHUTES auto, SAUF si un Déchet/,'L414→L419 : Qte en trop -> CHUTES auto (le Dechet pose gagne)');
 has(/le re-toggle l'ETEIGNAIT \(bug latent L401\)/,'L414 : restauration idempotente des actions (bug latent L401 repare)');
@@ -2616,6 +2616,23 @@ absent(/storageBucket:"plan-de-decoupe\.firebasestorage\.app"/,'L538 : plus de b
 // ── [L539 · 25/09/2026] Le logiciel interne ne doit jamais sortir dans les resultats de recherche. ──
 has(/<meta name="robots" content="noindex, nofollow">/,'L539 : balise meta robots noindex presente dans index.html');
 hasSw(/index\.html/, 'L539 : sw.js reference toujours index.html (verifie l invariant du cache, pas la balise)');
+
+// ── [L540 · 25/09/2026] Les 6 profils (prenoms, initiales, uid) et l abreviation du fournisseur sortent du fichier public ;
+//    ils vivent dans Firestore config/refs (profiles, suppliers.bkShort). Marqueurs d absence ENCODES (ce fichier est public). ──
+has(/^var USER_PROFILES=\{\};/m,'L540 : table des profils VIDE dans le fichier (config/refs.profiles + cache local)');
+has(/USER_PROFILES=_l540Order\(d\.profiles\); n\+\+;/,'L540 : _l537ApplyRefs applique les profils (ordre d affichage stable : champ ordre puis initiales, passe adverse)');
+has(/_l540Read=await _l537FetchRefs\(12000\)\.catch\(function\(\)\{ return false; \}\); profile=USER_PROFILES\[user\.uid\]\|\|_machineProfileOf\(user\.email\); \}/,'L540 : premier demarrage sans cache → lecture unique de config/refs (12 s) AVANT « UID non reconnu »');
+has(/const _l540G=\+\+_l540Gen;/,'L540 : generation de l appel d authentification');
+has(/if\(_l540G!==_l540Gen\) return;/,'L540 : un appel repris apres la lecture ne touche a rien si la session a change (autre compte, deconnexion) — passe adverse');
+has(/res\(\(e&&e\.code==='permission-denied'\)\?'denied':false\)/,'L540 : refus serveur distingue de « non lu » dans _l537FetchRefs');
+has(/res\(!\(doc\.metadata&&doc\.metadata\.fromCache\)\)/,'L540 : une reponse servie par le cache Firestore n est pas un verdict serveur (jamais de deconnexion sur une copie ancienne)');
+has(/if\(!currentRole&&typeof _l540RetryOn==='function'\) _l540RetryOn\(\);/,'L540 : retaper le meme compte pendant une session conservee rejoue la resolution tout de suite');
+has(/\}else if\(!\(_l540Read&&Object\.keys\(USER_PROFILES\)\.length\)\)\{/,'L540 : referentiel NON LU → session CONSERVEE (aucune deconnexion sur simple echec de lecture — regression evitee, passe adverse)');
+has(/function _l540RetryArm\(uid,fn\)\{/,'L540 : nouvel essai de resolution du profil au retour du reseau / 15 s');
+has(/function _l540Bk\(\)/,'L540 : abreviation fournisseur lue dans config/refs (repli neutre)');
+absent(new RegExp(['eWRvYlVJMXdwTmVzcW5sbU5Gcm95b1FMR0htMQ==','R0JHaUE1azFoRlpnd2hIT2cxeTAzd0JyN00zMw==','NHZsbXBlQlc5cFVGUVA1OWVDa1U1MWJkVlpzMg==','c21pQmhib3hUWlpLcG1KV2lSYXBUeHMxUDMyMw==','cWxWb2x5N1BzeU1uZFdNbmltVFk5bUtVdTUzMg==','ejFlOVRHT1RVRFo5S1l0R2wxMmk2SG5JU3J2Mg=='].map(_l537b).join('|')),'L540 : aucun uid Firebase dans le fichier');
+absent(new RegExp(['VGHDr2Vi','Sm9yZGFu','TWF0aGlldQ==','Q2hyaXN0aWFu','RG9taW5pcXVl'].map(function(b){ return "nom:'"+_l537b(b)+"'"; }).join('|')),'L540 : aucun prenom dans une table de profils');
+has(/_l540Bk\(\)/,'L540 : les libelles de l ecran stock lisent l abreviation du fournisseur dans config/refs (l absence de « B+K » dans le fichier PUBLIE est verifiee par tests/l540_test.js sur le fichier construit)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
