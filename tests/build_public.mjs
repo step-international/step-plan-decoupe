@@ -81,5 +81,6 @@ const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
 const s = stripJs(sw, 'sw.js');
 writeFileSync(join(OUT, 'sw.js'), s.out);
 copyFileSync(join(ROOT, 'manifest.json'), join(OUT, 'manifest.json'));
+copyFileSync(join(ROOT, 'robots.txt'), join(OUT, 'robots.txt'));   /* [L539] demande de ne pas etre indexe, en plus de la balise meta */
 for (const f of readdirSync(ROOT)) if (/^icon-.*\.png$/.test(f)) copyFileSync(join(ROOT, f), join(OUT, f));
 console.log(`🏆 fichier public construit dans ${OUT} — ${ver} — index.html : ${h.n.scripts} scripts (${h.n.js} commentaires JS retires), ${h.n.styles} styles (${h.n.css} CSS), ${h.n.html} commentaires HTML ; ${(src.length / 1024).toFixed(0)} Ko → ${(h.out.length / 1024).toFixed(0)} Ko ; sw.js : ${s.removed} commentaires retires. Arbres syntaxiques identiques avant/apres.`);

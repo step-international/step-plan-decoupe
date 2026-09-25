@@ -2613,5 +2613,9 @@ has(/try\{ _saveClientOptsHtml=null; Object\.keys\(_saveRefOptsByClient\)/,'L537
 has(/storageBucket:"plan-de-decoupe-eu",/,'L538 : bucket par defaut = plan-de-decoupe-eu (Europe)');
 absent(/storageBucket:"plan-de-decoupe\.firebasestorage\.app"/,'L538 : plus de bucket americain par defaut');
 
+// ── [L539 · 25/09/2026] Le logiciel interne ne doit jamais sortir dans les resultats de recherche. ──
+has(/<meta name="robots" content="noindex, nofollow">/,'L539 : balise meta robots noindex presente dans index.html');
+hasSw(/index\.html/, 'L539 : sw.js reference toujours index.html (verifie l invariant du cache, pas la balise)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
