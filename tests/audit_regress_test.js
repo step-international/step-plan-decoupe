@@ -2634,5 +2634,12 @@ absent(new RegExp(['eWRvYlVJMXdwTmVzcW5sbU5Gcm95b1FMR0htMQ==','R0JHaUE1azFoRlpnd
 absent(new RegExp(['VGHDr2Vi','Sm9yZGFu','TWF0aGlldQ==','Q2hyaXN0aWFu','RG9taW5pcXVl'].map(function(b){ return "nom:'"+_l537b(b)+"'"; }).join('|')),'L540 : aucun prenom dans une table de profils');
 has(/_l540Bk\(\)/,'L540 : les libelles de l ecran stock lisent l abreviation du fournisseur dans config/refs (l absence de « B+K » dans le fichier PUBLIE est verifiee par tests/l540_test.js sur le fichier construit)');
 
+// ── [L541 · 26/09/2026, audit adverse] le bandeau « referentiel non charge » surveillait SEULEMENT le catalogue (CLIENT_DATA) :
+//    une table de regles d emballage (PKG_CLIENTS) vide ou tronquee, catalogue par ailleurs charge, ne declenchait AUCUNE alerte —
+//    Suys/Cougnaud/BOUVET pouvaient retomber sur les regles PAR DEFAUT en silence. Les deux tables sont desormais surveillees,
+//    et la publication de l onglet Clients refuse aussi une table d emballage anormalement pauvre (meme garde que le catalogue). ──
+has(/if\(nC>0&&nP>=5\)\{ if\(b\) b\.remove\(\); return; \}/,'L541 : bandeau « referentiel non charge » surveille les DEUX tables ET detecte une table d emballage TRONQUEE (pas seulement totalement vide — 2e passe adverse)');
+has(/if\(nP<5\)\{ showToast\('Règles d.emballage en mémoire anormalement peu nombreuses/,'L541 : publication de l onglet Clients refusee si moins de 5 regles d emballage en memoire (meme garde que le catalogue)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

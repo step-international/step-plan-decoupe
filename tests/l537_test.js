@@ -50,8 +50,22 @@ global.LEGRAND_PKG={}; ok(LP('41319051 - TacFlex® DQ1002',45)===null,'table vid
 global.LEGRAND_PKG=FIX.refs.legrandPkg; ok(LP('41319051 - TacFlex® DQ1002',45).c==='1003'&&LP('41319051 - TacFlex® DQ1002',999)===null,'table chargee → code de la fixture ; laize inconnue → null');
 ok(/if\(nC<10\)\{ showToast\('Catalogue en mémoire anormalement petit \('\+nC\+' client\(s\)\) — publication refusée/.test(fnOf('_l486Publish')),'publication de l onglet Clients REFUSEE si moins de 10 clients en memoire (jamais ecraser config/clients par une liste vide)');
 const CK=fnOf('_l537CatalogCheck');
-ok(/filter\(function\(k\)\{ return k!=='ÉCHANTILLON'; \}\)\.length/.test(CK)&&/if\(n>0\)\{ if\(b\) b\.remove\(\); return; \}/.test(CK)&&/role','alert'/.test(CK),'bandeau « liste clients non chargee » : ÉCHANTILLON ne compte pas, retire des que la liste arrive, role=alert');
+ok(/filter\(function\(k\)\{ return k!=='ÉCHANTILLON'; \}\)\.length/.test(CK)&&/var nP=Object\.keys\(PKG_CLIENTS\|\|\{\}\)\.length/.test(CK)&&/if\(nC>0&&nP>=5\)\{ if\(b\) b\.remove\(\); return; \}/.test(CK)&&/role','alert'/.test(CK),'[L541 · 2e passe adverse] bandeau « liste clients / regles emballage non chargees » : ÉCHANTILLON ne compte pas, retire QUAND LES DEUX tables sont chargees ET la table d emballage a au moins 5 regles (pas seulement non vide — une table TRONQUEE reste signalee), role=alert');
 ok(/setTimeout\(function\(\)\{ try\{ _l537CatalogCheck\(\); \}catch\(_\)\{ \} \},7000\);/.test(fnOf('_l486LoadClients'))&&/try\{ _l537CatalogCheck\(\); \}catch\(_\)\{ \}/.test(fnOf('_l486Apply')),'… verifie 7 s apres la connexion et a chaque application du referentiel');
+
+console.log('── 4b. [L541 · audit adverse 26/09] catalogue charge SEUL ne masque plus le manque de regles d emballage ──');
+global.document={ _b:null, getElementById(id){ if(id==='l537CatalogBanner') return this._b; return null; }, createElement(){ const el={ style:{}, setAttribute(){}, remove:()=>{ global.document._b=null; } }; global.document._b=el; return el; }, body:{ appendChild(el){ global.document._b=el; } } };
+const CHECK=eval('('+CK+')');
+global.CLIENT_DATA={A:[1]}; global.PKG_CLIENTS={}; global.document._b=null; CHECK();
+ok(!!global.document._b&&/[Rr]ègles d.emballage non chargées/.test(global.document._b.textContent),'[L541] catalogue seul charge, regles VIDES → bandeau affiche, message specifique « regles d emballage »');
+global.CLIENT_DATA={}; global.PKG_CLIENTS={A:1,B:1,C:1,D:1,E:1}; global.document._b=null; CHECK();
+ok(!!global.document._b&&/clients non chargée/.test(global.document._b.textContent),'[L541] regles seules chargees (5), catalogue VIDE → bandeau affiche, message « clients »');
+global.CLIENT_DATA={A:[1]}; global.PKG_CLIENTS={A:1,B:1,C:1,D:1,E:1}; global.document._b={ remove(){ global.document._b=null; } }; CHECK();
+ok(global.document._b===null,'[L541] les DEUX tables chargees (>=5 regles) → bandeau retire');
+global.CLIENT_DATA={A:[1]}; global.PKG_CLIENTS={Suys:1,Cougnaud:1}; global.document._b=null; CHECK();
+ok(!!global.document._b&&/[Rr]ègles d.emballage non chargées/.test(global.document._b.textContent),'[L541 · 2e passe adverse] catalogue charge, regles TRONQUEES (2 sur ~20, pas 0) → bandeau affiche (nP>=5, pas nP>0 : une perte partielle est desormais signalee)');
+const PUB=fnOf('_l486Publish');
+ok(/if\(nP<5\)\{ showToast\('Règles d.emballage en mémoire anormalement peu nombreuses/.test(PUB),'[L541] publication de l onglet Clients REFUSEE si moins de 5 regles d emballage en memoire (meme garde que le catalogue, jamais ecraser config/clients par une table d emballage vide)');
 ok(/try\{ _saveClientOptsHtml=null; Object\.keys\(_saveRefOptsByClient\)\.forEach/.test(fnOf('_l488RefreshClientUI')),'les filtres de Donnees > Plans suivent le referentiel charge (memo L80 invalide)');
 
 console.log('── 5. la fusion des regles d emballage est inerte et la table partagee gagne ──');

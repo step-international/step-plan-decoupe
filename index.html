@@ -3361,7 +3361,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.09.26-L540';
+const APP_VERSION='2026.09.26-L541';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4663,10 +4663,13 @@ function _l486Valid(o,minKeys){ try{ return !!o&&typeof o==='object'&&!Array.isA
 function _l486StopClients(){ if(_l486Unsub){ try{ _l486Unsub(); }catch(_){ } _l486Unsub=null; } _l486SeenAt=undefined; _l486Retries=0; }
 /* [L537] bandeau HONNETE quand la liste des clients n est pas la (ni cache, ni Firestore) : avant, les graines masquaient ce cas ;
    sans liste, les regles d emballage tombent sur PKG_DEFAULT en silence — l operateur doit le SAVOIR. */
-function _l537CatalogCheck(){ try{ var n=Object.keys(CLIENT_DATA||{}).filter(function(k){ return k!=='ÉCHANTILLON'; }).length; var b=document.getElementById('l537CatalogBanner');
-  if(n>0){ if(b) b.remove(); return; }
+function _l537CatalogCheck(){ try{ var nC=Object.keys(CLIENT_DATA||{}).filter(function(k){ return k!=='ÉCHANTILLON'; }).length; var nP=Object.keys(PKG_CLIENTS||{}).length; var b=document.getElementById('l537CatalogBanner');
+  /* [L541 · audit adverse 26/09] AVANT, seule CLIENT_DATA (le catalogue) etait surveillee : une table PKG_CLIENTS (regles d emballage)
+     vide ou tronquee alors que le catalogue etait charge ne declenchait AUCUN bandeau — Suys/Cougnaud/BOUVET pouvaient retomber sur
+     les regles PAR DEFAUT en silence, exactement ce que ce bandeau existe pour empecher. Les deux tables sont desormais surveillees. */
+  if(nC>0&&nP>=5){ if(b) b.remove(); return; }   /* [L541 · 2e passe adverse] nP>0 seul ne detectait que la table TOTALEMENT vide ; une table tronquee (ex. le client Suys retire de la table alors que 19 autres restent) passait inapercue. Meme seuil que la garde de publication (6 lignes plus bas) : 20 clients avaient une regle avant L537, marge x4. Ne ferme pas 100% des cas (une table a 19/20 entrees reste silencieuse) : fermeture complete = comparer les cles recues aux dernieres connues, decision de conception a valider avec Esteban. */
   if(!b){ b=document.createElement('div'); b.id='l537CatalogBanner'; b.setAttribute('role','alert'); b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9998;background:#b3261e;color:#fff;font:600 15px/1.35 system-ui,sans-serif;padding:12px 16px;text-align:center'; document.body.appendChild(b); }
-  b.textContent='⚠ Liste des clients non chargée sur ce poste — connecte le réseau puis recharge la page (règles d’emballage indisponibles).'; }catch(_){ } }
+  b.textContent=(nC<=0)?'⚠ Liste des clients non chargée sur ce poste — connecte le réseau puis recharge la page (règles d’emballage indisponibles).':'⚠ Règles d’emballage non chargées sur ce poste — connecte le réseau puis recharge la page (commandes traitées avec les règles PAR DÉFAUT en attendant).'; }catch(_){ } }
 /* ============================================================
    [L537 · 24/09/2026] REFERENTIEL COMPLEMENTAIRE (doc unique config/refs) : table Legrand (legrandPkg), libelles
    fournisseurs (suppliers), destinataires des signalements (reportTo), migration des anciennes notes (oldNotes).
@@ -4771,6 +4774,7 @@ async function _l486Publish(btn,silencieux){
   if(!db){ showToast('Base indisponible — reconnecte le réseau puis recharge la page.','err'); return false; }
   var nC=Object.keys(CLIENT_DATA||{}).length, nP=Object.keys(PKG_CLIENTS||{}).length;
   if(nC<10){ showToast('Catalogue en mémoire anormalement petit ('+nC+' client(s)) — publication refusée. Recharge la page connectée au réseau.','err'); if(btn) btn.disabled=false; return false; }   /* [L537] jamais publier une liste vide ou appauvrie */
+  if(nP<5){ showToast('Règles d’emballage en mémoire anormalement peu nombreuses ('+nP+') — publication refusée. Recharge la page connectée au réseau.','err'); if(btn) btn.disabled=false; return false; }   /* [L541 · audit adverse 26/09] meme garde que le catalogue : 20 clients avaient une regle avant L537, jamais publier une table vide ou appauvrie */
   if(!silencieux&&typeof confirmDlg==='function'&&!(await confirmDlg('Publier la liste actuelle a TOUS les postes ?\n\n· '+nC+' client(s) avec leurs references\n· '+nP+' regle(s) d emballage\n\nChaque tablette la recevra a son prochain demarrage.',{ok:'Publier'}))) return false;
   if(btn) btn.disabled=true;
   try{
