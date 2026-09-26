@@ -2627,7 +2627,7 @@ has(/if\(_l540G!==_l540Gen\) return;/,'L540 : un appel repris apres la lecture n
 has(/res\(\(e&&e\.code==='permission-denied'\)\?'denied':false\)/,'L540 : refus serveur distingue de « non lu » dans _l537FetchRefs');
 has(/res\(!\(doc\.metadata&&doc\.metadata\.fromCache\)\)/,'L540 : une reponse servie par le cache Firestore n est pas un verdict serveur (jamais de deconnexion sur une copie ancienne)');
 has(/if\(!currentRole&&typeof _l540RetryOn==='function'\) _l540RetryOn\(\);/,'L540 : retaper le meme compte pendant une session conservee rejoue la resolution tout de suite');
-has(/\}else if\(!\(_l540Read&&Object\.keys\(USER_PROFILES\)\.length\)\)\{/,'L540 : referentiel NON LU → session CONSERVEE (aucune deconnexion sur simple echec de lecture — regression evitee, passe adverse)');
+has(/\}else if\(_l540Read!==true\|\|!Object\.keys\(USER_PROFILES\)\.length\)\{/,'L540/L542 : referentiel NON LU ou REFUSE → session CONSERVEE ; seule une lecture serveur reussie (true, pas la chaine denied) peut mener a la deconnexion — audit 26/09');
 has(/function _l540RetryArm\(uid,fn\)\{/,'L540 : nouvel essai de resolution du profil au retour du reseau / 15 s');
 has(/function _l540Bk\(\)/,'L540 : abreviation fournisseur lue dans config/refs (repli neutre)');
 absent(new RegExp(['eWRvYlVJMXdwTmVzcW5sbU5Gcm95b1FMR0htMQ==','R0JHaUE1azFoRlpnd2hIT2cxeTAzd0JyN00zMw==','NHZsbXBlQlc5cFVGUVA1OWVDa1U1MWJkVlpzMg==','c21pQmhib3hUWlpLcG1KV2lSYXBUeHMxUDMyMw==','cWxWb2x5N1BzeU1uZFdNbmltVFk5bUtVdTUzMg==','ejFlOVRHT1RVRFo5S1l0R2wxMmk2SG5JU3J2Mg=='].map(_l537b).join('|')),'L540 : aucun uid Firebase dans le fichier');
@@ -2638,7 +2638,20 @@ has(/_l540Bk\(\)/,'L540 : les libelles de l ecran stock lisent l abreviation du 
 //    une table de regles d emballage (PKG_CLIENTS) vide ou tronquee, catalogue par ailleurs charge, ne declenchait AUCUNE alerte —
 //    Suys/Cougnaud/BOUVET pouvaient retomber sur les regles PAR DEFAUT en silence. Les deux tables sont desormais surveillees,
 //    et la publication de l onglet Clients refuse aussi une table d emballage anormalement pauvre (meme garde que le catalogue). ──
-has(/if\(nC>0&&nP>=5\)\{ if\(b\) b\.remove\(\); return; \}/,'L541 : bandeau « referentiel non charge » surveille les DEUX tables ET detecte une table d emballage TRONQUEE (pas seulement totalement vide — 2e passe adverse)');
+has(/if\(nC>0&&nP>=5&&okR\)\{ if\(b\) b\.remove\(\); try\{ document\.body\.classList\.remove\('l542-banner'\); \}catch\(_\)\{ \} return; \}/,'L541/L542 : bandeau « referentiel non charge » surveille catalogue, regles d emballage (table tronquee detectee) ET referentiel complementaire');
+has(/pointer-events:none'; document\.body\.appendChild\(b\); \}/,'L542 : le bandeau n absorbe jamais un tap (il recouvrait le bouton chrono/Confirmer sur tablette — audit 26/09)');
+has(/body\.has-actionbar #l537CatalogBanner\{bottom:calc\(100px \+ env\(safe-area-inset-bottom,0px\)\)!important\}/,'L542 : le bandeau remonte au-dessus de la barre d action tablette, comme le toast et les bannieres base');
+has(/else\{ _l542RearmArm\('refs',function\(\)\{ _l537Retries=0; _l537LoadRefs\(\); \}\); \}/,'L542 : l abonnement config/refs ne meurt plus apres 5 essais (relance au retour du reseau / 5 min)');
+has(/else\{ _l542RearmArm\('clients',function\(\)\{ _l486Retries=0; _l486LoadClients\(\); \}\); \}/,'L542 : idem pour l abonnement config/clients');
+has(/_l537Retries=0; _l542RearmStop\('refs'\); \}/,'L542 : deconnexion → relance des abonnements desarmee (refs)');
+has(/_l486Retries=0; _l542RearmStop\('clients'\); \}/,'L542 : deconnexion → relance des abonnements desarmee (clients)');
+has(/if\(!b\)\{ if\(_l537Grace\) return;/,'L542 : periode de grace — pas de flash rouge au 1er demarrage d un poste sans cache');
+has(/body\.l542-banner #ficheMain\{height:calc\(100dvh - var\(--fiche-top,89px\) - var\(--l542-h,56px\)/,'L542 : paysage — la barre Imprimer/Confirmer reste au-dessus du bandeau rouge');
+has(/if\(!_l486Unsub&&!_l542CacheReplayed\)\{ _l542CacheReplayed=true;/,'L542 : le cache clients n est rejoue qu une fois par page');
+has(/body\.l542-banner #reportBubble\{bottom:calc\(var\(--l542-h,56px\) \+ 12px/,'L542 : la bulle 💬 remonte au-dessus du bandeau rouge');
+has(/body\.l542-banner:not\(\.has-actionbar\) \.page\.active\{padding-bottom:calc\(16px \+ var\(--l542-h,56px\)/,'L542 : portrait — le dernier bouton de chaque ecran defile au-dessus du bandeau rouge');
+has(/body\.l542-banner #ficheRail\{max-height:calc\(100vh - 152px - var\(--l542-h,56px\)\)!important\}/,'L542 : paysage — le rail remonte avec la bulle (jamais de bulle sur ⛔ Arret)');
+has(/body\.training\.l542-banner #planRight\{height:calc\(100dvh - 89px - max\(64px,var\(--l542-h,56px\)\)\)\}/,'L542 : entrainement + bandeau rouge — COMMENCER jamais sous le bandeau entrainement');
 has(/if\(nP<5\)\{ showToast\('Règles d.emballage en mémoire anormalement peu nombreuses/,'L541 : publication de l onglet Clients refusee si moins de 5 regles d emballage en memoire (meme garde que le catalogue)');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');

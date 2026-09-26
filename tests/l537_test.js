@@ -50,11 +50,12 @@ global.LEGRAND_PKG={}; ok(LP('41319051 - TacFlex® DQ1002',45)===null,'table vid
 global.LEGRAND_PKG=FIX.refs.legrandPkg; ok(LP('41319051 - TacFlex® DQ1002',45).c==='1003'&&LP('41319051 - TacFlex® DQ1002',999)===null,'table chargee → code de la fixture ; laize inconnue → null');
 ok(/if\(nC<10\)\{ showToast\('Catalogue en mémoire anormalement petit \('\+nC\+' client\(s\)\) — publication refusée/.test(fnOf('_l486Publish')),'publication de l onglet Clients REFUSEE si moins de 10 clients en memoire (jamais ecraser config/clients par une liste vide)');
 const CK=fnOf('_l537CatalogCheck');
-ok(/filter\(function\(k\)\{ return k!=='ÉCHANTILLON'; \}\)\.length/.test(CK)&&/var nP=Object\.keys\(PKG_CLIENTS\|\|\{\}\)\.length/.test(CK)&&/if\(nC>0&&nP>=5\)\{ if\(b\) b\.remove\(\); return; \}/.test(CK)&&/role','alert'/.test(CK),'[L541 · 2e passe adverse] bandeau « liste clients / regles emballage non chargees » : ÉCHANTILLON ne compte pas, retire QUAND LES DEUX tables sont chargees ET la table d emballage a au moins 5 regles (pas seulement non vide — une table TRONQUEE reste signalee), role=alert');
-ok(/setTimeout\(function\(\)\{ try\{ _l537CatalogCheck\(\); \}catch\(_\)\{ \} \},7000\);/.test(fnOf('_l486LoadClients'))&&/try\{ _l537CatalogCheck\(\); \}catch\(_\)\{ \}/.test(fnOf('_l486Apply')),'… verifie 7 s apres la connexion et a chaque application du referentiel');
+ok(/filter\(function\(k\)\{ return k!=='ÉCHANTILLON'; \}\)\.length/.test(CK)&&/var nP=Object\.keys\(PKG_CLIENTS\|\|\{\}\)\.length/.test(CK)&&/if\(nC>0&&nP>=5&&okR\)\{ if\(b\) b\.remove\(\); try\{ document\.body\.classList\.remove\('l542-banner'\); \}catch\(_\)\{ \} return; \}/.test(CK)&&/role','alert'/.test(CK),'[L541 · 2e passe adverse] bandeau « liste clients / regles emballage non chargees » : ÉCHANTILLON ne compte pas, retire QUAND LES DEUX tables sont chargees ET la table d emballage a au moins 5 regles (pas seulement non vide — une table TRONQUEE reste signalee), role=alert');
+ok(/setTimeout\(function\(\)\{ _l537Grace=false; try\{ _l537CatalogCheck\(\); \}catch\(_\)\{ \} \},7000\);/.test(fnOf('_l486LoadClients'))&&/try\{ _l537CatalogCheck\(\); \}catch\(_\)\{ \}/.test(fnOf('_l486Apply')),'… verifie 7 s apres la connexion et a chaque application du referentiel');
 
 console.log('── 4b. [L541 · audit adverse 26/09] catalogue charge SEUL ne masque plus le manque de regles d emballage ──');
-global.document={ _b:null, getElementById(id){ if(id==='l537CatalogBanner') return this._b; return null; }, createElement(){ const el={ style:{}, setAttribute(){}, remove:()=>{ global.document._b=null; } }; global.document._b=el; return el; }, body:{ appendChild(el){ global.document._b=el; } } };
+global.document={ _b:null, _cls:new Set(), _vars:{}, getElementById(id){ if(id==='l537CatalogBanner') return this._b; return null; }, createElement(){ const el={ style:{}, offsetHeight:61, setAttribute(){}, remove:()=>{ global.document._b=null; } }; global.document._b=el; return el; }, body:{ appendChild(el){ global.document._b=el; }, classList:{ add(c){ global.document._cls.add(c); }, remove(c){ global.document._cls.delete(c); } } }, documentElement:{ style:{ setProperty(k,v){ global.document._vars[k]=v; } } } };
+global._l537Loaded=true; global._l537Grace=false;   /* [L542] hors periode de grace pour les cas ci-dessous */   /* [L542] referentiel complementaire charge (cas nominal des tests ci-dessous) */
 const CHECK=eval('('+CK+')');
 global.CLIENT_DATA={A:[1]}; global.PKG_CLIENTS={}; global.document._b=null; CHECK();
 ok(!!global.document._b&&/[Rr]ègles d.emballage non chargées/.test(global.document._b.textContent),'[L541] catalogue seul charge, regles VIDES → bandeau affiche, message specifique « regles d emballage »');
@@ -64,6 +65,40 @@ global.CLIENT_DATA={A:[1]}; global.PKG_CLIENTS={A:1,B:1,C:1,D:1,E:1}; global.doc
 ok(global.document._b===null,'[L541] les DEUX tables chargees (>=5 regles) → bandeau retire');
 global.CLIENT_DATA={A:[1]}; global.PKG_CLIENTS={Suys:1,Cougnaud:1}; global.document._b=null; CHECK();
 ok(!!global.document._b&&/[Rr]ègles d.emballage non chargées/.test(global.document._b.textContent),'[L541 · 2e passe adverse] catalogue charge, regles TRONQUEES (2 sur ~20, pas 0) → bandeau affiche (nP>=5, pas nP>0 : une perte partielle est desormais signalee)');
+global.CLIENT_DATA={A:[1]}; global.PKG_CLIENTS={A:1,B:1,C:1,D:1,E:1}; global._l537Loaded=false; global.document._b=null; CHECK();
+ok(!!global.document._b&&/Référentiel complémentaire non chargé/.test(global.document._b.textContent)&&!/clients non chargée/.test(global.document._b.textContent),'[L542 · audit 26/09] catalogue et regles OK mais referentiel complementaire (config/refs) jamais charge → bandeau, message specifique');
+global._l537Loaded=true; global.CLIENT_DATA={}; global.PKG_CLIENTS={}; global.document._b=null; CHECK();
+ok(!!global.document._b&&/clients non chargée/.test(global.document._b.textContent)&&/emballage non chargées/.test(global.document._b.textContent),'[L542] plusieurs manques → un seul bandeau qui les liste tous');
+ok(/pointer-events:none/.test(CK),'[L542] le bandeau n absorbe jamais un tap (tablette : il recouvrait le bouton chrono/Confirmer)');
+ok(/body\.has-actionbar #l537CatalogBanner\{bottom:calc\(100px \+ env\(safe-area-inset-bottom,0px\)\)!important\}/.test(src),'[L542] … et il remonte au-dessus de la barre d action tablette (meme regle que le toast)');
+ok(/if\(n\)\{ _l537Loaded=true; if\(typeof currentRole!=='undefined'&&currentRole\)\{ try\{ _l537CatalogCheck\(\); \}catch\(_\)\{ \} \}/.test(fnOf('_l537ApplyRefs')),'[L542] le bandeau est re-evalue quand config/refs arrive (apres connexion) — il ne reste pas affiche a tort');
+
+console.log('── 4c. [L542 · audit 26/09] un abonnement Firestore ne meurt plus apres 5 essais ──');
+ok(/else\{ _l542RearmArm\('refs',function\(\)\{ _l537Retries=0; _l537LoadRefs\(\); \}\); \}/.test(fnOf('_l537LoadRefs'))&&/else\{ _l542RearmArm\('clients',function\(\)\{ _l486Retries=0; _l486LoadClients\(\); \}\); \}/.test(fnOf('_l486LoadClients')),'apres les 5 essais : relance armee (refs ET clients) au lieu d un abandon definitif');
+ok(/_l542RearmStop\('refs'\)/.test(fnOf('_l537StopRefs'))&&/_l542RearmStop\('clients'\)/.test(fnOf('_l486StopClients')),'deconnexion : les relances sont desarmees');
+let rTimers=[]; const _rst=global.setTimeout,_rct=global.clearTimeout; global.setTimeout=(f,ms)=>{ const id={f,ms}; rTimers.push(id); return id; }; global.clearTimeout=id=>{ rTimers=rTimers.filter(x=>x!==id); };
+let rListeners=[]; global.window={ addEventListener:(ev,f)=>rListeners.push({ev,f}), removeEventListener:(ev,f)=>{ rListeners=rListeners.filter(l=>l.f!==f); } };
+global._l542Rearm={}; global.currentRole='operateur'; global._l542RearmStop=eval('('+fnOf('_l542RearmStop')+')'); const RARM=eval('('+fnOf('_l542RearmArm')+')');
+let rCalls=0; RARM('refs',()=>{ rCalls++; });
+ok(rTimers.length===1&&rTimers[0].ms===300000&&rListeners.length===1&&rListeners[0].ev==='online','arme : un minuteur de 5 min + un ecouteur « online »');
+rListeners[0].f(); ok(rCalls===1&&rTimers.length===0&&rListeners.length===0,'retour reseau → une relance, minuteur et ecouteur retires');
+RARM('refs',()=>{ rCalls++; }); RARM('refs',()=>{ rCalls++; }); ok(rTimers.length===1&&rListeners.length===1,'rearmer n empile pas');
+global.currentRole=null; rTimers[0].f(); ok(rCalls===1,'session fermee entre-temps → pas de relance');
+global.currentRole='operateur'; RARM('clients',()=>{ rCalls++; }); RARM('refs',()=>{ rCalls++; }); ok(rTimers.length===2,'clients et refs ont chacun leur relance');
+_l542RearmStop('clients'); ok(rTimers.length===1&&rListeners.length===1,'desarmer l un ne touche pas l autre');
+_l542RearmStop('refs'); ok(rTimers.length===0&&rListeners.length===0,'tout desarme');
+global.setTimeout=_rst; global.clearTimeout=_rct;
+global.CLIENT_DATA={}; global.PKG_CLIENTS={}; global._l537Grace=true; global.document._b=null; CHECK();
+ok(global.document._b===null,'[L542 · 2e passe] periode de grace (7 s apres la connexion) : un instantane incomplet ne CREE pas le bandeau (plus de flash rouge au 1er demarrage sans cache)');
+global._l537Grace=false; CHECK(); const _b1=global.document._b;
+global._l537Grace=true; global.CLIENT_DATA={A:[1]}; CHECK();
+ok(!!_b1&&global.document._b===_b1&&/emballage/.test(_b1.textContent)&&!/clients non chargée/.test(_b1.textContent),'… mais un bandeau DEJA affiche est toujours mis a jour pendant la grace');
+global.PKG_CLIENTS={A:1,B:1,C:1,D:1,E:1}; CHECK();
+ok(global.document._b===null&&!global.document._cls.has('l542-banner'),'… et retire quand tout arrive, classe de mise en page retiree');
+global._l537Grace=false; global.CLIENT_DATA={}; CHECK();
+ok(global.document._cls.has('l542-banner')&&global.document._vars['--l542-h']==='61px','[L542 · 2e passe] bandeau affiche → classe l542-banner + hauteur reelle exposee au CSS (--l542-h)');
+ok(/body\.l542-banner #ficheMain\{height:calc\(100dvh - var\(--fiche-top,89px\) - var\(--l542-h,56px\) - env\(safe-area-inset-bottom,0px\)\)\}/.test(src)&&/body\.l542-banner #planRight\{height:calc\(100dvh - 89px - var\(--l542-h,56px\)\)\}/.test(src),'[L542 · 2e passe] paysage (tablettes 1280 px) : la fiche et la colonne COMMENCER raccourcissent de la hauteur du bandeau — barre Imprimer/Confirmer et COMMENCER jamais recouvertes');
+ok(/if\(!_l486Unsub&&!_l542CacheReplayed\)\{ _l542CacheReplayed=true;/.test(fnOf('_l486LoadClients')),'[L542 · 2e passe] le cache clients n est rejoue qu UNE fois par page (les relances ne rafraichissent plus les listes pour rien)');
 const PUB=fnOf('_l486Publish');
 ok(/if\(nP<5\)\{ showToast\('Règles d.emballage en mémoire anormalement peu nombreuses/.test(PUB),'[L541] publication de l onglet Clients REFUSEE si moins de 5 regles d emballage en memoire (meme garde que le catalogue, jamais ecraser config/clients par une table d emballage vide)');
 ok(/try\{ _saveClientOptsHtml=null; Object\.keys\(_saveRefOptsByClient\)\.forEach/.test(fnOf('_l488RefreshClientUI')),'les filtres de Donnees > Plans suivent le referentiel charge (memo L80 invalide)');
