@@ -2732,6 +2732,14 @@ has(/if\(_sp551\)\{ Object\.keys\(_sp551\)\.forEach\(k=>\{ if\(mach\[k\]\) mach\
 has(/const m=\(_ml551&&_ml551\[di\]\)\|\|\(_rel\?\(f\.machine2\|\|f\.machine\):f\.machine\)\|\|'\?';/,'L551 : Analyse — defauts par machine au niveau bobine');
 has(/const k=\(_ml551&&_ml551\[i\]\)\|\|lbl; map\[k\]=\(map\[k\]\|\|0\)\+1;/,'L551 : page Lames — defauts par machine de ligne');
 has(/const _ml551=\(typeof _machLignes==='function'\)\?_machLignes\(x\):null;/,'L551 : filtre machine L526 — machines des lignes coupees AJOUTEES');
+// ── [L552 · 07/10/2026, B14 audit d usage] releve corrige au bureau : la duree est reportee sur la fiche liee (strict, apres le releve) ──
+has(/^function _l552FicheOfTemps\(t,fiches\)\{/m,'L552 : fiche liee au releve (exactement un candidat, 5 s, client/ref/n° de commande)');
+has(/^function _l552TempsStr\(old,duree\)\{/m,'L552 : seule la duree du texte change');
+has(/f\.machine===t\.machine&&f\.ini===t\.operateur&&/,'L552 (revue adverse) : meme machine et memes initiales (2 tablettes, meme commande)');
+has(/return \(c\.length===1&&!c\[0\]\.deleted\)\?c\[0\]:null;/,'L552 (revue adverse) : un doublon archive rend le lien ambigu');
+has(/if\(_f552&&_ns552&&_f552\.valide===true\)\{/,'L552 : fiche VALIDEE = confirmation avant toute ecriture');
+has(/catch\(e\)\{ showToast\('Erreur enregistrement : '\+e\.message,'err'\); return; \}\n  if\(_f552&&_ns552\) await _l552ReportFiche\(_f552,_ns552\);/,'L552 : fiche ecrite APRES la reussite du releve, jamais si le releve echoue');
+has(/const r=await _bw\(db\.collection\('fiches'\)\.doc\(f\._id\)\.update\(\{tempsStr:ns\}\),10000\);/,'L552 : seul tempsStr de la fiche est ecrit, ecriture bornee');
 has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
 has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
 has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');

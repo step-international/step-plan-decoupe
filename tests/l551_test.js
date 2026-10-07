@@ -129,16 +129,16 @@ const anaRun=(fiches,filt)=>{ const bars=[]; const ctx={fichesCache:fiches,analy
     svgHBars:(items)=>{ bars.push(items); return ''; },svgPie:()=>'',esc:s=>String(s),canManageData:()=>false,_machLignes:ML,Math,String,Object,Date,isNaN,parseInt,Number};
   withCtx(fnOf('buildFicheAnalytics'),ctx)(); const mb=bars.find(b=>b.some(i=>/^(FEBA|MAVEG|CEVENINI|\?)$/.test(i.label)))||[];
   const o={}; mb.forEach(i=>o[i.label]=i.sub); const ob=bars.find(b=>b!==mb)||[]; const op={}; ob.forEach(i=>op[i.label]=i.sub); return {mach:o,op}; };
-{ const r=anaRun([Object.assign({date:D(24),ini:'ER',valide:true},f2409)]);
+{ const r=anaRun([Object.assign({date:D(24),ini:'AB',valide:true},f2409)]);
   ok(r.mach.CEVENINI==='(5/11)'&&r.mach.MAVEG==='(0/4)','« 24/09 » : CEVENINI 5/11, MAVEG 0/4 (avant : MAVEG 5/15) → '+J(r.mach));
-  ok(r.op.ER==='(5/15)','l operateur ne change pas : ER 5/15'); }
-{ const r=anaRun([Object.assign({date:D(8),ini:'ER'},fMM)]);
+  ok(r.op.AB==='(5/15)','l operateur ne change pas : AB 5/15'); }
+{ const r=anaRun([Object.assign({date:D(8),ini:'AB'},fMM)]);
   ok(J(r.mach)===J({MAVEG:'(0/5)'}),'« 08/09 » manque matiere : seules les 5 coupees comptent, sous MAVEG → '+J(r.mach)); }
 { const fr={date:D(5),ini:'TB',ini2:'JF',machine:'FEBA',machine2:'MAVEG',op2Bob:7,ficheDetail:[].concat(rep(6,i=>L('feba',i===0)),rep(4,()=>L('maveg')))};
   const r=anaRun([fr]); ok(r.mach.FEBA==='(1/6)'&&r.mach.MAVEG==='(0/4)'&&r.op.TB==='(1/6)'&&r.op.JF==='(0/4)','relais vers une autre machine : ventilation op2Bob d avant (FEBA 1/6, MAVEG 0/4)'); }
 { const fs1={date:D(5),ini:'TB',machine:'FEBA',ficheDetail:rep(6,()=>L('cevenini',true))};
   const r=anaRun([fs1]); ok(J(r.mach)===J({FEBA:'(6/6)'}),'en-tete FEBA, toutes les lignes CEVENINI : inchange (FEBA)'); }
-{ const r=anaRun([Object.assign({date:D(24),ini:'ER'},f2409)],{mach:'CEVENINI'});
+{ const r=anaRun([Object.assign({date:D(24),ini:'AB'},f2409)],{mach:'CEVENINI'});
   ok(J(r.mach)===J({CEVENINI:'(5/11)'}),'filtre machine CEVENINI : seules SES bobines de la fiche'); }
 
 console.log('── 6. page Lames (lameNcByMachine) ──');

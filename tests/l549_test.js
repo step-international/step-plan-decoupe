@@ -10,8 +10,8 @@ const withCtx=(fnSrc,ctx)=>new Function('ctx','with(ctx){ return ('+fnSrc+'); }'
 ok(/const APP_VERSION='2026\.\d\d\.\d\d-L(549|5[5-9]\d|[6-9]\d\d)';/.test(src),'APP_VERSION >= L549');
 const MR=fnOf('maybeResumeRunningChrono');
 (async()=>{
-  const mk=(uid,draft)=>{ const rec={chrono:0,fiche:0,toast:[]}; const now=Date.now();
-    const ctx={ficheLines:[],chronoRunning:false,planHasContent:()=>false,readChronoLive:()=>({runStart:now-3600e3,startTs:new Date(now-3600e3).toISOString(),began:now-3600e3}),_chronoRunBeganAt:null,
+  const mk=(uid,draft)=>{ const rec={chrono:0,fiche:0,toast:[]}; const now=Date.now(); const _sod=new Date(now); _sod.setHours(0,0,0,0); const rs=Math.max(_sod.getTime(),now-3600e3);   /* [L552] chrono lance AUJOURD HUI meme entre 0 h et 1 h (le test echouait juste apres minuit) */
+    const ctx={ficheLines:[],chronoRunning:false,planHasContent:()=>false,readChronoLive:()=>({runStart:rs,startTs:new Date(rs).toISOString(),began:rs}),_chronoRunBeganAt:null,
       autosaveId:()=>'d_autosave_'+uid+'_dev',loadDrafts:()=>draft?[draft]:[],db:null,readCmdLive:()=>null,_deviceId:()=>'dev',_uid:()=>uid,
       _dateKey:ms=>{ const d=new Date(ms); return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); },restoreChrono:()=>{ rec.chrono++; ctx.chronoRunning=true; },
       _chronoAutoStopOverride:null,_mirChronoDoc:null,showToast:(m)=>rec.toast.push(m),console:{warn(){}},

@@ -3392,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L551';
+const APP_VERSION='2026.10.07-L552';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -13512,6 +13512,38 @@ function openTempsEdit(id){
     </div>`;
   document.body.appendChild(ov);
 }
+/* [L552 · B14 audit d usage 06/10] un releve corrige au bureau (saveTempsEdit) ne mettait pas a jour le temps AFFICHE sur sa fiche (tempsStr,
+   texte fige a l envoi : carte, fiche imprimee, CSV) — la fiche imprimee gardait l ancienne duree. Lien fiche ↔ releve :
+   ils partent dans le MEME lot d ecriture a l envoi → meme client, meme ref (texte exact), meme machine, memes initiales, meme n° de commande
+   (normalise, vide compris) et date de la fiche a 5 s au plus de releve.dateEnd. EXACTEMENT un candidat, archivees comprises (un doublon
+   archive = ambigu), et il doit etre actif ; sinon on n ecrit rien. Pur. */
+function _l552FicheOfTemps(t,fiches){
+  if(!t||typeof t!=='object') return null;
+  const te=Date.parse(t.dateEnd||''); if(isNaN(te)) return null;
+  const c=(Array.isArray(fiches)?fiches:[]).filter(f=>f&&typeof f==='object'&&f.client===t.client&&f.ref===t.ref&&f.machine===t.machine&&f.ini===t.operateur&&nrm(f.numCmd||'')===nrm(t.numCmd||'')&&Math.abs(Date.parse(f.date||'')-te)<=5000);
+  return (c.length===1&&!c[0].deleted)?c[0]:null;
+}
+/* [L552] nouveau texte du temps de la fiche : SEULE la duree change, la parenthese (initiales — date) reste telle quelle.
+   null = ne rien ecrire (« non enregistré », format inattendu, ou deja a jour). Pur. */
+function _l552TempsStr(old,duree){
+  const d=Number(duree);
+  if(typeof old!=='string'||!Number.isFinite(d)||d<0) return null;
+  const m=old.match(/^(.+?) (\(.+ — \d{2}\/\d{2}\/\d{4}\))$/); if(!m) return null;
+  const n=fmtTimeFr(Math.floor(d))+' '+m[2];
+  return n===old?null:n;
+}
+/* [L552] ecriture A PART, seulement apres la reussite de la correction du releve (jamais dans le meme lot) : un echec ici laisse le releve
+   corrige et le dit. Trace dans le journal (avant → apres). */
+async function _l552ReportFiche(f,ns){
+  const old=f.tempsStr;
+  try{
+    const r=await _bw(db.collection('fiches').doc(f._id).update({tempsStr:ns}),10000);
+    f.tempsStr=ns;
+    logAudit('edit','fiches',f._id,`Temps de la fiche aligné sur le relevé corrigé : ${old} → ${ns}`,{client:f.client,ref:f.ref,dateCmd:f.date||''}).catch(function(){});
+    try{ if(typeof renderFiches==='function') renderFiches(); }catch(e){}
+    showToast(r===null?'⏳ Relevé corrigé — temps de la fiche mis en file (il partira au retour du réseau)':'✓ Relevé corrigé — temps de la fiche mis à jour','ok');
+  }catch(e){ showToast('⚠ Relevé corrigé, mais le temps de la fiche n\'a pas pu être mis à jour : '+e.message,'err'); }
+}
 async function saveTempsEdit(id){
   if(!canManageData()){showToast('Correction réservée au pilotage et aux admins.','err');return;}
   const t=tempsCache.find(x=>x._id===id);
@@ -13544,6 +13576,13 @@ async function saveTempsEdit(id){
   // opérateur 2 renseigné SANS « dès bobine » casse la ventilation bi-machine (tout le temps repart sur
   // la machine 1, la machine 2 disparaît des stats). On refuse la correction incohérente.
   if(changes.operateur2 && !changes.op2Bobine){ showToast('⚠ Opérateur 2 renseigné sans « Op.2 dès bobine » : indique le n° de bobine de bascule, ou vide l\'opérateur 2.','err'); return; }
+  /* [L552 · B14] fiche liee, retrouvee avec les valeurs d AVANT la correction ; fiche VALIDEE (enregistrement ISO) = on demande d abord */
+  let _f552=null,_ns552=null,_no552=false; const _d0552=Number(t.duree)||0;
+  try{ _f552=_l552FicheOfTemps(t,fichesCache); _ns552=_f552?_l552TempsStr(_f552.tempsStr,duree):null; }catch(e){ _f552=null; _ns552=null; }
+  if(_f552&&_ns552&&_f552.valide===true){
+    const _va552=(function(){ const d=new Date(_f552.valideAt||''); return isNaN(d)?'':' le '+d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}); })();
+    if(!(await confirmDlg(`Cette fiche est validée${_f552.valideBy?' par '+_f552.valideBy:''}${_va552}.\n\nReporter aussi la nouvelle durée sur la fiche ?\n${_f552.tempsStr}\n→ ${_ns552}`,{ok:'Reporter sur la fiche',cancel:'Relevé seul'}))){ _ns552=null; _no552=true; }
+  }
   try{
     await _bw(db.collection('temps').doc(id).update(changes),10000);   /* [L501 · audit #10] borne : mise en file = succes, plus de bouton fige hors-ligne */
     Object.assign(t, changes);
@@ -13551,7 +13590,10 @@ async function saveTempsEdit(id){
     document.getElementById('tempsEditOverlay')?.remove();
     refreshAnalyseIfPresent();   // [L157 simplify] renderTemps inclus dans le helper (était rendu 2×)
     showToast('✓ Relevé corrigé','ok');
-  }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); }
+  }catch(e){ showToast('Erreur enregistrement : '+e.message,'err'); return; }
+  if(_f552&&_ns552) await _l552ReportFiche(_f552,_ns552);   /* [L552] apres la reussite du releve seulement */
+  else if(_f552&&_no552) showToast('✓ Relevé corrigé — fiche validée laissée telle quelle (temps affiché : '+_f552.tempsStr+')','ok');   /* [L552 · revue adverse] « Relevé seul », Echap ou tap a cote : on le DIT */
+  else if(!_f552&&duree!==_d0552) showToast('✓ Relevé corrigé — fiche liée non retrouvée (historique pas encore chargé ?) : son temps affiché ne change pas','ok');
 }
 async function clearTemps(){
   if(!canManageData()){showToast('Action réservée au pilotage et aux admins.','err');return;}
