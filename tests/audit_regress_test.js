@@ -2709,6 +2709,10 @@ has(/if\(!confirm\(\(_etq547\?'':'🛑 AUCUNE PHOTO D\\'ÉTIQUETTE jointe à cet
 has(/function _l547SaveDiff\(a,b\)\{/,'L547 : resume avant → apres d un plan modifie');
 has(/let _chg547=''; try\{ _chg547=_l547SaveDiff\(idx>=0\?savesCache\[idx\]:null,updEntry\); \}catch\(e\)\{ _chg547=''; \}/,'L547 : le journal dit ce qui a change');
 has(/_updDismissedUntil=0; Promise\.resolve\(checkAppUpdate\(\)\)\.then\(function\(\)\{ if\(!document\.getElementById\('updBanner'\)\) _updDismissedUntil=_sv547; \}/,'L547 : nouvelle version reproposee apres l envoi (ecran vide), report retabli sinon');
+
+// ── [L548 · 07/10/2026, defaut latent releve par les relectures de L545] ecoutes config qui bouclaient sous un refus serveur permanent ──
+has(/if\(!\(doc&&doc\.metadata&&doc\.metadata\.fromCache\)\) _l537Retries=0;/,'L548 : ecoute config/refs : compteur remis a zero sur reponse serveur seulement');
+has(/if\(!\(doc&&doc\.metadata&&doc\.metadata\.fromCache\)\) _l486Retries=0;/,'L548 : ecoute config/clients : idem');
 has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
 has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
 has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');

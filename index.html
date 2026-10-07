@@ -3392,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L547';
+const APP_VERSION='2026.10.07-L548';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4764,13 +4764,15 @@ function _l542RearmArm(k,fn){   /* [L542 · audit 26/09] un abonnement Firestore
 }
 function _l537LoadRefs(){
   try{ if(!db||_l537Unsub) return;
+    const _t548=Date.now();   // [L548] âge de cet abonnement
     _l537Unsub=db.collection('config').doc('refs').onSnapshot(function(doc){
-      _l537Retries=0;
+      if(!(doc&&doc.metadata&&doc.metadata.fromCache)) _l537Retries=0;   /* [L548 · défaut latent relevé par la revue L545] remis à zéro sur une réponse du SERVEUR seulement : un instantané du CACHE précède le refus serveur → avant, boucle de 8 s sans fin sous un refus permanent */
       if(!doc.exists||!doc.data()) return;   /* pas encore publie : cache local ou rien */
       if(_l537ApplyRefs(doc.data(),'Firestore')){ try{ localStorage.setItem('step_refs_v1',JSON.stringify(doc.data())); }catch(_){ } }
     },function(e){
       try{ console.warn('[L537] abonnement config/refs interrompu — cache conserve',e); }catch(_){ }
       _l537Unsub=null;
+      try{ if(Date.now()-_t548>60000) _l537Retries=0; }catch(_){ }   /* [L548] > 1 min de vie = abonnement sain : nouvelle série d'essais rapides (comme B15 / L545) */
       if(_l537Retries<5){ var n=++_l537Retries; setTimeout(function(){ if(!_l537Unsub){ try{ _l537LoadRefs(); }catch(_){ } } },8000*n); }
       else{ _l542RearmArm('refs',function(){ _l537Retries=0; _l537LoadRefs(); }); }   /* [L542] plus jamais d abandon definitif */
     });
@@ -4805,8 +4807,9 @@ function _l486LoadClients(){
        copie de startBrouillons. */
     if(!db||_l486Unsub) return;
     setTimeout(function(){ _l537Grace=false; try{ _l537CatalogCheck(); }catch(_){ } },7000);   /* [L537] 7 s apres la connexion : liste toujours vide → bandeau ; [L542] fin de la periode de grace */
+    const _t548=Date.now();   // [L548] âge de cet abonnement
     _l486Unsub=db.collection('config').doc('clients').onSnapshot(function(doc){
-      _l486Retries=0;
+      if(!(doc&&doc.metadata&&doc.metadata.fromCache)) _l486Retries=0;   /* [L548] idem config/refs : remis à zéro sur une réponse du SERVEUR seulement */
       if(!doc.exists||!doc.data()) return;   /* pas encore publie : les graines restent la verite */
       try{ _l486SeenAt=(doc.data()&&doc.data().updatedAt)||null; }catch(_){ }   /* [L492] version lue : sert au refus de concurrence a l ecriture */
       if(_l486Apply(doc.data(),'Firestore')){
@@ -4815,6 +4818,7 @@ function _l486LoadClients(){
     },function(e){
       try{ console.warn('[L493] abonnement config/clients interrompu — graines/cache conserves',e); }catch(_){ }
       _l486Unsub=null;
+      try{ if(Date.now()-_t548>60000) _l486Retries=0; }catch(_){ }   /* [L548] > 1 min de vie = abonnement sain */
       if(_l486Retries<5){ const n=++_l486Retries; setTimeout(function(){ if(!_l486Unsub){ try{ _l486LoadClients(); }catch(_){ } } },8000*n); }
       else{ _l542RearmArm('clients',function(){ _l486Retries=0; _l486LoadClients(); }); }   /* [L542] plus jamais d abandon definitif */
     });
