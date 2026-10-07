@@ -2722,6 +2722,16 @@ has(/if\(_uid\(\)!==_u549\) return;/,'L549 revue : connexion pendant l attente =
 has(/const _L550_ARCH_MAX=2500000;/,'L550 : borne en taille de l archive froide');
 has(/localStorage\.setItem\(COLD_ARCHIVE_KEY,_l550ArchJson\(arch,items\.length\)\);/,'L550 : ecriture bornee (le lot ajoute toujours garde)');
 has(/setTimeout\(function\(\)\{ try\{ _l550TrimColdArchive\(\); \}catch\(e\)\{\} \},8000\);/,'L550 : archive deja trop grosse ramenee au demarrage');
+// ── [L551 · 07/10/2026, B3 audit d usage] fiche coupee sur 2 machines : les STATISTIQUES suivent la machine de chaque ligne ──
+has(/^function _machLignes\(f\)\{/m,'L551 : machine par ligne (null = calcul d avant)');
+has(/if\(\(h2&&h2!==h\)\|\|f\.machineChg\) return null;/,'L551 : relais vers une autre machine / changement de machine = on s abstient');
+has(/^function _l551Split\(f,b\)\{/m,'L551 : repartition des bobines au plus fort reste');
+has(/if\(f\.manqueMatiere\?\(d\.coupee!==true\):\(d\.recut===true\)\) return;/,'L551 (revue adverse) : cle de repartition sans les ♻ hors manque matiere (totalBobines = bobines meres)');
+has(/const _sp551=_l551Split\(f,b\);/,'L551 : KPI du mois — bobines et perte ponderee par machine de ligne');
+has(/if\(_sp551\)\{ Object\.keys\(_sp551\)\.forEach\(k=>\{ if\(mach\[k\]\) mach\[k\]\.perteM2\+=_m13\.perteM2\*\(_sp551\[k\]\/b\); \}\); \}/,'L551 : perte m² par machine avec la meme cle');
+has(/const m=\(_ml551&&_ml551\[di\]\)\|\|\(_rel\?\(f\.machine2\|\|f\.machine\):f\.machine\)\|\|'\?';/,'L551 : Analyse — defauts par machine au niveau bobine');
+has(/const k=\(_ml551&&_ml551\[i\]\)\|\|lbl; map\[k\]=\(map\[k\]\|\|0\)\+1;/,'L551 : page Lames — defauts par machine de ligne');
+has(/const _ml551=\(typeof _machLignes==='function'\)\?_machLignes\(x\):null;/,'L551 : filtre machine L526 — machines des lignes coupees AJOUTEES');
 has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
 has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
 has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');

@@ -3392,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L550';
+const APP_VERSION='2026.10.07-L551';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -14521,13 +14521,14 @@ function buildFicheAnalytics(){
     // jamais de NC à son actif et l'écran contredisait le KPI figé.
     const _o2s=parseInt(f.op2Bob,10);
     const _hasRelay=!isNaN(_o2s)&&_o2s>=1&&_o2s<=det.length&&(f.ini2||f.machine2);
+    const _ml551=_machLignes(f);   /* [L551 · B3] fiche coupee sur 2 machines : machine de la LIGNE (l operateur, lui, ne change pas) */
     det.forEach((d,di)=>{
       // [L254 · revue ×2 MAJEUR] même correctif qu'au KPI : les bobines jamais coupées d'un manque-matière
       // ne comptent pas au dénominateur des taux NC (sinon op.1/machine paraissent meilleurs qu'ils ne sont).
       if(f.manqueMatiere && d && d.coupee!==true) return;
       const _rel=_hasRelay&&(di+1)>=_o2s;
       const op=iniDisp((_rel?(f.ini2||f.ini):f.ini)||'?');   /* [L417] une seule barre par operateur */
-      const m=(_rel?(f.machine2||f.machine):f.machine)||'?';
+      const m=(_ml551&&_ml551[di])||(_rel?(f.machine2||f.machine):f.machine)||'?';
       // [L249 · R4a] filtre op/machine au niveau BOBINE : la part de l'op.2 d'un relais est isolable
       if(analyseFilter.op!=='ALL'&&String(op).trim()!==analyseFilter.op) return;
       if(analyseFilter.mach!=='ALL'&&String(m).trim().toUpperCase()!==analyseFilter.mach) return;
@@ -14741,6 +14742,42 @@ function _l493ChuteFromDetail(f){
     return Math.round(m2*10)/10;
   }catch(e){ _l505Warn('_l493ChuteFromDetail',e); return 0; }
 }
+/* [L551 · B3 audit d usage 06/10] commande coupee sur 2 machines (lignes ficheDetail[].machine de 2 machines differentes) : l en-tete f.machine
+   est celle de la DERNIERE ref active a l envoi, les STATISTIQUES suivent desormais la machine de CHAQUE ligne. Fiches, releves de temps,
+   lames, en-tete, PDF et CSV de la fiche : inchanges. Les agregats mensuels figes APRES L551 (figeage auto, ♻ Recalculer) portent la nouvelle
+   ventilation machines[] ; ceux figes avant gardent l ancienne jusqu a ♻ Recalculer (note du CSV KPI). null = garder EXACTEMENT le calcul d avant : relais vers une AUTRE machine (machine2),
+   changement de machine (machineChg), ou moins de 2 machines differentes sur les lignes. Sinon : tableau aligne sur ficheDetail, machine de
+   la ligne en MAJUSCULES ('' si la ligne n en porte pas -> l appelant garde son repli). Pur. */
+function _machLignes(f){
+  if(!f||typeof f!=='object') return null;
+  const U=v=>String(v==null?'':v).trim().toUpperCase();
+  const h=U(f.machine), h2=U(f.machine2);
+  if((h2&&h2!==h)||f.machineChg) return null;
+  const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
+  const seen={}; let n=0;
+  det.forEach(d=>{ const x=(d&&typeof d==='object')?U(d.machine):''; if(x&&!seen[x]){ seen[x]=1; n++; } });
+  if(n<2) return null;
+  return det.map(d=>(d&&typeof d==='object')?U(d.machine):'');
+}
+/* [L551] bobines du mois d une fiche a 2 machines : b reparti au prorata des lignes qui le composent, arrondi au plus fort reste -> entiers,
+   total = b. Fiche normale : b = bobines meres du plan -> lignes SANS les ♻ (rouleaux de chute recoupes, hors totalBobines) [revue adverse L551].
+   Manque matiere : b = lignes COUPEES (♻ compris) -> ces lignes-la.
+   Departage fixe : machine de l en-tete, puis FEBA, MAVEG, CEVENINI, puis les autres. null = garder le calcul d avant. Pur. */
+function _l551Split(f,b){
+  if(!(b>0)||!Number.isInteger(b)) return null;
+  const ml=_machLignes(f); if(!ml) return null;
+  const h=String(f.machine==null?'':f.machine).trim().toUpperCase();
+  const cnt={}; let n=0;
+  f.ficheDetail.forEach((d,i)=>{ if(!d||typeof d!=='object') return; if(f.manqueMatiere?(d.coupee!==true):(d.recut===true)) return; const k=ml[i]||h; cnt[k]=(cnt[k]||0)+1; n++; });
+  if(!n) return null;
+  const L=MACHINE_LABELS, rk=k=>(k===h?-1:(L.indexOf(k)>=0?L.indexOf(k):L.length));
+  const keys=Object.keys(cnt).sort((a,c)=>(rk(a)-rk(c))||(a<c?-1:(a>c?1:0)));
+  const out={}; let used=0;
+  keys.forEach(k=>{ const x=b*cnt[k]; out[k]=(x-(x%n))/n; used+=out[k]; });
+  const byRem=keys.slice().sort((a,c)=>(((b*cnt[c])%n)-((b*cnt[a])%n))||(keys.indexOf(a)-keys.indexOf(c)));
+  for(let i=0;used<b&&i<byRem.length;i++){ out[byRem[i]]++; used++; }
+  return out;
+}
 function buildMonthlyKpi(ym,fiches,temps){
   if(typeof window!=='undefined') window._l505WarnN=0;   /* [L506 · vérification adverse] compteur de replis PAR AGRÉGAT (était cumulatif sur la session : un mois figé affichait les replis d un autre) */
   const F=(fiches||[]).filter(f=>!f.deleted&&f.valide!==false&&_localYM(f.date)===ym);   // [L98 · #13] mois local   // [L79·AN-1] exclure les fiches REFUSÉES (valide===false) des KPI mensuels (bobines/perte gonflées sinon)
@@ -14779,9 +14816,13 @@ function buildMonthlyKpi(ym,fiches,temps){
     let cut2=0;
     if(m2&&m2!==m&&mach[m2]){ const s=parseInt(f.op2Bob,10); if(!isNaN(s)&&s>=1&&s<=b) cut2=b-(s-1); }
     const b1=b-cut2;
+    const _sp551=_l551Split(f,b);   /* [L551 · B3] fiche coupee sur 2 machines : chaque machine recoit SA part (meme cle pour la perte ponderee et les m²) */
+    if(_sp551){ Object.keys(_sp551).forEach(k=>{ const v=_sp551[k]; if(mach[k]){ mach[k].bobines+=v; if(!isNaN(p)){ mach[k].wpNum+=p*v; mach[k].wpDen+=v; } } else autresBobines+=v; }); }
+    else {
     if(mach[m]){mach[m].bobines+=b1;if(!isNaN(p)){mach[m].wpNum+=p*b1;mach[m].wpDen+=b1;}}
     else autresBobines+=b1;   // [L83 · Audit #44] machine hors FEBA/MAVEG/CEVENINI : comptée à part (total = machines + autres)
     if(cut2>0){mach[m2].bobines+=cut2;if(!isNaN(p)){mach[m2].wpNum+=p*cut2;mach[m2].wpDen+=cut2;}}
+    }
     const _c0=String(f.client||'—').trim()||'—'; const c=(function(){ try{ const n=(typeof _l517ClientNom==='function')?_l517ClientNom(_c0):''; return n||_c0.replace(/\s+pour\s+le\s[\s\S]*$/i,'').trim()||_c0; }catch(_){ return _c0; } })(); cliVol[c]=(cliVol[c]||0)+b;   /* [L544 · audit d usage] « CLIENT pour le jj mm aa n°… » : le top clients etait un top des COMMANDES (VEKA, 1er client, absent) */
     const rf=String(f.ref||'—').trim()||'—'; refVol[rf]=(refVol[rf]||0)+b;
     /* [L513] SOURCE UNIQUE : m² coupes, perte, chutes gardees, dechet NC de CETTE fiche — memes chiffres que la carte, la fiche imprimee et le CSV.
@@ -14790,9 +14831,11 @@ function buildMonthlyKpi(ym,fiches,temps){
     const _m13=_l513MatiereOf(f);
     if(_m13===f.mat&&_m13.calcWarn>0&&typeof window!=='undefined') window._l505WarnN=(window._l505WarnN||0)+_m13.calcWarn;   /* [revue adversariale L513] les replis comptes a l ENVOI (instantane) sont rejoues dans le compteur du mois : la tuile « calculs en repli » les voit */
     if(_m13.ok){ m2Total+=_m13.m2Coupes; perteM2+=_m13.perteM2; chuteM2+=_m13.chutesM2; dechetM2+=_m13.dechetM2; (cliM2[c]=cliM2[c]||0); cliM2[c]+=_m13.m2Coupes;
+      if(_sp551){ Object.keys(_sp551).forEach(k=>{ if(mach[k]) mach[k].perteM2+=_m13.perteM2*(_sp551[k]/b); }); }   /* [L551] meme cle que les bobines */
+      else {
       const _sh1=(b>0)?(b1/b):1, _sh2=(b>0&&cut2>0)?(cut2/b):0;
       if(mach[m]) mach[m].perteM2+=_m13.perteM2*_sh1;
-      if(_sh2>0&&mach[m2]) mach[m2].perteM2+=_m13.perteM2*_sh2; }
+      if(_sh2>0&&mach[m2]) mach[m2].perteM2+=_m13.perteM2*_sh2; } }
     else { if(_m13.dechetM2>0) dechetM2+=_m13.dechetM2;   /* [revue adversariale L513] le dechet NC (indicateur ISO) ne disparait pas avec une fiche dont la perte est incalculable */
       _l505Warn('l513·mois',new Error((f.name||f.id||'fiche')+' : perte/chutes inconnues ('+(_m13.calcWarn||0)+' repli(s))')); }
     const gs=f.groups||[]; if(gs.length) soldeMm+=parseNum(gs[gs.length-1].waste)||0;   // [L98 · #13] chute RÉUTILISABLE (solde conservé)
@@ -15016,6 +15059,7 @@ async function exportDashboardCsv(){
       rows.push(_l526KpiRow(k,cur).map(csvCell).join(';'));   /* [L526] ligne PURE (tests/csv_kpi_l526_test.js) ; csvCell conserve (anti-injection Excel L83 #18) */
     });
     rows.push('# n/d = mois figé AVANT la version qui calcule ce champ (« ♻ Recalculer ce mois » pour le compléter)');
+    rows.push('# Colonnes par machine : depuis le 07/10/2026 (L551), une commande coupée sur 2 machines est ventilée bobine par bobine ; un mois figé avant reste sur la machine de l\'en-tête de fiche tant qu\'il n\'est pas recalculé (« ♻ Recalculer ce mois »)');
     rows.push('# Fenêtre : 12 derniers mois glissants, mois sans fiche ni bobine omis · Perte % (m²) = Perte m² / « m² coupés (bobines mères) » et Déchet % = Déchet m² / « m² coupés (bobines mères) » (règle L513 — mêmes définitions que le CSV par commande) · Déchet % : le déchet NC des fiches non calculables est compté au numérateur alors que les m² ne le sont pas (ratio majoré si « calculs incertains » > 0) · « m² coupés (bobines mères) » et Perte m² du mois arrondis à l\'unité (agrégat), le reste au dixième : la somme des lignes du CSV par commande ne retombe pas exactement sur la ligne du mois · « ancienne définition » = mois figé avant L513 : Perte m² non comparable, % en n/d · colonnes 5 à 9 réordonnées et perte par machine en m² depuis le 16/09/2026 (L526) : rebrancher un classeur basé sur les lettres de colonnes · colonne « m² » renommée « m² coupés (bobines mères) » le 18/09/2026 (L530), position inchangée');   /* [L526] */
     // ── Section 2 : débit par machine ──
     rows.push('');
@@ -15094,7 +15138,7 @@ function kpiMoisInnerHTML(ym){
   }
   const M=((_mf26&&_kAll26)?_kAll26:kpi).machines||{};   /* [L526 · revue adverse, majeur] « Par machine » reste TOUT atelier sous filtre (ventilation b1/b), comme le disent le bandeau et la note */
   const _pct26=(isLive||!!_mf26||(kpi&&kpi.regleVer==='L513'));   /* [L526 · revue adverse] pas de % sur un mois fige sous l ancienne definition (le CSV y met n/d) */
-  if(_mf26) statusNote='🎛 Filtre machine '+esc(_mf26)+' — tuiles recalculées en direct sur les fiches passées par '+esc(_mf26)+' (machine, relais ou changement en cours de fiche, SANS prorata) · Δ vs mois préc. et Évolution masqués · liste des fiches non filtrable · « Par machine », 🖨 PDF et ⬇ CSV restent TOUT atelier · '+statusNote;   /* [L526] le perimetre est DIT, jamais devine */
+  if(_mf26) statusNote='🎛 Filtre machine '+esc(_mf26)+' — tuiles recalculées en direct sur les fiches passées par '+esc(_mf26)+' (machine, relais, changement en cours de fiche ou bobine coupée sur '+esc(_mf26)+', SANS prorata ; le temps ne compte que les chronos de '+esc(_mf26)+') · Δ vs mois préc. et Évolution masqués · liste des fiches non filtrable · « Par machine », 🖨 PDF et ⬇ CSV restent TOUT atelier · '+statusNote;   /* [L526] le perimetre est DIT, jamais devine */
   const machCard=(name,col)=>{const d=M[name]||{bobines:0,pertePct:0,secLaize:0};return `<div style="background:#111;border:1px solid #2a2a28;border-left:4px solid ${col};border-radius:0 8px 8px 0;padding:11px 13px">
     <div style="font-size:13px;font-weight:800;color:${col};margin-bottom:8px">${name}</div>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px">
@@ -17442,13 +17486,14 @@ function lameNcByBlade(period){
   return Object.entries(map).map(([label,value])=>({label,value,color:'#f87171'})).sort((a,b)=>b.value-a.value).slice(0,8);
 }
 // 2b) L37 — NC lame par MACHINE : même comptage des NC (largeur/qté/casse/angle)
-// des ficheDetail, mais groupé par la machine de la fiche.
+// des ficheDetail, mais groupé par la machine de la fiche ([L551] : de la LIGNE si la fiche a ete coupee sur 2 machines).
 function lameNcByMachine(period){
   const map={};
   (fichesCache||[]).forEach(f=>{ if(!f||f.deleted) return; if(!_inPeriod(f.date,period)) return;
     const lbl=getMachineLabel(f.machine||''); if(!lbl) return;
     const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[];
-    det.forEach(fd=>{ if(fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum)) map[lbl]=(map[lbl]||0)+1; });
+    const _ml551=_machLignes(f);   /* [L551 · B3] fiche coupee sur 2 machines : le defaut va a la machine de SA ligne */
+    det.forEach((fd,i)=>{ if(fd&&(fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum)){ const k=(_ml551&&_ml551[i])||lbl; map[k]=(map[k]||0)+1; } });
   });
   return LAME_MACHINES.map(m=>{const lbl=getMachineLabel(m);return {label:lbl,value:map[lbl]||0,color:_mcol(lbl)};});
 }
@@ -17518,7 +17563,7 @@ function _anaFiltered(){ return analyseFilter.mach!=='ALL'||analyseFilter.op!=='
 /* [L526 · demande Celine 16/09] filtre MACHINE des KPI mensuels : une fiche (ou un releve) est « passee par X » si X est sa machine OU sa machine
    de relais — MEME regle que fTemps. SANS prorata : la fiche compte EN ENTIER dans la vue filtree (le bloc « Par machine » garde, lui, sa
    ventilation b1/b de buildMonthlyKpi). Pur, teste hors DOM (csv_kpi_l526_test). */
-function _l526MachKeep(x,m){ if(!m||m==='ALL') return true; const ms=[String((x&&x.machine)||'').trim().toUpperCase(),String((x&&x.machine2)||'').trim().toUpperCase(),String((x&&x.machineChg&&x.machineChg.to)||'').trim().toUpperCase()]; return ms.indexOf(String(m).trim().toUpperCase())>=0; }   /* [L526 · revue adverse] + changement de machine en cours de fiche (f.machineChg.to) */
+function _l526MachKeep(x,m){ if(!m||m==='ALL') return true; const ms=[String((x&&x.machine)||'').trim().toUpperCase(),String((x&&x.machine2)||'').trim().toUpperCase(),String((x&&x.machineChg&&x.machineChg.to)||'').trim().toUpperCase()]; if(ms.indexOf(String(m).trim().toUpperCase())>=0) return true; const _ml551=(typeof _machLignes==='function')?_machLignes(x):null; if(!_ml551) return false; const _M=String(m).trim().toUpperCase(); return x.ficheDetail.some((d,i)=>!!d&&!(x.manqueMatiere&&d.coupee!==true)&&_ml551[i]===_M); }   /* [L526 · revue adverse] + changement de machine en cours de fiche (f.machineChg.to) ; [L551 · B3] + fiche coupee sur 2 machines : passee par la machine d une ligne COUPEE */
 function setAnalyseFilter(dim,val){ if(analyseFilter[dim]===val) return; analyseFilter[dim]=val; try{ renderAnalyse(true); }catch(e){ console.warn('renderAnalyse:',e); } }
 function resetAnalyseFilter(){ analyseFilter={mach:'ALL',op:'ALL',month:'ALL',client:'ALL'}; try{ renderAnalyse(true); }catch(e){ console.warn('renderAnalyse:',e); } }
 function analyseFilterBar(allTemps){

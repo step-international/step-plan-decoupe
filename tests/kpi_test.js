@@ -21,6 +21,7 @@ function fnLine(n){const re=new RegExp('^[ \\t]*(?:async\\s+)?function\\s+'+n+'\
 global.parseConf=eval('('+fnLine('parseConf')+')'); global.calcStats=eval('('+fnLine('calcStats')+')'); global._refKeyOf=eval('('+fnLine('_refKeyOf')+')');
 global._l505HorsPlan=eval('('+fnLine('_l505HorsPlan')+')'); global.ncLoss=eval('('+fnLine('ncLoss')+')'); global._l507GroupUseful=eval('('+fnLine('_l507GroupUseful')+')');
 global._l513Matiere=eval('('+fnLine('_l513Matiere')+')'); global._l513MatiereOf=eval('('+fnLine('_l513MatiereOf')+')');
+global._machLignes=eval('('+fnOf('_machLignes')+')'); global._l551Split=eval('('+fnOf('_l551Split')+')');   // [L551 · B3] fiches coupees sur 2 machines
 const buildMonthlyKpi=eval('('+fnOf('buildMonthlyKpi')+')');
 let fail=0; const ok=(c,m)=>{ console.log((c?'✅ ':'❌ ')+m); if(!c)fail++; };
 const YM='2026-07';
