@@ -2703,6 +2703,12 @@ has(/'⚠ Brouillon chargé — '\+_l546Txt\(_o6\)/,'L546 B8 : signale a la repr
 has(/let _o546=null; try\{ _o546=t\?_l546AtSend\(\):null; \}catch\(e\)\{\}/,'L546 B8 : signale dans le volet avant l envoi');
 has(/else _l546RepKeep=\(_tr\|\|!txt\)\?_l546RepKeep:\{k:_k,t:txt,at:Date\.now\(\)\};/,'L546 A10 : signalement non envoye = texte garde');
 has(/💬<span class="rb-lbl" aria-hidden="true">Signaler<\/span><\/button>/,'L546 A10 : mot « Signaler » dans la bulle');
+
+// ── [L547 · 07/10/2026, audit d usage reel] photo d etiquettes rappelee a l arret manque matiere, journal avant/apres des plans modifies, nouvelle version reproposee apres l envoi ──
+has(/if\(!confirm\(\(_etq547\?'':'🛑 AUCUNE PHOTO D\\'ÉTIQUETTE jointe à cette commande/,'L547 : arret manque matiere sans photo d etiquette = rappel dans la question');
+has(/function _l547SaveDiff\(a,b\)\{/,'L547 : resume avant → apres d un plan modifie');
+has(/let _chg547=''; try\{ _chg547=_l547SaveDiff\(idx>=0\?savesCache\[idx\]:null,updEntry\); \}catch\(e\)\{ _chg547=''; \}/,'L547 : le journal dit ce qui a change');
+has(/_updDismissedUntil=0; Promise\.resolve\(checkAppUpdate\(\)\)\.then\(function\(\)\{ if\(!document\.getElementById\('updBanner'\)\) _updDismissedUntil=_sv547; \}/,'L547 : nouvelle version reproposee apres l envoi (ecran vide), report retabli sinon');
 has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
 has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
 has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');

@@ -3392,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L546';
+const APP_VERSION='2026.10.07-L547';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -10519,9 +10519,11 @@ async function doSave(){
       }
       editingSaveId=null; _editSaveBase=null;
       const idx=savesCache.findIndex(x=>x._id===target);
+      let _chg547=''; try{ _chg547=_l547SaveDiff(idx>=0?savesCache[idx]:null,updEntry); }catch(e){ _chg547=''; }   // [L547] AVANT d'écraser le cache (version chargée)
       if(idx>=0) savesCache[idx]={...savesCache[idx],...updEntry,_id:target};
       else savesCache.unshift({_id:target,...updEntry});
-      logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`).catch(function(){});   // [L79] non bloquant
+      let _ow547=''; try{ if(curDate) _ow547=' · ⚠ a écrasé une version modifiée ailleurs le '+new Date(curDate).toLocaleString('fr-FR')+' (changements comparés à la version chargée)'; }catch(e){}   // [L547 · revue] verrou B7 forcé
+      logAudit('edit','saves',target,`Plan modifié — ${entry.client||''} / ${entry.ref||''}`+(_chg547?' · '+_chg547:'')+_ow547,{client:entry.client||'',ref:entry.ref||''}).catch(function(){});   // [L79] non bloquant · [L547] + ce qui a changé
       if(typeof showToast==='function') showToast('✏️ Plan modifié','ok');
     }else{
       // [L139 · audit #15] id RÉSERVÉ + set() : hors-ligne l'id est connu tout de suite → cache optimiste
@@ -10852,6 +10854,29 @@ async function editSavedPlan(id){
   updateSaveBtnLabel();
   showToast('✏️ Plan chargé pour modification — enregistre pour écraser l\'ancien','ok');
 }
+/* [L547 · audit d'usage 06/10 : « le journal ne dit pas ce qui a changé quand le bureau modifie un plan » (24 fois)] résumé AVANT → APRÈS des
+   champs utiles d'un plan enregistré. PURE, LECTURE SEULE (tests/l547_test.js) ; borné (≤ 900 caractères) ; '' si rien de lisible n'a changé. */
+function _l547SaveDiff(a,b){ try{
+  if(!a||!b) return '';
+  const T=function(v){ return String(v==null?'':v).replace(/\s+/g,' ').trim().slice(0,80)||'—'; };
+  const rows=function(g){ return (Array.isArray(g&&g.rows)?g.rows:[]).map(function(r){ return (Number(r&&r.qty)||0)+'×'+(Number(r&&r.width)||0); }).join(' + ')||'—'; };
+  const grp=function(o){ const gs=(Array.isArray(o&&o.refGroups)&&o.refGroups.length)?o.refGroups:[{ref:o&&o.ref,rows:o&&o.rows,machine:o&&o.machine,mother:o&&o.mother}]; return gs.map(function(g){ return {ref:T(g&&g.ref),rows:rows(g),machine:T(g&&g.machine),mother:T(g&&g.mother)}; }); };
+  const out=[];
+  [['client','client'],['numCmd','n°'],['dateLiv','livraison'],['machine','machine'],['mother','bobine mère'],['blade','lame'],['edgeLoss','bords'],['longueur','longueur'],['largeur','largeur'],['typeCond','conditionnement'],['palette','palette'],['etiquetage','étiquetage'],['cerclage','cerclage'],['notesEmballage','notes emballage']].forEach(function(k){
+    const x=T(a[k[0]]), y=T(b[k[0]]); if(x!==y) out.push(k[1]+' : '+x+' → '+y); });
+  const A=grp(a), B=grp(b);
+  for(let i=0;i<Math.max(A.length,B.length);i++){ const x=A[i], y=B[i];
+    if(!x){ out.push('réf. ajoutée : '+y.ref+' ('+y.rows+')'); continue; }
+    if(!y){ out.push('réf. retirée : '+x.ref+' ('+x.rows+')'); continue; }
+    if(x.ref!==y.ref) out.push('réf. '+(i+1)+' : '+x.ref+' → '+y.ref);
+    if(x.rows!==y.rows) out.push('laizes '+y.ref+' : '+x.rows+' → '+y.rows);
+    if(x.machine!==y.machine&&A.length>1) out.push('machine '+y.ref+' : '+x.machine+' → '+y.machine);
+    if(x.mother!==y.mother&&A.length>1) out.push('bobine mère '+y.ref+' : '+x.mother+' → '+y.mother); }
+  const pm=function(o){ return !!(o&&Array.isArray(o.planManual)&&o.planManual.length); };
+  if(pm(a)!==pm(b)) out.push(pm(b)?'plan modifié à la main':'plan manuel retiré');
+  const s=out.join(' ; ');
+  return s?('Changements : '+(s.length>900?s.slice(0,897)+'…':s)):'';
+}catch(e){ return ''; } }
 // Met le libellé du bouton "Sauvegarder/Modifier" de la page Plan selon le mode.
 function updateSaveBtnLabel(){
   const b=document.getElementById('planSaveBtn');
@@ -11546,7 +11571,8 @@ async function stopManqueMatiere(){
   const reste=total-done;
   _stoppingMM=true;   // [L73 · Lot 5 · B39] posé AVANT le confirm : garde le 2e tap dehors même boîte ouverte
   try{
-  if(!confirm(`⛔ Arrêt manque de matière ?\n\n${done} bobine(s) coupée(s), ${reste} non réalisée(s).\n\nLes ${done} bobines coupées et le temps passé sont enregistrés dans la fiche (production comptée).\n\n`+(reste>0?`Le solde (${reste} bobine(s)) est placé en brouillon, reprenable quand la matière arrive.`:`Aucun solde à reprendre.`))) return;
+  let _etq547=1; try{ _etq547=(commandeFiles||[]).filter(function(f){ return f&&/^Étiquette /.test(f.name||''); }).length; }catch(e){}   // [L547 · audit d'usage 06/10 : 4 des 7 fiches sans photo d'étiquette venaient d'un arrêt manque de matière] même contrôle que le volet de clôture (L243/L319)
+  if(!confirm((_etq547?'':'🛑 AUCUNE PHOTO D\'ÉTIQUETTE jointe à cette commande — « Annuler » pour la prendre d\'abord.\n\n')+`⛔ Arrêt manque de matière ?\n\n${done} bobine(s) coupée(s), ${reste} non réalisée(s).\n\nLes ${done} bobines coupées et le temps passé sont enregistrés dans la fiche (production comptée).\n\n`+(reste>0?`Le solde (${reste} bobine(s)) est placé en brouillon, reprenable quand la matière arrive.`:`Aucun solde à reprendre.`))) return;
 
   // 0. Construire le brouillon du SOLDE *avant* toute mutation/envoi : on sérialise
   //    l'état courant puis on ne garde que les bobines NON coupées, remises à neuf
@@ -12955,6 +12981,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   showToast('✓ Commande confirmée et enregistrée'+(opts.modifié?' (fiche modifiée)':''),'ok');
   // Reset complet → Plan vierge
   setTimeout(function(){ resetAll(); }, 300);
+  setTimeout(function(){ try{ if(!(typeof ficheLines!=='undefined'&&ficheLines&&ficheLines.length)){ const _sv547=_updDismissedUntil; _updDismissedUntil=0; Promise.resolve(checkAppUpdate()).then(function(){ if(!document.getElementById('updBanner')) _updDismissedUntil=_sv547; },function(){ _updDismissedUntil=_sv547; }); } }catch(e){} }, 20000);   /* [L547 · audit d'usage 06/10 : la FEBA est restée 8 jours sur une ancienne version] commande envoyée = écran vide : la bannière « Nouvelle version » existante revient même après « ✕ Plus tard » ; 20 s = après l'avertissement L545 (4,5 s + 14 s) qu'elle recouvrirait ; pas de nouvelle version ou pas de réseau = report « Plus tard » rétabli ; jamais de rechargement automatique (L89/L403) */
   if(_l355Same) setTimeout(function(){ try{ _l355PrefillClient(_l355Same); }catch(e){} }, 450);   // [L355 · §2.22-2] APRÈS le reset : client pré-rempli, curseur sur la référence
   return _ficheIdOut; // [L67 · Audit A] lie le brouillon de solde (manque matière) à la fiche
   }finally{
