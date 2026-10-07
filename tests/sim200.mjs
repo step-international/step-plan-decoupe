@@ -31,6 +31,8 @@ const PAGE_SETUP = `
   window.addEventListener('unhandledrejection',e=>{ try{ __errs.push('unhandled: '+String(e.reason&&e.reason.message||e.reason).slice(0,200)); }catch(_){} });
   (function(){ const o=window._domGuardWarn; if(typeof o==='function'&&!o.__sim){ const w=function(k,m){ try{ __guards.push(k+': '+String(m).slice(0,120)); }catch(_){} return o.apply(this,arguments); }; w.__sim=true; window._domGuardWarn=w; } })();
   window.confirm=function(){ return true; }; window.alert=function(){}; window.prompt=function(){ return null; };
+  /* [L543 · outillage] la question de pose de lame a l envoi n est plus un confirm() natif mais une fenetre de l appli (confirmDlg) qui ATTEND un tap : le simulateur y repond « Oui » comme il le faisait au confirm natif (sinon la simulation reste bloquee a la 1re commande). Les autres fenetres gardent leur comportement. */
+  (function(){ const _cd=window.confirmDlg; if(typeof _cd==='function'&&!_cd.__sim){ const w=function(m,o){ if(o&&/^Oui, j'ai posé la lame/.test(String(o.ok||''))) return Promise.resolve(true); return _cd.apply(this,arguments); }; w.__sim=true; window.confirmDlg=w; } })();
   currentRole='operateur'; currentUser={role:'operateur',ini:'OP',nom:'Opérateur test'}; applyRole(); startTraining();
   const st=document.createElement('style'); st.textContent='*{animation:none!important;transition:none!important}'; document.head.appendChild(st);
   window.__rng=(function(seed){ let s=seed>>>0; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; })(${SEED});

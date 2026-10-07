@@ -14,6 +14,7 @@ global._refIdKey=eval('('+fnOf('_refIdKey')+')');
 global._l506RefGroupFor=eval('('+fnOf('_l506RefGroupFor')+')');
 global._l507GroupIdxOf=eval('('+fnOf('_l507GroupIdxOf')+')');   // [L507] résolution par ligne des m²
 global._localYM=eval('('+fnOf('_localYM')+')');
+global._l543FixYear=eval('('+fnOf('_l543FixYear')+')'); global._l543FixIsoDate=eval('('+fnOf('_l543FixIsoDate')+')');   /* [L543] annees 0026/20026 lues comme 2026 */
 global.tempsShareParts=eval('('+fnOf('tempsShareParts')+')');
 // [L513] le mois lit la SOURCE UNIQUE matiere (_l513MatiereOf) : ses briques sont chargees par signature en debut de ligne
 function fnLine(n){const re=new RegExp('^[ \\t]*(?:async\\s+)?function\\s+'+n+'\\s*\\(','m');const m=src.match(re);if(!m)throw new Error('introuvable '+n);let i=m.index+m[0].length-m[0].trimStart().length;let k=src.indexOf('{',i),d=0;for(;k<src.length;k++){if(src[k]==='{')d++;else if(src[k]==='}'){d--;if(!d)break;}}return src.slice(i,k+1);}

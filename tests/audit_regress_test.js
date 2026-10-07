@@ -921,7 +921,7 @@ has(/\.cond-summary \.cs-l2\{-webkit-line-clamp:3\}/,'L360 n°16 : résumé emba
 
 console.log('── L361 : retours Esteban (19/08 nuit) ──');
 has(/body:not\(\.show-ref-bands\) #ficheRight>\.fmm-inline-block:not\(\.active\),body:not\(\.show-ref-bands\) #ficheLines \.fmm-inline-block:not\(\.active\)\{display:none\}/,'L361 : bandes Réf validée / verrouillée masquées en paysage (le rail les porte) — seul le bloc à couper reste');
-has(/\[L361 → retiré L382 · décision Esteban 21\/08\] entrée « 🔄 Recorriger une bobine mère » supprimée/,'L361 (révisé L382) : entrée Recorriger retirée du tiroir — décision Esteban 21/08');
+has(/\[L361 → retiré L382 · décision (?:Esteban|ER) 21\/08\] entrée « 🔄 Recorriger une bobine mère » supprimée/,'L361 (révisé L382) : entrée Recorriger retirée du tiroir — décision Esteban 21/08');
 has(/function _l361SyncOutilsBadges\(\)/,'L361 : badge OUTILS = nombre d entrées réellement visibles (affichait 6 pour 4)');
 
 console.log('── L362 : vocabulaire couleurs (analyse parcours D, décisions B1/B2/B7/B8/B9 validées par Esteban 19/08) ──');
@@ -1360,14 +1360,14 @@ has(/body\.atelier \.fp-num\{font-size:20px\}|\.fp-num,body\.atelier \.fp-num/,'
 has(/🗑 Matière ce mois/,'L480 : carte matiere compacte (retour Esteban)');
 
 console.log('── L479 : PDF fiche validee aux regles actees (exemple valide par Esteban) ──');
-has(/\[L479 · regles actees Esteban 29\/08\] m² au lieu du %/,'L479 : m² a la place du % dans le PDF fiche');
+has(/\[L479 · regles actees (?:Esteban|ER) 29\/08\] m² au lieu du %/,'L479 : m² a la place du % dans le PDF fiche');
 has(/Déchet \(NC\) : <b style="color:var\(--red\)">/,'L479 : ligne Perte / Dechet (NC) / Chute gardee');
 has(/chutesStock = chutes PRELEVEES du stock/,'L479 : semantique chutes prelevees vs gardee corrigee (solde = chute gardee)');
 
 console.log('── L487 : referentiel reserve Esteban+Dominique, multi-metrage ──');
 has(/function _l486CanEdit/,'L487 : garde dediee (admin + DC), plus canManageData trop large');
 has(/currentUser\.ini==='DC'/,'L487 : Dominique a acces a la partie client');
-has(/Réservé à Esteban et Dominique|Reserve a Esteban et Dominique|réservé à Esteban et Dominique/,'L487 : refus explicite pour les autres comptes');
+has(/Réservé à l’administration et au pilotage/,'L487 (L543 : sans prénom) : refus explicite pour les autres comptes');
 has(/x\.ref===L\.ref&&\(x\.longueur\|\|0\)===lo&&\(x\.largeur\|\|0\)===L\.la/,'L487→L488 : meme reference a plusieurs metrages, sans doublon exact');
 has(/mètre linéaire — 500 ou 100 \/ 250 \/ 500/,'L487 : champ metre lineaire multi-valeurs');
 has(/async function _l487Valider/,'L487 : geste UNIQUE client+reference+publication');
@@ -2158,7 +2158,7 @@ has(/^function _l514LameMsg\(mk,num,chk\)\{/m,'L514b : UN message par état, par
 has(/^function _l514Arm\(key\)\{/m,'L514b : UN armement 2 taps partagé');
 has(/window\._l514Undone=\{mk:li\.mk,num:li\.num,at:Date\.now\(\)\};/,'L514b : une pose annulée n est pas reproposée à l envoi');
 has(/if\(c&&li\.what==null\)\{ c\.checked=false;/,'L514b : l annulation décoche « lame changée » sur la fiche');
-has(/window\._l514LastTrace=\{ids:\[ref\.id\],mk:machine\|\|'',num:String\(num\)\.trim\(\),by:\(currentUser\?currentUser\.ini:''\)/,'L514b : envoi affûtage / retour stock annulables par leur auteur (2 h)');
+has(/window\._l514LastTrace=\{ids:\[ref\.id\],mk:machine\|\|'',num:String\(num\)\.trim\(\),by:_l543LameWho\(\)/,'L514b : envoi affûtage / retour stock annulables par leur auteur (2 h)');
 has(/what:'la mise à la benne de la lame '/,'L514b : benne annulable par son auteur (2 h)');
 has(/↩ Annuler \$\{esc\(c\.what\|\|\('la pose de la lame '\+c\.num\)\)\} \(erreur de n°\)/,'L514b : le ↩ existe aussi sur la carte machine de Données > Lame');
 has(/window\._l514LastInstall=null; window\._l514Undone=null; window\._l514InstallArm=null;/,'L514b : le ↩ ne survit pas à la commande (resetAll)');
@@ -2201,7 +2201,7 @@ has(/if\(waste<-0\.5\) return \{cls:'over',label:'⚠ DÉPASSE '\+mm\};/,'L516 :
 has(/chip\.textContent=_e\.label;/,'L516 : la pastille dit PERTE ou SOLDE (plus jamais « CHUTE »)');
 absent(/\?'⚠ DÉPASSE ':'CHUTE '\)\+fmt\(Math\.abs\(waste\)\)/,'L516 : l ancien libellé « CHUTE n mm » a disparu');
 has(/chip\.classList\.toggle\('perte',_e\.cls==='perte'\);/,'L516 : rouge UNIQUEMENT sur une perte >= seuil (un solde n est jamais rouge)');
-has(/VOIR DOMINIQUE : laize réutilisable \?/,'L516 : consigne visible « ⚠ PERTE N mm · VOIR DOMINIQUE : laize réutilisable ? » (formulation choisie par Céline)');
+has(/' mm · VOIR '\+_l543PilotNom\(\)\+' : laize réutilisable \?'/,'L516 : consigne visible « ⚠ PERTE N mm · VOIR DOMINIQUE : laize réutilisable ? » (formulation choisie par Céline)');
 has(/note\.className='l516-note'; const fld=cur\.querySelector\('\.fiche-grid>\.field:has\(\[id\^="flConf_"\]\)'\); if\(fld\) fld\.appendChild\(note\);/,'L516 : la consigne vit sur sa propre ligne SOUS la configuration (jamais dans la pastille nowrap : budget 150 px, leçon L509 ; jamais après le header absolu : chevauchement BOBINE n/T)');
 has(/\.fl-current \.fl-chute\.perte\{color:var\(--red\)\}/,'L516 : rouge sans cadre ni halo (le cadre de .over coûte 22 px)');
 has(/\.fl-current \.fl-chute:not\(\.over\):not\(\.perte\):not\(\.solde\)\{color:var\(--text2\)\}/,'L516 : le gris B1 n écrase plus le rouge PERTE (piège de cascade)');
@@ -2653,6 +2653,22 @@ has(/body\.l542-banner:not\(\.has-actionbar\) \.page\.active\{padding-bottom:cal
 has(/body\.l542-banner #ficheRail\{max-height:calc\(100vh - 152px - var\(--l542-h,56px\)\)!important\}/,'L542 : paysage — le rail remonte avec la bulle (jamais de bulle sur ⛔ Arret)');
 has(/body\.training\.l542-banner #planRight\{height:calc\(100dvh - 89px - max\(64px,var\(--l542-h,56px\)\)\)\}/,'L542 : entrainement + bandeau rouge — COMMENCER jamais sous le bandeau entrainement');
 has(/if\(nP<5\)\{ showToast\('Règles d.emballage en mémoire anormalement peu nombreuses/,'L541 : publication de l onglet Clients refusee si moins de 5 regles d emballage en memoire (meme garde que le catalogue)');
+
+// ── [L543 · 07/10/2026, audit d usage reel du 06/10] registre des lames, annees de livraison, prenoms hors du fichier public, affichage tablette ──
+has(/function _l543LameCanon\(v\)\{/,'L543 : numero de lame canonique (« L-4 » = « 4 »)');
+absent(/placeholder="[^"]*ex : L-/,'L543 : plus d exemple « ex : L-… » dans les champs de lame');
+has(/await confirmDlg\(msg,\{ok:'Oui, j\\'ai posé la lame '\+num, cancel:\(cur\?'Non, garder la lame '/,'L543 : a l envoi, fenetre a deux boutons nommes (plus de OK/Annuler natif valide par reflexe)');
+has(/function _l543LameWho\(\)\{/,'L543 : auteur des ecritures lame = initiales choisies');
+has(/async function lameDetectOnFiche\(machineKey,lameNum\)\{\n  const num=_l543LameCanon\(lameNum\);/,'L543 : a l envoi, le numero TAPE est converti (« L-4 » → « 4 ») — jamais ceux relus du registre');
+has(/nrm\(num\)===nrm\(_l543LameCanon\(_lp\.prev\|\|''\)\)\) return;/,'L543 : garde L440 en chiffres');
+has(/function _l543FixIsoDate\(v\)\{/,'L543 : annee de livraison impossible corrigee (0026/20026 → 2026)');
+has(/const dateLivRaw=_l543FixIsoDate\(/,'L543 : fiche envoyee avec une annee de livraison corrigee');
+has(/v=_l543FixIsoDate\(v\); \{ const _f=v\.match/,'L543 : indicateurs — annees impossibles deja enregistrees lues comme 2026');
+has(/function _l543PilotNom\(\)\{/,'L543 : le prenom du pilotage vient du referentiel, plus du fichier');
+has(/Réservé à l’administration et au pilotage/,'L543 : messages de refus sans prenom');
+has(/:not\(\.val-todo\)\{/,'L543 : VALIDER LA PREPARATION de nouveau jaune');
+has(/\.test2-nc input\{display:inline-block;position:absolute;opacity:0/,'L543 : plus de rectangle vide sur « Test NC »');
+has(/\.chg-section input\[type=checkbox\]\{-webkit-appearance:auto;appearance:auto;padding:0\}/,'L543 : coche visible dans Changements');
 
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
