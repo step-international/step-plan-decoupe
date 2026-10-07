@@ -555,6 +555,7 @@ body.training #actionBar{bottom:calc(64px + env(safe-area-inset-bottom,0px)) !im
 @keyframes victoryPop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
 #dataSummary{display:flex;align-items:center;justify-content:flex-end;margin:0 0 8px}#dataSummary:empty{display:none}/* [L390] plus de bandeau — juste le bouton historique, calé à droite *//* [L317 · LOT 16 · §2.16-B] ligne de résumé : chiffres DÉJÀ en mémoire, valeur absente = — , AUCUNE requête */
 .save-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.save-card[data-l545sent="1"],.save-card.poste-other[data-l545sent="1"]{opacity:.62}/* [L545 · A5] brouillon dont la commande est déjà envoyée : grisé, en bas de liste */
 .save-info{flex:1;min-width:0}
 .save-title{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .save-title-wrap{font-size:15px;font-weight:700;white-space:normal;word-break:break-word;line-height:1.35}
@@ -3146,9 +3147,23 @@ html.theme-light .fp-num small{color:#8a8a84}
     <div id="newCmdConflictInfo" style="background:#242421;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:var(--muted);line-height:1.7"></div>
     <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px">Charger une nouvelle commande. Que faire de la commande en cours ?</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-green" style="width:100%;justify-content:center" onclick="newCmdPark()">⏸ Parquer en brouillon puis charger</button>
-      <button class="btn btn-red" style="width:100%;justify-content:center" onclick="newCmdErase()">🗑️ Supprimer la commande en cours et charger</button>
+      <button class="btn btn-green" id="newCmdParkBtn" style="width:100%;justify-content:center" onclick="newCmdPark()">⏸ Parquer en brouillon puis charger</button>
+      <button class="btn btn-red" id="newCmdEraseBtn" style="width:100%;justify-content:center" onclick="newCmdErase()">🗑️ Supprimer la commande en cours et charger</button>
       <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="closeNewCmdConflictModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- [L545 · B9 · audit d'usage 06/10] plan DÉJÀ ENTAMÉ sur un poste : prévenir avant de le recharger de zéro (au-dessus de tout, comme confirmDlg L79) -->
+<div class="modal-overlay" id="l545DejaModal" style="z-index:100000">
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="l545DejaTitle">
+    <h3 id="l545DejaTitle">⚠ Commande déjà commencée</h3>
+    <div id="l545DejaInfo" style="background:#242421;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:14px;line-height:1.6;color:var(--muted)"></div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px">La charger ici repart de ZÉRO : les bobines déjà coupées ne seront pas sur la nouvelle fiche (risque de les recouper). En cas de doute, demande de vive voix.</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-green" id="l545DejaResume" style="width:100%;justify-content:center"></button>
+      <button class="btn btn-ghost" id="l545DejaLoad" style="width:100%;justify-content:center">Charger quand même (repartir de zéro)</button>
+      <button class="btn btn-ghost" id="l545DejaCancel" style="width:100%;justify-content:center">Annuler</button>
     </div>
   </div>
 </div>
@@ -3375,7 +3390,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L544';
+const APP_VERSION='2026.10.07-L545';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3801,7 +3816,9 @@ window.addEventListener('beforeunload',function(e){
 // Raccourci atelier : Échap ferme le modal ouvert (photo, sauvegarde, chargement, chrono).
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
+    try{ const _cd=document.getElementById('confirmDlgOverlay'); if(_cd&&_cd.style.display==='flex') return; }catch(_){}   /* [L545 · revue adverse] une confirmation traite SEULE son Échap (« Retour ») : la modale en dessous reste ouverte */
     const open=document.querySelector('.modal-overlay.open');
+    try{ if(open&&open.id==='newCmdConflictModal'){ closeNewCmdConflictModal(); return; } if(open&&open.id==='l545DejaModal'&&_l545AskRes){ _l545AskRes('cancel'); return; } }catch(_){}   /* [L545 · revue adverse] Échap = Annuler : remet à zéro chargement / reprise en attente (avant : .open retiré seul, état laissé armé) */
     if(open){open.classList.remove('open');return;}
     const po=document.getElementById('photoOverlay');
     if(po&&po.classList.contains('open')){closePhotoViewer();}
@@ -5083,6 +5100,143 @@ let editingSaveId = null; // id du plan en cours de MODIFICATION (la sauvegarde 
 let _editSaveBase = null;
 let _pendingLoadId = null;   // plan à charger une fois la commande en cours parquée/effacée
 let _newCmdResolved = false; // true le temps d'un doLoad relancé par la modale (bypass de la garde)
+/* ═══ [L545 · audit d'usage du 06/10 — « commandes commencées »] B9 plan déjà entamé sur un autre poste · F effacement en 1 tap ·
+   B10 reprise auto d'une commande déjà envoyée · B11 brouillons multi-réf jamais rangés · A5 carte brouillon muette · B15 synchro morte ═══ */
+let _l545AckId=null;          // [L545 · B9] « Charger quand même » déjà répondu pour CE plan (relance de doLoad par Parquer/Effacer, édition bureau)
+let _l545PendingResume=null;  // [L545 · B9] brouillon à reprendre une fois la commande à l'écran parquée/effacée
+let _l545LastSup=[];         // [L545 · revue adverse 2] ids remplacés (anti-doublon L109) par le DERNIER 💾 : newCmdPark sait si la copie choisie l'a été par SON parcage
+let _l545AskRes=null;         // [L545 · B9] réponse en attente de la fenêtre « déjà commencée » (un 2e appel annule le 1er : jamais de promesse orpheline)
+const _l545Memo={}, _l545Asked={}, _l545Told={};   // [L545 · B10] preuves « déjà envoyée » (clé id|savedAt), requêtes déjà faites, message déjà dit (1 fois par brouillon et par session)
+/* [L545] référence identifiée par son CODE ARTICLE (« 41315627 - TacFlex® … » → 41315627 ; sans code → libellé nrm) :
+   insensible aux renommages du catalogue et aux changements de laize (refIdKey 1240→1230). '—' / '?' = référence sans nom (''). PURE. */
+function _l545Code(r){ const s=String(r==null?'':r).trim(); if(s==='—'||s==='?') return ''; const m=/^(\d{6,})\b/.exec(s); return m?m[1]:nrm(s); }
+function _l545Count(a){ const m={}; (a||[]).forEach(function(k){ m[k]=(m[k]||0)+1; }); return m; }
+/* codes des blocs de référence garnis du brouillon (multiplicité comprise) ; aucun bloc garni : la 1re référence du plan. PURE. */
+function _l545DraftCodes(d){ const p=(d&&d.state&&d.state.plan)||{}; const gs=(Array.isArray(p.refGroups)?p.refGroups:[]).filter(function(g){ return g&&Array.isArray(g.rows)&&g.rows.length; }); return gs.length?gs.map(function(g){ return _l545Code(g.ref); }):[_l545Code(p.ref)]; }
+/* [L545 · B11] codes du travail d'un brouillon ABSENTS d'un envoi (sentCodes = codes envoyés, multiplicité comprise) : blocs de
+   référence (41313870 ×2 exige ×2) + référence de chaque bobine (bobines sans référence ignorées). [] = tout est couvert. PURE. */
+function _l545Uncovered(d,sentCodes){
+  const sc=_l545Count(sentCodes), dc=_l545Count(_l545DraftCodes(d)), out=[];
+  Object.keys(dc).forEach(function(k){ if((sc[k]||0)<dc[k]) out.push(k); });
+  ((d&&d.state&&Array.isArray(d.state.lines))?d.state.lines:[]).forEach(function(l){ if(!l||!String(l.ref==null?'':l.ref).trim()) return; const k=_l545Code(l.ref); if(!sc[k]&&out.indexOf(k)<0) out.push(k); });
+  return out;
+}
+function _l545Describe(d,codes){ try{ const st=(d&&d.state)||{}, gs=(st.plan&&Array.isArray(st.plan.refGroups))?st.plan.refGroups:[], L=Array.isArray(st.lines)?st.lines:[];
+  return (codes||[]).map(function(k){ const g=gs.find(function(x){ return x&&_l545Code(x.ref)===k; }); const ls=L.filter(function(l){ return l&&_l545Code(l.ref)===k; });
+    return ((g&&g.ref)||k||'référence sans nom')+(ls.length?' ('+ls.length+' bob., '+ls.filter(function(l){ return l.coupee; }).length+' coupée(s))':''); }).join(', '); }catch(e){ return (codes||[]).join(', '); } }
+/* [L545 · B10 · A5] la commande d'un brouillon est-elle DÉJÀ PARTIE ? PURE et LECTURE SEULE : rien n'est consommé ni supprimé (L254/L430).
+   Fiche retenue : non supprimée, non refusée, même client ET même n° NON vide (L245/L100 ; jamais sur n° vide : L128/L254), au moins
+   un code article commun, enregistrée APRÈS le début de CE travail (chrono.startTs = 1er ▶ ; à défaut savedAt — une reprise auto RÉÉCRIT
+   savedAt : cas réel, fiche du 26/08 et brouillon réécrit le 04/09). Jamais la fiche mère d'un solde (fromFicheId), jamais la fiche
+   réservée par CE brouillon (pendingFicheId : renvoi idempotent ENVOI-1, comportement d'avant). kind 'sent' = chaque référence du
+   brouillon est dans la fiche avec AU MOINS autant de bobines ; sinon 'partial' (travail partagé entre machines, réf. oubliée). */
+function _l545SentInfo(d,fiches){ try{
+  if(!d||!d.state) return null;
+  const st=d.state, f0=st.fiche||{}, p0=st.plan||{};
+  const _n=function(v){ v=nrm(v); return v==='—'?'':v; };
+  const _t=function(v){ return (typeof v==='number')?v:(Date.parse(v||'')||0); };
+  const num=_n(f0.numCmd||p0.numCmd), cli=_n(f0.client||p0.client);
+  if(!num||!cli) return null;
+  const L=Array.isArray(st.lines)?st.lines:[];
+  const dc={}, dk={}; L.forEach(function(l){ const k=_l545Code(l&&l.ref); if(k){ dc[k]=(dc[k]||0)+1; if(l&&l.coupee) dk[k]=(dk[k]||0)+1; } });
+  if(!Object.keys(dc).length) _l545DraftCodes(d).forEach(function(k){ if(k) dc[k]=0; });
+  const codes=Object.keys(dc); if(!codes.length) return null;
+  const t0=_t(st.chrono&&st.chrono.startTs)||_t(d.savedAt); if(!t0) return null;
+  let best=null;
+  (Array.isArray(fiches)?fiches:[]).forEach(function(x){
+    if(!x||x.deleted||x.valide===false) return;
+    if((d.fromFicheId&&x._id===d.fromFicheId)||(st.pendingFicheId&&x._id===st.pendingFicheId)) return;
+    if(_n(x.client)!==cli||_n(x.numCmd)!==num) return;
+    const tx=_t(x.date); if(!(tx>t0)) return;
+    const fc={}, fs={};
+    /* [L545 · revue adverse] une fiche MANQUE MATIÈRE porte toutes les bobines du plan (coupee:false pour le reste) : on n'y compte que les
+       COUPÉES, et on les compare aux coupées du brouillon. Plus de coupes dans le brouillon que dans la fiche = travail propre à ce poste
+       → 'partial' (reprise auto comme avant) ; sinon copie dépassée → 'sent' avec mm (le reste est dans le brouillon ⛔ Solde). */
+    (Array.isArray(x.ficheDetail)?x.ficheDetail:[]).forEach(function(r){ const k=_l545Code(r&&r.ref); if(k){ fs[k]=1; if(!(x.manqueMatiere&&!(r&&r.coupee===true))) fc[k]=(fc[k]||0)+1; } });
+    String(x.ref==null?'':x.ref).split(' + ').forEach(function(r){ const k=_l545Code(r); if(k) fs[k]=1; });
+    let cov=0, full=true;
+    codes.forEach(function(k){ if(!fs[k]){ full=false; return; } cov++; if((fc[k]||0)<(x.manqueMatiere?(dk[k]||0):dc[k])) full=false; });
+    if(!cov) return;
+    if(!best||(full&&!best.full)||(full===best.full&&tx>best.tx)) best={x:x,tx:tx,cov:cov,full:full,fs:fs};
+  });
+  if(!best) return null;
+  const reste=L.filter(function(l){ const k=_l545Code(l&&l.ref); return !!k&&!best.fs[k]&&!(l&&l.coupee); }).length;
+  return {kind:best.full?'sent':'partial',mm:!!best.x.manqueMatiere,fiche:best.x,date:String(best.x.date||''),machine:String(best.x.machine||''),ini:(best.x.ini&&best.x.ini!=='—')?String(best.x.ini):'',covered:best.cov,total:codes.length,reste:reste};
+}catch(e){ return null; } }
+/* [L545 · B10] reprise : preuve « déjà envoyée » (kind 'sent' SEULEMENT). fichesCache est presque toujours VIDE à la 1re reprise
+   (loadFirestoreData non attendu) et n'a pas d'écoute en temps réel → requête CIBLÉE sur le n°, BORNÉE à 3,5 s, une seule fois par
+   version du brouillon. Hors ligne / lent / refus = null = reprise comme avant (L435). */
+async function _l545FindSent(d){
+  if(!d||!d.state) return null;
+  const k=String(d.id||'')+'|'+String(d.savedAt||'');
+  if(_l545Memo[k]) return _l545Memo[k];
+  const s=_l545SentInfo(d,Array.isArray(fichesCache)?fichesCache:[]);
+  if(s&&s.kind==='sent'){ _l545Memo[k]=s; return s; }
+  const f=d.state.fiche||{}, p=d.state.plan||{}, rn=f.numCmd||p.numCmd||'';
+  if(!db||_l545Asked[k]||!String(rn).trim()||String(rn).trim()==='—') return null;
+  _l545Asked[k]=1;
+  try{
+    const snap=await raceTimeout(db.collection('fiches').where('numCmd','==',rn).limit(20).get(),3500);
+    const arr=[]; snap.forEach(function(doc){ arr.push(Object.assign({_id:doc.id},doc.data())); });
+    const s2=_l545SentInfo(d,arr);
+    if(s2&&s2.kind==='sent'){ _l545Memo[k]=s2; return s2; }
+  }catch(e){ console.warn('[L545] contrôle « déjà envoyée » impossible ('+((e&&e.message)||e)+') — reprise comme avant'); }
+  return null;
+}
+function _l545SentTxt(s){ try{ const t=new Date(s.date); if(isNaN(t)) return ''; return 'le '+t.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' à '+t.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(s.machine?' sur '+s.machine:'')+(s.ini?' ('+s.ini+')':''); }catch(e){ return ''; } }
+/* [L545 · revue adverse 2] arrêt manque matière : n'affirmer « brouillon ⛔ Solde » que s'il existe encore (validé → plan du reste, envoyé → consommé). */
+function _l545MmWhere(s){ try{ const fid=s&&s.fiche&&s.fiche._id; if(fid&&loadDrafts().some(function(b){ return b&&!b.consumed&&!b.deleted&&b.fromFicheId===fid; })) return 'le reste est dans le brouillon ⛔ Solde'; }catch(e){} return 'le reste à couper n\'est PAS sur cette copie (brouillon ⛔ Solde ou PLAN DU RESTE dans Données › Plans)'; }
+function _l545Ago(ms){ const m=Math.max(0,Math.floor((Number(ms)||0)/60000)); if(m<60) return 'il y a '+m+' min'; const h=Math.floor(m/60); return h<24?('il y a '+h+' h'):('il y a '+Math.floor(h/24)+' j'); }
+/* [L545 · B9 · audit d'usage 06/10] copies ENTAMÉES d'un plan enregistré. PURE. Clé = state.loadedSaveId (L67, présente dans TOUT
+   brouillon : auto, 💾, ↺, filet) — exacte, insensible au multi-réf (piège B11). Exclus : consommés/supprimés, partages, saisies de
+   plan (pas une coupe), MA sauvegarde auto (= l'écran, ou son résidu après effacement), brouillons sans bobine.
+   ctx = {myAutoId, myPost, uid, posteOf(d), visible(d)} ; tri : le plus de coupées d'abord, puis le plus récent. */
+function _l545CopiesEntamees(saveId,drafts,ctx){ try{
+  if(!saveId) return [];
+  const c=ctx||{}; const out=[];
+  (Array.isArray(drafts)?drafts:[]).forEach(function(d){
+    if(!d||d.consumed||d.deleted) return;
+    const id=String(d.id||'');
+    if(d.kind==='shared'||id.indexOf('d_shared_')===0) return;
+    if(d.planDraft||id.indexOf('d_autosave_plan_')===0) return;
+    if(c.myAutoId&&id===c.myAutoId) return;
+    if(Array.isArray(c.screenIds)&&c.screenIds.indexOf(id)>=0) return;   // [L545 · revue adverse] copie dont l'ÉCRAN est la suite (brouillon repris, solde jumeau) : la proposer, c'était proposer une version périmée de ce qu'on a devant soi
+    const st=d.state||{};
+    if(!st.loadedSaveId||st.loadedSaveId!==saveId) return;
+    const L=Array.isArray(st.lines)?st.lines:[];
+    if(!L.length) return;
+    const poste=(typeof c.posteOf==='function')?String(c.posteOf(d)||''):String(d.ownerPost||'').toUpperCase();
+    const vis=(typeof c.visible==='function')?!!c.visible(d):true;
+    out.push({id:id,poste:poste,owner:(vis&&d.owner&&d.owner!=='?')?String(d.owner):'',vis:vis,
+      cut:L.filter(function(l){ return l&&l.coupee; }).length,total:L.length,savedAt:String(d.savedAt||''),
+      auto:!!(d.auto||id.indexOf('d_autosave_')===0),
+      ici:c.myPost?((!!d.ownerPost&&String(d.ownerPost).toUpperCase()===String(c.myPost).toUpperCase())||!!(c.uid&&d.ownerUid&&d.ownerUid===c.uid)):!!(c.uid&&d.ownerUid&&d.ownerUid===c.uid)});   // [L545 · revue adverse] « ici » = appartenance RÉELLE (poste ou compte), jamais déduite de la machine du plan
+  });
+  out.sort(function(a,b){ return (b.cut-a.cut)||b.savedAt.localeCompare(a.savedAt); });
+  return out;
+}catch(e){ return []; } }
+function _l545Ctx(){ const _c=(typeof _l520DraftCtx==='function')?_l520DraftCtx():{}; return {myAutoId:autosaveId(),myPost:_machinePostName(),uid:_uid(),posteOf:_draftPoste,visible:function(d){ return _l520DraftVisible(d,_c); },screenIds:[_resumedDraftId,_resumedForeignDraftId,_loadedSoldeDraftId].filter(Boolean)}; }
+/* fenêtre « commande déjà commencée » : 'resume' | 'load' | 'cancel'. Sans la fenêtre dans la page : confirm natif (fail-safe). */
+function _l545AskDeja(cp,best,scr){ return new Promise(function(res){
+  try{ if(_l545AskRes){ const _p=_l545AskRes; _l545AskRes=null; _p('cancel'); } }catch(e){}
+  const ov=document.getElementById('l545DejaModal');
+  if(!ov){ res(confirm('⚠ Commande DÉJÀ COMMENCÉE sur un poste.\n\nLa charger quand même (repartir de zéro) ?')?'load':'cancel'); return; }
+  const info=document.getElementById('l545DejaInfo');
+  if(info) info.innerHTML=((scr&&scr.total)?'<div><b style="color:var(--text)">À l\'écran (cette commande)</b> : <b style="color:var(--orange)">'+scr.cut+'/'+scr.total+' coupée(s)</b></div>':'')+cp.slice(0,3).map(function(x){ const dp=_l545Ago(Date.now()-(Date.parse(x.savedAt||'')||Date.now()));
+      return '<div><b style="color:var(--text)">'+esc(x.ici?'Sur CETTE tablette':('Sur '+(x.poste||'un autre poste')))+(x.owner?' · '+esc(x.owner):'')+(x.vis?'':' · autre compte, pas dans tes brouillons')+'</b> : <b style="color:var(--orange)">'+x.cut+'/'+x.total+' coupée(s)</b> · '+(x.auto?'en cours':'parquée')+' · '+esc(dp)+'</div>'; }).join('')
+    +(cp.length>3?'<div>+'+(cp.length-3)+' autre(s) copie(s)</div>':'')
+    +(cp.some(function(x){ return x.vis&&x.total&&x.cut===x.total; })?'<div style="color:var(--orange);margin-top:4px">Tout est déjà coupé : il reste à l\'ENVOYER — reprends-la.</div>':(cp.some(function(x){ return x.total&&x.cut===x.total; })?'<div style="color:var(--orange);margin-top:4px">Une copie entièrement coupée est sur un autre compte : demande au bureau de l\'envoyer.</div>':''));
+  const bR=document.getElementById('l545DejaResume'), bL=document.getElementById('l545DejaLoad'), bC=document.getElementById('l545DejaCancel');
+  if(bR){ bR.style.display=best?'':'none'; bR.textContent=best?(best.ici?('▶ Reprendre ce brouillon ('+best.cut+'/'+best.total+')'):('▶ Reprendre ici — passation depuis '+(best.poste||'l\'autre poste')+' ('+best.cut+'/'+best.total+')')):''; }
+  let fin=false;
+  const done=function(v){ if(fin) return; fin=true; if(_l545AskRes===done){ _l545AskRes=null; ov.classList.remove('open'); [bR,bL,bC].forEach(function(b){ if(b) b.onclick=null; }); ov.onclick=null; } res(v); };
+  _l545AskRes=done;
+  if(bR) bR.onclick=function(){ done('resume'); }; if(bL) bL.onclick=function(){ done('load'); }; if(bC) bC.onclick=function(){ done('cancel'); };
+  ov.onclick=function(e){ if(e.target===ov) done('cancel'); };
+  ov.classList.add('open');
+}); }
+function _l545Badge(id,drafts,ctx){ try{ const cp=_l545CopiesEntamees(id,drafts,ctx); if(!cp.length) return ''; const b=cp[0];
+  return '<div style="margin-top:5px"><span style="display:inline-block;background:var(--warn-dim);color:var(--orange);font-weight:800;font-size:12.5px;padding:3px 10px;border-radius:6px">✂ Commencée '+esc(b.ici?'sur cette tablette':('sur '+(b.poste||'un autre poste')))+(b.owner?' · '+esc(b.owner):'')+(b.vis?'':' · autre compte')+' — '+b.cut+'/'+b.total+' coupée(s)'+(cp.length>1?' (+'+(cp.length-1)+')':'')+'</span></div>'; }catch(e){ return ''; } }
 let _lameInstallMachine = null; // machine ciblée par la modale de pose de lame
 let _op2Pending = null;         // contexte {useful2,b2,refKeys} pendant le choix de réf op.2
 let _recalcPending = false;     // D-4 : garde de ré-entrance — un recalcul (setTimeout ~1s) en cours bloque tout nouveau
@@ -10465,6 +10619,7 @@ function renderSaves(){
      decroissante (avant : par date de livraison — le plan qu'on venait de preparer se noyait au milieu). */
   try{ saves.sort(function(a,b){ return String(a.date||'')>String(b.date||'')?-1:1; }); }catch(e){}
   saves=saves.slice(0,savesRenderLimit);   /* [L412 audit] pagination APRES le tri */
+  let _l545D=[], _l545C=null; try{ _l545D=loadDrafts(); _l545C=_l545Ctx(); }catch(e){ _l545D=[]; _l545C=null; }   // [L545 · B9] pastille « ✂ Commencée sur … » (copies entamées de chaque plan)
   list.innerHTML=saves.map(s=>{
     const d=new Date(s.date);
     const ds=d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
@@ -10521,6 +10676,7 @@ function renderSaves(){
         ${machBadge}
         ${cmdLine}
         ${plnBadge}
+        ${_l545C?_l545Badge(s._id,_l545D,_l545C):''}
         <div class="save-meta">${ds} · Bobine ${s.mother} mm</div>
         ${filmLine}
         ${filesLine}
@@ -10564,11 +10720,20 @@ function openNewCmdConflictModal(){
   const num=(document.getElementById('fNumCmd')?.value||document.getElementById('planNumCmd')?.value||'sans n°');
   const info=document.getElementById('newCmdConflictInfo');
   if(info) info.innerHTML='<div style="color:var(--text);font-weight:600;margin-bottom:2px">'+esc(client+' / '+num)+'</div>'+done+' bobine(s) coupée(s) sur '+total;
+  /* [L545 · F · audit d'usage 06/10 : le 01/10 sur FEBA, la MÊME commande effacée deux fois (1 puis 5 coupées)] l'effacement dit ce qu'il
+     jette, il n'est plus rouge à côté du vert dès qu'une bobine est coupée, et le rechargement de la commande à l'écran est signalé. */
+  try{
+    const _same=!!(_pendingLoadId&&loadedSaveId&&_pendingLoadId===loadedSaveId);
+    if(info&&_same) info.innerHTML+='<div style="color:var(--orange);font-weight:700;margin-top:4px">⚠ C\'est LA MÊME commande que celle à l\'écran : la recharger repart de ZÉRO.</div>';
+    const _act=_l545PendingResume?'reprendre':'charger';
+    const eb=document.getElementById('newCmdEraseBtn'); if(eb){ eb.textContent=done>0?('🗑️ Effacer — '+done+' coupée(s) PERDUE(S) — et '+_act):('🗑️ Supprimer la commande en cours et '+_act); eb.className=done>0?'btn btn-ghost':'btn btn-red'; }
+    const pb=document.getElementById('newCmdParkBtn'); if(pb) pb.textContent='⏸ Parquer en brouillon puis '+_act;
+  }catch(e){}
   document.getElementById('newCmdConflictModal').classList.add('open');
 }
 function closeNewCmdConflictModal(){
   document.getElementById('newCmdConflictModal').classList.remove('open');
-  _pendingLoadId=null; _newCmdResolved=false;
+  _pendingLoadId=null; _newCmdResolved=false; _l545PendingResume=null; _l545AckId=null;   // [L545 · B9]
 }
 // Vide la Fiche live (DOM + tableau + photos) et remet le chrono à zéro, pour
 // repartir sur une commande propre. Le travail terrain a déjà été parqué (parc)
@@ -10599,16 +10764,49 @@ async function newCmdPark(){
   // promettait « parquée », puis la fiche était VIDÉE (saisies post-💾 perdues).
   // On attend la fin de l'écriture en cours (borné ~7,5 s), puis on parque et on ATTEND
   // que le parking soit réellement écrit avant de vider la fiche.
+  let _parked=false, _pid=null; _l545LastSup=[];
   try{
     for(let _i=0;_i<50&&_savingDraftManual;_i++) await new Promise(r=>setTimeout(r,150));
-    await saveDraftManual();
+    _pid=await saveDraftManual(); _parked=(typeof _pid==='string'&&!!_pid);
   }catch(e){ console.warn('Parking commande en cours:',e); }
+  // [L545 · F] parcage ÉCHOUÉ (base ET stockage local refusés, 💾 encore en vol, copie d'un partage terminé…) : avant, la fiche était
+  // VIDÉE quand même. Elle reste désormais à l'écran (chrono en pause : ▶ pour le relancer). Entraînement : inchangé.
+  if(!_parked&&!trainingGuard()&&ficheLines.length>0){
+    _newCmdResolved=false; _pendingLoadId=null; _l545PendingResume=null; _l545AckId=null;
+    try{ showToast('⛔ Parcage impossible — ta commande RESTE à l\'écran, rien n\'est effacé.'+(_localCopyFromShare?' (Copie d\'un partage terminé : vérifie dans Données > Fiches qu\'elle n\'est pas déjà enregistrée.)':' Réessaie.'),'err'); }catch(e){}
+    return;
+  }
   _newCmdClearLiveFiche();
+  if(_l545PendingResume){ let _r=_l545PendingResume; _l545PendingResume=null; _newCmdResolved=false; _pendingLoadId=null; _l545AckId=null;   // [L545 · B9] « Reprendre ici » : la commande à l'écran est parquée, on reprend la copie choisie
+    // [L545 · revue adverse ×2] la copie choisie a été remplacée par CE parcage (version plus ancienne de l'écran, mêmes coupes) → on reprend
+    // la version à jour ; si elle a disparu entre-temps (envoyée ou supprimée ailleurs) → l'écran d'avant revient. Jamais écran vide + « déjà enregistrée ».
+    let _m545=null;
+    try{ const _rd=loadDrafts().find(function(x){ return x&&x.id===_r; });
+      if(_pid&&_l545LastSup.indexOf(_r)>=0){ _r=_pid; _m545='ℹ Copie plus ancienne que ton écran : ta version à jour est reprise.'; }
+      else if(_pid&&(!_rd||_rd.consumed)){ _r=_pid; _m545='ℹ La copie choisie n\'est plus disponible (envoyée ou supprimée ailleurs) : ta commande parquée est remise à l\'écran.'; } }catch(e){}
+    if(!_m545&&_pid&&_r!==_pid){ try{ const _cc=function(x){ return ((x&&x.state&&Array.isArray(x.state.lines))?x.state.lines:[]).filter(function(l){ return l&&l.coupee; }).length; }; const _a=loadDrafts().find(function(x){ return x&&x.id===_r; }), _b=loadDrafts().find(function(x){ return x&&x.id===_pid; });
+      if(_a&&_b&&String((_a.state&&_a.state.loadedSaveId)||'')===String((_b.state&&_b.state.loadedSaveId)||'')&&_cc(_b)>_cc(_a)) _m545='⚠ Ta commande parquée avait '+_cc(_b)+' coupée(s), cette copie '+_cc(_a)+' : vérifie avant de couper — la version à '+_cc(_b)+' est dans Données › Brouillons.'; }catch(e){} }   // [L545 · revue adverse 3]
+    resumeDraft(_r,{l545:true,cleared:true});
+    if(_m545&&_resumedDraftId===_r){ try{ showToast(_m545,/^⚠/.test(_m545)?'err':'ok'); }catch(e){} }   // APRÈS la reprise (sinon « Brouillon chargé » l'écrasait aussitôt)
+    return; }
   _newCmdResolved=true;
-  loadTargetIdx=_pendingLoadId; _pendingLoadId=null;
+  loadTargetIdx=_pendingLoadId; _pendingLoadId=null; _l545AckId=loadTargetIdx;   // [L545 · revue adverse] relance : pas de 2e fenêtre « déjà commencée » (elle ne montrerait que la copie qu'on vient de parquer)
   doLoad();
 }
-function newCmdErase(){
+async function newCmdErase(){
+  // [L545 · F · audit d'usage 06/10 : 8 effacements depuis le 01/08 = 27 coupées jetées (13/14 le 21/08 ; la MÊME commande deux fois
+  // le 01/10 sur FEBA)] du travail déjà fait (coupée, ou chrono ≥ 1 min — définition L440) = 2e confirmation CHIFFRÉE. « Retour » laisse
+  // la modale ouverte (Parquer à 1 tap) ; une erreur ici = on n'efface pas (fail-closed).
+  try{
+    const _t=ficheLines.length, _d=countCoupees(), _s=(typeof chronoSec==='number')?chronoSec:0;
+    if(_d>0||_s>=60){
+      const _msg=(_d>0?('⚠ '+_d+' bobine(s) DÉJÀ COUPÉE(S) sur '+_t+'.'):('⚠ Chrono déjà lancé ('+fmtTimeFr(_s)+').'))
+        +'\n\nEffacer = '+(_d>0?'ces bobines ne seront comptées NULLE PART (ni fiche, ni temps).':'ce temps ne sera compté NULLE PART.')
+        +((_d>0&&_d===_t)?'\n\nTOUT est coupé : envoie plutôt la commande (CONFIRMER).':'')
+        +'\n\nPour garder ce travail : « ⏸ Parquer » (reprenable dans Données › Brouillons).';
+      if(!(await confirmDlg(_msg,{danger:true,ok:(_d>0?('Effacer les '+_d+' coupée(s)'):'Effacer quand même'),cancel:'Retour'}))) return;
+    }
+  }catch(e){ console.warn('[L545] confirmation effacement :',e); return; }
   // P3 — traçabilité ISO : effacer une commande en cours détruit du travail terrain
   // non committé (sans trace sinon). On le journalise AVANT de vider. Le choix
   // « Parquer » n'est pas tracé : il crée un brouillon récupérable.
@@ -10621,8 +10819,9 @@ function newCmdErase(){
   }catch(e){ console.warn('Audit effacement commande:',e); }
   document.getElementById('newCmdConflictModal').classList.remove('open');
   _newCmdClearLiveFiche();
+  if(_l545PendingResume){ const _r=_l545PendingResume; _l545PendingResume=null; _newCmdResolved=false; _pendingLoadId=null; _l545AckId=null; resumeDraft(_r,{l545:true,cleared:true}); return; }   // [L545 · B9]
   _newCmdResolved=true;
-  loadTargetIdx=_pendingLoadId; _pendingLoadId=null;
+  loadTargetIdx=_pendingLoadId; _pendingLoadId=null; _l545AckId=loadTargetIdx;   // [L545 · revue adverse] relance : pas de 2e fenêtre « déjà commencée » (elle ne montrerait que la copie qu'on vient de parquer)
   doLoad();
 }
 // Charge un plan dans l'éditeur pour le MODIFIER : la prochaine sauvegarde
@@ -10634,6 +10833,7 @@ async function editSavedPlan(id){
   loadTargetIdx=id;
   const baseDate=s.date||'';   // version chargée dans l'éditeur = ce qu'on éditera
   _newCmdResolved=true;        // édition de plan : pas de modale parquer/effacer
+  _l545AckId=id;               // [L545 · B9] action bureau : pas de fenêtre « déjà commencée »
   await doLoad();              // remplit l'éditeur ; doLoad remet editingSaveId=null en fin de course
   editingSaveId=id;            // ré-affirmé APRÈS doLoad → le mode édition survit à sa remise à zéro
   _editSaveBase={id:id, date:baseDate}; // B7 : version de référence pour le verrou optimiste
@@ -10658,7 +10858,9 @@ async function doRedo(){
   }catch(e){}
 }
 async function doLoad(){
+  const _l545Res=_newCmdResolved; _newCmdResolved=false;   // [L545 · revue adverse] drapeau consommé dès l'entrée : aucune sortie (fenêtre « déjà commencée » annulée, partage, plan disparu, hors ligne refusé) ne le laisse armé — sinon le chargement SUIVANT sautait la garde « commande en cours »
   if(!loadTargetIdx) return;
+  const _l545Skip=(_l545AckId!=null&&_l545AckId===loadTargetIdx); _l545AckId=null;   // [L545 · B9] réponse « Charger quand même » consommée à l'entrée : aucune sortie anticipée ne la laisse traîner
   // [L103 · audit-max] chargement d'un plan pendant un partage actif : la nouvelle commande
   // passerait SOUS le partage en cours (structure remplacée, verrous cuts transplantés chez
   // les collègues). Bloqué — même règle que l'ajout/suppression de bobine (L67).
@@ -10693,11 +10895,35 @@ async function doLoad(){
       if(typeof confirm==='function'&&!confirm('⚠ Impossible de vérifier ce plan en base (hors-ligne ?).\n\nIl a peut-être DÉJÀ été chargé et coupé sur un autre poste.\n\nCharger quand même ? (Vérifie de vive voix qu\'aucun collègue n\'est déjà dessus.)')) return;
     }
   }
+  // [L545 · B9 · audit d'usage 06/10 : deux commandes réelles commencées sur une tablette puis rechargées de zéro sur une autre (19/21 et 11/15 coupées)]
+  // plan DÉJÀ ENTAMÉ sur un poste : rien ne le disait (copies orphelines, temps du 2e opérateur perdu, risque de recoupe). APRÈS la
+  // revérification serveur (un plan consommé ne déclenche jamais la fenêtre), AVANT la garde « commande en cours » (on le sait avant de
+  // parquer/effacer la sienne ; Annuler ne touche à RIEN). « Reprendre » ne continue JAMAIS dans doLoad (L113 : il désarmerait la
+  // reprise) et ne renvoie pas true (L316 : doRedo viderait n°/date).
+  let _l545Load=false;
+  if(!_l545Skip){
+    let _cp=[]; try{ _cp=_l545CopiesEntamees(s._id,loadDrafts(),_l545Ctx()); }catch(e){ _cp=[]; }
+    if(_cp.length){
+      const _best=_cp.find(function(x){ return x.vis; })||null;   // [L520] jamais proposer la reprise d'un brouillon invisible pour ce compte
+      let _scr=null; try{ if(loadedSaveId===s._id&&!isFicheUntouched()) _scr={cut:countCoupees(),total:ficheLines.length}; }catch(e){}   // [L545 · revue adverse 3] même commande à l'écran : on montre où en est l'écran (jamais poussé vers une copie moins avancée sans le voir)
+      const _ch=await _l545AskDeja(_cp,_best,_scr);
+      if(_ch==='resume'&&_best){
+        try{ closeLoadModal(); }catch(e){}
+        if(!isFicheUntouched()){ _l545PendingResume=_best.id; _pendingLoadId=null; _newCmdResolved=false; openNewCmdConflictModal(); return; }   // jamais le confirm DESTRUCTIF de resumeDraft (L72 B09) : Parquer/Effacer d'abord
+        resumeDraft(_best.id,{l545:true}); return;
+      }
+      if(_ch!=='load') return;
+      _l545Load=true; loadTargetIdx=s._id;
+      try{ logAudit('edit','saves',s._id,'« Charger quand même » choisi pour un plan DÉJÀ ENTAMÉ ('+_cp.map(function(x){ return (x.ici?'ici':(x.poste||'?'))+(x.owner?' '+x.owner:'')+' '+x.cut+'/'+x.total; }).join(' ; ')+') · '+(s.client||'—')+' / '+(s.numCmd||'sans n°')).catch(function(){}); }catch(e){}
+    }
+  }
   // Une commande est DÉJÀ en cours dans la Fiche (bobines coupées, photos, NC…).
   // On tranche AVANT d'écraser le Plan : à cet instant Plan + Fiche affichent
   // encore la commande en cours → un parking capture un état cohérent.
-  if(!_newCmdResolved && !isFicheUntouched()){
+  if(!_l545Res && !isFicheUntouched()){
     _pendingLoadId=loadTargetIdx;   // capturé AVANT closeLoadModal (qui remet loadTargetIdx à null)
+    _l545PendingResume=null;   // [L545 · revue adverse] une nouvelle demande de chargement annule toute reprise restée en attente (modale fermée par Échap)
+    if(_l545Load) _l545AckId=_pendingLoadId;   // [L545 · B9] la relance par Parquer/Effacer ne redemande pas
     closeLoadModal();
     openNewCmdConflictModal();
     return;
@@ -12580,6 +12806,10 @@ async function saveCommandeFiche(rows,useful,blade,opts){
         //    identiques sans n\u00b0 ne se touchent jamais). Soft (consumed:true) + logAudit, comme DRAFT-4.
         try{
           const _mineIni=_ini();
+          const _l545Sent=multi?computed.map(function(c){ return _l545Code(c.ref||'?'); }):[_l545Code((computed[0]&&computed[0].ref)||ref)];   /* [L545 · B11] codes RÉELLEMENT envoyés (multiplicité comprise) ; en mono, le bloc réellement découpé (pas forcément le bloc 0 #planRef) */
+          const _l545Fc=_l545Count(ficheDetailTagged.map(function(r){ return _l545Code(r&&r.ref); }));   /* [L545 · revue adverse] bobines RÉELLEMENT envoyées par code article ('' = référence sans nom, comptée aussi : L544 gardait ces brouillons) */
+          const _l545CutIds=new Set(ficheDetailTagged.filter(function(r){ return r&&r.coupee===true&&r.id; }).map(function(r){ return r.id; }));   /* [L545 · revue adverse 2] bobines COUPÉES de la fiche, par id de ligne */
+          const _l545Kept=[];
           const _victims=(Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(d=>{
             if(!d||d.consumed||d.kind==='shared'||/^d_shared_/.test(String(d.id))) return false;
             if(/^d_autosave/.test(String(d.id))) return false;
@@ -12601,14 +12831,42 @@ async function saveCommandeFiche(rows,useful,blade,opts){
             else { if(d.owner==='?'||_mineIni==='?') return false;   // [L156 · audit #9] identité inconnue (compte machine) : jamais de consommation croisée ('?'==='?' passait la garde)
               if(d.owner&&d.owner!==_mineIni) return false; }
             const _p=(d.state&&d.state.plan)||{};
-            return (nrm(_p.client)+'\u00a6'+nrm(_p.ref)+'\u00a6'+nrm((_p.numCmd&&_p.numCmd!=='\u2014')?_p.numCmd:''))===_kSend;
+            /* [L545 · B11 · audit d'usage 06/10] la clé client¦réf¦n° comparait plan.ref (1re réf.) au join « A + B » envoyé : en multi-réf,
+               jamais égale → brouillon jamais rangé. Désormais : même client + même n° NON vide (exigé plus haut) ET tout le travail du
+               brouillon dans la fiche envoyée (codes article, multiplicité comprise) ; sinon CONSERVÉ et signalé (cas réel : 96 bobineaux
+               d'une 3e réf. hors fiche, dernière trace = ce brouillon). Ne fait que RÉDUIRE les rangements par rapport à « client + n° ». */
+            if(nrm(_p.client||'')!==nrm(client)) return false;
+            if(nrm((_p.numCmd&&_p.numCmd!=='\u2014')?_p.numCmd:'')!==nrm(_ncSend)) return false;
+            const _unc=_l545Uncovered(d,_l545Sent);
+            /* [L545 · revue adverse · cas réel de septembre : brouillon 10/26 d'une commande dont un plan du RESTE de 17 bobines a été envoyé]
+               même codes ne suffit pas : le brouillon ne doit pas avoir PLUS de bobines d'une réf. que la fiche envoyée (ses coupes n'y seraient pas). */
+            const _dLines=(d.state&&Array.isArray(d.state.lines))?d.state.lines:[];
+            const _dl=_l545Count(_dLines.map(function(l){ return _l545Code(l&&l.ref); }));
+            /* [L545 · revue adverse 2/3] toutes les coupées du brouillon sont coupées dans la fiche (mêmes ids de ligne) = instantané de CET écran
+               (💾 puis bobine ✕ avant l'envoi) : rangé comme en L544, pas de fausse alerte. Reconnu SEULEMENT sans restauration de l'écran entre le 💾
+               et l'envoi (une restauration renouvelle les ids) : sinon contrôle prudent, brouillon gardé et signalé. Le contrôle des codes (_unc) reste toujours. */
+            const _snap=_dLines.filter(function(l){ return l&&l.coupee; }).every(function(l){ return !!(l.id&&_l545CutIds.has(l.id)); });
+            const _short=_snap?[]:Object.keys(_dl).filter(function(k){ return (_l545Fc[k]||0)<_dl[k]; });
+            if(_unc.length||_short.length){ _l545Kept.push({d:d,unc:_unc,short:_short}); return false; }
+            return true;
           });
+          /* [L545 · B11] brouillon REPRIS rangé par la règle L245 (n° égal, réf. ignorée — protection anti double reprise, inchangée) alors
+             qu'une de ses réf. n'est PAS dans la fiche envoyée : on le dit (toast + journal) au lieu de le taire. */
+          try{ _victims.forEach(function(d){ if(d.id!==_resumedDraftId&&!(_loadedSoldeDraftId&&d.id===_loadedSoldeDraftId)) return; const _u=_l545Uncovered(d,_l545Sent); if(_u.length) _l545Kept.push({d:d,unc:_u,gone:true}); }); }catch(_){}
           for(const d of _victims){
             try{
               await boundedWrite(db.collection('brouillons').doc(d.id).set({consumed:true,ficheId:(ficheRef&&ficheRef.id)||'',consumedAt:isoNow()},{merge:true}),8000);
               d.consumed=true;
               logAudit('delete','brouillons',d.id,`Brouillon consomm\u00e9 (fiche envoy\u00e9e \u2014 m\u00eame commande) \u2014 ${client||''} / ${ref||''}${numCmd&&numCmd!=='\u2014'?' \u00b7 N\u00b0 '+numCmd:''}`).catch(function(){});
             }catch(e){ console.warn('Brouillon non consomm\u00e9 (r\u00e9seau ?) :',e&&e.message); }
+          }
+          if(_l545Kept.length){   /* [L545 · B11] rien n'est rangé en silence : l'opérateur sait qu'une réf. de la commande n'est pas partie */
+            const _kK=_l545Kept.filter(function(k){ return !k.gone; }), _kG=_l545Kept.filter(function(k){ return k.gone; });
+            const _kOne=function(k){ const p=[]; if(k.unc&&k.unc.length) p.push('réf. absente : '+_l545Describe(k.d,k.unc)); if(k.short&&k.short.length) p.push('plus de bobines que la fiche : '+_l545Describe(k.d,k.short)+' contre '+k.short.map(function(c){ return _l545Fc[c]||0; }).join('/')+' bob. dans la fiche'); return '« '+String(k.d.label||k.d.id)+' » → '+p.join(' ; '); };
+            const _kMsg=(_kK.length?'⚠ Brouillon GARDÉ (même commande, mais une partie de son travail n\'est PAS dans la fiche envoyée) : '+_kK.map(_kOne).join(' ; ')+'. Vérifie AVANT de le supprimer (pas de corbeille) : ses coupées peuvent n\'être dans aucune fiche — sinon reprends-le et envoie-le (Données > Brouillons).':'')   /* [L545 · revue adverse 4] texte ferme : jamais d'invitation à supprimer la seule trace de bobines coupées */
+              +(_kG.length?(_kK.length?' ':'')+'⚠ Brouillon repris rangé, mais ces réf. ne sont PAS dans la fiche envoyée : '+_kG.map(function(k){ return _l545Describe(k.d,k.unc); }).join(' ; ')+' — vérifie qu\'il ne reste rien à couper.':'');
+            setTimeout(function(){ try{ showToast(_kMsg,'err'); }catch(_){} },4500);   // après le « ✓ Commande confirmée » (sinon il l'écraserait aussitôt)
+            _l545Kept.forEach(function(k){ try{ logAudit('edit','brouillons',k.d.id,(k.gone?'Brouillon repris RANGÉ à l\'envoi alors que ces réf. sont hors fiche : ':'Brouillon CONSERVÉ à l\'envoi — même commande, travail hors fiche : ')+(k.unc||[]).map(function(c){ return c||'sans nom'; }).join(', ')+((k.short&&k.short.length)?' · plus de bobines que la fiche : '+k.short.map(function(c){ return c||'sans nom'; }).join(', '):''),{ficheId:(ficheRef&&ficheRef.id)||''}).catch(function(){}); }catch(_){} });
           }
           if(_victims.length){ _resumedDraftId=null; _loadedSoldeDraftId=null; try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){} }
         }catch(e){}
@@ -24811,6 +25069,7 @@ function _draftDelete(id){
 // rafraîchit la liste si elle est affichée.
 function startBrouillons(){
   if(!db||_brouillonsUnsub) return;
+  const _l545T0=Date.now();   // [L545 · B15] âge de cet abonnement (remise à zéro du compteur d'essais AU TEMPS)
   // CO-1 : la collection 'brouillons' est PARTAGÉE (passation entre postes). On ne
   // filtre donc pas par propriétaire, mais on BORNE le listener aux N plus récents
   // (tri serveur savedAt desc — présent sur tout brouillon, incl. à chaque autosave)
@@ -24832,18 +25091,32 @@ function startBrouillons(){
     }catch(e){}
     try{ renderSharedInbox(); }catch(e){}
     try{ renderSharedViewBar(); }catch(e){}
+    try{ if(_isDataTabVisible('saves')) debouncedRenderSaves(); }catch(e){}   /* [L545 · B9] la pastille « ✂ Commencée sur … » des plans suit les autres tablettes (onglet visible seulement, L80) */
     try{ if(_isDataTabVisible('brouillons')) renderDrafts(); }catch(e){}   // [L80·PERF-5] ne reconstruit la liste des brouillons QUE si l'onglet est visible (avant : liste complète rebâtie à chaque snapshot de fond d'un autre poste) — switchTab la rend à la navigation
     try{ if(typeof updateResumeLastBtn==='function') updateResumeLastBtn(); }catch(e){}
     try{ if(typeof _l414BootDone==='function') _l414BootDone(); }catch(e){}   /* [L414] signal 2/2 : brouillons synchronises */
     try{ if(typeof window._l428TryResume==='function') window._l428TryResume(); }catch(e){}   /* [L428] les brouillons sont la : la reprise auto peut lire le cache local */
-  }, function(err){ console.warn('Brouillons (sync) :',err.message);
+  }, function(err){ console.warn('Brouillons (sync) :',err&&err.message);
     // [L373 · audit chrono E6] un listener mort gelait partage / verrous ✂ / passation SANS RIEN DIRE jusqu'au reload.
-    try{ showToast('⚠ Synchro des brouillons interrompue ('+String(err&&err.message||'').slice(0,60)+') — reconnexion…','err'); }catch(_){}
     _brouillonsUnsub=null;
-    try{ if((window._l373BrRetries||0)<5){ window._l373BrRetries=(window._l373BrRetries||0)+1; setTimeout(function(){ try{ if(!_brouillonsUnsub) startBrouillons(); }catch(_){} },8000*window._l373BrRetries); } }catch(_){}
+    /* [L545 · B15 · audit d'usage 06/10] le compteur n'était JAMAIS remis à zéro (5 incidents espacés dans la journée suffisaient) et, au 6e,
+       l'écoute mourait pour toute la session : la fenêtre « déjà commencée » (B9) et le rangement à l'envoi (B11) lisaient un cache périmé.
+       Compteur remis à zéro AU TEMPS (> 1 min de vie = abonnement sain ; pas au 1er instantané : avec la persistance hors ligne, un
+       instantané du CACHE arrive avant le refus serveur → boucle de 8 s sans fin), puis relance L542 (retour du réseau ou 5 min). */
+    try{ if(Date.now()-_l545T0>60000) window._l373BrRetries=0; }catch(_){}
+    const _n=window._l373BrRetries||0;
+    if(_n<5){
+      try{ showToast('⚠ Synchro des brouillons interrompue ('+String(err&&err.message||'').slice(0,60)+') — reconnexion…','err'); }catch(_){}
+      window._l373BrRetries=_n+1;
+      try{ clearTimeout(window._l545BrRetryT); }catch(_){}
+      window._l545BrRetryT=setTimeout(function(){ window._l545BrRetryT=null; try{ if(!_brouillonsUnsub&&typeof currentRole!=='undefined'&&currentRole) startBrouillons(); }catch(_){} },8000*window._l373BrRetries);
+    }else{
+      if(_n===5){ window._l373BrRetries=6; try{ showToast('⚠ Synchro des brouillons ARRÊTÉE — nouvel essai au retour du réseau et toutes les 5 min. Les brouillons des autres tablettes peuvent ne plus être à jour.','err'); }catch(_){} }
+      try{ _l542RearmArm('brouillons',function(){ startBrouillons(); }); }catch(_){}
+    }
   });
 }
-function stopBrouillons(){ if(_brouillonsUnsub){ try{_brouillonsUnsub();}catch(e){} _brouillonsUnsub=null; } brouillonsCache=[]; }
+function stopBrouillons(){ if(_brouillonsUnsub){ try{_brouillonsUnsub();}catch(e){} _brouillonsUnsub=null; } brouillonsCache=[]; try{ window._l373BrRetries=0; clearTimeout(window._l545BrRetryT); window._l545BrRetryT=null; _l542RearmStop('brouillons'); }catch(e){} }   /* [L545 · B15] déconnexion : relances désarmées (L136 : rien ici ne doit lever) */
 // Lecture synchrone depuis le cache (compatibilité avec les appelants existants).
 // [Lot 2] on EXCLUT les docs de partage (kind:'shared') : ils vivent dans 'brouillons'
 // mais ne sont pas des brouillons — invisibles dans l'onglet, ignorés par la reprise et les purges.
@@ -24953,14 +25226,14 @@ function serializeFicheState(){
 }
 let _savingDraftManual=false;   // [L73 · Lot 5 · B41] verrou anti double-tap « 💾 Brouillon »
 async function saveDraftManual(){
-  if(trainingGuard()){ try{ showToast('🎓 Entraînement — brouillon désactivé.'); }catch(e){} return; }   // [L327 · LOT 25]
-  if(ficheLines.length===0){showToast('Aucune bobine à enregistrer en brouillon.','err');return;}
-  if(_viewingSharedId){ showToast('🔒 Vue miroir (commande d\'un collègue) : le doc partagé EST déjà la sauvegarde — pas de brouillon perso ici.','err'); return; }   // [L113 · audit #17] sinon un 💾 côté récepteur CONSOMMAIT le brouillon de l'émetteur (L109 sans garde propriétaire)
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — brouillon désactivé.'); }catch(e){} return false; }   // [L327 · LOT 25]
+  if(ficheLines.length===0){showToast('Aucune bobine à enregistrer en brouillon.','err');return false;}
+  if(_viewingSharedId){ showToast('🔒 Vue miroir (commande d\'un collègue) : le doc partagé EST déjà la sauvegarde — pas de brouillon perso ici.','err'); return false; }   // [L113 · audit #17] sinon un 💾 côté récepteur CONSOMMAIT le brouillon de l'émetteur (L109 sans garde propriétaire)
   // [L138 · audit #7] copie locale d'un partage terminé : parquer en brouillon « propre » (owner=récepteur, sans
   // marqueur de partage) effacerait le bandeau + le confirm anti-doublon à l'envoi → envoi ultérieur = doublon de
   // la fiche de l'émetteur. On refuse : la commande RESTE à l'écran avec ses protections (bandeau + garde d'envoi).
-  if(_localCopyFromShare){ showToast('🔒 Copie locale d\'un partage terminé ('+(_localCopyFromShare.from||'?')+') : ne la parque pas en brouillon. Vérifie dans Données > Fiches qu\'elle n\'a pas déjà été enregistrée par l\'émetteur avant de la couper/envoyer.','err'); return; }
-  if(_savingDraftManual) return;   // [L73 · Lot 5 · B41] double-tap : les 2 invocations passaient tout le tronçon synchrone avant le 1er await → deux ids 'd_'+Date.now() → deux brouillons de la même commande
+  if(_localCopyFromShare){ showToast('🔒 Copie locale d\'un partage terminé ('+(_localCopyFromShare.from||'?')+') : ne la parque pas en brouillon. Vérifie dans Données > Fiches qu\'elle n\'a pas déjà été enregistrée par l\'émetteur avant de la couper/envoyer.','err'); return false; }
+  if(_savingDraftManual) return false;   // [L73 · Lot 5 · B41] double-tap : les 2 invocations passaient tout le tronçon synchrone avant le 1er await → deux ids 'd_'+Date.now() → deux brouillons de la même commande
   _savingDraftManual=true;
   const _btnDM=document.getElementById('btnDraftManual'); if(_btnDM) _btnDM.disabled=true;   // [L73 · Lot 5 · B41] retour visuel + blocage du tap pendant l'écriture
   try{   // [L73 · Lot 5 · B41] verrou libéré en finally, même si serializeFicheState/Firestore jette
@@ -24993,12 +25266,13 @@ async function saveDraftManual(){
   // autosave / partagé / solde / brouillon d'un autre poste. Écritures BORNÉES (audit #5 : hors-ligne,
   // un set() non borné gelait le flux Parquer).
   if(local){
-    try{ const _old=_supersededManualDrafts(draft.id,label,draft); if(_old.length){ await _consumeSupersededDrafts(_old,draft.id); if(document.getElementById('draftsList')) renderDrafts(); } }catch(e){ console.warn('Anti-doublon brouillon :',e&&e.message); }
+    try{ const _old=_supersededManualDrafts(draft.id,label,draft); _l545LastSup=_old.map(function(x){ return x.id; }); if(_old.length){ await _consumeSupersededDrafts(_old,draft.id); if(document.getElementById('draftsList')) renderDrafts(); } }catch(e){ console.warn('Anti-doublon brouillon :',e&&e.message); }
   }
   if(firestore) showToast('💾 Brouillon enregistré — Données > Brouillons','ok');
   else if(local) showToast('💾 Brouillon gardé en LOCAL sur ce poste (base indisponible) — il partira au retour réseau.','ok');
   else showToast('⛔ Échec : brouillon NON enregistré (base ET stockage local indisponibles).','err');
   if(_photosDropped>0) showToast('⚠ '+_photosDropped+' photo(s) trop lourde(s) NON conservée(s) dans le brouillon — reprends-les avant de renvoyer la commande.','err');
+  return (firestore||local)?draft.id:false;   // [L545 · F] id du brouillon parqué, false si rien n'a tenu : newCmdPark ne vide plus la fiche quand le parcage a échoué (le bouton 💾 ignore ce retour)
   }finally{ _savingDraftManual=false; if(_btnDM) _btnDM.disabled=false; }   // [L73 · Lot 5 · B41] libération du verrou sur TOUS les chemins (succès, timeout 6 s, exception)
 }
 // [L109] Anti-doublon de brouillon manuel — appelé par saveDraftManual.
@@ -25018,6 +25292,14 @@ function _supersededManualDrafts(newId,newLabel,newDraft){
   const _newPlan=_idOf(_np), _newFiche=_idOf(_nf), _ficheEmpty=!_newFiche.cli&&!_newFiche.num&&!_newFiche.ref;
   return (Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(d){
     if(!d||d.id===newId||d.consumed||d.deleted) return false;
+    if(typeof _l545PendingResume!=='undefined'&&_l545PendingResume&&d.id===_l545PendingResume){   // [L545 · revue adverse 2] copie dont la reprise est DEMANDÉE (B9) : remplacée seulement si c'est une version plus ancienne de CE parcage
+      const _ds=d.state||{}, _ns=(newDraft&&newDraft.state)||{}, _dl=Array.isArray(_ds.lines)?_ds.lines:[], _nl=Array.isArray(_ns.lines)?_ns.lines:[];
+      const _nCut=new Set(_nl.filter(function(l){ return l&&l.coupee&&l.id; }).map(function(l){ return l.id; }));
+      const _nAll=new Set(_nl.map(function(l){ return l&&l.id; }).filter(Boolean));
+      const _pos=_dl.length===_nl.length&&!_dl.some(function(l){ return l&&l.id&&_nAll.has(l.id); });   // [L545 · revue adverse 3] ids renouvelés par une restauration (rechargement, reprise) : on compare par POSITION (restoreFicheState rejoue les lignes dans l'ordre)
+      const _pred=String(_ds.loadedSaveId||'')===String(_ns.loadedSaveId||'')&&_dl.every(function(l,i){ if(!(l&&l.coupee)) return true; const n=_nl[i]; if(l.id&&!_pos) return _nCut.has(l.id); return !!(n&&n.coupee&&String(n.ref||'')===String(l.ref||'')&&String(n.label||'')===String(l.label||'')); });
+      if(!_pred) return false;   // autre plan, ou des coupes absentes du parcage : doublon visible > perte silencieuse (L254)
+    }
     if(d.auto||(typeof d.id==='string'&&d.id.indexOf('d_autosave_')===0)) return false;
     if(_isSharedDoc(d)||d.fromFicheId) return false;
     if(d.id===_resumedDraftId){
@@ -25045,6 +25327,7 @@ function _supersededManualDrafts(newId,newLabel,newDraft){
     // donc au comportement d'avant L252 : sans n° et non repris → jamais supersédé (des doublons sûrs
     // valent mieux qu'une perte de données). La reco sceptique v3 visait la concordance à l'ENVOI (acte
     // conscient, cible unique) — pas la rafle au parcage.
+    if(hasNum&&d.label===newLabel&&typeof _l545Uncovered==='function'&&typeof _l545DraftCodes==='function'&&_l545Uncovered(d,_l545DraftCodes(newDraft)).length) return false;   // [L545 · B11] l'ancienne version contient une réf. ABSENTE de la nouvelle : gardée (doublon visible > perte silencieuse, L254)
     return hasNum && d.label===newLabel;
   });
 }
@@ -25256,6 +25539,24 @@ async function maybeResumeRunningChrono(){
     // au démarrage avec un chrono recalculé aberrant. On l'ignore ici : jamais de matière/réf/
     // commande ressuscitée. (Le repli chrono-du-jour plus bas ne relance que l'horloge.)
     if(d && d.consumed) d=null;
+    /* [L545 · B10 · audit d'usage 06/10] commande DÉJÀ ENVOYÉE depuis une autre tablette (seul le poste qui envoie pose consumed, et le
+       rangement à l'envoi exclut les brouillons auto) : la reprise auto la ressuscitait (deux cas réels d'août, l'un repris le
+       04/09). Pas de reprise auto ; un message (pas de confirm : L414), une fois par session ; rien n'est effacé. PAS de repli
+       « chrono seul » (il relancerait l'horloge). L'attente (≤ 3,5 s) est AVANT les revérifications L419/L430 plus bas. */
+    if(d && d.state && d.state.lines && d.state.lines.length){
+      const _s545=await _l545FindSent(d);
+      if(_s545){
+        if(!_l545Told[d.id]){ _l545Told[d.id]=1;
+          const _f5=d.state.fiche||{}, _p5=d.state.plan||{}, _l5=d.state.lines||[];
+          try{ showToast('⚠ '+(_f5.client||_p5.client||'Commande')+((_f5.numCmd||_p5.numCmd)?' · Cmd '+(_f5.numCmd||_p5.numCmd):'')+(_s545.mm?' : arrêt MANQUE MATIÈRE déjà envoyé '+_l545SentTxt(_s545)+' ('+_l545MmWhere(_s545)+')':' : DÉJÀ ENVOYÉE '+_l545SentTxt(_s545))+' — pas de reprise automatique (rien n\'est effacé).','err'); }catch(e){}
+          try{ logAudit('edit','brouillons',String(d.id||''),'Reprise auto refusée — commande déjà envoyée (fiche '+((_s545.fiche&&_s545.fiche._id)||'?')+', '+_l5.filter(function(l){ return l&&l.coupee; }).length+'/'+_l5.length+' coupées sur ce brouillon)').catch(function(){}); }catch(e){}
+        }
+        /* [L545 · revue adverse] la clé du chrono « en direct » appartient à la commande refusée (même startTs, ou plus ancienne que son
+           dernier enregistrement) : la laisser, c'était la GREFFER sur la commande suivante au prochain rechargement (chrono faux). */
+        try{ const _c5=(d.state&&d.state.chrono)||{}; if(live&&!live.mir&&((_c5.startTs&&live.startTs===_c5.startTs)||(live.startTs&&Date.parse(live.startTs)<=Date.parse(d.savedAt||'')))) localStorage.removeItem(CHRONO_LS_KEY); if(live&&live.began&&_chronoRunBeganAt===live.began) _chronoRunBeganAt=null; }catch(e){}
+        return;
+      }
+    }
     let c=(d&&d.state&&d.state.chrono)?d.state.chrono:null;
     // Le brouillon n'avait pas (encore) capté le chrono en marche → on complète depuis la sauvegarde live.
     // [L298 · audit v2] SAUF si la sauvegarde live vient d'une VUE MIROIR (live.mir) : ce temps mesure la
@@ -25363,6 +25664,10 @@ async function maybeResumePlan(){
     // Un brouillon plan plus ancien reste dans Données > Brouillons (repris à la main),
     // pour ne pas ressusciter une saisie abandonnée.
     if(_dateKey(new Date(d.savedAt).getTime())!==_dateKey(Date.now())) return;
+    /* [L545 · B10] jumeau : saisie plan d'une commande DÉJÀ ENVOYÉE depuis une autre tablette → pas de reprise silencieuse. Après
+       l'attente (≤ 3,5 s), on revérifie : rien n'est écrasé si l'opérateur a commencé une saisie pendant ce temps (L419/L430). */
+    if(await _l545FindSent(d)) return;
+    if((ficheLines&&ficheLines.length)||chronoRunning||(typeof planHasContent==='function'&&planHasContent())) return;
     restoreFicheState(d.state); _rearmResume(d.state);   // [L166 · audit #6] ré-armer le lien de reprise du solde
     // restoreFicheState valide le plan par défaut ; un brouillon PLAN n'est pas validé.
     fichePlanValidated=false; if(typeof updateFPlanHint==='function') updateFPlanHint();
@@ -25546,12 +25851,18 @@ async function deleteDraft(id){
   persistDrafts(loadDrafts().filter(x=>x.id!==id));
   renderDrafts();
 }
-function resumeDraft(id){
+function resumeDraft(id,opt){
+  const _o545=opt||{};   // [L545 · B9] {l545:true} = passation déjà nommée dans la fenêtre « déjà commencée » ; {cleared:true} = commande à l'écran déjà parquée/effacée (confirmé)
   const d=loadDrafts().find(x=>x.id===id);
   if(!d){showToast('Brouillon introuvable.','err');return;}
   // [L365] tablette MACHINE : reprendre un brouillon d'une AUTRE tablette = PASSATION explicite et nominative
-  try{ const _pD=_draftPoste(d), _pM=(typeof _machinePostName==='function')?_machinePostName():''; if(_pD&&_pM&&_pD!==_pM&&!d.consumed&&!confirm('🔁 Brouillon de la tablette '+_pD+'.\n\nLe reprendre ICI ('+_pM+') = passation : la commande continue sur cette machine et le brouillon '+_pD+' sera consommé à l\'envoi.\n\nContinuer ?')) return; }catch(e){}
+  try{ const _pD=_draftPoste(d), _pM=(typeof _machinePostName==='function')?_machinePostName():''; if(_pD&&_pM&&_pD!==_pM&&!d.consumed&&!_o545.l545&&!confirm('🔁 Brouillon de la tablette '+_pD+'.\n\nLe reprendre ICI ('+_pM+') = passation : la commande continue sur cette machine et le brouillon '+_pD+' sera consommé à l\'envoi.\n\nContinuer ?')) return; }catch(e){}
   if(d.consumed){showToast('⚠ Ce brouillon correspond à une commande déjà enregistrée — reprise bloquée pour éviter une double découpe.','err');return;}   // DRAFT-4
+  // [L545 · B10] commande DÉJÀ PARTIE (fiche d'une autre tablette) : confirmation NATIVE (chemin anti double découpe, L74) — jamais un blocage
+  try{ const _s5=_l545Memo[String(d.id||'')+'|'+String(d.savedAt||'')]||_l545SentInfo(d,Array.isArray(fichesCache)?fichesCache:[]);
+    if(_s5&&!confirm(_s5.kind==='sent'
+      ?(_s5.mm?('⚠ Un arrêt MANQUE MATIÈRE de cette commande a DÉJÀ été envoyé '+_l545SentTxt(_s5)+' : '+_l545MmWhere(_s5)+'.\n\nReprendre CETTE copie = risque de DOUBLE DÉCOUPE.\n\nReprendre quand même ?'):('⚠ Cette commande a DÉJÀ été ENVOYÉE '+_l545SentTxt(_s5)+'.\n\nLa reprendre ici = risque de DOUBLE DÉCOUPE et de fiche en double.\n\nReprendre quand même ?'))
+      :('⚠ Une fiche de cette commande est DÉJÀ partie '+_l545SentTxt(_s5)+' ('+_s5.covered+' réf. sur '+_s5.total+').\n\nAvant de couper, vérifie de vive voix ce qui reste à faire (risque de DOUBLE DÉCOUPE).\n\nReprendre quand même ?'))) return; }catch(e){}
   // [L103 · audit-max CRITIQUE] reprise pendant un partage : la commande reprise passerait SOUS
   // le partage en cours (cuts.<idx> de l'ancienne commande transplantés sur la nouvelle).
   // - Vue MIROIR (récepteur) : toujours bloqué.
@@ -25582,7 +25893,7 @@ function resumeDraft(id){
   // les ticks (10/15 s, id fixe) réécriront d_autosave/d_autosave_plan avec l'état restauré PÉRIMÉ → la seule
   // copie contenant les saisies récentes (ex. bobineaux stock saisis après le parcage 💾) serait détruite.
   // Confirmation EXPLICITE, indépendante d'isFicheUntouched (écran vide après reload = garde B09 muette).
-  try{
+  if(!_o545.cleared) try{   // [L545 · B9] après Parquer/Effacer confirmé, la sauvegarde auto « plus récente » est la commande qu'on vient de parquer ou d'effacer
     const _dT=Date.parse(d.savedAt||0)||0;
     let _fresh=null;
     loadDrafts().forEach(x=>{ if(!x||x.id===id||x.consumed) return; if(x.id!==autosaveId()&&x.id!==planAutosaveId()) return; const _t=Date.parse(x.savedAt||0)||0; if(_t>_dT+60000&&(!_fresh||_t>(Date.parse(_fresh.savedAt||0)||0))) _fresh=x; });
@@ -25593,6 +25904,7 @@ function resumeDraft(id){
   }catch(e){}
   const _foreignId=(/^d_autosave_/.test(String(id))&&id!==autosaveId()&&id!==planAutosaveId())?id:null;
   restoreFicheState(d.state);
+  editingSaveId=null; _editSaveBase=null; try{ updateSaveBtnLabel(); }catch(e){}   // [L545 · revue adverse] la reprise REMPLACE le Plan : le mode ✏️ Modifier d'un autre plan tombe (sinon « Modifier le plan » écrasait cet autre plan avec ce contenu). Après restoreFicheState : une reprise abandonnée garde le mode
   // [L366] solde ⛔ repris alors qu'un PLAN DU RESTE existe pour la même fiche : on le LIE (loadedSaveId) → archivé à l'envoi comme un plan chargé (sinon il restait dans Données › Plans = double découpe du solde)
   try{ if(d.fromFicheId&&!loadedSaveId){ const _ff=(fichesCache||[]).find(f=>f&&f._id===d.fromFicheId); const _rp=(_ff&&_ff.restePlanId)?(savesCache||[]).find(x=>x&&x._id===_ff.restePlanId&&!x.deleted):null; if(_rp) loadedSaveId=_rp._id; } }catch(e){}
   _resumedForeignDraftId=_foreignId;
@@ -25918,6 +26230,14 @@ function renderDrafts(){
   const _openV=new Set(Array.from(list.querySelectorAll('.save-card details[open]')).map(x=>(x.closest('.save-card')||{}).dataset?(x.closest('.save-card').dataset.id||''):''));
   { const _dupKey=d=>{ const n=_numOf(d); if(!n) return ''; const f=(d.state&&d.state.fiche)||{}, p=(d.state&&d.state.plan)||{}; return _draftPoste(d)+'¦'+nrm(f.client||p.client||'')+'¦'+n; }; const _seen={};   // [L367 · fix audit] + CLIENT (deux clients au même n° = deux cartes)
     drafts=drafts.filter(d=>{ const k=_dupKey(d); if(!k) return true; if(_seen[k]){ (_older[_seen[k]]=_older[_seen[k]]||[]).push(d); return false; } _seen[k]=d.id; return true; }); }
+  /* [L545 · A5 · audit d'usage 06/10] carte parlante : « x/N coupées », ancienneté (rouge au-delà de 2 jours), état d'envoi (LECTURE SEULE de
+     fichesCache, même règle que la reprise B10). Les brouillons « déjà envoyés » passent EN BAS, grisés ; l'ordre est conservé dans chaque
+     groupe ; rien n'est masqué ni supprimé (L430). */
+  const _l545S={};
+  try{ const _by={}; (Array.isArray(fichesCache)?fichesCache:[]).forEach(function(f){ const n=nrm(f&&f.numCmd); if(n&&n!=='—') (_by[n]=_by[n]||[]).push(f); });
+    drafts.forEach(function(d){ const st=(d&&d.state)||{}; const n=nrm((st.fiche&&st.fiche.numCmd)||(st.plan&&st.plan.numCmd)); const r=(n&&_by[n])?_l545SentInfo(d,_by[n]):null; if(r) _l545S[d.id]=r; });
+    const _dn=function(d){ return !!(_l545S[d.id]&&_l545S[d.id].kind==='sent'); };
+    drafts=drafts.filter(function(d){ return !_dn(d); }).concat(drafts.filter(_dn)); }catch(e){}
   if(!drafts.length){list.innerHTML='';if(empty)empty.style.display='';return;}
   if(empty)empty.style.display='none';
   const _card=d=>{
@@ -25925,7 +26245,10 @@ function renderDrafts(){
     const nb=(d.state&&d.state.lines)?d.state.lines.length:0;
     const tag=(d.fromSend||(_older[d.id]||[]).some(o=>o.fromSend))?'<span style="display:inline-block;background:#3d2a00;color:var(--orange);font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">non envoyé</span>'
       :(d.planDraft?'<span style="display:inline-block;background:#1e2a3d;color:#60a5fa;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">saisie plan</span>':'');
-    const meta=d.planDraft?'Saisie de plan en cours':(nb+' bobine(s)');
+    const _cut=(d.state&&Array.isArray(d.state.lines))?d.state.lines.filter(function(l){ return l&&l.coupee; }).length:0;   // [L545 · A5]
+    const _age=Math.max(0,Date.now()-(Date.parse(d.savedAt||'')||Date.now())), _si=_l545S[d.id]||null;
+    const meta=(d.planDraft?'Saisie de plan en cours':(nb?('<b>'+_cut+'/'+nb+' coupée(s)</b>'):'0 bobine'))+' · <span'+(_age>2*86400000?' style="color:var(--red);font-weight:700"':'')+'>'+_l545Ago(_age)+'</span>';
+    const _sentH=!_si?'':('<div class="save-meta" style="font-weight:700;color:var(--'+((_si.kind==='sent'&&!_si.mm)?'green':'orange')+')">'+esc(_si.kind==='sent'?(_si.mm?('⛔ Arrêt manque matière envoyé '+_l545SentTxt(_si)+' — '+_l545MmWhere(_si)):('✓ Déjà envoyée '+_l545SentTxt(_si))):('◐ Une fiche'+(_si.mm?' (manque matière)':'')+' de cette commande est déjà partie '+_l545SentTxt(_si)+' — vérifier avant de couper'+(_si.reste?' · '+_si.reste+' bobine(s) d\'une réf. absente de cette fiche':'')))+'</div>');
     // [L280 · demande Esteban] même sans initiales d'opérateur (owner '?'), afficher au moins la MACHINE : poste
     // machine (ownerPost) ou, à défaut, la machine choisie dans le plan/la fiche du brouillon.
     const _pMach=(d.state&&d.state.plan&&d.state.plan.machine)?getMachineLabel(d.state.plan.machine):'';
@@ -25938,10 +26261,10 @@ function renderDrafts(){
     const _chip=_posteChip(_pst)+(_other?'<span class="frs-mch" style="--mc:#8a94a6;margin-left:4px" title="Créé sur une autre tablette — le reprendre ici = passation">autre tablette</span>':'');
     const _mcVar=(MACHINE_KEYS.indexOf(String(_pst).toLowerCase())>=0)?('var(--'+String(_pst).toLowerCase()+')'):'var(--border2)';
     const _oldH=(_older[d.id]||[]).length?'<details'+(_openV.has(d.id)?' open':'')+' style="margin-top:4px"><summary style="font-size:13px;color:var(--muted);cursor:pointer;min-height:48px;display:flex;align-items:center">+'+_older[d.id].length+' version(s) plus ancienne(s)</summary>'+_older[d.id].map(o=>'<div style="font-size:13px;padding:3px 0">'+esc(o.label)+(o.fromSend?' <b style="color:var(--orange)">non envoyé</b>':'')+' · '+new Date(o.savedAt).toLocaleDateString('fr-FR')+' '+new Date(o.savedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' <button class="btn btn-ghost btn-sm" style="min-height:48px" onclick="resumeDraft(\''+o.id+'\')">▶</button></div>').join('')+'</details>':'';   // [L367] date + tag non envoyé + cibles 48px + état ouvert conservé
-    return `<div class="save-card${_other?' poste-other':''}" style="--mc:${_mcVar};border-left:4px solid var(--mc)" data-poste="${esc(_pst)}" data-id="${esc(d.id)}">
+    return `<div class="save-card${_other?' poste-other':''}" style="--mc:${_mcVar};border-left:4px solid var(--mc)" data-poste="${esc(_pst)}" data-id="${esc(d.id)}"${(_si&&_si.kind==='sent')?' data-l545sent="1"':''}>
       <div class="save-info">
         <div class="save-title">${_chip} ${esc(d.label)}${tag}</div>
-        <div class="save-meta">Brouillon ${esc(_pst||'')} du ${ds} · ${meta}${_who?' · <b style="color:var(--blue)">'+esc(_who)+'</b>':''}</div>${_oldH}
+        <div class="save-meta">Brouillon ${esc(_pst||'')} du ${ds} · ${meta}${_who?' · <b style="color:var(--blue)">'+esc(_who)+'</b>':''}</div>${_sentH}${_oldH}
       </div>
       <div class="save-actions">
         <button class="btn btn-green btn-sm" onclick="resumeDraft('${d.id}')">▶ Reprendre</button>

@@ -2679,5 +2679,30 @@ has(/const avgSec=_l544Ok\.length\?/,'L544 : temps moyen sans les temps non mesu
 has(/const _c0=String\(f\.client\|\|'—'\)\.trim\(\)\|\|'—'; const c=\(function\(\)\{/,'L544 : top clients groupe par client');
 has(/if\(_l544Iso\) upd\.dateLivIso=_l544Iso;/,'L544 : date de livraison corrigee au bureau → date lue par la ponctualite mise a jour');
 
+// ── [L545 · 07/10/2026, audit d usage reel] commandes commencees : plan deja entame, effacement chiffre, reprise d une commande deja envoyee, brouillons multi-ref, carte brouillon, synchro ──
+has(/function _l545CopiesEntamees\(saveId,drafts,ctx\)\{/,'L545 B9 : copies entamees d un plan (cle loadedSaveId)');
+has(/let _cp=\[\]; try\{ _cp=_l545CopiesEntamees\(s\._id,loadDrafts\(\),_l545Ctx\(\)\); \}catch\(e\)\{ _cp=\[\]; \}/,'L545 B9 : doLoad previent quand le plan est deja commence sur un poste');
+has(/id="l545DejaModal" style="z-index:100000"/,'L545 B9 : fenetre « Commande deja commencee » (au-dessus de tout)');
+has(/if\(_d>0\|\|_s>=60\)\{/,'L545 F : effacer une commande entamee demande une 2e confirmation chiffree');
+has(/if\(!_parked&&!trainingGuard\(\)&&ficheLines\.length>0\)\{/,'L545 F : parcage echoue → la commande reste a l ecran');
+has(/return \(firestore\|\|local\)\?draft\.id:false;/,'L545 F : saveDraftManual dit si le parcage a tenu');
+has(/const _l545Res=_newCmdResolved; _newCmdResolved=false;/,'L545 revue : drapeau de relance consomme a l entree de doLoad (jamais laisse arme)');
+has(/editingSaveId=null; _editSaveBase=null; try\{ updateSaveBtnLabel\(\); \}catch\(e\)\{\}   \/\/ \[L545 · revue adverse\] la reprise REMPLACE le Plan/,'L545 revue : une reprise annule le mode Modifier d un autre plan');
+has(/if\(open&&open\.id==='newCmdConflictModal'\)\{ closeNewCmdConflictModal\(\); return; \}/,'L545 revue : Echap sur la modale de conflit = Annuler');
+has(/if\(!\(x\.manqueMatiere&&!\(r&&r\.coupee===true\)\)\) fc\[k\]=/,'L545 revue : fiche manque matiere = seules les coupees comptent');
+has(/const _short=_snap\?\[\]:Object\.keys\(_dl\)\.filter/,'L545 revue : rangement exige aussi les BOBINES (sauf instantane du meme ecran, memes ids coupes)');
+has(/if\(typeof _l545PendingResume!=='undefined'&&_l545PendingResume&&d\.id===_l545PendingResume\)\{/,'L545 revue 2 : la copie dont la reprise est demandee n est jamais remplacee (sauf vrai predecesseur)');
+has(/if\(_pid&&_l545LastSup\.indexOf\(_r\)>=0\)\{ _r=_pid;/,'L545 revue 2 : Parquer puis reprendre = la copie choisie, ou la version a jour si CE parcage l a remplacee');
+has(/function _l545MmWhere\(s\)\{/,'L545 revue 2 : texte manque matiere fidele (brouillon Solde cite seulement s il existe)');
+has(/const _pos=_dl\.length===_nl\.length&&!_dl\.some/,'L545 revue 3 : predecesseur reconnu par position apres un rechargement (ids renouveles)');
+has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
+has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
+has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');
+has(/const _unc=_l545Uncovered\(d,_l545Sent\);/,'L545 B11 : brouillon multi-ref range si tout est envoye, garde et signale sinon');
+has(/if\(_l545Kept\.length\)\{/,'L545 B11 : rien de silencieux (message + journal)');
+has(/<\/div>\$\{_sentH\}\$\{_oldH\}/,'L545 A5 : carte brouillon « x/N coupees · il y a … · deja envoyee »');
+has(/_l542RearmArm\('brouillons',function\(\)\{ startBrouillons\(\); \}\);/,'L545 B15 : synchro des brouillons relancee (plus d abandon pour la session)');
+has(/_l542RearmStop\('brouillons'\); \}catch\(e\)\{\} \}/,'L545 B15 : deconnexion = relances desarmees');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
