@@ -3392,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L548';
+const APP_VERSION='2026.10.07-L549';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -25594,6 +25594,7 @@ async function maybeResumeRunningChrono(){
        portent pas encore `began` : c'est localStorage qui le fournit alors. */
     try{ if(live && live.began && !_chronoRunBeganAt) _chronoRunBeganAt=live.began; }catch(e){}
     const aid=(typeof autosaveId==='function')?autosaveId():null;
+    const _u549=_uid();   // [L549] compte au moment de chercher le brouillon
     let d=null;
     if(aid){
       d=loadDrafts().find(x=>x.id===aid);
@@ -25615,6 +25616,7 @@ async function maybeResumeRunningChrono(){
     // resumeDraft/renderDrafts le filtraient déjà, PAS la reprise auto → il était reproposé
     // au démarrage avec un chrono recalculé aberrant. On l'ignore ici : jamais de matière/réf/
     // commande ressuscitée. (Le repli chrono-du-jour plus bas ne relance que l'horloge.)
+    if(_uid()!==_u549) return;   /* [L549 · revue] la connexion a abouti PENDANT l'attente : le brouillon a été cherché sous l'ancien compte (« anon ») → on ne conclut rien ; la tentative suivante refait tout avec le bon compte */
     if(d && d.consumed) d=null;
     /* [L545 · B10 · audit d'usage 06/10] commande DÉJÀ ENVOYÉE depuis une autre tablette (seul le poste qui envoie pose consumed, et le
        rangement à l'envoi exclut les brouillons auto) : la reprise auto la ressuscitait (deux cas réels d'août, l'un repris le
@@ -25708,7 +25710,11 @@ async function maybeResumeRunningChrono(){
 
     // Pas de brouillon exploitable, mais un chrono tournait aujourd'hui (démarré avant toute
     // bobine) : on relance au moins le chrono là où il en était.
-    if(live && live.runStart && _dateKey(live.runStart)===_dateKey(Date.now())){
+    /* [L549 · trou relevé à l'étude de L545, dû à L440 #18] compte PAS ENCORE connu (filets de 2,5 s / 6 s avant la connexion) : aucun
+       brouillon ne peut être lu, donc on arrivait ICI et on relançait le chrono SEUL — après quoi toutes les tentatives d'après la
+       connexion sortaient sur « if(chronoRunning) return » : la fiche ne revenait JAMAIS (écran vide, chrono qui tourne, le symptôme
+       de L435). Le chrono attend donc la connexion : le rendez-vous suivant rend la fiche ET le chrono (ou le chrono seul s'il n'y a rien). */
+    if(live && live.runStart && _dateKey(live.runStart)===_dateKey(Date.now()) && _uid()!=='anon'){
       try{ if(live.began) _chronoRunBeganAt=live.began; }catch(e){}   /* [L440 · audit #21] */
       restoreChrono({startTs:live.startTs, runStart:live.runStart, wasRunning:true, began:live.began||null,   /* [L502] */
         sec:Math.max(0,Math.floor((Date.now()-live.runStart)/1000))});

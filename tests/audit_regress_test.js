@@ -2713,6 +2713,10 @@ has(/_updDismissedUntil=0; Promise\.resolve\(checkAppUpdate\(\)\)\.then\(functio
 // ── [L548 · 07/10/2026, defaut latent releve par les relectures de L545] ecoutes config qui bouclaient sous un refus serveur permanent ──
 has(/if\(!\(doc&&doc\.metadata&&doc\.metadata\.fromCache\)\) _l537Retries=0;/,'L548 : ecoute config/refs : compteur remis a zero sur reponse serveur seulement');
 has(/if\(!\(doc&&doc\.metadata&&doc\.metadata\.fromCache\)\) _l486Retries=0;/,'L548 : ecoute config/clients : idem');
+
+// ── [L549 · 07/10/2026] reprise au demarrage : le chrono seul attend que le compte soit connu (sinon la fiche ne revenait jamais) ──
+has(/if\(live && live\.runStart && _dateKey\(live\.runStart\)===_dateKey\(Date\.now\(\)\) && _uid\(\)!=='anon'\)\{/,'L549 : repli « chrono seul » seulement compte connu');
+has(/if\(_uid\(\)!==_u549\) return;/,'L549 revue : connexion pendant l attente = tentative abandonnee (la suivante refait tout)');
 has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
 has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
 has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');
