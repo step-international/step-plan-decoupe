@@ -2695,6 +2695,14 @@ has(/if\(typeof _l545PendingResume!=='undefined'&&_l545PendingResume&&d\.id===_l
 has(/if\(_pid&&_l545LastSup\.indexOf\(_r\)>=0\)\{ _r=_pid;/,'L545 revue 2 : Parquer puis reprendre = la copie choisie, ou la version a jour si CE parcage l a remplacee');
 has(/function _l545MmWhere\(s\)\{/,'L545 revue 2 : texte manque matiere fidele (brouillon Solde cite seulement s il existe)');
 has(/const _pos=_dl\.length===_nl\.length&&!_dl\.some/,'L545 revue 3 : predecesseur reconnu par position apres un rechargement (ids renouveles)');
+
+// ── [L546 · 07/10/2026, audit d usage reel] chrono invraisemblable signale (jamais modifie), signalement non envoye garde, mot « Signaler » ──
+has(/function _l546ChronoOdd\(sec,startTs,endMs\)\{/,'L546 B8 : chrono plus long que les heures de travail possibles detecte');
+has(/const _o6=_l546AtAutoResume\(d,_l546C0\); showToast\(_o6\?\('⏱ Commande reprise — '/,'L546 B8 : signale a la reprise automatique');
+has(/'⚠ Brouillon chargé — '\+_l546Txt\(_o6\)/,'L546 B8 : signale a la reprise manuelle');
+has(/let _o546=null; try\{ _o546=t\?_l546AtSend\(\):null; \}catch\(e\)\{\}/,'L546 B8 : signale dans le volet avant l envoi');
+has(/else _l546RepKeep=\(_tr\|\|!txt\)\?_l546RepKeep:\{k:_k,t:txt,at:Date\.now\(\)\};/,'L546 A10 : signalement non envoye = texte garde');
+has(/💬<span class="rb-lbl" aria-hidden="true">Signaler<\/span><\/button>/,'L546 A10 : mot « Signaler » dans la bulle');
 has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
 has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
 has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');

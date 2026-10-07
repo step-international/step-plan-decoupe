@@ -531,6 +531,7 @@ body.training::before{content:"";position:fixed;inset:0;z-index:8000;pointer-eve
   border:1px solid var(--border2);background:#20242c;color:var(--muted);font-size:24px;cursor:pointer;
   box-shadow:0 4px 14px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:0}
 #reportBubble:hover{border-color:var(--text);color:var(--text)}
+#reportBubble{flex-direction:column;line-height:1}#reportBubble .rb-lbl{display:block;font-size:9px;font-weight:800;letter-spacing:.02em;line-height:1;margin-top:2px;pointer-events:none;white-space:nowrap;font-family:inherit}   /* [L546 · A10] « Signaler » sous l'icône, dans la bulle */
 body.has-actionbar #reportBubble{bottom:calc(72px + env(safe-area-inset-bottom,0px))}
 body.training #reportBubble{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 body.l542-banner #reportBubble{bottom:calc(var(--l542-h,56px) + 12px + env(safe-area-inset-bottom,0px))!important}   /* [L542] la bulle 💬 (signaler un probleme) remonte au-dessus du bandeau rouge « référentiel non chargé » */
@@ -2004,6 +2005,7 @@ html.theme-light #sendPlanBtn.not-ready{box-shadow:0 6px 0 rgba(255,255,255,.92)
      colonne gauche : plus petite et translucide sur cet ecran seulement (la fiche atelier garde sa bulle pleine, decision anterieure),
      et la page garde de la place en bas pour que la derniere ligne puisse defiler au-dessus d elle. */
   body:has(#page0.active) #reportBubble{width:48px!important;height:48px!important;opacity:.72!important;font-size:22px}
+  body:has(#page0.active) #reportBubble .rb-lbl{display:none}   /* [L546 · A10 · mesuré dans Chrome] dans la bulle réduite du Plan (48 px) le mot déborderait du rond : bulle inchangée ici */
   body:has(#page0.active) #reportBubble:hover,body:has(#page0.active) #reportBubble:focus-visible,body:has(#page0.active) #reportBubble:active{opacity:1!important}
   #planLeft{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}   /* sur la colonne de saisie seulement : n allonge pas la page quand la colonne droite (100dvh) est la plus haute */
   body.training #planLeft{padding-bottom:calc(156px + env(safe-area-inset-bottom,0px))}   /* la bulle est remontee au-dessus du bandeau d entrainement */
@@ -3234,7 +3236,7 @@ html.theme-light .fp-num small{color:#8a8a84}
 <!-- [L332 · LOT 26/27 · §2.23-A/B] REMONTÉE TERRAIN : bulle de signalement permanente + panneau 3 choix.
      Écrit dans la collection Firestore « mail » (format extension Firebase « Trigger Email ») -> mail auto aux
      destinataires. GRISE (jamais ambre). File d'attente hors-ligne via boundedWrite. Bloquée en entraînement. -->
-<button id="reportBubble" onclick="openReport()" aria-label="Signaler un problème ou une idée" title="Signaler un problème ou une idée">💬</button>
+<button id="reportBubble" onclick="openReport()" aria-label="Signaler un problème ou une idée" title="Signaler un problème ou une idée">💬<span class="rb-lbl" aria-hidden="true">Signaler</span></button><!-- [L546 · A10] le mot sous l'icône, DANS la bulle (taille inchangée) -->
 <div class="modal-overlay" id="reportOverlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
     <h3 id="reportTitle">Dire quelque chose à l'équipe</h3><button class="modal-x" aria-label="Fermer" onclick="closeReport()">✕</button>
@@ -3390,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L545';
+const APP_VERSION='2026.10.07-L546';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3514,6 +3516,8 @@ if(db){
 // contexte technique, jamais de photo/BL). File hors-ligne via boundedWrite. Bloqué en entraînement.
 var REPORT_RECIPIENTS=[];   /* [L537 · 24/09/2026] destinataires lus dans Firestore config/refs (reportTo) apres connexion, cache local step_refs_v1 — plus d adresse dans le fichier public ; la regle Firestore `mail` borne toujours les adresses cote serveur. [L392 · demande Céline 21/08] la responsable qualité reçoit aussi les signalements atelier */
 var _repTrail=[], _lastJsError=null, _reportAutoAt={}, _repKind='bug';
+var _l546RepKeep=null;   // [L546 · A10 · audit d'usage 06/10] signalement NON envoyé : type + texte gardés, remis dans la bulle à sa réouverture (avant : perdus)
+var _l546RepShown=null;  // [L546 · A10 · revue] le texte gardé que la bulle ouverte AFFICHE (seul celui-là peut être modifié/jeté à la fermeture)
 function _pushTrail(s){ try{ _repTrail.push(s); if(_repTrail.length>3) _repTrail.shift(); }catch(e){} }
 function _reportCtx(){
   var g=function(id){ try{ return (document.getElementById(id)?.value||'').trim(); }catch(e){ return ''; } };
@@ -3695,17 +3699,24 @@ function assistFollowUp(){ try{
     expireAt:new Date(Date.now()+(typeof ASSIST_TTL_DAYS==='number'?ASSIST_TTL_DAYS:90)*86400000)   /* [L501] la relance reprolonge le TTL — sans ca un fil purge puis relance renaissait SANS date d expiration */
   },{merge:true}).catch(function(){});
 }catch(e){} }
-function openReport(){ try{ _repKind='bug'; document.querySelectorAll('.rep-choice').forEach(function(b){ b.style.outline=''; }); var t=document.getElementById('reportText'); if(t) t.value=''; var c=document.getElementById('reportCtx'); if(c){ var x=_reportCtx(); c.textContent='Joint automatiquement : '+x.ecran+' · '+(x.machine||'—')+' · '+(x.client||'sans commande')+(x.numCmd?(' '+x.numCmd):'')+(x.bobine?(' · bobine '+x.bobine):'')+' · '+x.version; } document.getElementById('reportOverlay')?.classList.add('open'); }catch(e){} }
-function closeReport(){ try{ document.getElementById('reportOverlay')?.classList.remove('open'); }catch(e){} }
+function openReport(){ try{ _repKind='bug'; document.querySelectorAll('.rep-choice').forEach(function(b){ b.style.outline=''; }); var t=document.getElementById('reportText'); if(t) t.value=''; _l546RepShown=null; if(_l546RepKeep&&(Date.now()-(Number(_l546RepKeep.at)||0))>15*60000) _l546RepKeep=null; if(_l546RepKeep){ try{ _repPick(_l546RepKeep.k||'bug'); if(t) t.value=_l546RepKeep.t||''; _l546RepShown=_l546RepKeep; }catch(_){} } var c=document.getElementById('reportCtx'); if(c){ var x=_reportCtx(); c.textContent='Joint automatiquement : '+x.ecran+' · '+(x.machine||'—')+' · '+(x.client||'sans commande')+(x.numCmd?(' '+x.numCmd):'')+(x.bobine?(' · bobine '+x.bobine):'')+' · '+x.version; } document.getElementById('reportOverlay')?.classList.add('open'); }catch(e){} }
+function closeReport(){ try{ document.getElementById('reportOverlay')?.classList.remove('open'); }catch(e){} try{ if(_l546RepKeep&&_l546RepKeep===_l546RepShown){ var _v=String(document.getElementById('reportText')?.value||'').trim().slice(0,500); _l546RepKeep=_v?{k:_repKind,t:_v,at:_l546RepKeep.at}:null; } _l546RepShown=null; }catch(e){} }   /* [L546 · A10 · revue] texte gardé = ce qui est dans la bulle à la fermeture (vidé puis Annuler = jeté) */
 function _repPick(k){ _repKind=k; try{ document.querySelectorAll('.rep-choice').forEach(function(b){ b.style.outline=(b.dataset.k===k)?'2px solid var(--action)':''; }); }catch(e){} }
 function reportSubmit(){
   var txt=''; try{ txt=(document.getElementById('reportText')?.value||'').trim().slice(0,500); }catch(e){}
+  var _tr0=false; try{ _tr0=(typeof trainingGuard==='function')&&!!trainingGuard(); }catch(_){}   // [L546 · A10 · revue] mode lu AU TAP (on peut quitter l'entraînement pendant la capture)
+  var _own=!!_l546RepKeep&&_l546RepKeep===_l546RepShown;   // [L546 · A10 · revue] la bulle envoie le texte gardé qu'elle AFFICHAIT (testé avant closeReport, qui le remplace)
   closeReport();
+  if(_own) _l546RepKeep=null;   // envoi en cours : la bulle rouverte pendant ce temps est vide (jamais deux fois le même texte) ; un texte gardé AUTRE (échec arrivé bulle ouverte) reste gardé
   try{ showToast('📸 Capture des écrans…','ok'); }catch(e){}
   var _p; try{ _p=(navigator.onLine&&typeof _l388CaptureShots==='function')?_l388CaptureShots():Promise.resolve(null); }catch(e){ _p=Promise.resolve(null); }   // [L388] hors-ligne : pas de capture (l'upload échouerait), le signalement part direct dans la file
   Promise.race([_p,new Promise(function(r){ setTimeout(function(){ r(null); },14000); })]).catch(function(){ return null; }).then(function(shots){
     try{ _l380AssistSend(_repKind,txt,shots); }catch(e){}   // [L380+L388] fil assistant (si déployé) avec les écrans — le mail part quand même ci-dessous
-    _reportWrite(_repKind,txt,null,shots).then(function(ok){ try{ showToast(ok?'✓ Merci — ton signalement est parti (ou partira au retour du réseau).':'⚠ Signalement non envoyé (réessaie).', ok?'ok':'err'); }catch(e){} });
+    var _k=_repKind;   // [L546 · A10] type réellement envoyé (gardé avec le texte si l'envoi échoue)
+    Promise.resolve().then(function(){ return _reportWrite(_k,txt,null,shots); }).catch(function(){ return false; }).then(function(ok){
+      var _tr=_tr0; try{ _tr=_tr||((typeof trainingGuard==='function')&&!!trainingGuard()); }catch(_){}
+      if(ok){ if(_l546RepKeep&&_l546RepKeep.t===txt) _l546RepKeep=null; } else _l546RepKeep=(_tr||!txt)?_l546RepKeep:{k:_k,t:txt,at:Date.now()};   // un succès n'efface que SON texte ; un échec garde le sien   // [L546 · A10] jamais en entraînement (l'essai repartirait pour de vrai), expire après 15 min (poste partagé)
+      try{ showToast(ok?'✓ Merci — ton signalement est parti (ou partira au retour du réseau).':(_tr?'⚠ Signalement non envoyé (mode entraînement).':(txt?'⚠ Signalement non envoyé — ton texte est gardé : touche 💬 Signaler pour réessayer.':'⚠ Signalement non envoyé (réessaie).')), ok?'ok':'err'); }catch(e){} });
   });
 }
 // signalement AUTOMATIQUE (erreurs) — regroupement 1/heure/signature, silence si refus métier normal
@@ -11264,6 +11275,39 @@ function chronoCrossDaySec(sec,runStart,virtualStart){
   if(virtualStart!=null && virtualStart<=_fin) return Math.max(0,Math.floor((_fin-virtualStart)/1000));
   return Math.max(sec||0,Math.floor((_fin-runStart)/1000));
 }
+/* [L546 · B8 · audit d'usage 06/10] chrono INVRAISEMBLABLE : plus long que les heures de travail possibles depuis le 1er ▶ de la commande
+   (lun→jeu 6 h→16 h 15, ven 6 h→15 h 15, week-end 0 : plus large que l'atelier réel — 126 relevés réels entre 8 h et 16 h, aucun le week-end)
+   + 2 h 30 de tolérance (heures supp d'un jour, samedi court), ou plus long que le temps réellement écoulé. AFFICHAGE SEUL : le chrono n'est JAMAIS modifié (décision du 15/09).
+   Cas réel : brouillon en pause à 29 h 43 pour ≈ 23 h 30 possibles. Contrôlé à la DATE du brouillon (le temps passant, les heures possibles
+   grandissent et l'anomalie redeviendrait « plausible ») ; la marque est gardée sur la tablette jusqu'à l'envoi. PURES (tests/l546_test.js). */
+function _l546WorkCap(t0,t1){ let cap=0; try{ const d=new Date(t0); const y=d.getFullYear(), mo=d.getMonth(); let da=d.getDate();
+  for(let i=0;i<400;i++){ const st=new Date(y,mo,da,6,0,0,0).getTime(); if(st>t1) break; const end=dayChronoCutoffMs(st); if(end!=null){ const a=Math.max(st,t0), b=Math.min(end,t1); if(b>a) cap+=b-a; } da++; } }catch(e){} return Math.floor(cap/1000); }
+function _l546ChronoOdd(sec,startTs,endMs){ try{
+  const s=Math.floor(Number(sec)||0); if(s<=0) return null;
+  const t0=(typeof startTs==='number')?startTs:Date.parse(startTs||''), t1=Number(endMs)||0;
+  if(!t0||!isFinite(t0)||!t1||!isFinite(t1)||t1<=t0) return null;
+  const wall=Math.floor((t1-t0)/1000), cap=_l546WorkCap(t0,t1);
+  if(s>wall+60) return {sec:s,cap:wall,wall:true};   // plus que le temps réellement écoulé : impossible
+  return (s>cap+9000)?{sec:s,cap:cap,wall:false}:null;
+}catch(e){ return null; } }
+const _L546_KEY='step_l546_chrono_odd';   // marque LOCALE (cette tablette) : startTs → chrono jugé invraisemblable à la reprise
+function _l546Map(){ try{ const m=JSON.parse(localStorage.getItem(_L546_KEY)||'{}'); return (m&&typeof m==='object'&&!Array.isArray(m))?m:{}; }catch(e){ return {}; } }
+function _l546Mark(startTs,sec){ try{ if(!startTs) return; const m=_l546Map(); m[String(startTs)]=Math.floor(Number(sec)||0); const ks=Object.keys(m); if(ks.length>20) ks.slice(0,ks.length-20).forEach(function(k){ delete m[k]; }); localStorage.setItem(_L546_KEY,JSON.stringify(m)); }catch(e){} }
+function _l546Marked(startTs){ try{ return startTs?(Number(_l546Map()[String(startTs)])||0):0; }catch(e){ return 0; } }
+/* à la reprise d'un brouillon (APRÈS restoreFicheState) : chrono en pause jugé à la date du brouillon, chrono en marche à l'instant.
+   atNow = reprise AUTO au démarrage : jugée à l'instant (le chrono peut y être complété par la sauvegarde locale, plus récente que le brouillon) */
+function _l546AtResume(d,atNow){ try{ const c=(d&&d.state&&d.state.chrono)||{}; const o=_l546ChronoOdd(chronoSec,chronoStartTs,(atNow||c.wasRunning)?Date.now():(Date.parse((d&&d.savedAt)||'')||Date.now())); if(o) _l546Mark(chronoStartTs,o.sec); return o; }catch(e){ return null; } }
+/* reprise AUTO au démarrage (L414 : aussi la commande non envoyée d'un jour précédent) : le chrono EN PAUSE du brouillon est jugé à la date du
+   brouillon (c0, relevé avant toute greffe de la sauvegarde locale) ; le chrono finalement restauré est jugé à l'instant. L'un ou l'autre suffit. */
+function _l546AtAutoResume(d,c0){ try{
+  const o0=(c0&&c0.sec>0)?_l546ChronoOdd(c0.sec,c0.startTs,Date.parse(c0.at||'')||0):null;
+  if(o0){ const s=Math.max(o0.sec,Math.floor(Number(chronoSec)||0)); _l546Mark(chronoStartTs,s); return {sec:s,cap:o0.cap,wall:o0.wall}; }
+  return _l546AtResume(d,true);
+}catch(e){ return null; } }
+/* à l'envoi : invraisemblable maintenant, OU marqué à la reprise pour cette même commande (même 1er ▶) */
+function _l546AtSend(){ try{ const o=_l546ChronoOdd(chronoSec,chronoStartTs,Date.now()); const _hs=(typeof _chronoAutoStopOverride!=='undefined')&&!!_chronoAutoStopOverride&&_chronoAutoStopOverride===_dateKey(Date.now());   // heures supp lancées aujourd'hui : seule la règle « plus que le temps écoulé » vaut
+  if(o&&(o.wall||!_hs)) return o; const mk=_l546Marked(chronoStartTs); return (mk>0&&chronoSec>=mk-60)?{sec:chronoSec,cap:null}:null; }catch(e){ return null; } }
+function _l546Txt(o){ const why=(o.cap==null)?', signalé à la reprise du brouillon':(o.wall?' alors que seulement '+fmtTimeFr(o.cap)+' se sont écoulés depuis le début de la commande':(o.cap<60?' sans aucune journée normale depuis le début de la commande (week-end ?)':' pour environ '+fmtTimeFr(o.cap)+' de journées normales depuis le début de la commande (heures supp ?)')); return 'chrono à vérifier : '+fmtTimeFr(o.sec)+why+' — il n\'est PAS modifié : préviens le bureau s\'il est faux'; }
 function chronoAutoStopCheck(){
   if(!chronoRunning || chronoRunStart==null) return;
   const now=Date.now();
@@ -11743,12 +11787,14 @@ function _openVictory(p){
     const lame=(document.getElementById('fNumLame')?.value||'').trim();
     const op=(document.getElementById('fInitiales')?.value||'').trim();
     const t=(typeof chronoSec==='number'&&chronoSec>0&&typeof fmtTime==='function')?fmtTime(chronoSec):null;
+    let _o546=null; try{ _o546=t?_l546AtSend():null; }catch(e){}   // [L546 · B8] le temps part TEL QUEL : on le dit avant l'envoi
     const row=function(l,v,color){ return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--muted)">'+l+'</span><b style="text-align:right;'+(color?('color:'+color):'')+'">'+v+'</b></div>'; };
     body.innerHTML=
       (p.etiq?'' : '<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #7a2222;border-radius:9px;background:#2a1212;color:var(--red);font-weight:800;font-size:14px">🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?<div style="font-weight:600;font-size:12.5px;margin-top:3px;color:#fca5a5">Aucune photo jointe — bouton 📷＋ « Photos étiquettes » en pied de fiche, ou confirme quand même.</div></div>')
       +'<div style="text-align:center;margin:6px 0 10px"><span class="victory-big">'+p.total+'/'+p.total+' <span style="color:var(--green)">✓</span></span>'
       +(cli||cmd?'<div style="color:var(--muted);font-size:13px;margin-top:2px">'+esc(cli)+(cmd?' · '+esc(cmd):'')+'</div>':'')+'</div>'
-      +row('Temps', t?t:'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?null:'var(--red)')
+      +row('Temps', t?(t+(_o546?' ⚠':'')):'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?(_o546?'var(--orange)':null):'var(--red)')
+      +(_o546?'<div style="margin:4px 0 2px;color:var(--orange);font-size:13px;line-height:1.4;font-weight:700">⚠ '+esc(_l546Txt(_o546))+'.</div>':'')
       +row('Non-conformités', p.nc?(p.nc+' NC déclarée(s)'):'0 NC ✓', p.nc?'var(--red)':'var(--green)')
       +((window._l513LastMat&&window._l513LastMat.ok)?row('Perte matière', _l513M2(window._l513LastMat.perteM2)+' m²'):'')   /* [L344 · §2.5 → L513 · décision Céline 09/09] perte m² du plan (auto ET manuel), même règle que la fiche et le mois ; plus de % */
       +((false)?row('Série sans NC', '×'+streakGet()+(streakGet()>=25?' ⭐':streakGet()>=10?' 🔥':''),'#ffd45e'):'')   /* [L344 · §2.5] série (localStorage, jamais en base) */
@@ -25557,6 +25603,7 @@ async function maybeResumeRunningChrono(){
         return;
       }
     }
+    const _l546C0=(d&&d.state&&d.state.chrono&&!d.state.chrono.wasRunning)?{sec:Number(d.state.chrono.sec)||0,startTs:d.state.chrono.startTs||null,at:d.savedAt||''}:null;   // [L546 · B8 · revue] chrono du brouillon relevé AVANT la greffe ci-dessous (qui modifie l'objet)
     let c=(d&&d.state&&d.state.chrono)?d.state.chrono:null;
     // Le brouillon n'avait pas (encore) capté le chrono en marche → on complète depuis la sauvegarde live.
     // [L298 · audit v2] SAUF si la sauvegarde live vient d'une VUE MIROIR (live.mir) : ce temps mesure la
@@ -25601,7 +25648,7 @@ async function maybeResumeRunningChrono(){
         if(live&&live.override) _chronoAutoStopOverride=live.override;
         if(ficheLines.length||chronoRunning||(!_plan430&&typeof planHasContent==='function'&&planHasContent())){ return; }   /* [L419→L430] on n'ecrase QUE si la saisie est apparue PENDANT l'attente (un residu present des le depart ne bloque plus la reprise) */
         restoreFicheState(d.state); _rearmResume(d.state); showPage(1);
-        try{ showToast('⏱ Commande reprise — chrono à '+fmtTimeFr(showSec),'ok'); }catch(e){}
+        try{ const _o6=_l546AtAutoResume(d,_l546C0); showToast(_o6?('⏱ Commande reprise — '+_l546Txt(_o6)):('⏱ Commande reprise — chrono à '+fmtTimeFr(showSec)),_o6?'err':'ok'); }catch(e){}   // [L546 · B8]
         // [L294 · audit 30/07] ÉMETTEUR d'un partage reconstruit par la reprise AUTO : libérer le gel du push
         // comme le fait resumeDraft (L103) — sinon « synchro en direct » mentait À VIE (l'opérateur repris
         // automatiquement n'a aucune raison d'aller dans Brouillons, seul autre chemin de libération ; et la
@@ -25617,7 +25664,7 @@ async function maybeResumeRunningChrono(){
         stFrozen.chrono=Object.assign({},cRef,{wasRunning:false,runStart:null,sec:showSec});
         if(ficheLines.length||chronoRunning||(!_plan430&&typeof planHasContent==='function'&&planHasContent())){ return; }   /* [L419→L430] idem cross-day */
         restoreFicheState(stFrozen); _rearmResume(stFrozen); showPage(1);
-        try{ showToast('⏱ Commande reprise — chrono figé à '+fmtTimeFr(showSec),'ok'); }catch(e){}
+        try{ const _o6=_l546AtAutoResume(d,_l546C0); showToast(_o6?('⏱ Commande reprise — '+_l546Txt(_o6)):('⏱ Commande reprise — chrono figé à '+fmtTimeFr(showSec)),_o6?'err':'ok'); }catch(e){}   // [L546 · B8]
         // [L298 · audit v2] même libération du gel qu'en reprise même-jour (L294) : la reprise CROSS-DAY d'une
         // commande partagée laissait « synchro en direct » gelé à vie (aucun autre chemin de libération).
         if(_shareActive&&_sharePushHold){
@@ -25932,7 +25979,8 @@ function resumeDraft(id,opt){
   }else{
     _resumeAutoImportGuard=true;   // [L218 · régression revue] la reprise déclenche un import auto (showPage 1) : il ne doit PAS désarmer la passation qu'on vient d'armer (sinon brouillon de l'autre poste non purgé → double découpe)
     showPage(1);
-    showToast('Brouillon chargé — vérifie les bobines puis envoie','ok');
+    let _o6=null; try{ _o6=_l546AtResume(d); }catch(e){}   // [L546 · B8]
+    showToast(_o6?('⚠ Brouillon chargé — '+_l546Txt(_o6)):'Brouillon chargé — vérifie les bobines puis envoie',_o6?'err':'ok');
     try{ setTimeout(promptOperatorTakeover,400); }catch(e){}   // [L331] proposer le changement d'opérateur à la reprise d'un brouillon
   }
 }
@@ -26247,7 +26295,8 @@ function renderDrafts(){
       :(d.planDraft?'<span style="display:inline-block;background:#1e2a3d;color:#60a5fa;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px">saisie plan</span>':'');
     const _cut=(d.state&&Array.isArray(d.state.lines))?d.state.lines.filter(function(l){ return l&&l.coupee; }).length:0;   // [L545 · A5]
     const _age=Math.max(0,Date.now()-(Date.parse(d.savedAt||'')||Date.now())), _si=_l545S[d.id]||null;
-    const meta=(d.planDraft?'Saisie de plan en cours':(nb?('<b>'+_cut+'/'+nb+' coupée(s)</b>'):'0 bobine'))+' · <span'+(_age>2*86400000?' style="color:var(--red);font-weight:700"':'')+'>'+_l545Ago(_age)+'</span>';
+    let _co=null; try{ const _c6=(d.state&&d.state.chrono)||null; if(_c6&&!_c6.wasRunning) _co=_l546ChronoOdd(_c6.sec,_c6.startTs,Date.parse(d.savedAt||'')); }catch(e){}   // [L546 · B8] chrono en pause invraisemblable à la date du brouillon
+    const meta=(d.planDraft?'Saisie de plan en cours':(nb?('<b>'+_cut+'/'+nb+' coupée(s)</b>'):'0 bobine'))+' · <span'+(_age>2*86400000?' style="color:var(--red);font-weight:700"':'')+'>'+_l545Ago(_age)+'</span>'+(_co?' · <span style="color:var(--orange);font-weight:700">⏱ chrono à vérifier ('+esc(fmtTimeFr(_co.sec))+')</span>':'');
     const _sentH=!_si?'':('<div class="save-meta" style="font-weight:700;color:var(--'+((_si.kind==='sent'&&!_si.mm)?'green':'orange')+')">'+esc(_si.kind==='sent'?(_si.mm?('⛔ Arrêt manque matière envoyé '+_l545SentTxt(_si)+' — '+_l545MmWhere(_si)):('✓ Déjà envoyée '+_l545SentTxt(_si))):('◐ Une fiche'+(_si.mm?' (manque matière)':'')+' de cette commande est déjà partie '+_l545SentTxt(_si)+' — vérifier avant de couper'+(_si.reste?' · '+_si.reste+' bobine(s) d\'une réf. absente de cette fiche':'')))+'</div>');
     // [L280 · demande Esteban] même sans initiales d'opérateur (owner '?'), afficher au moins la MACHINE : poste
     // machine (ownerPost) ou, à défaut, la machine choisie dans le plan/la fiche du brouillon.

@@ -24,7 +24,7 @@ const draft=o=>({id:o.id||'d_1',savedAt:o.savedAt||'2026-09-22T09:00:00.000Z',ow
 const fiche=o=>({_id:o.id||'F1',date:o.date||'2026-09-28T07:00:00.000Z',client:o.client||'Client Alpha',numCmd:o.num==null?'CMD-001':o.num,ref:o.ref||'',machine:o.machine||'MAVEG',ini:o.ini||'AA',deleted:o.deleted,valide:o.valide,manqueMatiere:o.mm,ficheDetail:o.detail||[]});
 
 console.log('── 0. version ──');
-ok(/const APP_VERSION='2026\.10\.07-L545';/.test(src),'APP_VERSION = 2026.10.07-L545');
+ok(/const APP_VERSION='2026\.\d\d\.\d\d-L(54[5-9]|5[5-9]\d|[6-9]\d\d)';/.test(src),'APP_VERSION >= L545');
 
 console.log('── 1. reference = code article ──');
 ok(_l545Code(A)==='90000001'&&_l545Code('90000001 - Film A renomme au catalogue')==='90000001','code article stable malgre un renommage du catalogue');
