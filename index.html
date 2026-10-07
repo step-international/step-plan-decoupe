@@ -3375,7 +3375,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L543';
+const APP_VERSION='2026.10.07-L544';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11630,6 +11630,11 @@ async function confirmCommande(){
   for(let i=0;i<ficheCheck.length;i++){
     const fd=ficheCheck[i];
     const hasNC=fd.ncLarg||fd.ncQty||fd.ncCasse||fd.ncAng||fd.ncHum;
+    const _l544Chif=((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0)||(Array.isArray(fd.ncLots)&&fd.ncLots.length>0);
+    if(!hasNC&&!fd.test2nc&&_l544Chif){   /* [L544 · audit d usage 06/10] chiffrage Qte × Laize sans case : la bobine partait « RAS » (≈ 274 m² Legrand du 26/08 invisibles au registre NC) */
+      showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : défaut CHIFFRÉ sans motif coché.\n\nCoche le motif (Angle · Casse · Humain · Larg. · Qté) — ou efface le chiffrage si ce n'est pas une non-conformité.`,'err');
+      return;
+    }
     if(hasNC && !((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0) && !(Array.isArray(fd.ncLots)&&fd.ncLots.length) && !fd.ncDetail.trim()){   /* [L412 audit] les lots saisis au bouton ＋ comptent (l'envoi etait refuse a tort) */
       showToast(`⚠ Bobine ${i+1}${fd.label?` (${fd.label})`:''} : non-conformité cochée sans QUANTITÉ ni LAIZE.\n\nRenseigne les deux cases (elles chiffrent la matière NC en m²) avant de confirmer.`,'err');
       return;
@@ -12301,14 +12306,11 @@ async function saveCommandeFiche(rows,useful,blade,opts){
   // commandé (prouvé sur fiches réelles : 14 à 32 pièces manquantes, aucune alerte). On force
   // l'écart « à vérifier ». Hors manque-matière (opts.manqueMatiere : un reste couvre déjà le manque).
   // Pièces comptées uniquement sur 🗑 Déchet (perte non ambiguë) ; NC quantité → simple signal.
+  let _l544Rebut=0, _l544CovOk=false, _l544Miss=0;   /* [L544 · audit d usage 06/10] 9 fiches sur 9 marquees « au rebut — verifier la couverture » etaient COMPLETES */
   if(!opts.manqueMatiere){
     const _dechetPieces=ficheData.reduce((s,fd)=>{ if(fd.recut||!fd.actDechet) return s; const tot=parseConf(fd.conf||'').reduce((a,p)=>a+(Number(p.qty)||0),0); const _dl19=_l419Delivered(fd.conf,_l416NcByWidthFd(fd),fd.origConf||null); if(_dl19){ const liv=Object.values(_dl19).reduce((a,v)=>a+(Number(v)||0),0); return s+Math.max(0,tot-liv); } return s+tot; },0);   /* [L419] rebut reel = conf − part livree (helper unique) */
     /* [L414] la NC quantite devient « EN TROP » (surplus -> chutes) : elle ne declenche plus l'ecart « verifier la couverture » (seul le rebut manque a la commande) */
-    if(_dechetPieces>0){
-      hasEcart=true;
-      const _mm=('⚠ '+_dechetPieces+' pièce(s) au rebut')+' — vérifier la couverture de la commande';
-      ecartMsg=ecartMsg?(_mm+' ; '+ecartMsg):_mm;
-    }
+    if(_dechetPieces>0) _l544Rebut=_dechetPieces;   /* [L544] decide APRES le controle de couverture ci-dessous */
   }
   const planName=buildPlanName();
   // [L63 · Lot 5] commande partagée : embarquer « qui a coupé quoi » (champ cuts du doc
@@ -12371,12 +12373,17 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       const _rg=_resteGroupsFromFiche(_pseudo);
       const _miss=[];
       _rg.forEach(gg=>{ (gg.rows||[]).forEach(r=>{ if(r.qty>0&&r.width>0) _miss.push(r.qty+'×'+r.width); }); });
+      _l544CovOk=true; _l544Miss=_miss.length;
       if(_miss.length){
         hasEcart=true;
         const _mm2='⚠ non couvert : '+_miss.slice(0,6).join(' + ')+(_miss.length>6?' …':'')+' mm — pièces commandées non produites';
         if(ecartMsg.indexOf('non couvert')<0) ecartMsg=ecartMsg?(_mm2+' ; '+ecartMsg):_mm2;
       }
     }catch(e){ console.warn('Couverture archive :',e); }
+  }
+  if(_l544Rebut>0){   /* [L544] rebut + couverture NON prouvee (calcul impossible) ou pieces manquantes → ecart comme avant ; couverture complete → simple information (et seulement si un ecart existe deja) */
+    if(!_l544CovOk||_l544Miss>0){ hasEcart=true; const _mm=('⚠ '+_l544Rebut+' pièce(s) au rebut')+' — vérifier la couverture de la commande'; ecartMsg=ecartMsg?(ecartMsg+' ; '+_mm):_mm; }
+    else if(hasEcart){ const _mi='♻ '+_l544Rebut+' pièce(s) au rebut, recoupées — commande couverte'; ecartMsg=ecartMsg?(ecartMsg+' ; '+_mi):_mi; }
   }
   const ficheEntry={
     appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''),   // [L272 · audit #12] version qui a produit la fiche (traçabilité ISO sur parc hétérogène)
@@ -13047,11 +13054,12 @@ function renderTemps(){
     return dur*tempsShareParts(t).reduce((s,g)=>s+(((!fOp||g.op===fOp)&&(!M||g.mach===M))?g.f:0),0);
   };
   const _sumSec=temps.reduce((s,t)=>s+_shareSec(t),0);
-  const avgSec=Math.round(_sumSec/temps.length);
+  const _l544Ok=temps.filter(t=>!_l544TempsDouteux(t)), _l544NDout=temps.length-_l544Ok.length;   /* [L544] moyenne sans les temps non mesures */
+  const avgSec=_l544Ok.length?Math.round(_l544Ok.reduce((s,t)=>s+_shareSec(t),0)/_l544Ok.length):0;
   const totalH=Math.round(_sumSec/3600*10)/10;
   summary.innerHTML=(canViewAnalyse()?'':partialDataBanner())+`<div class="stats-summary">
     <div><div class="sv">${temps.length}</div><div class="sl">Commandes${fMachine||fClient||fOp?' (filtrées)':''}</div></div><!-- [L157 · simplify #19] admin : la bannière « Données partielles » est déjà affichée par renderAnalyse sur le même écran (bloc Temps déplié = doublon) ; pilotage (analytics masquées) la garde ici -->
-    <div><div class="sv">${fmtTime(avgSec)}</div><div class="sl">Temps moyen</div></div>
+    <div><div class="sv">${_l544Ok.length?fmtTime(avgSec):'—'}</div><div class="sl">Temps moyen${_l544NDout?` <span style="color:var(--orange)" title="Moins d’1 min par bobine mère : chrono non utilisé pendant la coupe">(${_l544NDout} temps non mesuré${_l544NDout>1?'s':''} exclu${_l544NDout>1?'s':''})</span>`:''}</div></div>
     <div><div class="sv">${totalH}h</div><div class="sl">Total prod.</div></div>
   </div>`;
 
@@ -13061,7 +13069,7 @@ function renderTemps(){
     const secPerLaize=t.totalLaizes>0?Math.round(t.duree/t.totalLaizes):0;
     const op2=t.operateur2?` + <strong>${esc(t.operateur2)}</strong>${t.op2Bobine?` (dès bob.${esc(t.op2Bobine)})`:''}`:'';
     return `<div class="chrono-record">
-      <div class="cr-time">${fmtTime(Number(t.duree)||0)}</div><!-- [L246 · R1] relevé sans durée → 0, plus de NaN affiché -->
+      <div class="cr-time"${_l544TempsDouteux(t)?' style="color:var(--orange)" title="Moins d’1 min par bobine mère : temps non mesuré (chrono démarré après la coupe ?) — exclu des moyennes"':''}>${fmtTime(Number(t.duree)||0)}${_l544TempsDouteux(t)?' ⚠':''}</div><!-- [L246 · R1] relevé sans durée → 0, plus de NaN affiché -->
       <div class="cr-info">
         <div class="cr-title">${esc(t.client)} — ${esc(t.ref)}</div>
         <div class="cr-meta">${ds} · <strong>${esc(t.operateur)}</strong>${op2} · ${esc(t.machine)}${t.numCmd?` · <span style="color:var(--blue);font-weight:700">N° ${esc(t.numCmd)}</span>`:''}</div>
@@ -14423,7 +14431,7 @@ function buildMonthlyKpi(ym,fiches,temps){
     if(mach[m]){mach[m].bobines+=b1;if(!isNaN(p)){mach[m].wpNum+=p*b1;mach[m].wpDen+=b1;}}
     else autresBobines+=b1;   // [L83 · Audit #44] machine hors FEBA/MAVEG/CEVENINI : comptée à part (total = machines + autres)
     if(cut2>0){mach[m2].bobines+=cut2;if(!isNaN(p)){mach[m2].wpNum+=p*cut2;mach[m2].wpDen+=cut2;}}
-    const c=String(f.client||'—').trim()||'—'; cliVol[c]=(cliVol[c]||0)+b;
+    const _c0=String(f.client||'—').trim()||'—'; const c=(function(){ try{ const n=(typeof _l517ClientNom==='function')?_l517ClientNom(_c0):''; return n||_c0.replace(/\s+pour\s+le\s[\s\S]*$/i,'').trim()||_c0; }catch(_){ return _c0; } })(); cliVol[c]=(cliVol[c]||0)+b;   /* [L544 · audit d usage] « CLIENT pour le jj mm aa n°… » : le top clients etait un top des COMMANDES (VEKA, 1er client, absent) */
     const rf=String(f.ref||'—').trim()||'—'; refVol[rf]=(refVol[rf]||0)+b;
     /* [L513] SOURCE UNIQUE : m² coupes, perte, chutes gardees, dechet NC de CETTE fiche — memes chiffres que la carte, la fiche imprimee et le CSV.
        Repli impossible (metrage absent, ref irresolue, fiche sans detail) → la fiche est OMISE de ces sommes et TRACEE (regle 7 : jamais un catch muet,
@@ -16514,6 +16522,7 @@ let _dujSamplesMemo=null,_dujSamplesKey='';
 // en place, durée conservée) NI une correction machine/opérateur/laizes sans changement de chrono → le Débit
 // m/h, l'estimateur et l'export CSV restaient sur les anciennes données jusqu'au rechargement de la page.
 // Invalidation EXPLICITE au funnel commun des mutations (refreshAnalyseIfPresent) + aux rechargements de cache.
+function _l544TempsDouteux(t){ try{ const nb=Number(t&&t.nbBobines)||0, sec=Number(t&&t.duree)||0; return nb>0&&sec>0&&(sec/nb)<60; }catch(_){ return false; } }   /* [L544 · audit d usage 06/10] moins d 1 min par bobine mere = chrono non utilise pendant la coupe (9 releves depuis aout) : garde en base, exclu des moyennes et de l estimateur */
 function dujSamplesInvalidate(){ _dujSamplesMemo=null; _dujSamplesKey=''; }
 function dujSamples(){
   // [L83 · Audit #7] relais op.2 : l'échantillon est SCINDÉ par segment (machine/opérateur réels,
@@ -16527,7 +16536,7 @@ function dujSamples(){
   tempsCache.filter(t=>!t.deleted).forEach(t=>{
     const longueur=parseFloat(String(t.longueur).replace(',','.'))||0;
     const nb=Number(t.nbBobines)||0, sec=Number(t.duree)||0;
-    if(longueur<=0||nb<=0||sec<=0) return;
+    if(longueur<=0||nb<=0||sec<=0||_l544TempsDouteux(t)) return;   /* [L544] */
     const metres=longueur*nb;
     // [L395 · demande Esteban 22/08] débit SURFACE : laize mère du relevé (multi-réf « 2100 / 1255 » → moyenne)
     const _mo=String(t.mother||'').split('/').map(x=>parseFloat(String(x).replace(',','.'))).filter(x=>x>0);
@@ -16688,7 +16697,7 @@ function _dujAddSamples(machKey){
     if(machKey&&mk!==machKey) return;
     const nm=Number(t.nbBobines)||0, nf=Number(t.totalLaizes)||0, sec=Number(t.duree)||0;
     const lg=parseFloat(String(t.longueur).replace(',','.'))||0;
-    if(nm<=0||nf<=0||sec<=0||lg<=0||nf<nm) return;   // nf<nm = données incohérentes
+    if(nm<=0||nf<=0||sec<=0||lg<=0||nf<nm||_l544TempsDouteux(t)) return;   // nf<nm = données incohérentes ; [L544] temps non mesure exclu
     out.push({nm,nf,lg,sec});
   });
   return out;
@@ -18580,9 +18589,11 @@ async function saveFicheConfigs(id){
   const _d=_l506EditDerived(f,newDetail);   /* [L506] TOUS les champs dérivés par UNE fonction aux définitions de la source (voir _l506EditDerived) */
   // [L73 · Lot 5 · B53] Trace ISO : l'écart terrain/plan d'origine est CONSERVÉ tel quel
   // (une édition admin ne l'efface plus) et recopié dans la piste d'audit plus bas.
+  let _l544Iso=null; try{ const _m=String(dateLiv||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,6})$/); if(_m&&String(dateLiv)!==String(f.dateLiv||'')){ let _y=+_m[3]; if(_m[3].length===2) _y=2000+_y; const _fy=(typeof _l543FixYear==='function')?_l543FixYear(_y):_y; if(_fy){ const _iso=_fy+'-'+String(_m[2]).padStart(2,'0')+'-'+String(_m[1]).padStart(2,'0'); const _dt=new Date(_iso+'T12:00:00'); if(!isNaN(_dt.getTime())&&_dt.getMonth()+1===+_m[2]&&_dt.getDate()===+_m[1]) _l544Iso=_iso;   /* date reelle seulement (pas de 31/02) */ } } }catch(_){ }   /* [L544 · audit d usage] corriger la date au bureau ne changeait PAS dateLivIso (lue par la ponctualite) */
   const upd={client,ref,numCmd,dateLiv,lame,ficheDetail:newDetail,
     nbFiche:newDetail.length,totalBobines:_d.totalBobines,   /* [L506] mères du plan seules (un ♻ de 300 mm était compté comme une mère de 1560 mm : m² +20 %) */
     hasEcart:f.hasEcart===true,ecartMsg:f.ecartMsg||'',modifie:true};
+  if(_l544Iso) upd.dateLivIso=_l544Iso;   /* [L544] */
   upd.groups=_d.groups;                                               /* [L506] régénéré aussi en MULTI-réf (laize de chaque ligne) : des groups périmés contredisaient le tableau de la fiche imprimée */
   // [L76 · B53] Plan théorique FIGÉ quand un écart d'origine est conservé (bandeau PDF « ÉCART — +2 bobines » cohérent). Seul consommateur de nbPlan : cet affichage.
   if(f.hasEcart!==true) upd.nbPlan=_d.nbPlan;                         /* [L506] mères + ♻ du plan, hors plan exclu (comme à la création) */

@@ -26,7 +26,7 @@ global.parseNum=v=>{const n=parseFloat(String(v==null?'':v).replace(',','.'));re
 global.dujMachKey=m=>({feba:'feba',maveg:'maveg',cevenini:'cevenini'}[String(m||'').toLowerCase()]||'');
 global.dujDebit=()=>({d:D_MH,n:temps.length,src:'machine'});
 global._dujAddOverride=null;
-for(const n of ['_dujAddSamples','_lsqSolve','dujCalibrateAdditive','dujEstimateAdditive']) global[n]=eval('('+fnOf(n)+')');
+for(const n of ['_l544TempsDouteux','_dujAddSamples','_lsqSolve','dujCalibrateAdditive','dujEstimateAdditive']) global[n]=eval('('+fnOf(n)+')');   // [L544] temps non mesures exclus
 
 ok(_dujAddSamples('feba').length===temps.length,'tous les relevés valides retenus ('+temps.length+')');
 const cal=dujCalibrateAdditive('feba');

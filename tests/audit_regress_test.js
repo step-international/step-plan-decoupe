@@ -2670,5 +2670,14 @@ has(/:not\(\.val-todo\)\{/,'L543 : VALIDER LA PREPARATION de nouveau jaune');
 has(/\.test2-nc input\{display:inline-block;position:absolute;opacity:0/,'L543 : plus de rectangle vide sur « Test NC »');
 has(/\.chg-section input\[type=checkbox\]\{-webkit-appearance:auto;appearance:auto;padding:0\}/,'L543 : coche visible dans Changements');
 
+// ── [L544 · 07/10/2026, audit d usage reel] ecart, defaut chiffre sans motif, temps impossibles, top clients, date corrigee au bureau ──
+has(/if\(_dechetPieces>0\) _l544Rebut=_dechetPieces;/,'L544 : le rebut seul ne fait plus « Ecart plan » (decision apres la couverture)');
+has(/if\(_l544Rebut>0\)\{   \/\*/,'L544 : ecart du rebut seulement si la couverture manque ou n est pas calculable');
+has(/if\(!hasNC&&!fd\.test2nc&&_l544Chif\)\{/,'L544 : defaut chiffre sans motif refuse a l envoi (plus de « RAS » silencieux)');
+has(/function _l544TempsDouteux\(t\)\{/,'L544 : temps non mesure (< 1 min par bobine mere) identifie');
+has(/const avgSec=_l544Ok\.length\?/,'L544 : temps moyen sans les temps non mesures');
+has(/const _c0=String\(f\.client\|\|'—'\)\.trim\(\)\|\|'—'; const c=\(function\(\)\{/,'L544 : top clients groupe par client');
+has(/if\(_l544Iso\) upd\.dateLivIso=_l544Iso;/,'L544 : date de livraison corrigee au bureau → date lue par la ponctualite mise a jour');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
