@@ -2717,6 +2717,11 @@ has(/if\(!\(doc&&doc\.metadata&&doc\.metadata\.fromCache\)\) _l486Retries=0;/,'L
 // ── [L549 · 07/10/2026] reprise au demarrage : le chrono seul attend que le compte soit connu (sinon la fiche ne revenait jamais) ──
 has(/if\(live && live\.runStart && _dateKey\(live\.runStart\)===_dateKey\(Date\.now\(\)\) && _uid\(\)!=='anon'\)\{/,'L549 : repli « chrono seul » seulement compte connu');
 has(/if\(_uid\(\)!==_u549\) return;/,'L549 revue : connexion pendant l attente = tentative abandonnee (la suivante refait tout)');
+
+// ── [L550 · 07/10/2026] archive froide locale bornee aussi en TAILLE (elle saturait le stockage local et coupait les filets locaux) ──
+has(/const _L550_ARCH_MAX=2500000;/,'L550 : borne en taille de l archive froide');
+has(/localStorage\.setItem\(COLD_ARCHIVE_KEY,_l550ArchJson\(arch,items\.length\)\);/,'L550 : ecriture bornee (le lot ajoute toujours garde)');
+has(/setTimeout\(function\(\)\{ try\{ _l550TrimColdArchive\(\); \}catch\(e\)\{\} \},8000\);/,'L550 : archive deja trop grosse ramenee au demarrage');
 has(/const _s545=await _l545FindSent\(d\);/,'L545 B10 : pas de reprise auto d une commande deja envoyee depuis une autre tablette');
 has(/if\(await _l545FindSent\(d\)\) return;/,'L545 B10 : idem pour la saisie de plan');
 has(/function _l545SentInfo\(d,fiches\)\{/,'L545 B10/A5 : preuve « deja envoyee » (client + n° + codes article + apres le 1er ▶)');

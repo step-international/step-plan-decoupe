@@ -3392,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L549';
+const APP_VERSION='2026.10.07-L550';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4205,10 +4205,26 @@ function addToColdArchive(items){
     // purge se ferait tronquer ici tout en renvoyant true → suppression définitive d'éléments jamais archivés.
     const _keep=Math.max(2000,items.length);
     if(arch.length>_keep) arch=arch.slice(arch.length-_keep);
-    localStorage.setItem(COLD_ARCHIVE_KEY,JSON.stringify(arch));
+    localStorage.setItem(COLD_ARCHIVE_KEY,_l550ArchJson(arch,items.length));   /* [L550] bornée aussi en TAILLE */
     return true;   // [L169 · audit #27] la purge n'efface DÉFINITIVEMENT qu'après un archivage froid CONFIRMÉ
   }catch(e){console.warn('Archive froide non écrite (espace local plein ?) :',e.message);return false;}
 }
+
+/* [L550 · défaut latent relevé par la revue de L548] l'archive froide n'était bornée qu'en NOMBRE (2000) : un brouillon archivé pèse ~16 Ko,
+   elle atteignait donc le plafond du stockage local (~5 Mo) bien avant 2000 entrées — sur la tablette qui purge chaque matin, en quelques
+   mois. Stockage plein = les filets locaux (chrono en direct, photo de la commande L435, brouillon de secours) n'écrivent plus, en silence.
+   Bornée maintenant aussi en TAILLE : on retire les plus ANCIENNES entrées (même principe que la borne en nombre de L169), jamais le lot
+   qu'on vient d'ajouter (L170). PURE (tests/l550_test.js). */
+const _L550_ARCH_MAX=2500000;   // caractères (≈ 2,5 Mo sur ~5 Mo) : laisse ~2,5 Mo aux filets locaux (caches clients/réfs, chrono, commande, brouillon de secours)
+function _l550ArchJson(arch,keepLast){ const a=Array.isArray(arch)?arch:[]; const k=Math.max(0,Number(keepLast)||0); const js=JSON.stringify(a);
+  if(js.length<=_L550_ARCH_MAX||a.length<=k) return js;
+  let tot=js.length, i=0; const lim=a.length-k;   /* [L550 · revue] retrait EXACT des plus anciennes, taille de chaque entrée calculée une fois */
+  while(tot>_L550_ARCH_MAX&&i<lim){ let n=1; try{ const e=JSON.stringify(a[i]); n=(e?e.length:4)+1; }catch(_){ } tot-=n; i++; }
+  return JSON.stringify(a.slice(i)); }
+/* au démarrage : une archive DÉJÀ trop grosse (tablette qui purge depuis des mois) est ramenée sous la borne, une fois — lecture seule sinon */
+function _l550TrimColdArchive(){ try{ const raw=localStorage.getItem(COLD_ARCHIVE_KEY); if(!raw||raw.length<=_L550_ARCH_MAX) return false; let a=[]; try{ a=JSON.parse(raw); }catch(e){ return false; } if(!Array.isArray(a)) return false;
+  const js=_l550ArchJson(a,0); if(js.length>=raw.length) return false; localStorage.setItem(COLD_ARCHIVE_KEY,js); try{ console.log('[L550] archive froide ramenée de '+raw.length+' à '+js.length+' caractères'); }catch(_){} return true; }catch(e){ return false; } }
+setTimeout(function(){ try{ _l550TrimColdArchive(); }catch(e){} },8000);   /* 8 s après le démarrage : après les premiers essais de reprise, pour que les filets locaux réécrivent vite (une seule fois, ~0,5 s sur tablette) */
 
 // Télécharge l'archive froide complète en JSON
 function downloadColdArchive(){
