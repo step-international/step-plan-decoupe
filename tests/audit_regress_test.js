@@ -2749,5 +2749,19 @@ has(/<\/div>\$\{_sentH\}\$\{_oldH\}/,'L545 A5 : carte brouillon « x/N coupees �
 has(/_l542RearmArm\('brouillons',function\(\)\{ startBrouillons\(\); \}\);/,'L545 B15 : synchro des brouillons relancee (plus d abandon pour la session)');
 has(/_l542RearmStop\('brouillons'\); \}catch\(e\)\{\} \}/,'L545 B15 : deconnexion = relances desarmees');
 
+console.log('── L553 : impression des fiches validees sur fond BLANC (demande Dominique, portee par Celine admin, 14/10/2026) ──');
+has(/^function _l553PalettePapier\(html\)\{/m,'L553 : palette papier — UNE table traduit les couleurs du theme sombre (styles inline du corps) en couleurs papier');
+has(/body\{background:#fff;color:#111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;font-size:14px\}/,'L553 : gabarit fiche — fond blanc, texte fonce (le fond #111 etait FORCE a l impression par print-color-adjust:exact)');
+absent(/body\{background:#111;color:#e5e5e3;font-family:-apple-system/,'L553 : l ancien fond sombre du gabarit fiche a disparu');
+has(/:root\{--red:#b91c1c;--alert:#b91c1c;--green:#166534;--orange:#92400e;--action:#78350f;--blue:#1d4ed8\}/,'L553 : tokens semantiques FONCES dans le gabarit (openPrintWindow n injecte les vifs que si « --red: » est absent)');
+absent(/\$\{fd&&fd\.coupee\?';opacity:\.5':''\}/,'L553 : les bobines coupees ne s impriment plus a moitie effacees (fiche validee = tout le tableau)');
+absent(/\$\{fd\.coupee\?';opacity:\.6':''\}/,'L553 : idem pour les lignes HORS PLAN');
+has(/return _head553\+_l553PalettePapier\(_body553\)/,'L553 : le CORPS du gabarit (bandeaux, badges, lignes : styles inline) passe par la palette ; l en-tete <style> est ecrit en clair');
+has(/'#eab308':'#854d0e','#22d3ee':'#155e75','#c4b5fd':'#5b21b6','#a3e635':'#3f6212','#e879f9':'#a21caf','#10b981':'#065f46'/,'L553 : les couleurs fournies a l execution (clients A/C/D, operateurs JF/TB/DC/CH) sont dans la palette (contre-lecture : elles restaient pales sur blanc)');
+has(/replace\(\/ style="\[\^"\]\*"\/g,function\(st\)\{ return st\.replace\(/,'L553 : la palette ne reecrit QUE les attributs style — jamais le texte saisi ni les commentaires (document qualite : contenu inchange)');
+has(/\.replace\('background:__MACHCOL553__','background:'\+machCol\)/,'L553 : la pastille machine (fond clair, texte sombre) est posee APRES la passe — la couleur par defaut #a78bfa n est plus assombrie');
+has(/⚠ HORS PLAN<\/span>/,'L553 : badge HORS PLAN present');
+has(/border:1px solid #f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN/,'L553 : badge HORS PLAN borde (en gris, son fond disparaissait)');
+has(/border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;margin-left:4px">MIXTE/,'L553 : badge MIXTE borde (idem)');
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

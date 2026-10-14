@@ -3392,7 +3392,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.07-L552';
+const APP_VERSION='2026.10.14-L553';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -20394,32 +20394,51 @@ function computePerteChute(f){
   return { perteMm:Math.round(perte), chuteStockMm:Math.round(chute) };
 }
 // Rendu HTML de la fiche imprimée (séparé du calcul — S4). Sortie identique.
+/* [L553 · demande Dominique (pilotage) portee par Celine, admin, 14/10/2026 — SORTIE PAPIER : fiche validee (PDF, apercu, extraits client)]
+   Ce gabarit etait le SEUL document papier sur fond sombre : body #111 + print-color-adjust:exact → la page s imprimait NOIRE, texte gris
+   clair illisible, et les bobines coupees a opacity .5 (sur une fiche validee, tout le tableau). Decision Celine : fond blanc, texte fonce,
+   lignes en plein, AUSSI a l ecran (l apercu = le papier), bandeaux clairs a bordure foncee ; contenu et ordre inchanges.
+   Les couleurs du corps sont INLINE (showFicheDetail : bandeaux, badges, lignes) : plutot que ~40 retouches a oublier une a une, UNE table
+   traduit chaque couleur du theme sombre en couleur papier (tests/fiche_print_l553_test.js verifie sa COMPLETUDE : tout literal de couleur
+   des deux fonctions est soit une cle, soit une couleur papier connue). Une seule passe, sans chainage (#888 → #555 et #555 → #777).
+   Jumeaux verifies : plan papier, etiquette, KPI mensuel (L79 · AN-6) et printFiche etaient deja sur fond blanc — inchanges. */
+const _L553_PAPIER={
+  '#e5e5e3':'#111','#2a2a28':'#b8b8b3','#222':'#eeeeea','#444':'#999','#555':'#6b6b6b','#888':'#555',
+  '#4ade80':'#166534','#f59e0b':'#92400e','#fbbf24':'#78350f','#60a5fa':'#1d4ed8','#a78bfa':'#6d28d9','#9ecbf0':'#1e3a8a',
+  '#f472b6':'#be185d','#f9a8d4':'#9d174d','#9ca3af':'#4b5563','#f87171':'#b91c1c',
+  '#3d2a00':'#fff3d6','#3a2e0a':'#fff3d6','#102a40':'#e3eefb','#3d1414':'#fde2e2','#14371f':'#e2f5e8','#331021':'#fbe4ef','#141d10':'#eef6e6','#1f2937':'#eceff3',
+  'rgba(0,0,0,.25)':'transparent','rgba(255,255,255,.4)':'rgba(0,0,0,.35)',
+  '#eab308':'#854d0e','#22d3ee':'#155e75','#c4b5fd':'#5b21b6','#a3e635':'#3f6212','#e879f9':'#a21caf','#10b981':'#065f46'   /* couleurs fournies a l EXECUTION : CLI_COLORS (clients A, C, D) et OP_COLORS (JF, TB, DC, CH) — B, +, MR/MT, ER, ? passent par les entrees ci-dessus */
+};
+function _l553PalettePapier(html){ return String(html==null?'':html).replace(/ style="[^"]*"/g,function(st){ return st.replace(/#[0-9a-fA-F]{3,6}(?![0-9a-fA-F])|rgba\([^)]*\)/g,function(m){ return Object.prototype.hasOwnProperty.call(_L553_PAPIER,m)?_L553_PAPIER[m]:m; }); }); }   /* [L553 · contre-lecture] SEULS les attributs style sont traduits : une note ou un n° de commande qui contient « #555 » reste tel quel (document qualite), les commentaires HTML aussi */
 function buildFichePrintHTML(d){
   const {f,ecartBanner,partageBanner,op2Line,machLbl,machCol,pkgLine,notesLine,planRows,horsPlanRows,shareCol,cliBanner,cliRecapCard,cliCol}=d;   // [L63 · Lot 5] partageBanner + shareCol · [L64 · Lot 6] cliBanner + cliRecapCard + cliCol
-  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  const _head553=`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <title>${esc(f.name)}</title>
   <style>
+    :root{--red:#b91c1c;--alert:#b91c1c;--green:#166534;--orange:#92400e;--action:#78350f;--blue:#1d4ed8}   /* [L553] tokens FONCES pour le papier (openPrintWindow n injecte les vifs que si « --red: » est absent) */
     *{margin:0;padding:0;box-sizing:border-box}
-    body{background:#111;color:#e5e5e3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;font-size:14px}
-    h1{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px}
-    .sub{color:#888;font-size:13px;margin-bottom:20px}
-    .card{background:#1a1a18;border:1px solid #2a2a28;border-radius:10px;padding:16px;margin-bottom:16px}
-    .card-title{font-size:12px;font-weight:700;color:#888;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+    body{background:#fff;color:#111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;font-size:14px}   /* [L553] fond blanc, texte fonce : le fond #111 etait FORCE a l impression par print-color-adjust:exact */
+    h1{font-size:18px;font-weight:800;color:#111;margin-bottom:4px}
+    .sub{color:#555;font-size:13px;margin-bottom:20px}
+    .card{background:#f7f7f6;border:1px solid #b8b8b3;border-radius:10px;padding:16px;margin-bottom:16px}
+    .card-title{font-size:12px;font-weight:700;color:#555;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
     .grid2{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-size:13px}
-    .grid2 span:nth-child(odd){color:#888}
+    .grid2 span:nth-child(odd){color:#555}
     .grid2 span:nth-child(even){font-weight:600}
-    .cmd-row{display:inline-block;background:#222;border-radius:6px;padding:3px 10px;font-family:monospace;font-size:13px;margin:2px}
+    .cmd-row{display:inline-block;background:#eeeeea;border-radius:6px;padding:3px 10px;font-family:monospace;font-size:13px;margin:2px}
     table{width:100%;border-collapse:collapse;font-size:13px}
-    th{padding:8px 12px;text-align:left;font-size:12px;color:#888;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #333}
+    th{padding:8px 12px;text-align:left;font-size:12px;color:#555;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #999}
     td{vertical-align:top}
     @media print{body{padding:12px}button{display:none}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style>
-  </head><body>
+  </head>`;
+  const _body553=`<body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
     <div>
       <h1>${esc(f.name)}</h1>
-      ${f.client?`<div style="font-size:22px;font-weight:800;color:#e5e5e3;margin:2px 0 6px">👤 ${esc(f.client)}</div>`:''}<!-- [L142 · ergo #7] nom client était #1a1a1a (sombre) sur fond #111 → invisible ; ton clair -->
-      <div style="display:inline-block;margin:8px 0 4px;padding:5px 16px;border-radius:9px;font-size:24px;font-weight:800;letter-spacing:1px;color:#141310;background:${machCol}">⚙ ${machLbl}</div><!-- [L142 · ergo #9] texte SOMBRE sur pastille machine claire (contraste + survit à l'impression grisée) -->
+      ${f.client?`<div style="font-size:22px;font-weight:800;color:#e5e5e3;margin:2px 0 6px">👤 ${esc(f.client)}</div>`:''}<!-- [L142 · ergo #7] nom client était #1a1a1a (sombre) sur fond #111 → invisible ; ton clair · [L553] fond blanc : la palette papier rend ce ton fonce -->
+      <div style="display:inline-block;margin:8px 0 4px;padding:5px 16px;border-radius:9px;font-size:24px;font-weight:800;letter-spacing:1px;color:#141310;background:__MACHCOL553__">⚙ ${machLbl}</div><!-- [L142 · ergo #9] texte SOMBRE sur pastille machine claire (contraste + survit à l'impression grisée) -->
 
       <div class="sub">${new Date(f.date).toLocaleString('fr-FR')} · ${f.totalBobines} bobines · <b>${(()=>{try{const m=_l471FicheM2(f);return m?m.toLocaleString('fr-FR')+' m² coupés (bobines mères)':'—';}catch(e){return '—';}})()}</b></div><!-- [L479 · regles actees ER 29/08] m² au lieu du % -->
       ${(()=>{try{
@@ -20473,7 +20492,7 @@ function buildFichePrintHTML(d){
       ${pkgLine}
       ${notesLine}
       <span>Temps</span><span style="color:${f.tempsStr==='non enregistré'?'#888':'#4ade80'}">${f.tempsStr}</span>
-      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:#f59e0b;font-weight:700">📎 BL non joint <span style="color:#888;font-weight:600">(recommandé — traçabilité ISO)</span></span>';return bls.map(b=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span><!-- [L126 · audit A2] BL non bloquant propagé au détail · [L132 · revue] couleur EN DUR #f59e0b : ce document d'impression (iframe srcdoc) ne définit pas les variables CSS, var(--orange) y retombait en gris -->
+      <span>Bon de livraison</span><span>${(()=>{const bls=ficheBLs(f);if(!bls.length)return '<span style="color:#f59e0b;font-weight:700">📎 BL non joint <span style="color:#888;font-weight:600">(recommandé — traçabilité ISO)</span></span>';return bls.map(b=>`<a href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener" style="color:#4ade80;font-weight:700">📎 ${esc((b.ref?b.ref+' : ':'')+(b.name||(b.type==='pdf'?'BL.pdf':'BL')))}</a>`).join('<br>');})()}</span><!-- [L126 · audit A2] BL non bloquant propagé au détail · [L132 · revue] couleur EN DUR #f59e0b : ce document d'impression (iframe srcdoc) ne définissait pas les variables CSS, var(--orange) y retombait en gris · [L553] le gabarit definit desormais ses tokens et la palette papier traduit cette couleur -->
       <span>Validation</span><span>${f.valide===true?'✓ Validée'+(f.valideBy?' par '+esc(f.valideBy):'')+(f.valideAt?' le '+new Date(f.valideAt).toLocaleDateString('fr-FR'):''):f.valide===false?'✗ Refusée'+(f.valideBy?' par '+esc(f.valideBy):''):'⏳ En attente'}</span>
     </div>
   </div>
@@ -20501,6 +20520,7 @@ function buildFichePrintHTML(d){
   </div>
   ${cliRecapCard||''}
   </body></html>`;
+  return _head553+_l553PalettePapier(_body553).replace('background:__MACHCOL553__','background:'+machCol);   /* [L553] le corps (styles inline) passe par la palette papier ; l en-tete est ecrit en clair ; la pastille machine (fond CLAIR + texte sombre) est posee APRES la passe, sinon la couleur par defaut #a78bfa etait assombrie */
 }
 function showFicheDetail(id,autoPrint,cliFilter){
   const f=fichesCache.find(x=>x._id===id);
@@ -20588,20 +20608,20 @@ function showFicheDetail(id,autoPrint,cliFilter){
     if(!fd||!Array.isArray(fd.cliParts)||!fd.cliParts.length) return '<span style="color:#555">—</span>';
     const ids=[...new Set(fd.cliParts.filter(p=>p.c!=='+').map(p=>p.c))];
     const parts=_l409CliGroups(fd.cliParts).map(g=>`<span style="color:${g.c==='+'?'#888':_cliCol(g.c)};font-weight:700">[${g.c==='+'?'hors cmd':esc(g.c)}]&nbsp;${g.segs.map(p=>`<span style="white-space:nowrap">${p.q}×${fmt(p.w)}</span>`).join(' + ')}</span>`).join(' · ');   /* [L409→L412 audit] nowrap PAR SEGMENT (le groupe insecable elargissait le tableau A4) */
-    return parts+(ids.length>1?' <span style="display:inline-block;background:#3d2a00;color:#f59e0b;font-size:11px;font-weight:800;border-radius:4px;padding:1px 6px;margin-left:4px">MIXTE</span>':'');
+    return parts+(ids.length>1?' <span style="display:inline-block;background:#3d2a00;color:#f59e0b;font-size:11px;font-weight:800;border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;margin-left:4px">MIXTE</span>':'');
   };
   const cliHasPart=(fd,cid)=>!!(fd&&Array.isArray(fd.cliParts)&&fd.cliParts.some(p=>p.c===cid));
   // Lot C — bannière changement de lame : repérée par le n° de bobine (lameChgBob).
   const lameChgAt=(f.lameChg&&f.lameChgBob)?(parseInt(f.lameChgBob,10)||0):0;
   const lameBandHtml=()=>`<tr><td colspan="${_cols}" style="padding:0">`
     +`<div style="height:5px;background:#f59e0b"></div>`
-    +`<div style="background:#3a2e0a;color:#f59e0b;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">🔪 CHANGEMENT DE LAME — ${esc(String(f.lame||'?'))} → ${esc(String(f.lameNew||'—'))}</div>`
+    +`<div style="background:#3a2e0a;color:#f59e0b;border:1px solid #f59e0b;border-top:0;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">🔪 CHANGEMENT DE LAME — ${esc(String(f.lame||'?'))} → ${esc(String(f.lameNew||'—'))}</div>`
     +`</td></tr>`;
   // Lot E — bannière relais opérateur : op.2 reprend dès la bobine op2Bob.
   const op2RelayAt=(f.ini2&&f.op2Bob)?(parseInt(f.op2Bob,10)||0):0;
   const op2BandHtml=()=>`<tr><td colspan="${_cols}" style="padding:0">`
     +`<div style="height:5px;background:#60a5fa"></div>`
-    +`<div style="background:#102a40;color:#9ecbf0;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">👤 RELAIS OPÉRATEUR — ${esc(String(f.ini||'op.1'))} → ${esc(String(f.ini2||'op.2'))} · dès la bobine ${esc(String(f.op2Bob))}</div>`
+    +`<div style="background:#102a40;color:#9ecbf0;border:1px solid #60a5fa;border-top:0;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">👤 RELAIS OPÉRATEUR — ${esc(String(f.ini||'op.1'))} → ${esc(String(f.ini2||'op.2'))} · dès la bobine ${esc(String(f.op2Bob))}</div>`
     +`</td></tr>`;
   let bobNum=0;
   const _horsList=[];   // [L101 · choix Esteban] bobines rattrapage/RESTE-/OP2- sorties du tableau principal → section « ⚠ HORS PLAN » (fd.horsPlan posé à l'archivage L7363)
@@ -20623,7 +20643,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
         if(prevMachLbl!==null && curMachLbl!==prevMachLbl){
           machBand=`<tr><td colspan="${_cols}" style="padding:0">`
             +`<div style="height:5px;background:#f87171"></div>`
-            +`<div style="background:#3d1414;color:var(--red);font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">⚙ CHANGEMENT DE MACHINE — ${esc(prevMachLbl)} → ${esc(curMachLbl)}</div>`
+            +`<div style="background:#3d1414;color:var(--red);border:1px solid #f87171;border-top:0;font-weight:800;font-size:12px;letter-spacing:.04em;padding:7px 12px;text-align:center">⚙ CHANGEMENT DE MACHINE — ${esc(prevMachLbl)} → ${esc(curMachLbl)}</div>`
             +`</td></tr>`;
         }
         prevMachLbl=curMachLbl;
@@ -20646,7 +20666,7 @@ function showFicheDetail(id,autoPrint,cliFilter){
       const ncDetail=(function(){ try{ const L=ncLoss(f,fd); const _hasD=!!(fd&&fd.ncDetail); if(!_hasD&&!(L&&L.m2>0)) return ''; return `<div style="margin-top:4px;font-size:12px;color:#f59e0b;font-style:italic">📝 ${_hasD?esc(fd.ncDetail):'NC chiffrée'}${(L&&L.m2>0)?' · <b>'+ncM2Txt(L.m2)+'</b>':''}</div>`; }catch(e){ return ''; } })();   /* [L397→L412 audit] la perte m² s'imprimait SEULEMENT avec un commentaire — devenu facultatif L400 */
       const photoCell=fd&&fd.photo?`<a href="${esc(safeUrl(fd.photo))}" target="_blank"><img src="${esc(safeUrl(fd.photo))}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #444;cursor:pointer"></a>`:'<span style="color:#555">—</span>';
       const etiq=fd&&fd.label?`<span style="color:#60a5fa">${esc(fd.label)}</span>`:'';
-      rows.push(machBand+lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28${fd&&fd.coupee?';opacity:.5':''}">
+      rows.push(machBand+lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28"><!-- [L553] plus d opacity .5 sur les coupees : sur une fiche validee c etait TOUT le tableau a moitie efface ; le statut « ✓ Coupée » reste dans la colonne Etat -->
         <td style="padding:10px 12px;font-weight:700;color:#a78bfa;white-space:nowrap">Bobine ${bobNum}${isLast&&k===g.count-1?' <span style="color:#f59e0b;font-size:12px">[SOLDE]</span>':''}</td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(_l518Label(labelLegrand(g.label))):esc(_l518Label(g.label))}</td><!-- [L518] archive intacte, reformatee a l impression -->
         ${multiCli?`<td style="padding:10px 12px;font-size:12px">${cliCellPdf(fd)}</td>`:''}
@@ -20684,8 +20704,8 @@ function showFicheDetail(id,autoPrint,cliFilter){
     const etiq=fd.label?`<span style="color:#f59e0b">${esc(fd.label)}</span>`:'';
     const lameBand=(lameChgAt&&bn===lameChgAt)?lameBandHtml():'';
     const op2Band=(op2RelayAt&&bn===op2RelayAt)?op2BandHtml():'';
-    return lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)${fd.coupee?';opacity:.6':''}">
-        <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:11px;background:#3d2a00;color:#f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
+    return lameBand+op2Band+`<tr style="border-bottom:1px solid #2a2a28;background:rgba(245,158,11,0.08)"><!-- [L553] idem HORS PLAN -->
+        <td style="padding:10px 12px;font-weight:700;color:#f59e0b;white-space:nowrap">Bobine ${bn} <span style="font-size:11px;background:#3d2a00;color:#f59e0b;border:1px solid #f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN</span></td>
         <td style="padding:10px 12px;font-family:monospace;font-size:13px;color:#f59e0b">${isLegrandFr?esc(_l518Label(labelLegrand(fd.conf))):esc(_l518Ecran(fd.conf||'—'))}</td><!-- [L518] -->
         ${multiCli?`<td style="padding:10px 12px;font-size:12px">${cliCellPdf(fd)}</td>`:''}
         <td style="padding:10px 12px;text-align:right;color:#888">—</td>
