@@ -1867,7 +1867,7 @@ body.atelier .stat-tile b{font-size:36px}
   #ficheRight>#sendPlanWrap{position:relative;flex:none;margin-top:0}   /* relative (pas static) : le ::before « la liste continue » garde son ancrage */
   #ficheRight>#sendPlanWrap::before{top:-24px}
   #ficheHeadSec.reveal{max-height:38vh;overflow-y:auto}   /* en-tête dépliée : ne chasse pas la liste hors écran */
-  #ficheChgSec.reveal{max-height:30vh;overflow-y:auto}
+  #ficheChgSec.reveal{max-height:44vh;overflow-y:auto}   /* [L555 · contre-lecture 22/10] 30vh (240 px) cachait la 4e carte Entretien des qu une case de changement etait cochee (carte cochee en pleine largeur = une rangee de plus) */
   #cliRecapFiche:not(.reveal){display:none}   /* [fix audit] récap emballage par client (multi-clients) : au tap ⚙ OUTILS → 📥, sinon il écrasait la liste */
   #cliRecapFiche.reveal{max-height:24vh;overflow-y:auto}
 }
@@ -1941,6 +1941,9 @@ button[onclick^="bumpDateLiv"]{display:none!important}   /* (1) partout : le cal
   #changementsZone .chg-section>label span{font-size:15px}
   #changementsZone .chg-section>label input[type=checkbox]{width:22px!important;height:22px!important}
   #changementsZone .chg-section:has(input[type=checkbox]:checked){grid-column:1/-1;border-color:#b06a00}
+  #changementsZone #chgEntretien{grid-column:1/-1}   /* [L555] la carte Entretien (2 gros boutons) prend la largeur sous les 3 cartes */
+  #chgEntBtns .chg-ok-btn{min-height:48px;padding:0 18px;font-size:15px}
+  #chgEntretien.ent-ok .chg-done{display:block}   /* [L555 · contre-lecture 2] resume visible via une classe DEDIEE : chg-ok peindrait les deux boutons en vert « fait » pour toute la session */   /* [L555] plancher tactile atelier (48 px, comme .lb-act / .lc-act) : un operateur gante vise un vrai bouton */
   #chgBtnRow{margin-bottom:6px}
 }
 
@@ -2794,6 +2797,14 @@ html.theme-light .fp-num small{color:#8a8a84}
         <div class="text-muted" style="font-size:12px;margin-top:6px">Les bobines à partir de ce n° passent sur la nouvelle machine : couleur de la carte, test 2ᵉ bobineau adapté (FEBA = Dévidage seul), bandeau ⚙ sur le PDF de la fiche. Si la nouvelle machine impose d'autres bords/lame, ajuste les champs Machine ci-dessus puis « 🔄 Changement plan » pour ré-empaqueter le reste.</div>
       </div>
     </div>
+    <!-- [L555 · demande Celine 14/10/2026] ENTRETIEN MACHINE : graissage (MAVEG), antirouille (CEVENINI), mandrin change (les deux). Deplace par JS sous « Changements » (comme les 3 autres cartes).
+         Pas de case a cocher : ce n est PAS un changement en cours de commande (hors CHG_IDS, hors brouillon, hors fiche, hors papier) — 1 appui = 1 evenement au registre. -->
+    <div class="field chg-section" id="chgEntretien" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px;min-height:40px"><span style="font-size:14px;color:var(--text);font-weight:600">🛢 Entretien <span id="chgEntMach" style="color:var(--muted);font-weight:600"></span></span></div>
+      <div id="chgEntBtns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+      <div class="chg-done" id="chgDoneEnt"></div>
+      <button type="button" class="btn btn-ghost btn-sm" id="chgUndoEnt" style="display:none;margin-top:6px" onclick="_l555EntretienUndo()">↩ Annuler (appui par erreur)</button>
+    </div>
     <div class="row2" style="display:none"><!-- [L79] « Longueur réf. » (auto depuis plan) masquée — input conservé dans le DOM pour PDF/export/sérialisation -->
       <div class="field">
         <label>Longueur réf. (m) <span style="color:var(--green);font-size:12px">auto depuis plan</span></label>
@@ -3395,7 +3406,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.22-L554';
+const APP_VERSION='2026.10.22-L555';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4651,6 +4662,7 @@ document.addEventListener('keydown',function(e){
       try{ if(typeof updateShareUi==='function') updateShareUi(); }catch(e){}
       currentRole=null;
       currentUser=null;
+      try{ _l555ResetCarte(); }catch(e){}   /* [L555 · contre-lecture 2] poste partage : le resume d entretien du precedent ne survit pas a la deconnexion */
       // [L156 · audit #3] poste PARTAGÉ : vider l'opérateur sélectionné (le DOM monofichier survit à la
       // déconnexion) — sinon la session suivante sur un compte MACHINE héritait des initiales du précédent.
       // [L161 · revue #12] symétrie : l'OP.2 aussi (il restait pré-sélectionné alors qu'op.1 était vidé).
@@ -13141,6 +13153,7 @@ function resetAll(){
   try{ clearCmdLive(); }catch(e){}   /* [L435] site vierge : la photo locale de la commande part avec l'ecran */
   try{ ficheRefOrder=[]; window._l432KeepOrder=false; }catch(e){}   /* [L440 · audit #16] l'ordre de coupe (et son drapeau one-shot non consomme) ne FUIT plus vers la commande suivante */
   try{ window._l514LastInstall=null; window._l514Undone=null; window._l514InstallArm=null; const _ub=document.getElementById('chgUndoLame'); if(_ub) _ub.style.display='none'; }catch(e){}   /* [L514b] le ↩ ne survit pas à la commande */
+  try{ _l555ResetCarte(); }catch(e){}   /* [L555 · contre-lecture 2] jumeau : le resume et le ↩ Entretien ne survivent pas non plus a la commande (apres l envoi les initiales sont videes — le ↩ ne pourrait plus servir) */
   try{ window._l440LamePosed=null; ['chgLame','chgMach','chgOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.remove('chg-ok'); }); ['chgDoneLame','chgDoneMach','chgDoneOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.textContent=''; }); }catch(e){}   /* [L440 · audit #9] le ✓ vert et le resume « registre a jour » d'une commande PRECEDENTE ne survivent plus au reset/envoi */
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
@@ -16227,7 +16240,7 @@ function _l514LameCheck(mk,num,cache){ try{
   const key=r=>String(r.dateInstall||r.date||r.createdAt||'');
   const byM={}; evts.forEach(r=>{ const m=nrm(r.machine||''); if(!byM[m]||key(r)>key(byM[m])) byM[m]=r; });
   const LBL={installation:'montée',demonte:'à affûter',affutage:'à l affûtage',stock:'en stock',rebut:'jetée'};
-  if(!evts.length&&!(src&&src.length)&&typeof maintLoaded!=='undefined'&&!maintLoaded) return {status:'indispo'};   /* [L514b · vérification adverse] cache VIDE parce que le registre n est PAS chargé ≠ lame inconnue : on ne conclut rien */
+  if(!evts.length&&!(src||[]).some(function(r){ return r&&r.type==='lame'; })&&typeof maintLoaded!=='undefined'&&!maintLoaded) return {status:'indispo'};   /* [L555 · contre-lecture 22/10] « cache vide » = aucune LAME dans le cache : un entretien L555 place en tete du cache avant le chargement du registre ne doit pas lever la garde L514b (sinon « inconnue » au lieu de « registre non charge » = la classe du bug JF) */   /* [L514b · vérification adverse] cache VIDE parce que le registre n est PAS chargé ≠ lame inconnue : on ne conclut rien */
   if(byM[mkn]) return byM[mkn].categorie==='rebut'?{status:'jetee',quand:key(byM[mkn])}:(byM[mkn].categorie==='affutage'?{status:'affutage',quand:key(byM[mkn])}:{status:'ok'});   /* [L514c] partie chez l affûteur : 2e tap (« de retour ? »), pas une re-pose silencieuse */   /* [L514b · règle Esteban : n° PAR machine] connue sur CETTE machine → ok (un 23 CEVENINI et un 23 FEBA sont deux lames), sauf jetée à la benne */
   const ailleurs=[];
   Object.keys(byM).forEach(m=>{ if(m===mkn||!m) return; const r=byM[m]; if(r.categorie==='rebut') return;
@@ -16257,7 +16270,7 @@ async function _l514LameUndo(mkArg){ try{
   if(!currentUser||nrm(li.by)!==nrm(_l543LameWho())){ showToast('🔒 Seul l opérateur qui a déclaré la pose peut l annuler (sinon pilotage/admin dans Données > Lame).','err'); return; }
   if(Date.now()-li.at>2*3600000){ showToast('⏱ Plus de 2 h : demande à pilotage/admin de retirer la lame '+li.num+' dans Données > Lame.','err'); return; }
   const _what=li.what||('la pose de la lame '+li.num+' sur '+getMachineLabel(li.mk));
-  if(!(await confirmDlg('Annuler '+_what+' ?\n\nLes traces créées partent à la corbeille (pilotage/admin peut les restaurer 45 j).'))) return;
+  if(!(await confirmDlg('Annuler '+_what+' ?\n\nLes traces créées partent à la corbeille (pilotage/admin peut les restaurer '+RETENTION_VALID_DAYS+' j).'))) return;
   let n=0,enFile=0;
   for(const id of li.ids){ try{ await boundedWrite(db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow(),deletedBy:(_l543LameWho()||'?'),motif:'annulation depuis la fiche'}),10000); n++; }
     catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)){ n++; enFile++; } else { showToast('Erreur : '+e.message,'err'); return; } }
@@ -16468,13 +16481,13 @@ async function loadMaintenance(){
       try{ // CO-3 : filtrage serveur si migration deleted faite (repli client sinon / index absent)
         const s=await Promise.race([db.collection('maintenance').where('deleted','==',false).orderBy('date','desc').limit(2000).get(),
           new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout registre (12 s)')),12000))]);   /* [L441 · bug terrain « page Lame figee »] un reseau zombie laissait pendre le get() a vie */
-        docs=s.docs.map(d=>Object.assign({id:d.id},d.data()));
+        docs=s.docs.map(d=>Object.assign({id:d.id},d.data())); window._maintRawN=s.docs.length;   /* [L555] taille BRUTE lue (fenetre 2000) */
       }catch(e){ if(e.code!=='failed-precondition') console.warn('Maintenance filtrée :',e.message); }
     }
     if(!docs){
       const s=await Promise.race([db.collection('maintenance').orderBy('date','desc').limit(2000).get(),
         new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout registre (12 s)')),12000))]);   /* [L441] */
-      docs=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted);
+      docs=s.docs.map(d=>Object.assign({id:d.id},d.data())).filter(x=>!x.deleted); window._maintRawN=s.docs.length;   /* [L555] idem, AVANT le retrait des archives */
     }
     /* [L441 · audit lame #9] un chargement TARDIF (course des 4 s de lameInstall perdue) ecrasait le cache
        avec une lecture d'AVANT la pose : la lame venait de « disparaitre » de l'ecran. Les traces locales
@@ -16512,6 +16525,7 @@ function renderMaintenance(){
     });
     return; }
   c.innerHTML=maintViewHTML();
+  try{ _l555LameRender(); }catch(e){ _l505Warn('l555·lame',e); }   /* [L555] */
   renderLameEtat();
   renderAffutageList();
   maintRenderList();
@@ -16627,7 +16641,8 @@ function maintViewHTML(){  const machOpts=MACHINE_KEYS.map(m=>`<option value="${
       <div id="maintSummary"></div>
       <div id="maintList"></div>
     </div>
-  </details>`;
+  </details>
+  <details id="l555LameBox" style="margin-top:10px"${(window._l555Open&&window._l555Open.l)?' open':''} ontoggle="window._l555Open=window._l555Open||{};window._l555Open.l=this.open"><summary style="cursor:pointer;font-weight:700">🛢 Entretiens machines — graissage · antirouille · mandrins</summary><div id="l555Lame"></div></details>`;   /* [L555] le pilotage ne voit pas Analyse : les derniers appuis (et 🗑 Archiver) sont ici aussi */
 }
 // ============================================================
 // [L90] CLASSEUR LAMES — toutes les lames « utilisées non affûtées », par machine.
@@ -16734,7 +16749,7 @@ async function lameRetirerDuSuivi(machine,num){
   const mk=nrm(machine||''), nn=nrm(num);
   const evts=(maintenanceCache||[]).filter(r=>r&&r.type==='lame'&&!r.deleted&&nrm(r.lameNum)===nn&&nrm(r.machine||'')===mk);
   if(!evts.length){ showToast('Aucune trace à retirer.','err'); return; }
-  if(!(await confirmDlg('Retirer la lame '+num+' ('+(getMachineLabel(machine)||'hors machine')+') du suivi ?\n\n'+evts.length+' trace(s) partiront à la corbeille (récupérables 45 j).\nLa même lame sur une autre machine n\'est pas touchée.',{danger:true,ok:'Retirer'}))) return;
+  if(!(await confirmDlg('Retirer la lame '+num+' ('+(getMachineLabel(machine)||'hors machine')+') du suivi ?\n\n'+evts.length+' trace(s) partiront à la corbeille (récupérables '+RETENTION_VALID_DAYS+' j).\nLa même lame sur une autre machine n\'est pas touchée.',{danger:true,ok:'Retirer'}))) return;
   let n=0;
   let enFile=0;
   for(const r of evts){ try{ await boundedWrite(db.collection('maintenance').doc(r.id).update({deleted:true,deletedAt:isoNow()}),10000); r.deleted=true; n++; }
@@ -16779,7 +16794,7 @@ function renderAffutageList(){
   const canAct=canAccessMaintenance(), canDel=canManageData();
   const MCOL={feba:'var(--feba)',maveg:'var(--maveg)',cevenini:'var(--cevenini)',hors:'#888'};
   const undoFor=(m)=>{ try{ const c=[window._l514LastInstall,window._l514LastTrace].filter(x=>x&&x.ids&&x.ids.length&&nrm(x.mk)===nrm(m)&&currentUser&&nrm(x.by)===nrm(_l543LameWho())&&(Date.now()-x.at)<2*3600000).sort((a,b)=>b.at-a.at)[0]; return c?`<button type="button" class="lb-undo" onclick="_l514LameUndo('${esc(m)}')">↩ Annuler ${esc(c.what||('la pose de la lame '+c.num))}</button>`:''; }catch(e){ return ''; } };
-  const retirer=(m,l)=>canDel?`<button type="button" class="lb-mini" title="Retirer cette lame du suivi (traces à la corbeille 45 j)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetirerDuSuivi(this.dataset.mch,this.dataset.num)">✕ retirer</button>`:'';
+  const retirer=(m,l)=>canDel?`<button type="button" class="lb-mini" title="Retirer cette lame du suivi (traces à la corbeille ${RETENTION_VALID_DAYS} j)" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameRetirerDuSuivi(this.dataset.mch,this.dataset.num)">✕ retirer</button>`:'';
   const benne=(m,l)=>canAct?`<button type="button" class="lb-mini lb-mini-red" data-mch="${esc(m)}" data-num="${esc(l.num)}" onclick="lameJeter(this.dataset.mch,this.dataset.num,this)">🗑 benne</button>`:'';
   const comment=(l)=>(l.description&&!/^(Pose lame|Seed inventaire|Envoi à l|Retour affûteur|Démontée — remplacée|Lame changée en cours)/.test(l.description))?`<div class="lb-note" title="${esc(l.description)}">💬 ${esc(String(l.description).slice(0,60))}</div>`:'';
   const card=(m,l,etat)=>{
@@ -16890,14 +16905,14 @@ async function submitAffutage(btn){
 async function maintDelete(id){
   if(!canManageData()){ showToast('Action réservée au pilotage et aux admins.','err'); return; }
   const rec=maintenanceCache.find(x=>x.id===id);
-  if(!(await confirmDlg('Archiver cette entrée de l\'historique ?\n\n(Récupérable '+RETENTION_DRAFT_DAYS+' jours via la Corbeille.)',{danger:true,ok:'Archiver'}))) return;   // [L121 · T1] soft-delete → verbe « Archiver » uniforme
+  if(!(await confirmDlg('Archiver cette entrée de l\'historique ?\n\n(Récupérable '+RETENTION_VALID_DAYS+' jours via la Corbeille.)'   /* [L555 · contre-lecture 2] le registre est conserve RETENTION_VALID_DAYS (retentionMs / corbeille), pas 45 j */,{danger:true,ok:'Archiver'}))) return;   // [L121 · T1] soft-delete → verbe « Archiver » uniforme
   let _enFile=false;
   try{
     try{ await boundedWrite(db.collection('maintenance').doc(id).update({deleted:true,deletedAt:isoNow()}),10000); }   // [L83 · Audit #39] borné
     catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)) _enFile=true; else throw e; }   /* [L501 · audit #9] mise en file = succes optimiste */
     maintenanceCache=maintenanceCache.filter(x=>x.id!==id);
-    logAudit('delete','maintenance',id,rec?`Lame ${esc(rec.lameNum||'')} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel('lame',rec.categorie)}`:'').catch(function(){});
-    renderMaintenance();
+    logAudit('delete','maintenance',id,rec?(rec.type==='entretien'?('Entretien archivé — '+(L555_LABEL[rec.categorie]||rec.categorie)+' '+getMachineLabel(rec.machine||'')):`Lame ${esc(rec.lameNum||'')} ${getMachineLabel(rec.machine||'')} — ${maintCatLabel('lame',rec.categorie)}`):'').catch(function(){});   /* [L555] libelle selon le type */
+    renderMaintenance(); try{ _l555RenderEntretien(); }catch(_){ }
     showToast(_enFile?'📡 Hors-ligne : entrée archivée — ça partira au retour du réseau.':'Entrée archivée (Corbeille)','ok');
   }catch(e){ showToast('Erreur : '+e.message,'err'); renderMaintenance(); }
 }
@@ -17944,6 +17959,7 @@ function renderAnalyse(partial){
     <!-- [L469 · demande ER] rangee cartes machines RETIREE (PAR MACHINE vit dans les KPI mensuels) -->
     ${_l463PerteClients(_liveKpi63)}
     ${_l528ChiffresBlock(scopeNote)}
+    ${_l555EntretienBlock(scopeNote)}
     ${_anaFold('kpi','📋 KPI mensuels — le mois tient-il ses objectifs ? (ISO · CSV · impression)','<div id="zoneKpi" style="display:flex;flex-direction:column;gap:8px">'+scopeNoteKpi+buildKpiMoisBlock()+'</div>',false)}
     <div id="zoneFbar">${_fbar}</div>
     ${_anaFold('prod','📈 Productivité — chaque opérateur progresse-t-il ?','<div id="zoneCharts" style="display:flex;flex-direction:column;gap:20px">'+chartsHTML+'</div>',true)}
@@ -17961,6 +17977,7 @@ function renderAnalyse(partial){
   // chiffres live, et 🖨 imprimerait un autre mois que l'écran. On resynchronise le contenu sur le mois restauré.
   try{ const _ks=document.getElementById('kpiMoisSel'); if(_ks&&_ks.value&&_ks.value!==currentMonthYM()) renderKpiMois(_ks.value); }catch(e){}
   try{ if(typeof _l528SelSync==='function') _l528SelSync(); }catch(e){}   /* [L528 · revue adverse] meme resynchronisation pour les trois listes du bloc Chiffres */
+  try{ _l555RenderEntretien(); }catch(e){}   /* [L555] _acSetHTML a restaure l annee choisie dans la liste : le tableau doit la suivre */
 }
 // [L249 · R4a] Graphiques de productivité (zone re-rendue seule au filtre). La carte « Temps moyen par
 // largeur de bobineau » est RETIRÉE (rapport §c, validé) : redondante avec le modèle additif corrigé-laize
@@ -20927,10 +20944,11 @@ function renderCorbeille(){
     let label;
     if(it._col==='temps') label=(it.client||'')+' — '+(it.ref||'')+' ('+fmtTimeFr(it.duree||0)+')';
     else if(it._col==='fiches') label=it.name||((it.client||'')+' — '+(it.ref||''));
+    else if(it._col==='maintenance'&&it.type==='entretien') label=(L555_LABEL[it.categorie]||'Entretien')+' '+(getMachineLabel(it.machine||'')||'?')+' du '+_l555DateCourte(it.date)+'/'+String(_l555DayKey(it.date)).slice(2,4)+' '+_l555Heure(it.date)+' ('+(it.responsable||it.createdBy||'?')+')';   /* [L555] un entretien archive n est pas une lame : categorie, machine, date et heure de l appui, initiales (deux appuis du meme jour restent distincts) */
     else if(it._col==='maintenance') label='Lame '+(it.lameNum||'?')+' — '+(getMachineLabel(it.machine||'')||'hors machine')+(it.categorie==='affutage'?' · affûtage':'');
     else if(it._col==='stockArticles') label=(it.ref||'?')+(it.fournisseur?' — '+it.fournisseur:'');
     else label=(it.client||'')+' — '+(it.ref||'');
-    return {col:it._col,id:it._id,label,date:it.deletedAt||it.date,valide:it.valide===true};
+    return {col:it._col,id:it._id,label,date:it.deletedAt||it.date,valide:it.valide===true,ent:(it._col==='maintenance'&&it.type==='entretien')};   /* [L555] */
   }).sort((a,b)=>new Date(b.date)-new Date(a.date));
 
   const list=document.getElementById('corbeilleList');
@@ -20942,7 +20960,7 @@ function renderCorbeille(){
     const delDate=new Date(d.date);
     const ds=delDate.toLocaleDateString('fr-FR')+' '+delDate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     const remaining=Math.max(0,Math.ceil((_retDaysOf(d)*_dayMs-(now-delDate.getTime()))/_dayMs));
-    const typeLabel=labelOf[d.col]||d.col;
+    const typeLabel=d.ent?'Entretien':(labelOf[d.col]||d.col);   /* [L555] « Entretien — Graissage MAVEG du … », pas « Lame — … » */
     const expiredClass=remaining<=0?' style="opacity:.5"':'';
     const canPerm=canPermanentDelete();
     return `<div class="save-card"${expiredClass}>
@@ -21030,7 +21048,7 @@ async function restoreItem(collection,id){
     }catch(_){}
     // INT-1 : le cache maintenance utilise `id` (pas `_id`) et un rendu dédié → on le recharge proprement.
     if(collection==='maintenance' && typeof loadMaintenance==='function'){
-      loadMaintenance().then(()=>{ try{ if(typeof renderMaintenance==='function' && document.getElementById('tabContentMaintenance')) renderMaintenance(); if(typeof renderLameStats==='function') renderLameStats(); }catch(_){} });
+      loadMaintenance().then(()=>{ try{ if(typeof renderMaintenance==='function' && document.getElementById('tabContentMaintenance')) renderMaintenance(); if(typeof renderLameStats==='function') renderLameStats(); if(typeof _l555RenderEntretien==='function') _l555RenderEntretien(); }catch(_){} });   /* [L555] un entretien restaure recompte dans Analyse */
     }
     // INT-2 : idem pour les articles stock (cache dédié à clé `id`).
     if(collection==='stockArticles' && typeof loadStock==='function'){
@@ -23595,6 +23613,7 @@ function renderFicheHeadPills(){ try{
   const v=function(id){ const e=document.getElementById(id); return e?String(e.value||'').trim():''; };
   const cli=v('fClient'), lame=v('fNumLame'), ini=v('fInitiales');
     try{ _l510PkgLine(); }catch(_){ }   /* [L510] ligne emballage/cerclage lecture seule, rafraichie avec l en-tete */
+    try{ _l555EntretienSync(); }catch(_){ }   /* [L555] la carte Entretien suit la machine de la fiche */
   const ref=v('fRef').split(/\s\+\s/).map(function(x){ return refDisp(x); }).filter(Boolean).join(' + ');   // [L340 · fix audit] multi-réf : chaque réf raccourcie
   const m=(typeof ficheMachine==='string')?ficheMachine:'';
   const mLbl=m==='feba'?'FEBA':m==='maveg'?'MAVEG':m==='cevenini'?'CEVENINI':'';
@@ -23673,7 +23692,7 @@ function _l340SetupFichePills(){ try{
       else if(row&&hb.parentElement!==row){ row.appendChild(hb); hb.classList.remove('rail-hide'); hb.style.flex='1'; } }catch(_){} };
     _placeHide(); const mq2=window.matchMedia('(min-width:1100px)'); const on2=function(){ try{ _placeHide(); }catch(_){} }; if(mq2.addEventListener) mq2.addEventListener('change',on2); else if(mq2.addListener) mq2.addListener(on2); }catch(e){}
   // [L344 · inventaire §2.10] 🔧 CHANGEMENTS (lame · machine · op.2 · changement plan) en 1 tap dans le rail (paysage) — il fallait ⚙ → 🔧 → case = 3 taps
-  try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railChgBtn')){ const b=document.createElement('button'); b.type='button'; b.id='railChgBtn'; b.className='btn rail-chg'; b.setAttribute('aria-controls','ficheChgSec'); b.innerHTML='🔧 Changements <span class="outils-badge">lame · machine · op.2</span>'; b.addEventListener('click',function(){ try{ const sec=document.getElementById('ficheChgSec'); if(sec&&sec.classList.contains('reveal')){ sec.classList.remove('reveal'); renderFicheHeadPills(); } else outilsChangements(); }catch(_){} });   /* [L349] bascule : 2e tap = replier */ const ob=document.getElementById('outilsFicheBtn'); if(ob&&ob.parentNode===rail) rail.insertBefore(b,ob.nextSibling); else rail.appendChild(b); } }catch(e){}
+  try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railChgBtn')){ const b=document.createElement('button'); b.type='button'; b.id='railChgBtn'; b.className='btn rail-chg'; b.setAttribute('aria-controls','ficheChgSec'); b.innerHTML='🔧 Changements <span class="outils-badge">lame · machine · op.2 · entretien</span>';   /* [L555] */ b.addEventListener('click',function(){ try{ const sec=document.getElementById('ficheChgSec'); if(sec&&sec.classList.contains('reveal')){ sec.classList.remove('reveal'); renderFicheHeadPills(); } else outilsChangements(); }catch(_){} });   /* [L349] bascule : 2e tap = replier */ const ob=document.getElementById('outilsFicheBtn'); if(ob&&ob.parentNode===rail) rail.insertBefore(b,ob.nextSibling); else rail.appendChild(b); } }catch(e){}
   /* [L435 · demande Esteban] ⛔ ARRET MANQUE DE MATIERE : sorti du tiroir ⚙ OUTILS, place JUSTE SOUS « Changements »
      dans le rail. Meme handler (stopManqueMatiere) donc memes gardes ; l'entree du tiroir reste pour le portrait. */
   try{ const rail=document.getElementById('ficheRail'); if(rail&&!document.getElementById('railMmBtn')){ const m=document.createElement('button'); m.type='button'; m.id='railMmBtn'; m.className='btn rail-mm'; m.innerHTML='⛔ Arrêt — manque de matière'; m.addEventListener('click',function(){ try{ stopManqueMatiere(); }catch(_){} }); const cb2=document.getElementById('railChgBtn'); if(cb2&&cb2.parentNode===rail) rail.insertBefore(m,cb2.nextSibling); else rail.appendChild(m); } }catch(e){}
@@ -26595,11 +26614,181 @@ function printFiche(){
 // (déplacement DOM) : ids, valeurs et handlers restent intacts → serializeFicheState/restoreFicheState/
 // partage/PDF continuent de lire fLameChg/fMachChg/fOp2Active/... par getElementById, sans rien changer.
 const CHG_IDS=['fLameChg','fMachChg','fOp2Active'];   // [L79] cases source de vérité des changements en cours
+// ============================================================
+// [L555 · demande Celine 14/10/2026] ENTRETIEN MACHINES — graissage (MAVEG), antirouille (CEVENINI), mandrin change (MAVEG + CEVENINI).
+// 1 appui = 1 evenement {type:'entretien', categorie, machine, date, responsable} dans le registre `maintenance` (meme collection que les
+// lames : les regles autorisent la creation a tout compte connu — aucune publication de regles ; tous les lecteurs de lames filtrent
+// type==='lame', ces evenements leur sont invisibles). Decisions : rien sur FEBA ; pas de date ni de commentaire a saisir ; deux appuis le
+// meme jour = compte quand meme + prevenu ; annulation par l AUTEUR pendant 2 h (champ `annule` : les regles interdisent `deleted` aux
+// operateurs — notTouching(['deleted','deletedAt'])), ensuite pilotage/admin (archivage) ; stats dans Analyse par annee civile + mois ;
+// rien sur le papier ni dans les exports ; mode entrainement : rien d ecrit. Un mandrin = consommable plastique sur l arbre de decoupe,
+// change seul (1 appui = 1 mandrin), independant du changement de lame.
+// ============================================================
+const L555_CATS={maveg:['graissage','mandrin'],cevenini:['antirouille','mandrin']};   /* FEBA : rien (decision 1f / 2b) */
+const L555_LABEL={graissage:'Graissage',antirouille:'Antirouille',mandrin:'Mandrin changé'};
+const L555_BTN={graissage:'🛢 Graissage fait',antirouille:'🧴 Antirouille fait',mandrin:'🔩 Mandrin changé'};
+const L555_UNDO_MS=2*3600000;   /* 2 h, comme l annulation d une pose de lame (L514) */
+function _l555CatsFor(mk){ return L555_CATS[String(mk||'').toLowerCase()]||[]; }
+/* PURE : evenements d entretien VIVANTS (ni archives, ni annules) */
+function _l555Vivants(cache){ return (cache||[]).filter(function(r){ return r&&r.type==='entretien'&&!r.deleted&&!r.annule&&r.categorie&&r.machine; }); }
+/* PURE : y a-t-il deja un evenement de cette categorie sur cette machine le meme jour LOCAL ? → l evenement le plus recent, sinon null */
+function _l555DejaFait(cache,mk,cat,dayKey){ try{ const m=String(mk||'').toLowerCase(); let best=null;
+  _l555Vivants(cache).forEach(function(r){ if(String(r.machine||'').toLowerCase()!==m||r.categorie!==cat) return; if(_l555DayKey(r.date)!==dayKey) return; if(!best||String(r.date)>String(best.date)) best=r; });
+  return best; }catch(e){ return null; } }
+function _l555DayKey(iso){ try{ const d=new Date(iso); if(isNaN(d)) return String(iso||'').slice(0,10); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }catch(e){ return ''; } }
+/* PURE : l annulation est-elle permise ? (meme auteur, moins de 2 h) → '' si oui, sinon le motif du refus */
+function _l555UndoRefus(last,who,now){ if(!last||!last.id) return 'Rien à annuler.'; if(!who) return '👤 Choisis tes initiales (OP) sur le plan, puis réessaie ↩.'; if(String(last.by||'').trim().toLowerCase()!==String(who).trim().toLowerCase()) return '🔒 Seul l opérateur qui a appuyé peut annuler (sinon pilotage : Données › Lame, ou admin : Analyse).'; if((Number(now)-Number(last.at||0))>L555_UNDO_MS) return '⏱ Plus de 2 h : demande au pilotage (Données › Lame) ou à un admin (Analyse) de retirer cet entretien.'; return ''; }   /* [contre-lecture 2] le pilotage ne voit pas Analyse ; sans initiales (compte machine apres envoi) on demande les initiales */
+/* PURE : agregat pour l Analyse — par annee civile (heure locale), par machine et par categorie, + detail mois + dernier evenement */
+function _l555Agg(cache,annee){ const V=_l555Vivants(cache); const annees={}; V.forEach(function(r){ const y=_l555DayKey(r.date).slice(0,4); if(y) annees[y]=1; });
+  const Y=String(annee||'')||String(new Date().getFullYear()); const out={annee:Y,annees:Object.keys(annees).sort().reverse(),totaux:{},mois:{}};
+  ['maveg','cevenini'].forEach(function(m){ out.totaux[m]={graissage:0,antirouille:0,mandrin:0,dernier:{}}; });
+  V.forEach(function(r){ const k=_l555DayKey(r.date); const m=String(r.machine||'').toLowerCase(); if(!out.totaux[m]||!(r.categorie in L555_LABEL)) return;
+    const d=out.totaux[m].dernier; if(!d[r.categorie]||String(r.date)>String(d[r.categorie])) d[r.categorie]=String(r.date);
+    if(k.slice(0,4)!==Y) return; out.totaux[m][r.categorie]++; const ym=k.slice(0,7); out.mois[ym]=out.mois[ym]||{}; out.mois[ym][m]=out.mois[ym][m]||{graissage:0,antirouille:0,mandrin:0}; out.mois[ym][m][r.categorie]++; });
+  if(out.annees.indexOf(Y)<0) out.annees.unshift(Y); out.annees.sort().reverse(); return out; }
+function _l555MachineCourante(){ try{ const c=document.getElementById('fMachChg'), t=document.getElementById('fMachChgTo'); if(c&&c.checked&&t&&String(t.value||'').trim()) return String(t.value).trim().toLowerCase(); }catch(e){} return (typeof ficheMachine==='string')?ficheMachine:''; }   /* [L555 · contre-lecture] apres « ⚙ Machine changee → CEVENINI », l operateur travaille sur la CEVENINI : la carte suit la machine COURANTE */
+function _l555Lock(){ try{ const mk=_l555MachineCourante(), B=window._l555Busy||{}; document.querySelectorAll('#chgEntBtns button').forEach(function(b){ const on=!!B[mk+'|'+(b.dataset.cat||'')]; b.disabled=on; b.style.opacity=on?'.6':''; }); }catch(e){} }   /* [contre-lecture 2] verrou PAR BOUTON, recalcule depuis _l555Busy (l argument historique est ignore) : la fin d une ecriture MAVEG ne libere pas un bouton CEVENINI encore en cours */
+/* remise a zero de la carte (resume, ↩, memo d annulation) : autre machine, remise a zero de la fiche (envoi), deconnexion — jumeau de L440 #9 / L514b pour les 3 autres cartes */
+function _l555ResetCarte(){ try{ window._l555Last=null; window._l555ToutA=false; window._l555ToutL=false; try{ clearTimeout(window._l555UndoTimer); }catch(_){ } const card=document.getElementById('chgEntretien'); if(card) card.classList.remove('ent-ok'); const done=document.getElementById('chgDoneEnt'); if(done){ done.textContent=''; done.style.color=''; } const u=document.getElementById('chgUndoEnt'); if(u) u.style.display='none'; }catch(e){} }
+function _l555Tronque(){ try{ return ((window._maintRawN||0)>=2000)||(Array.isArray(maintenanceCache)&&maintenanceCache.length>=2000); }catch(e){ return false; } }   /* [contre-lecture 2] sur la taille BRUTE lue : sur un poste non migre, les archives sont retirees APRES lecture et le cache peut etre sous 2000 avec une fenetre pleine */
+/* la carte de la fiche suit la machine courante : MAVEG / CEVENINI → boutons ; FEBA ou machine vide → carte absente ; PAYSAGE seulement (regle 3 : portrait = layout historique, comme la ligne emballage L510 et le bouton L533) */
+function _l555EntretienSync(){ try{
+  const card=document.getElementById('chgEntretien'); if(!card) return;
+  const mk=_l555MachineCourante(); const cats=_l555CatsFor(mk);
+  const paysage=(typeof _isLandscapeFiche==='function')?_isLandscapeFiche():true;
+  if(!cats.length||!paysage){ card.style.display='none'; return; }
+  card.style.display='';
+  const lbl=document.getElementById('chgEntMach'); if(lbl) lbl.textContent=(typeof getMachineLabel==='function'?getMachineLabel(mk):mk.toUpperCase());
+  const z=document.getElementById('chgEntBtns'); if(!z) return;
+  const sig=mk+'|'+cats.join(','); if(z.dataset.sig===sig) return; z.dataset.sig=sig;
+  z.innerHTML=cats.map(function(c){ return '<button type="button" class="chg-ok-btn" data-cat="'+c+'" onclick="_l555Entretien(\''+c+'\')">'+L555_BTN[c]+'</button>'; }).join('');
+  _l555ResetCarte();   /* autre machine = autre contexte : le resume, le ↩ et la memo de l appui precedent ne valent plus */
+  _l555Lock();   /* une ecriture encore en cours sur cette machine garde son bouton verrouille */
+}catch(e){} }
+async function _l555Entretien(cat){ try{
+  if(trainingGuard()){ showToast('🎓 Entraînement — rien n est enregistré.'); return; }
+  if(!db||!currentUser){ showToast('Connexion requise.','err'); return; }
+  const mk=_l555MachineCourante(); if(_l555CatsFor(mk).indexOf(cat)<0){ showToast('Entretien non prévu sur cette machine.','err'); return; }
+  const who=(typeof _l543LameWho==='function')?_l543LameWho():'';
+  if(!who){ showToast('👤 Choisis tes initiales (OP) sur le plan avant de déclarer un entretien.','err'); return; }   /* [contre-lecture] sans auteur, personne ne pourrait annuler l appui */
+  const key=mk+'|'+cat; window._l555Busy=window._l555Busy||{};
+  if(window._l555Busy[key]){ showToast('⏳ Enregistrement en cours…'); return; }   /* VERROU : un 2e appui pendant l ecriture (reseau lent, hors-ligne : jusqu a 10 s) ne cree pas de doublon */
+  const a=window._l555Arm; if(a&&a.key===key&&(Date.now()-a.at)<1500) return; window._l555Arm={key:key,at:Date.now()};   /* anti-rebond : un double tap = un seul evenement */
+  const now=isoNow(); const lblM=getMachineLabel(mk)||mk.toUpperCase();
+  const deja=_l555DejaFait(maintenanceCache,mk,cat,_l555DayKey(now));
+  const rec={ type:'entretien', categorie:cat, machine:mk, date:now, dateInstall:now, description:L555_LABEL[cat]+' '+lblM,
+    responsable:who, createdAt:now, createdBy:who, appVersion:(typeof APP_VERSION!=='undefined'?APP_VERSION:''), deleted:false, annule:false };   /* memes champs d ordre que les lames : date + deleted:false (requete where deleted==false orderBy date) */
+  const ref=db.collection('maintenance').doc(); rec.id=ref.id;
+  /* OPTIMISTE, AVANT l attente : cache, memo d annulation, verrou, retour visuel — hors-ligne, l ecriture n aboutit qu au retour du reseau (L441 / L495) */
+  if(Array.isArray(maintenanceCache)) maintenanceCache.unshift(rec);
+  const _prev55=window._l555Last||null, _prevDone55=String((document.getElementById('chgDoneEnt')||{}).textContent||'');   /* [L555 · contre-lecture 22/10] un vrai rejet restaure la memo et le resume de l appui PRECEDENT (encore annulable) */
+  window._l555Last={id:ref.id,mk:mk,cat:cat,by:who,at:Date.now()};
+  window._l555Busy[key]=true; _l555Lock(true);
+  const card=document.getElementById('chgEntretien'), done=document.getElementById('chgDoneEnt'), u=document.getElementById('chgUndoEnt');
+  const h=_l555Heure(now), dj=_l555DateCourte(now);
+  const mien=function(){ return !!(window._l555Last&&window._l555Last.id===ref.id); };   /* [contre-lecture 2] la carte a pu changer de machine, ou un autre appui a pu suivre, pendant l attente : on n y ecrit que si CET appui est encore le dernier */
+  let enFile=false, erreur=null;
+  try{
+    if(card) card.classList.add('ent-ok'); if(done){ done.textContent='⏳ '+L555_LABEL[cat]+' '+lblM+' — envoi…'; done.style.color=''; } if(u) u.style.display='none';   /* [contre-lecture 22/10] le ↩ de l appui precedent ne reste pas visible a cote de « envoi… » (il reapparait a la fin si cet appui est encore le dernier) */   /* .chg-done n est visible que sous #chgEntretien.ent-ok — classe DEDIEE : chg-ok peindrait les deux boutons en vert « fait » pour toute la session */
+    try{ await boundedWrite(ref.set(rec),10000); }
+    catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)) enFile=true; else erreur=e; }   /* mise en file = succes (regle 8) */
+  }catch(e){ erreur=e; }   /* exception avant ou pendant l envoi : traitee comme un rejet (l optimisme est defait ci-dessous) */
+  finally{ window._l555Busy[key]=false; _l555Lock(false); }   /* [contre-lecture 2] le verrou est TOUJOURS libere — jamais un bouton bloque jusqu au rechargement */
+  if(erreur){ if(Array.isArray(maintenanceCache)) maintenanceCache=maintenanceCache.filter(function(x){ return !(x&&x.id===ref.id); }); if(mien()){ window._l555Last=_prev55; if(done){ done.textContent=_prev55?_prevDone55:''; done.style.color=''; } if(card&&!_prev55) card.classList.remove('ent-ok'); if(u) u.style.display=_prev55?'':'none'; } showToast((erreur&&erreur.code==='permission-denied')?'⛔ Refusé par le serveur — rien n est enregistré. Préviens le pilotage.':('Erreur : '+(erreur&&erreur.message?erreur.message:erreur)),'err'); return; }   /* vrai rejet : on defait l optimisme (par id : le cache a pu etre recharge entre-temps) et on RESTAURE l appui precedent (contre-lecture 22/10) */
+  logAudit('create','maintenance',ref.id,L555_LABEL[cat]+' '+lblM+' — '+who+(deja?(' (déjà fait ce jour à '+_l555Heure(deja.date)+')'):'')).catch(function(){});
+  if(mien()){
+    if(done) done.textContent='✓ '+L555_LABEL[cat]+' '+lblM+' — '+dj+' '+h+' · '+who+(deja?(' · déjà fait à '+_l555Heure(deja.date)+' (compté quand même)'):'')+(enFile?' (en attente réseau)':'');
+    if(u){ u.style.display=''; clearTimeout(window._l555UndoTimer); window._l555UndoTimer=setTimeout(function(){ try{ u.style.display='none'; }catch(_){ } },L555_UNDO_MS); }   /* le bouton ↩ s efface apres 2 h */
+  }
+  const perdu=(enFile&&typeof _persistenceOK!=='undefined'&&!_persistenceOK);   /* [contre-lecture 2] sans file hors-ligne active, un rechargement PERD l ecriture : on le dit (toast honnete, comme boundedWrite) */
+  showToast((enFile?'📡 Hors-ligne : ':'✓ ')+L555_LABEL[cat]+' '+lblM+' enregistré — '+dj+' '+h+(deja?(' · déjà fait aujourd hui à '+_l555Heure(deja.date)+' (compté quand même)'):'')+(enFile?(perdu?' — ⚠ NE RECHARGE PAS l app avant le retour du réseau (sinon perdu).':' — ça partira au retour du réseau.'):''),perdu?'err':'ok');
+  try{ if(typeof _isDataTabVisible==='function'&&_isDataTabVisible('analyse')) _l555RenderEntretien(); }catch(_){ }
+}catch(e){ showToast('Erreur : '+e.message,'err'); } }
+async function _l555EntretienUndo(){ const u=document.getElementById('chgUndoEnt'); try{
+  if(trainingGuard()){ showToast('🎓 Entraînement — rien n est enregistré.'); return; }   /* [contre-lecture 2] meme garde que l appui : en entrainement, la base n est pas touchee */
+  if(!db||!currentUser){ showToast('Connexion requise.','err'); return; }
+  if(window._l555UndoBusy){ showToast('⏳ Annulation en cours…'); return; }   /* un double tap sur ↩ = une seule annulation */
+  const last=window._l555Last; const who=(typeof _l543LameWho==='function')?_l543LameWho():'';
+  const refus=_l555UndoRefus(last,who,Date.now()); if(refus){ showToast(refus,'err'); return; }
+  const lblM=getMachineLabel(last.mk)||String(last.mk).toUpperCase();
+  if(!(await confirmDlg('Annuler « '+L555_LABEL[last.cat]+' '+lblM+' » ?\n\nL appui restera visible comme annulé (traçabilité : Données › Lame, Analyse).'))) return;
+  window._l555UndoBusy=true; if(u) u.disabled=true;
+  let enFile=false;
+  try{
+    try{ await boundedWrite(db.collection('maintenance').doc(last.id).update({annule:true,annuleAt:isoNow(),annuleBy:(who||'?'),motif:'annulation par l auteur (moins de 2 h)'}),10000); }   /* PAS deleted : les regles le reservent au pilotage/admin (firestore.rules : update autorise a isKnown avec notTouching(['deleted','deletedAt'])) */
+    catch(e){ if(typeof _isQueuedWrite==='function'&&_isQueuedWrite(e)) enFile=true; else { showToast((e&&e.code==='permission-denied')?'⛔ Annulation refusée par le serveur — rien n a changé. Préviens le pilotage.':('Erreur : '+(e&&e.message?e.message:e)),'err'); return; } }   /* [contre-lecture 22/10] refus = memo gardee et ↩ reactive (finally) : on peut reessayer */
+  }finally{ window._l555UndoBusy=false; if(u) u.disabled=false; }
+  const r=(maintenanceCache||[]).find(function(x){ return x&&x.id===last.id; }); if(r){ r.annule=true; r.annuleAt=isoNow(); r.annuleBy=who||'?'; }
+  logAudit('edit','maintenance',last.id,L555_LABEL[last.cat]+' '+lblM+' ANNULÉ par '+(who||'?')+' (moins de 2 h)').catch(function(){});   /* action « edit » : libellee et filtrable dans l onglet Audit (AUDIT_ACT_LABELS) */
+  if(window._l555Last&&window._l555Last.id===last.id){   /* [contre-lecture 2] un NOUVEL appui a pu remplacer la memo pendant l attente : on ne touche a la carte que si elle montre encore l appui annule */
+    window._l555Last=null; try{ clearTimeout(window._l555UndoTimer); }catch(_){ }
+    const done=document.getElementById('chgDoneEnt'); if(done){ done.textContent='↩ '+L555_LABEL[last.cat]+' '+lblM+' : annulé'; done.style.color='var(--orange)'; }
+    if(u) u.style.display='none';
+  }
+  const perdu=(enFile&&typeof _persistenceOK!=='undefined'&&!_persistenceOK);
+  showToast(enFile?('📡 Hors-ligne : annulation enregistrée'+(perdu?' — ⚠ NE RECHARGE PAS l app avant le retour du réseau (sinon perdue).':', elle partira au retour du réseau.')):('↩ Annulé : '+L555_LABEL[last.cat]+' '+lblM),perdu?'err':'ok');
+  try{ if(typeof _isDataTabVisible==='function'&&_isDataTabVisible('analyse')) _l555RenderEntretien(); }catch(_){ }
+}catch(e){ window._l555UndoBusy=false; try{ if(u) u.disabled=false; }catch(_){ } showToast('Erreur : '+e.message,'err'); } }
+function _l555Heure(iso){ try{ return new Date(iso).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function _l555DateCourte(iso){ try{ return new Date(iso).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}); }catch(e){ return String(iso||'').slice(0,10); } }
+/* ANALYSE (admins) : bloc « Entretien machines » — annee civile au choix, totaux par machine, detail par mois, appuis de l annee (🗑 Archiver) */
+const L555_ERR_HTML='<div style="font-size:13px;color:var(--orange)">⚠ Registre inaccessible (réseau). <button class="btn btn-ghost btn-sm" onclick="_l555RenderEntretien()">↻ Réessayer</button></div>';
+function _l555EntretienBlock(note){ return _anaFold('entretien','🛢 Entretien machines — graissage, antirouille, mandrins (MAVEG · CEVENINI)','<div style="display:flex;flex-direction:column;gap:8px">'+(note||'')+'<div class="ana-card"><div id="l555Content">'+_l555EntretienInner()+'</div></div></div>',false); }
+function _l555ErreurRegistre(){ try{ const el=document.getElementById('l555Content'); if(el) el.innerHTML=L555_ERR_HTML; }catch(e){} }
+/* [contre-lecture 2] les volets <details> se souviennent de leur etat ouvert entre deux re-rendus (un re-rendu remplace l innerHTML : sans memoire, chaque 🗑 refermait tout) */
+function _l555OpenAttr(k){ try{ return (window._l555Open&&window._l555Open[k])?' open':''; }catch(e){ return ''; } }
+function _l555OpenMemo(k){ return ' ontoggle="window._l555Open=window._l555Open||{};window._l555Open.'+k+'=this.open"'; }
+/* appuis (avec 🗑 pour pilotage/admin) — partage par Analyse (admins : appuis de l annee choisie) et Donnees > Lame (pilotage, qui ne voit pas Analyse : derniers appuis toutes annees — decision 1d « ensuite Dominique ou un admin ») */
+function _l555DerniersHTML(opts){ try{ opts=opts||{}; const manage=(typeof canManageData==='function'&&canManageData()); const Y=opts.annee?String(opts.annee):''; const lame=(opts.lieu==='lame');
+  const tous=(maintenanceCache||[]).filter(function(r){ return r&&r.type==='entretien'&&!r.deleted&&r.machine&&(!Y||_l555DayKey(r.date).slice(0,4)===Y); }).slice().sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
+  const liste=opts.tout?tous:tous.slice(0,20); const reste=tous.length-liste.length;   /* 20 par defaut, « Tout afficher » pour retrouver (et archiver) un appui plus ancien */
+  const titre=(lame?'Derniers appuis, toutes années':'Appuis '+Y)+' ('+liste.length+(reste>0?(' sur '+tous.length):'')+')';
+  const plus=reste>0?'<div style="margin-top:6px"><button type="button" class="btn btn-ghost btn-sm" onclick="'+(lame?'window._l555ToutL=true;_l555LameRender()':'window._l555ToutA=true;_l555RenderEntretien()')+'">Tout afficher ('+tous.length+')</button></div>':'';
+  const tronque=(lame&&_l555Tronque())?'<div style="font-size:12px;color:var(--orange);margin-bottom:4px">⚠ Registre tronqué (2 000 dernières entrées, lames comprises) : les appuis anciens peuvent manquer.</div>':'';
+  const lignes=liste.map(function(r){ return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap'+(r.annule?';opacity:.6':'')+'"><span style="font-variant-numeric:tabular-nums">'+esc(_l555DateCourte(r.date)+'/'+String(_l555DayKey(r.date)).slice(2,4)+' '+_l555Heure(r.date))+'</span><b>'+esc(getMachineLabel(r.machine)||r.machine)+'</b><span>'+esc(L555_LABEL[r.categorie]||r.categorie)+'</span><span class="text-muted">'+esc(r.responsable||r.createdBy||'?')+'</span>'+(r.annule?'<span style="color:var(--orange);font-weight:700">annulé'+(r.annuleBy?(' par '+esc(r.annuleBy)):'')+'</span>':'')+(manage&&!r.annule?'<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="maintDelete(\''+esc(r.id)+'\')">🗑 Archiver</button>':'')+'</div>'; }).join('')||'<div class="text-muted">Aucun.</div>';
+  const corps='<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;font-size:13px">'+tronque+lignes+plus+'</div>';
+  if(lame) return '<div style="font-size:13px;color:var(--muted);margin-top:6px">'+titre+'</div>'+corps;
+  return '<details id="l555DetDerniers" style="margin-top:8px"'+_l555OpenAttr('d')+_l555OpenMemo('d')+'><summary style="cursor:pointer;font-size:13px;color:var(--muted)">'+titre+'</summary>'+corps+'</details>';
+}catch(e){ try{ _l505Warn('l555·appuis',e); }catch(_){ } return '<div class="text-muted">Entretien : erreur d affichage (appuis).</div>'; } }
+/* Donnees > Lame : remplit le volet « Entretiens machines » (appele par renderMaintenance et par « Tout afficher ») */
+function _l555LameRender(){ try{ const el=document.getElementById('l555Lame'); if(!el) return; el.innerHTML=_l555DerniersHTML({lieu:'lame',tout:!!window._l555ToutL}); }catch(e){ try{ _l505Warn('l555·lame',e); }catch(_){ } } }
+function _l555EntretienInner(annee){ try{
+  if(typeof maintLoaded!=='undefined'&&!maintLoaded){
+    /* [lecon L441 #2] un seul chargement a la fois, et on ne re-rend QUE si le chargement a reussi — sinon message + ↻ (jamais une boucle serree) */
+    if(!window._l555Loading){ window._l555Loading=true; try{ loadMaintenance().then(function(){ window._l555Loading=false; if(maintLoaded) _l555RenderEntretien(); else _l555ErreurRegistre(); }).catch(function(){ window._l555Loading=false; _l555ErreurRegistre(); }); }catch(e){ window._l555Loading=false; return L555_ERR_HTML; } }
+    return '<div class="text-muted" style="font-size:13px">⏳ Chargement du registre…</div>';
+  }
+  /* bureau : le registre charge a la connexion ne voit pas les appuis faits ensuite sur les tablettes → rafraichi en arriere-plan s il a plus de 5 min (comme l onglet Lame, L441 #18).
+     [contre-lecture 2] re-rendu SEULEMENT si le registre a VRAIMENT ete recharge (_maintLoadedAt a avance) et si quelqu un est connecte : un echec de lecture ne relance pas un rendu qui relancerait une lecture (boucle L441 #2) ; pas plus d un essai par 5 min */
+  try{ if(typeof _maintLoadedAt!=='undefined'&&(Date.now()-_maintLoadedAt)>5*60000&&(Date.now()-(window._l555RefreshAt||0))>5*60000&&!window._l555Loading){
+    window._l555Loading=true; window._l555RefreshAt=Date.now(); const t0=_maintLoadedAt;
+    loadMaintenance().then(function(){ window._l555Loading=false; if(_maintLoadedAt>t0&&currentUser) _l555RenderEntretien(); }).catch(function(){ window._l555Loading=false; });
+  } }catch(e){ window._l555Loading=false; }
+  const A=_l555Agg(maintenanceCache,annee); const T=A.totaux;
+  const tronque=_l555Tronque();   /* la fenetre de lecture du registre (2000 entrees) est PARTAGEE avec les lames */
+  const dern=function(m,c){ const d=T[m].dernier[c]; return d?_l555DateCourte(d)+'/'+String(_l555DayKey(d)).slice(2,4):'—'; };
+  const td='padding:6px 10px;border-bottom:1px solid var(--border2);text-align:right;font-variant-numeric:tabular-nums', th='padding:6px 10px;text-align:right;font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase';
+  let h=(tronque?'<div style="font-size:12px;color:var(--orange);margin-bottom:6px">⚠ Registre tronqué (2 000 dernières entrées, lames comprises) : les années anciennes peuvent être incomplètes.</div>':'');
+  h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><label style="font-size:13px;color:var(--muted)">Année</label><select id="l555Annee" onchange="_l555RenderEntretien(this.value)">'+A.annees.map(function(y){ return '<option value="'+y+'"'+(y===A.annee?' selected':'')+'>'+y+'</option>'; }).join('')+'</select><span class="text-muted" style="font-size:12px">1 appui = 1 entretien · annulés et archivés non comptés</span></div>';
+  h+='<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th style="'+th+';text-align:left">'+A.annee+'</th><th style="'+th+'">MAVEG</th><th style="'+th+'">CEVENINI</th></tr></thead><tbody>';
+  h+='<tr><td style="'+td+';text-align:left">Graissages</td><td style="'+td+'"><b>'+T.maveg.graissage+'</b></td><td style="'+td+'">—</td></tr>';
+  h+='<tr><td style="'+td+';text-align:left">Antirouilles</td><td style="'+td+'">—</td><td style="'+td+'"><b>'+T.cevenini.antirouille+'</b></td></tr>';
+  h+='<tr><td style="'+td+';text-align:left">Mandrins changés</td><td style="'+td+'"><b>'+T.maveg.mandrin+'</b></td><td style="'+td+'"><b>'+T.cevenini.mandrin+'</b></td></tr>';
+  h+='<tr><td style="'+td+';text-align:left;color:var(--muted)">Dernier graissage / antirouille (toutes années)</td><td style="'+td+'">'+dern('maveg','graissage')+'</td><td style="'+td+'">'+dern('cevenini','antirouille')+'</td></tr>';
+  h+='<tr><td style="'+td+';text-align:left;color:var(--muted)">Dernier mandrin (toutes années)</td><td style="'+td+'">'+dern('maveg','mandrin')+'</td><td style="'+td+'">'+dern('cevenini','mandrin')+'</td></tr></tbody></table>';
+  const moisKeys=Object.keys(A.mois).sort().reverse();
+  h+='<details id="l555DetMois" style="margin-top:8px"'+_l555OpenAttr('m')+_l555OpenMemo('m')+'><summary style="cursor:pointer;font-size:13px;color:var(--muted)">Détail par mois ('+moisKeys.length+')</summary>';
+  h+=moisKeys.length?('<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:6px"><thead><tr><th style="'+th+';text-align:left">Mois</th><th style="'+th+'">Graissages MAVEG</th><th style="'+th+'">Antirouilles CEV</th><th style="'+th+'">Mandrins MAVEG</th><th style="'+th+'">Mandrins CEV</th></tr></thead><tbody>'+moisKeys.map(function(ym){ const x=A.mois[ym], mv=x.maveg||{graissage:0,mandrin:0}, cv=x.cevenini||{antirouille:0,mandrin:0}; return '<tr><td style="'+td+';text-align:left">'+(typeof monthLabelFr==='function'?monthLabelFr(ym):ym)+'</td><td style="'+td+'">'+mv.graissage+'</td><td style="'+td+'">'+cv.antirouille+'</td><td style="'+td+'">'+mv.mandrin+'</td><td style="'+td+'">'+cv.mandrin+'</td></tr>'; }).join('')+'</tbody></table>'):'<div class="text-muted" style="font-size:12px;margin-top:6px">Aucun entretien enregistré cette année.</div>';
+  h+='</details>'+_l555DerniersHTML({annee:A.annee,tout:!!window._l555ToutA});
+  return h; }catch(e){ try{ _l505Warn('l555·analyse',e); }catch(_){ } return '<div class="text-muted">Entretien : erreur d affichage.</div>'; } }
+function _l555RenderEntretien(annee){ try{ const el=document.getElementById('l555Content'); if(!el) return; const y=annee||(document.getElementById('l555Annee')||{}).value||''; el.innerHTML=_l555EntretienInner(y); }catch(e){ try{ _l505Warn('l555·rendu',e); }catch(_){ } } }
 function _l79SetupChangements(){
   try{
     const zone=document.getElementById('changementsZone'); if(!zone) return;
     if(zone.dataset.built) return; zone.dataset.built='1';
-    ['chgLame','chgMach','chgOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) zone.appendChild(el); });   // marges gérées par la classe .chg-section
+    ['chgLame','chgMach','chgOp2','chgEntretien'].forEach(function(id){ const el=document.getElementById(id); if(el) zone.appendChild(el); });   // marges gérées par la classe .chg-section · [L555] + carte Entretien
+    try{ _l555EntretienSync(); }catch(e){}   /* [L555] boutons selon la machine de la fiche */
+    try{ const mq=window.matchMedia('(min-width:1100px)'); const on=function(){ try{ _l555EntretienSync(); }catch(_){} }; if(mq.addEventListener) mq.addEventListener('change',on); else if(mq.addListener) mq.addListener(on); }catch(e){}   /* [L555] la carte n existe qu en paysage */
     // « Voir les bobines coupées » rapproché à côté du bouton Changements (demande atelier).
     const hc=document.getElementById('hideCoupeesBtn'), row=document.getElementById('chgBtnRow');
     if(hc&&row){ hc.style.flex='1'; row.appendChild(hc); }
