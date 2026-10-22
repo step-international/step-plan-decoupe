@@ -1033,7 +1033,7 @@ has(/function _l374PlanOutilsTop\(\)/,'L374 : lanceur ⚙ OUTILS au-dessus de ch
 
 console.log('── L375 : enquête impression / dérive fiche→plan (20/08) ──');
 has(/\[L375 · enquête impression 20\/08\] ✕ RETIRER = dérive fiche→plan signalée TOUT DE SUITE/,'L375 : retirer une bobine déclenche la bannière immédiatement');
-has(/bobine retirée \?\) — ⚠ « Appliquer » RE-CRÉERA ces laizes/,'L375 : la bannière dit la vérité (le recalcul re-crée les laizes retirées)');
+has(/ — ⚠ une bobine retirée volontairement sera recréée'\); needClick=true; \}/,'L375→L554 : la bannière dit la vérité (une bobine retirée volontairement sera recréée) et dit OU vont les laizes manquantes');
 has(/Imprimer le PLAN RECALCULÉ à la place \? Il peut différer des bobines affichées/,'L375 : repli d impression jamais silencieux (confirm)');
 has(/🖨 Instantané enregistré'\+\(_d\?' le '\+_d:''\)/,'L375 : impression d un plan archivé = toast « instantané »');
 
@@ -1813,15 +1813,15 @@ has(/function iniDisp/,'L417 : MT s affiche MR partout (archives intactes)');
 has(/une seule courbe\/serie/,'L417 : graphe productivite fusionne MT+MR');
 has(/filtrer MR couvre l'historique MT/,'L417 : les filtres MR couvrent les releves MT');
 
-console.log('── L418 : MAVEG — le changement de plan s applique a partir de la 3e bobine ──');
-has(/MAVEG coupe DEUX lignes a la fois : helper partage/,'L418→L419 : regle MAVEG via helper partage (machine verifiee sur CHAQUE ligne, rouleaux inclus)');
+console.log('── L418 → L554 : verrou MAVEG RETIRE (decision Celine 22/10/2026) ──');
+has(/function _l418Frozen2Ids\(\)\{ return new Set\(\); \}/,'L418→L554 : verrou MAVEG RETIRE (decision Celine 22/10/2026 : la MAVEG programme chaque bobine mere independamment) — le helper reste appele et renvoie un ensemble vide');
 
 console.log('── L419 : 15 correctifs de l audit regles (28 signalements, 6 chasseurs) ──');
 has(/function _l419Delivered/,'L419 : deduction UNIQUE du rebut chiffre (fusion par laize + projection laize mesuree)');
 
 has(/la part LIVREE compte \(Dechet OU Chutes chiffres\)/,'L419→L426 : production engagee via helper (Dechet ou Chutes)');
 has(/le papier ne sur-declare plus le rebut chiffre/,'L419 : trace papier rebut deduite');
-has(/function _l418Frozen2Ids/,'L419 : gel MAVEG partage avec le detecteur d equilibre (banniere incoercible)');
+has(/function _l418Frozen2Ids/,'L419→L554 : helper _l418Frozen2Ids conserve (appele par le recalcul et le detecteur ; ensemble vide depuis L554)');
 has(/en PRE-verification \(pop\) : ni confirm ni mutation/,'L419 : le pop ne leve plus le verrou ISO en pre-check');
 has(/window\._l413PendingCut=null;   \/\* plus de rejeu/,'L419→L422 : pending toujours purge (rejeu fantome impossible)');
 has(/TOUTE action retiree \(meme manuelle\)/,'L419 : plus d action invisible quand aucune NC cochee');
@@ -2763,5 +2763,27 @@ has(/\.replace\('background:__MACHCOL553__','background:'\+machCol\)/,'L553 : la
 has(/⚠ HORS PLAN<\/span>/,'L553 : badge HORS PLAN present');
 has(/border:1px solid #f59e0b;padding:2px 6px;border-radius:4px;margin-left:4px">⚠ HORS PLAN/,'L553 : badge HORS PLAN borde (en gris, son fond disparaissait)');
 has(/border:1px solid #f59e0b;border-radius:4px;padding:1px 6px;margin-left:4px">MIXTE/,'L553 : badge MIXTE borde (idem)');
+console.log('\u2500\u2500 L554 : le \🗑 Dechet replanifie le detecteur de derive (signalement MR 21/10/2026) \u2500\u2500');
+has(/try\{ if\(typeof _l426ShareRepub==='function'\) _l426ShareRepub\(id\); \}catch\(e\)\{\} try\{ if\(typeof _scheduleDriftCheck==='function'\) _scheduleDriftCheck\(\); \}catch\(e\)\{\} \}/,'L554 : toggleAction (\🗑 Dechet / \u2702 Chutes / + Acceptable) replanifie _fichePlanDriftCheck, sous la garde _bulkRestore');
+has(/try\{ if\(\(typeof _bulkRestore==='undefined'\|\|!_bulkRestore\)&&typeof _scheduleDriftCheck==='function'\) _scheduleDriftCheck\(\); \}catch\(e\)\{\}/,'L554 : updateNC (chiffrage quantite/laize/lots de la NC) fait de meme \u2014 jumeau du bouton Dechet');
+has(/^function _l554NcNonChiffree\(data\)\{/m,'L554 : garde NC cochee mais NON chiffree — helper PARTAGE barre / recalcul (la bobine entiere compterait comme perdue)');
+has(/if\(_nq54\.length\)\{ showToast\('⛔ '\+_l554MsgNonChiffre\(_nq54\),'err'\); return \{started:false,l554:true\}; \}/,'L554 : le RECALCUL refuse avant toute etape destructive (bouton, ♻ Ecarts, blur de config, changement plan)');
+has(/if\(_l554Bloque\) needClick=true;/,'L554 : garde active = jamais d auto-application');
+has(/au Déchet : saisis la quantité × laize du défaut \(ou un commentaire si toute la bobine est perdue\)/,'L554 : la garde est expliquee en clair (barre + toast), par numero de bobine relatif a la reference');
+has(/const _o54=_l426NcOut\(d\.actDechet,d\.actChutes,_l416NcByWidthFd\(d\)\); const _dl19=_o54\?_l419Delivered/,'L554 : le detecteur deduit les Chutes CHIFFREES comme le recalcul et les cumuls (L426)');
+has(/<span class="l554-why">'\+_why54\+'<\/span>/,'L554 : le MOTIF de la barre est ecrit en clair (l infobulle est invisible au doigt sur tablette)');
+has(/^\.l554-why\{display:none\}/m,'L554 : motif masque en portrait (regle 3)');
+has(/^  \.l554-why\{display:block;/m,'L554 : motif visible en paysage');
+has(/else \{ try\{ if\(typeof _fichePlanDriftCheck==='function'\) _fichePlanDriftCheck\(\); \}catch\(e\)\{\} \}   \/\* \[L554 · contre-lecture 22\/10\] tout recalcul re-verifie la barre/,'L554 : tout recalcul re-verifie la barre (plus de barre perimee apres ♻ Ecarts / blur / changement plan)');
+has(/\}catch\(e\)\{ console\.warn\('\[recalc\] exception :',e\); try\{ showToast/,'L554 : une exception du recalcul est tracee, le bandeau remis, la barre re-verifiee (plus de barre verte a vie)');
+has(/out\.push\('♻ '\+pre\+x\.pos\+' : '\+x\.conf\+' \(était '\+a\+'\)'\)/,'L554 : le toast dit ce qui a CHANGE (bobine, config, avant) — « ajoutee » seulement pour un ajout net');
+has(/else if\(!\(_res&&_res\.l554\)\) \{ showToast\('⚠ Recalcul NON appliqué/,'L554 : tap refuse (recalcul en cours) → barre re-verifiee 1,3 s apres ; refus par la garde = pas de 2e toast');
+has(/\n  renumberFicheLines\(\);\n  try\{ refreshEtiquetteSolde\(\); \}catch\(e\)\{\}/,'L554 : ✕ Retirer rafraichit le resume « N mm conserves »');
+has(/setTimeout\(function\(\)\{ throw e; \},0\); \}   \/\* \[L554 · contre-lecture 22\/10\] une exception ne laisse plus la barre VERTE a vie ; RELANCEE/,'L554 : une exception du recalcul est RELANCEE (capteur de la batterie + mail automatique), jamais avalee');
+has(/if\(!\(_res&&_res\.l554\)\) showToast\('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis re-valide cette référence\.','err'\);/,'L554 : ✓ VALIDER (multi-ref) ne recouvre pas le toast de la garde NC non chiffree (jumeau)');
+has(/if\(!_res\|\|\(!_res\.started&&!_res\.l554\)\) showToast\('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis reclique « 🔄 Changement plan »/,'L554 : 🔄 Changement plan ne recouvre pas le toast de la garde (jumeau)');
+has(/^function _l554Diff\(avant,apres,multi\)\{/m,'L554 : « ce qui a change » compare PAR REFERENCE (fonction pure testee : ♻ / ➕ / ➖)');
+has(/const _nqA=\(typeof _l554NcNonChiffree==='function'\)\?_l554NcNonChiffree\(getFicheLinesData\(\)\):\[\]; if\(_nqA\.length\)\{/,'L554 : la garde est re-evaluee a l INSTANT de l application du recalcul (D-4)');
+
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);

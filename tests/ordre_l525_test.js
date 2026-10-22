@@ -39,7 +39,7 @@ const iPack=rf.indexOf("const bobines=pack(rr.remaining,pu,pb);");
 ok(i3a>0&&iS>i3a,'etape 3a : « commencee ? » calcule juste apres le re-attachement des figees de la reference');
 ok(iRolls>0&&iMv>iRolls&&iPack>0&&iMv<iPack,'le deplacement des figees non coupees est fait APRES l emission des rouleaux ♻ et AVANT le pack des meres');
 ok(/_cutOrderChutesFirst\(\(typeof fmmGenOrder==='function'\)\?fmmGenOrder\(computed\):computed\.map\(\(_,k\)=>k\),computed,true\);/.test(rf),'l ordre des REFERENCES reste inchange sur une commande engagee (keep=true, regle L432/L490)');
-ok(/function _l418Frozen2Ids\(\)\{/.test(src)&&/if\(nx\[1\]&&_flMachineOf\(nx\[1\]\.id\)==='maveg'\) out\.add\(nx\[1\]\.id\);/.test(src),'verrou MAVEG L418 (deux bobines montees) INTACT');
+ok(/function _l418Frozen2Ids\(\)\{ return new Set\(\); \}/.test(src)&&!/out\.add\(nx\[1\]\.id\)/.test(src),'verrou MAVEG L418 RETIRE (L554, decision Celine 22/10/2026) : le helper reste appele et renvoie un ensemble vide');
 ok(/if\(!isFicheUntouched\(\)\)\{ if\(auto\) return;/.test(src)||/isFicheUntouched\(\)/.test(src),'la generation L491 (fiche vierge) reste le chemin des fiches non engagees');
 
 console.log(fail?('💥 '+fail+' echec(s) sur '+total):('🏆 ORDRE L525 OK : '+total+' verifications'));

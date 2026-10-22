@@ -79,7 +79,7 @@ node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if
 tail -1 /tmp/_bat_$$.log
 
 step "7. smokes (le capteur doit EXISTER : 0 erreur ne vaut rien si rien ne compte)"
-for s in plan fiche fiche-start fiche-cut donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
+for s in plan fiche fiche-start fiche-cut fiche-dechet donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
   # [L506 · verification adverse] le CODE DE SORTIE juge (le || true le jetait : une smoke rouge passait verte) ; le grep n est qu un 2e filet, sentinelles de shot.mjs comprises (il echoue en francais)
   if ! node tests/shot.mjs --scene "$s" --url "$BAT_URL" --out "/tmp/_bat_${s}_$$.png" --json >"/tmp/_bat_${s}_$$.log" 2>&1; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : shot.mjs sort en erreur"; exit 1; fi
   if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_bat_${s}_$$.log"; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : sentinelle d erreur dans la sortie"; exit 1; fi

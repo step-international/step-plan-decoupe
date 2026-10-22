@@ -730,6 +730,7 @@ body:not(.op-ready) #btnStartCut{display:none!important}/* [L420] COMMENCER A CO
 #fMachineMono .row3,#fPlanChangeBtn,#fPlanHint{display:none!important}/* [L420] mere/bords/valider retires de la FICHE (doublon) — champs conserves en DOM (miroirs du flux) */
 #planDriftBanner{margin-bottom:8px;padding:6px 10px;border-radius:8px;background:#3d1414;border:1.5px solid #7a2222;color:var(--red);font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}/* [L417 · demande Esteban] barre rouge compacte *//* [L231 · audit MIN-6] styles en CSS (l'inline écrasait l'override atelier — même piège que L218 #4) */
 body.atelier #planDriftBanner{font-size:14px;padding:8px 12px}/* [L417] compact aussi en atelier *//* [L221] lisible avec gants */
+.l554-why{display:none}/* [L554] motif de la barre : visible en paysage seulement (regle 3 : portrait = layout historique) */
 @media(max-width:1099px){ body.has-actionbar.ab-progress #coupeeBanner{display:none!important} }
 @media(max-width:1099px){ body.has-actionbar.ab-confirm #sendPlanBtn,body.has-actionbar.ab-confirm #sendPlanHint{display:none!important} }/* [L222 · ergo #15] « Confirmer la commande » n'apparaît qu'UNE fois : la barre d'action fixe porte le geste, le bouton pleine page (même libellé) est masqué *//* [L121·T4-A3] progression déjà portée par la barre d'action fixe en bas → pas de doublon · [L126·audit #23] seulement quand la barre porte la jauge · [L144] même point de rupture que la barre (≤1099px, iPad inclus) */
 /* [L142 · ergo #21] iOS zoome au focus de tout champ < 16px : sur TÉLÉPHONE on force 16px sur les contrôles de saisie (l'iPad ne zoome pas → inchangé ; desktop inchangé). Évite le pincer-dézoomer à chaque saisie (filtres, modales d'édition, notes). */
@@ -1859,6 +1860,8 @@ body.atelier .stat-tile b{font-size:36px}
   #ficheMain>#ficheRight{flex:1 1 auto;min-height:280px;display:flex;flex-direction:column}   /* [fix audit BLOQUANT] HUD + 1 carte + barre TOUJOURS visibles, même en-tête dépliée */
   #ficheRight>#coupeeBanner{position:static!important;flex:none;margin-bottom:8px}   /* le HUD n'a plus besoin d'être sticky : il est hors de la zone qui défile */
   #ficheRight>#planDriftBanner{flex:none}
+  .l554-why{display:block;font-size:12px;font-weight:400;opacity:.92;margin-top:2px}   /* [L554 · decision Celine 22/10] le motif de la barre en clair (l infobulle est invisible au doigt) */
+  body.atelier .l554-why{font-size:14px}   /* [L554] lisible avec gants (comme la barre, L221) */
   #ficheRight>.fmm-inline-block{flex:0 0 auto;max-height:min(50vh,calc(100dvh - 402px));overflow-y:auto}   /* multi-réf : bloc « valider la bobine mère » plafonné — [L357] ne se comprime plus (la bande de réf était écrasée à 32px) */
   #ficheRight>#ficheLines{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 4px 12px;align-content:start}
   #ficheRight>#sendPlanWrap{position:relative;flex:none;margin-top:0}   /* relative (pas static) : le ::before « la liste continue » garde son ancrage */
@@ -3392,7 +3395,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.14-L553';
+const APP_VERSION='2026.10.22-L554';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -3744,7 +3747,7 @@ function reportAuto(msg,where){
     _p43.then(function(shots){ try{ _reportWrite('auto','',_lastJsError,shots); }catch(e){ try{ _reportWrite('auto','',_lastJsError); }catch(_){} } });
   }catch(e){}
 }
-function showToast(msg,kind){
+function showToast(msg,kind,durOpt){
   let t=document.getElementById('globalToast');
   if(!t){
     t=document.createElement('div');t.id='globalToast';
@@ -3760,7 +3763,7 @@ function showToast(msg,kind){
   // simple « ✓ enregistré » → l'opérateur baisse les yeux vers la machine et le message a disparu. Erreur =
   // durée plus longue (proportionnelle à la longueur, 8-14 s) ET tappable pour fermer / relire (curseur main).
   t.style.cursor='pointer'; t.onclick=()=>{ clearTimeout(t._timer); t.style.display='none'; };
-  const dur=(kind==='err')?Math.min(14000,Math.max(8000,String(msg).length*90)):4000;
+  const dur=(durOpt>0)?durOpt:((kind==='err')?Math.min(14000,Math.max(8000,String(msg).length*90)):4000);   /* [L554] duree explicite possible (toast « ce qui a change » du recalcul : consigne « reprogramme-la », 10 s) */
   clearTimeout(t._timer);t._timer=setTimeout(()=>{t.style.display='none';},dur);
 }
 // [L74 · Design Lot E] Modale de confirmation maison — remplace PROGRESSIVEMENT les
@@ -5980,6 +5983,8 @@ function _fichePlanDriftCheck(opts){
     const engagedOf=d=>d.coupee||!!d.photo||d.actDechet||d.actChutes||d.devi||d.droit||d.test2nc||d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||d.ncHum||!!(d.ncDetail||'').trim();
     const drifts=[];
     let needClick=false;   // [L286] une dérive « sensible » (machine / sur-coupe / équilibre) est présente → JAMAIS d'auto-application
+    let _l554Bloque=null, _l554NqIds=new Set();   /* [L554 · contre-lecture 22/10] NC cochee mais non chiffree sur une bobine Dechet : barre explicite, jamais d auto-application ; le bouton RESTE (portrait = layout historique, regle 3) — c est recalcEcartsFromFiche qui REFUSE (garde partagee _l554NcNonChiffree) sur TOUS les chemins */
+    try{ const _nq=_l554NcNonChiffree(data); if(_nq.length){ _l554Bloque=_l554MsgNonChiffre(_nq); _l554NqIds=new Set(_nq.map(function(d){ return d.id; })); } }catch(e){}
     const allKeys=new Set(computed.map(c=>_refIdKey(c)));
     // [L286 · bug lima] agrégat « commande − bobineaux stock » par clé d'identité (les clés strictement identiques
     // se SOMMENT — miroir exact de cmdByRef du recalcul) : base du détecteur d'équilibre du reste ci-dessous.
@@ -6098,8 +6103,8 @@ function _fichePlanDriftCheck(opts){
         // une fausse « sur-coupe » dès que la production figée de la clé dépassait la part d'UN seul bloc.
         const cmdW=_eqAgg[key]||{};
         const comW={};
-        const _mvIds19=(typeof _l418Frozen2Ids==='function')?_l418Frozen2Ids():null;   /* [L419 audit] le gel MAVEG compte comme production engagee — sinon banniere « en TROP » incoercible */
-        lines.forEach(d=>{ if(!_frozenLike(d)&&!(_mvIds19&&_mvIds19.has(d.id))) return; const _dl19=d.actDechet?_l419Delivered(d.conf,_l416NcByWidthFd(d),d.origConf||null):null; if(d.actDechet&&!_dl19) return; if(d.actDechet){ Object.keys(_dl19).forEach(w=>{ comW[w]=(comW[w]||0)+_dl19[w]; }); } else parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) comW[p.width]=(comW[p.width]||0)+p.qty; }); });   /* [L416→L419] rebut chiffre via helper unique */
+        const _mvIds19=(typeof _l418Frozen2Ids==='function')?_l418Frozen2Ids():null;   /* [L419 audit · L554 : ensemble vide depuis le retrait du verrou] le gel MAVEG compte comme production engagee — sinon banniere « en TROP » incoercible */
+        lines.forEach(d=>{ if(!_frozenLike(d)&&!(_mvIds19&&_mvIds19.has(d.id))) return; const _o54=_l426NcOut(d.actDechet,d.actChutes,_l416NcByWidthFd(d)); const _dl19=_o54?_l419Delivered(d.conf,_o54,d.origConf||null):null; if(d.actDechet&&!_dl19) return; if(_dl19){ Object.keys(_dl19).forEach(w=>{ comW[w]=(comW[w]||0)+_dl19[w]; }); } else parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) comW[p.width]=(comW[p.width]||0)+p.qty; }); });   /* [L416→L419] rebut chiffre via helper unique — [L554 · contre-lecture 22/10] aligne sur le recalcul et les cumuls (L426) : les Chutes CHIFFREES sont deduites aussi (avant, seule la banniere les ignorait : manque jamais signale, ou « en TROP » incoercible) */
         const overW=new Set(); Object.keys(comW).forEach(w=>{ if((comW[w]||0)>(cmdW[w]||0)) overW.add(Number(w)); });
         // « reste retirable » = bobines que le recalcul RÉGÉNÉRERAIT (donc non figées) reproduisant une largeur sur-coupée
         if(overW.size && lines.some(d=>!_frozenLike(d) && !(_mvIds19&&_mvIds19.has(d.id)) && parseConf(d.conf||'').some(p=>overW.has(Number(p.width))))){   /* [L428→L430 audit] les gelees MAVEG sont PRESERVEES par le recalcul : elles ne sont pas du « reste retirable » (banniere incoercible sinon) */
@@ -6117,7 +6122,7 @@ function _fichePlanDriftCheck(opts){
         if(!_pm && _eqAgg[key]){   // [revue P2] déjà borné à un passage par clé via _firstOfKey (englobe ce bloc)
           const needBase=_eqAgg[key];
           const restW={};
-          lines.forEach(d=>{ if(_frozenLike(d)||(_mvIds19&&_mvIds19.has(d.id))) return; parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) restW[p.width]=(restW[p.width]||0)+p.qty; }); });   /* [L428 · bug Esteban 1er ✂ MAVEG] les 2 bobines gelees sont DEJA dans comW : les compter aussi dans le reste doublait -> « en TROP » des la 1re coupe */
+          lines.forEach(d=>{ if(_frozenLike(d)||(_mvIds19&&_mvIds19.has(d.id))) return; parseConf(d.conf||'').forEach(p=>{ if(p.width>0&&p.qty>0) restW[p.width]=(restW[p.width]||0)+p.qty; }); });   /* [L428 · bug Esteban 1er ✂ MAVEG · L554 : plus de gel, ensemble vide] les 2 bobines gelees sont DEJA dans comW : les compter aussi dans le reste doublait -> « en TROP » des la 1re coupe */
           const _uf=Number(c.useful)||0;
           const lack=[], extra=[];
           new Set([...Object.keys(needBase),...Object.keys(comW),...Object.keys(restW)].map(Number)).forEach(w=>{
@@ -6127,7 +6132,7 @@ function _fichePlanDriftCheck(opts){
             if(need>have) lack.push((need-have)+'×'+fmt(w));
             else if(have>need && !overW.has(w)) extra.push((have-need)+'×'+fmt(w));   // overW : déjà porté par le message sur-coupe (pas de doublon)
           });
-          if(lack.length){ msgs.push('manque '+lack.join(' + ')+' mm dans le reste (bobine retirée ?) — ⚠ « Appliquer » RE-CRÉERA ces laizes en nouvelles bobines'); needClick=true; }   // [L375 · enquête impression] le recalcul ressuscite un bobineau retiré : le dire AVANT le tap
+          if(lack.length){ const _bloq54=lines.some(d=>_l554NqIds.has(d.id)); const _libre54=lines.find(d=>!d.coupee&&!_frozenLike(d)&&!(_mvIds19&&_mvIds19.has(d.id))); msgs.push('manque '+lack.join(' + ')+' mm dans le reste'+(_bloq54?' — en attente du chiffrage du défaut':(_libre54?(' → « Appliquer » les répartit sur les bobines non coupées (ex. '+_l554PosDe(_libre54.id)+' ; une bobine de plus si elles sont pleines)'):' → « Appliquer » ajoute une bobine à la fin de cette référence (les bobines non coupées sont figées par un geste : étiquette tapée, config modifiée, photo, défaut)'))+' — ⚠ une bobine retirée volontairement sera recréée'); needClick=true; }   // [L375 · enquête impression] le recalcul ressuscite un bobineau retiré : le dire AVANT le tap — [L554 · contre-lecture 22/10] dire OU vont les laizes manquantes (sans verrou MAVEG, le reste est RE-EMBALLE dans les bobines non coupees sans geste)
           if(extra.length){ msgs.push(extra.join(' + ')+' mm en TROP dans le reste (couverts par le stock / déjà produits) → recalculer'); needClick=true; }
         }
       }catch(e){}
@@ -6154,6 +6159,7 @@ function _fichePlanDriftCheck(opts){
       });
     }catch(e){}
     if(!drifts.length){ hide(); return; }
+    if(_l554Bloque) needClick=true;   /* [L554] */
     const shared=(typeof _shareCurrentDocId==='function')&&_shareCurrentDocId();
     // [L286 · choix Esteban 30/07] AUTO-APPLICATION à l'ARRIVÉE sur la fiche (opts.autoApply, posé UNIQUEMENT par
     // showPage(1) — jamais par les checks débouncés en pleine coupe) : dérives SÛRES seulement (bobineaux stock
@@ -6170,11 +6176,12 @@ function _fichePlanDriftCheck(opts){
       _applyPlanDriftFix({silent:true});
       return;
     }
-    const _tt17=String(drifts.join(' · ')).replace(/<[^>]*>/g,'').replace(/"/g,'&quot;');   /* [L417 · demande Esteban] barre SOBRE : le detail passe en infobulle */
-    el.innerHTML='<span title="'+_tt17+'" style="flex:1;min-width:120px">⚠ Le plan a changé</span>'
+    const _tt17=String((_l554Bloque?['⛔ '+_l554Bloque]:[]).concat(drifts).join(' · ')).replace(/<[^>]*>/g,'').replace(/"/g,'&quot;');   /* [L417 · demande Esteban] barre SOBRE : le detail passe en infobulle — [L554] la garde y est aussi */
+    let _why54=(_l554Bloque?('⛔ '+esc(_l554Bloque)+' · '):'')+drifts.join(' · '); if(_why54.length>280){ _why54=Array.from(_why54).slice(0,280).join('').replace(/&[^;&]*$/,'')+'…'; }   /* [L554 · decision Celine 22/10] le MOTIF en clair sous le titre (paysage, .l554-why) : sur tablette l infobulle est invisible au doigt — MR ne pouvait pas savoir ce qu « Appliquer » allait faire (texte deja echappe : coupe sans casser une entite) */
+    el.innerHTML='<span title="'+_tt17+'" style="flex:1;min-width:120px">⚠ Le plan a changé<span class="l554-why">'+_why54+'</span></span>'
       +(shared
         ?'<span style="font-weight:600">🔒 Partage en cours — arrête le partage puis « 🔄 Changement plan »</span>'
-        :'<button class="btn btn-red btn-sm" id="planDriftApplyBtn" onclick="_applyPlanDriftFix()" title="'+_tt17+'">🔄 Appliquer les changements</button>');
+        :'<button class="btn btn-red btn-sm" id="planDriftApplyBtn" onclick="_applyPlanDriftFix()" title="'+_tt17+'">🔄 Appliquer les changements</button>');   /* [L554 · contre-lecture 22/10] le bouton reste dans TOUTES les orientations (regle 3) : si une NC n est pas chiffree, c est le recalcul qui refuse, avec son toast */
     try{ document.body.classList.add('plan-drift'); }catch(e){}   // [L374 · demande Esteban] bannière visible = UN SEUL chemin (le gros bouton) : les ♻ RECALCULER par carte sont masqués en paysage   // [L273 · demande Esteban] ROUGE tant que non appliqué → VERT au clic (voir _applyPlanDriftFix)
     el.style.display='';
   }catch(e){ hide(); }
@@ -6204,7 +6211,7 @@ function _applyPlanDriftFix(opts){
   }});
   if(!_res||!_res.started){
     if(opts.silent){ _fichePlanDriftCheck(); }   // [L286] auto refusée (recalcul déjà en cours…) → repli : bannière classique, l'opérateur garde la main
-    else showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err');
+    else if(!(_res&&_res.l554)) { showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis réessaie.','err'); setTimeout(function(){ try{ _fichePlanDriftCheck(); }catch(e){} },1300); }   /* [L554 · contre-lecture 22/10] un recalcul deja en cours (edition de config au blur, 80 ms) refusait le tap et la barre restait ROUGE : re-verifiee 1,3 s apres — refus par la garde NC non chiffree : deja explique par son toast */
   }
   else if(opts.silent){
     // [L286] trace claire de ce qui vient de se passer tout seul (pas de confirm : le toast + le récap du
@@ -6213,7 +6220,7 @@ function _applyPlanDriftFix(opts){
   }
   else {
     // [L273 · demande Esteban] retour VERT immédiat au clic (le bandeau se referme via onApplied quand la dérive est résorbée).
-    const _b=document.getElementById('planDriftApplyBtn'); if(_b){ _b.className='btn btn-green'; _b.textContent='✓ Plan appliqué — bobines coupées conservées'; }
+    const _b=document.getElementById('planDriftApplyBtn'); if(_b){ _b.className='btn btn-green'; _b.textContent='✓ Plan appliqué — bobines coupées conservées'; _b.disabled=true; _b.onclick=null; }   /* [L554] un 2e tap dans la seconde declenchait deux toasts rouges */
     showToast('✓ Plan appliqué à la fiche (bobines coupées conservées).','ok');
   }
 }
@@ -6333,7 +6340,7 @@ function _cutOrderChutesFirst(order,computed,keep){
 /* [L525 · demande Celine a l atelier, 16/09/2026 (commande 4501961108, VEKA, MAVEG, KX1006)] L operateur saisit ses chutes AVANT de couper.
    Ref 1 coupee, il va chercher le stock de la ref 2, y trouve une chute et l ajoute : l outil recalcule la ref 2 (commande ENGAGEE ->
    recalcEcartsFromFiche, jamais la generation L491) et la chute tombait en 3e position de sa reference, derriere les deux premieres
-   meres NON coupees que le verrou MAVEG (_l418Frozen2Ids, « deux bobines montees ») gele ET re-attache en tete (etape 3a) avant les
+   meres NON coupees que le verrou MAVEG (_l418Frozen2Ids, « deux bobines montees » — RETIRE en L554 : ensemble vide) gelait ET re-attache en tete (etape 3a) avant les
    rouleaux ♻ regeneres (3b). Regle : une reference SANS bobine coupee (ni jetee) recoit sa chute en n°1 ; une reference COMMENCEE garde
    l ordre actuel (coupees, montees MAVEG, chutes, meres). Rien de coupe ne bouge, aucune renumerotation, etiquettes tapees conservees
    (les noeuds figes sont deplaces, jamais recrees), ordre des references inchange (_cutOrderChutesFirst keep=true). */
@@ -11993,6 +12000,10 @@ function recalcEcartsFromFiche(opts){
     showToast('🔒 Commande PARTAGÉE : le recalcul réorganiserait les bobines et casserait les verrous « qui coupe quoi ».\n\nArrête le partage (ou quitte la vue) avant de recalculer.','err');
     return {started:false};
   }
+  /* [L554 · contre-lecture 22/10] garde PARTAGEE avec la barre : une bobine au Dechet dont la NC n est ni chiffree ni commentee serait
+     RE-PRODUITE EN ENTIER (B54). Refus AVANT toute etape destructive, sur TOUS les chemins (bouton de la barre, ♻ Ecarts, blur de
+     config L386, changement plan, op.2). Le toast explique ; l appelant ne doit pas le recouvrir (drapeau l554). */
+  try{ const _nq54=(typeof _l554NcNonChiffree==='function')?_l554NcNonChiffree(getFicheLinesData()):[]; if(_nq54.length){ showToast('⛔ '+_l554MsgNonChiffre(_nq54),'err'); return {started:false,l554:true}; } }catch(e){}
   const op2=opts.op2||null; // {refKey, useful, blade} : re-pack du reste avec la laize op.2
   const force=!!opts.force; // changement de plan op.1 : garde les coupées, recalcule le reste, même chrono à l'arrêt
   if(!op2 && !force && !chronoRunning){
@@ -12123,11 +12134,12 @@ function recalcEcartsFromFiche(opts){
   setTimeout(()=>{
    try{
     const cont=document.getElementById('ficheLines');
+    { const _nqA=(typeof _l554NcNonChiffree==='function')?_l554NcNonChiffree(getFicheLinesData()):[]; if(_nqA.length){ try{ updateCoupeeStatus(); }catch(_){ } showToast('⛔ '+_l554MsgNonChiffre(_nqA),'err'); try{ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }catch(_){ } return; } }   /* [L554 · verification] la garde est re-evaluee a l INSTANT de l application (D-4) : un 🗑 Dechet pose pendant la seconde d attente ne re-produit pas la bobine entiere (le finally libere _recalcPending) */
     // D-4 : recapture de l'état FIGÉ + du coupé réel à l'instant de l'application.
     frozenSet=new Set(ficheLines.filter(l=>isLineFrozen(l.id)).map(l=>l.id));
-    /* [L418→L419 audit] MAVEG coupe DEUX lignes a la fois : helper partage avec le detecteur d'equilibre
-       (sinon banniere « en TROP » incoercible), machine verifiee sur CHAQUE ligne (changement de machine en
-       cours de fiche), rouleaux ♻ inclus (montes en premier physiquement). */
+    /* [L418→L419 audit] gel MAVEG via helper partage avec le detecteur d equilibre — [L554 · decision Celine 22/10/2026] le helper
+       renvoie desormais un ensemble VIDE (la MAVEG programme chaque bobine mere independamment : plus de gel des 2 lignes
+       suivantes). L appel reste : un retour en arriere tient en une ligne dans _l418Frozen2Ids. */
     try{ (_l418Frozen2Ids()||new Set()).forEach(function(id){ frozenSet.add(id); }); }catch(e){}
     committedByRef={};
     ficheLines.forEach(l=>{
@@ -12290,6 +12302,7 @@ function recalcEcartsFromFiche(opts){
     const frozenNodes={};
     frozenMetas.forEach(l=>{const n=document.getElementById(l.id); if(n){ if(n.parentNode) n.parentNode.removeChild(n); frozenNodes[l.id]=n; }});
 
+    const _avant54={}; try{ ficheLines.forEach(function(l){ if(frozenSet.has(l.id)) return; const k=lineKey(l); (_avant54[k]=_avant54[k]||[]).push(normConf(document.getElementById('flConf_'+l.id)?.value||'')); }); }catch(e){}   /* [L554 · contre-lecture 22/10] configs des bobines NON figees AVANT reconstruction, PAR REFERENCE : le toast dira ce qui a CHANGE, pas « ajoute » */
     // 2) Supprimer définitivement les bobines NON figées (+ leurs photos) et les séparateurs.
     ficheLines.filter(l=>!frozenSet.has(l.id)).forEach(l=>{document.getElementById(l.id)?.remove();delete ficholinePhotos[l.id];});
     cont.querySelectorAll('.fiche-ref-sep').forEach(s=>s.remove());
@@ -12318,7 +12331,7 @@ function recalcEcartsFromFiche(opts){
 
       // 3a) Ré-attacher les bobines figées de cette réf (ordre d'origine préservé).
       frozenMetas.filter(l=>lineKey(l)===k).forEach(l=>{ cont.appendChild(frozenNodes[l.id]); l.refIdKey=_refIdKey(c); l.refIdx=ci; if(!l.machine&&c.machine) l.machine=c.machine; ficheLines.push(l); });   // [L70 · Audit B22] refIdKey resynchronisé sur la clé courante — [L295] clé de BASE (jamais la composite interne) + machine complétée
-      const _l525S=_l525Split(frozenMetas.filter(l=>lineKey(l)===k),function(l){ return _l525Done(frozenNodes[l.id],l.id); });   /* [L525] commencee = une figee coupee/jetee ; rest = figees NON coupees (verrou MAVEG L418, etiquette tapee) */
+      const _l525S=_l525Split(frozenMetas.filter(l=>lineKey(l)===k),function(l){ return _l525Done(frozenNodes[l.id],l.id); });   /* [L525] commencee = une figee coupee/jetee ; rest = figees NON coupees (verrou MAVEG L418 — retire en L554 —, etiquette tapee) */
 
       // 3b) Ré-empaqueter le reliquat de cette réf. Par défaut avec SA laize/lame ;
       // si op.2 est ciblé sur cette réf, on utilise la laize utile / lame de l'op.2.
@@ -12448,6 +12461,13 @@ function recalcEcartsFromFiche(opts){
     // « avant changement » se reconstruit sur les lignes actuelles (machines du plan = les bons originaux).
     try{ applyMachChg(); }catch(e){}
     renumberFicheLines();
+    /* [L554 · contre-lecture 22/10] le toast dit ce qui a CHANGE (position lisible + config) et n ecrit « ajoutee » que pour un ajout NET —
+       avant, « ➕ RESTE-01 (en fin de liste) » annoncait un ajout pour une bobine simplement recalculee (la confusion meme de MR ; l etiquette
+       RESTE-xx n est d ailleurs pas affichee sur la carte). Comparaison position par position des bobines non figees (ordre de reconstruction). */
+    let _chg54=[]; try{ const _apres54={}; ficheLines.forEach(function(l){ if(frozenSet.has(l.id)) return; const k=lineKey(l); (_apres54[k]=_apres54[k]||[]).push({pos:_l554PosDe(l.id),conf:String(document.getElementById('flConf_'+l.id)?.value||''),ref:(typeof refDisp==='function')?refDisp(l.ref||''):String(l.ref||'')}); });
+      _chg54=_l554Diff(_avant54,_apres54,!!multi); }catch(e){}
+    window._l554DernierChg=_chg54;   /* lu par l onApplied de ✓ VALIDER (ne pas recouvrir la consigne « reprogramme-la ») */
+    try{ if(_chg54.length) recap.push(_chg54.join(' | ')); }catch(e){}
     refreshEtiquetteSolde();
     if(typeof renderFicheMachineBlocks==='function') renderFicheMachineBlocks();
     // [L87] Bobines ajoutées VISIBLES : l'opérateur signalait « le compteur passe à 38/39
@@ -12463,15 +12483,17 @@ function recalcEcartsFromFiche(opts){
       ? '🔧 Plan re-découpé pour l\'opérateur 2 (laize utile '+fmt(op2.useful)+' mm).'
       : (force
          ? (totalAdded>0
-            ? '♻ Plan recalculé avec les nouvelles dimensions — les bobines déjà coupées sont conservées.'
+            ? '♻ Plan mis à jour — bobines déjà coupées conservées.'
             : '♻ Recalcul terminé — bobines déjà coupées conservées, le reste de la commande est couvert.')
          : (totalAdded>0?'♻ Plan ré-optimisé.':'♻ Recalcul terminé — commande couverte.'));
-    showToast(head,'ok');   /* [L391 · demande Esteban] une ligne — le récap multi-lignes faisait pop-up (détail toujours en console) */
+    showToast(head+(_chg54.length?(' — '+_chg54.slice(0,3).join(' · ')+(_chg54.length>3?(' · +'+(_chg54.length-3)+' autre(s)'):'')+' — si une de ces bobines était déjà programmée sur la machine, reprogramme-la'):''),'ok',_chg54.length?10000:undefined);   /* [L391 · demande Esteban] une ligne — le récap multi-lignes faisait pop-up (détail toujours en console) — [L554 · contre-lecture 22/10] + ce qui a CHANGE (bobine, config, avant) ; « ajoutee » seulement pour un ajout net */
     try{ console.log('[recalc]',recap.join(' | ')); }catch(e){}
     if(op2||force){ fichePlanValidated=true; updateFPlanHint(); }
     _snapFicheChutes();   // [L278] chutes appliquées → re-baser l'instantané → la bannière « bobineaux ajoutés » se referme
     if(typeof opts.onApplied==='function'){ try{ opts.onApplied(); }catch(e){ console.warn('onApplied:',e); } }   // [L70 · Audit B30]
-   }finally{ _recalcPending=false; }
+    else { try{ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }catch(e){} }   /* [L554 · contre-lecture 22/10] tout recalcul re-verifie la barre (♻ Ecarts, edition de config au blur, changement plan) : plus de barre perimee */
+   }catch(e){ console.warn('[recalc] exception :',e); try{ showToast('⚠ Recalcul interrompu — ne touche plus à la fiche, recharge la page ('+(e&&e.message?e.message:e)+')','err'); }catch(_){ } try{ if(typeof updateCoupeeStatus==='function') updateCoupeeStatus(); }catch(_){ } try{ const _el54=document.getElementById('planDriftBanner'); if(_el54){ _el54.style.display=''; _el54.innerHTML='<span style="flex:1;min-width:120px">⚠ Recalcul interrompu — ne touche plus à la fiche, recharge la page</span>'; } }catch(_){ } setTimeout(function(){ throw e; },0); }   /* [L554 · contre-lecture 22/10] une exception ne laisse plus la barre VERTE a vie ; RELANCEE hors du try : le capteur de la batterie et le mail automatique (L332) la voient toujours — [verification] pas de bouton « Appliquer » sur une fiche a moitie reconstruite */
+   finally{ _recalcPending=false; }
   },1000);
   return {started:true};   // [L70 · Audit B30] lancé (application dans ~1 s)
 }
@@ -21780,11 +21802,12 @@ function applyFicheRefPlanChange(idx){
       ficheRefValidated.add(idx);
       fichePlanValidated=true;
       renderFicheMachineBlocks();
+      try{ if(typeof _fichePlanDriftCheck==='function') _fichePlanDriftCheck(); }catch(e){}   /* [L554] jumeau : tout recalcul re-verifie la barre */
       _logRefCheck();   // [L231 · audit MAJ-1] trace ISO sur la branche « bobines déjà coupées » aussi
-      showToast('✓ Plan recalculé — '+rlbl,'ok');
+      if(!(window._l554DernierChg&&window._l554DernierChg.length)) showToast('✓ Plan recalculé — '+rlbl,'ok');   /* [L554 · verification] le toast « ce qui a change — reprogramme-la » du recalcul ne doit pas etre recouvert */
     }});
     if(!_res||!_res.started){
-      showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis re-valide cette référence.','err');
+      if(!(_res&&_res.l554)) showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis re-valide cette référence.','err');   /* [L554 · verification] refus par la garde NC non chiffree : son toast reste (jumeau de _applyPlanDriftFix / _l345EditChip) */
     }
   }
 }
@@ -21839,7 +21862,7 @@ function applyFichePlanChange(){
     // quand la bobine mère change en cours de découpe.
     // [retiré L390 · décision Esteban] confirm conservateur supprimé (même famille)
     const _res=recalcEcartsFromFiche({force:true});
-    if(!_res||!_res.started) showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis reclique « 🔄 Changement plan ».','err');   // [L70 · Audit B30]
+    if(!_res||(!_res.started&&!_res.l554)) showToast('⚠ Recalcul NON appliqué — corrige le point signalé ci-dessus puis reclique « 🔄 Changement plan ».','err');   // [L70 · Audit B30]   /* [L554 · verification] refus par la garde NC non chiffree : son toast reste */
   }
 }
 // [L284 · demande Esteban] SURPLUS « coupé EN PLUS » par réf (nom) / largeur — pour l'imprimer dans le récap.
@@ -22332,17 +22355,14 @@ function applyMachChg(){
   updateCoupeeStatus();
 }
 // [L65] Machine effective d'une LIGNE (multi-réf / changement machine op.1) — repli fiche.
-/* [L419] ids geles par la regle MAVEG (2 lignes physiquement engagees) — PARTAGE entre le recalcul
-   (frozenSet) et le detecteur d'equilibre du reste (sinon banniere « en TROP » incoercible). */
-function _l418Frozen2Ids(){ try{
-  const nx=ficheLines.filter(function(l){ const el=document.getElementById(l.id); return el&&!el.classList.contains('coupee'); });
-  const out=new Set();
-  if(nx[0]&&typeof _flMachineOf==='function'&&_flMachineOf(nx[0].id)==='maveg'){
-    out.add(nx[0].id);
-    if(nx[1]&&_flMachineOf(nx[1].id)==='maveg') out.add(nx[1].id);
-  }
-  return out;
-}catch(e){ return new Set(); } }
+/* [L419] ids geles par la regle MAVEG — PARTAGE entre le recalcul (frozenSet) et le detecteur d'equilibre du reste.
+   [L554 · decision Celine (responsable qualite) 22/10/2026 — signalement MR 21/10, p26/01129] VERROU MAVEG (L418) RETIRE :
+   la MAVEG a 2 arbres (2 bobines meres chargeables) mais ne decoupe PAS 2 bobines a la fois, et chaque bobine mere se
+   programme independamment. Le gel des 2 lignes suivantes envoyait les bobineaux au Dechet sur une NOUVELLE bobine mere
+   (RESTE-01 = 4x20 pour 80 mm) au lieu de completer la bobine suivante, sans rien dire a l operateur. MAVEG se comporte
+   desormais comme FEBA / CEVENINI : seules les lignes figees par un GESTE (isLineFrozen / _frozenLike) sont preservees.
+   La fonction reste appelee (recalcul, detecteur) et renvoie un ensemble VIDE : revenir en arriere = une ligne. */
+function _l418Frozen2Ids(){ return new Set(); }
 function _flMachineOf(id){ const l=Array.isArray(ficheLines)?ficheLines.find(x=>x&&x.id===id):null; return (l&&l.machine)?l.machine:ficheMachine; }
 function getMachineLabel(m){return {feba:'FEBA',maveg:'MAVEG',cevenini:'CEVENINI'}[m]||m.toUpperCase();}
 // Classe CSS de couleur selon la machine (feba/maveg/cevenini), '' si inconnue.
@@ -22528,6 +22548,7 @@ async function removeFicheLine(id){
   updateCoupeeStatus();
   refreshOp2BobineList();
   renumberFicheLines();
+  try{ refreshEtiquetteSolde(); }catch(e){}   /* [L554] jumeau du recalcul : le resume « N mm conserves » suit le retrait d une bobine */
   if(typeof _scheduleDriftCheck==='function') _scheduleDriftCheck();   // [L375 · enquête impression 20/08] ✕ RETIRER = dérive fiche→plan signalée TOUT DE SUITE (bannière non destructive) — avant, elle n'apparaissait qu'au prochain geste
 }
 function resetFicheBobines(){
@@ -23188,6 +23209,7 @@ function updateNC(id){
   _ncActionCue(id);   // [L132 · revue] rappeler que Chutes/Déchet est requis dès qu'une NC est cochée
   try{ if(typeof _bulkRestore==='undefined'||!_bulkRestore) updateAllCumuls(); }catch(e){}   /* [L416] le chiffrage NC modifie la deduction du cumul */
   try{ if(typeof _l426ShareRepub==='function') _l426ShareRepub(id); }catch(e){}   /* [L426 audit] NC declaree APRES le ✂ : elle remonte a l'emetteur (avant : q fige au tap, bobine archivee CONFORME) */
+  try{ if((typeof _bulkRestore==='undefined'||!_bulkRestore)&&typeof _scheduleDriftCheck==='function') _scheduleDriftCheck(); }catch(e){}   /* [L554 · signalement MR 21/10] jumeau du bouton 🗑 Dechet : le CHIFFRAGE de la NC (quantite, laize, lots) change le nombre de bobineaux livres d une bobine au rebut — donc le reste a produire. Le detecteur de derive est replanifie ici aussi (banniere, jamais de recalcul). */
   try{ syncFlMore(id); }catch(e){}   // [L102 · M2-F] NC cochée → le volet s'ouvre + statut ⚠
 }
 // [L132 · revue] Une NC sans destination (Chutes/Déchet) bloque l'arrêt et l'envoi (comme le détail, cf. A1),
@@ -23236,7 +23258,7 @@ function toggleAction(id,which){
   // [L103 · audit-max] 🗑 Déchet / ✂ Chutes changent les cumuls par laize (exclusion déchet B54) :
   // sans recompute, le cumul affichait « X/X ✓ couvert » avec une bobine au rebut — l'écart
   // n'apparaissait qu'au prochain ✂ ou recalcul. (_bulkRestore : recomptes faits par l'appelant.)
-  if(!_bulkRestore){ try{ updateAllCumuls(); updateCoupeeStatus(); }catch(e){} try{ if(typeof _l426ShareRepub==='function') _l426ShareRepub(id); }catch(e){} }   /* [L426] l'action (Dechet/Chutes) remonte aussi a l'emetteur */
+  if(!_bulkRestore){ try{ updateAllCumuls(); updateCoupeeStatus(); }catch(e){} try{ if(typeof _l426ShareRepub==='function') _l426ShareRepub(id); }catch(e){} try{ if(typeof _scheduleDriftCheck==='function') _scheduleDriftCheck(); }catch(e){} }   /* [L426] l'action (Dechet/Chutes) remonte aussi a l'emetteur */   /* [L554 · signalement MR 21/10] les bobineaux mis au 🗑 Dechet ne comptent PAS comme livres (B54/L419) : le reste a produire augmente. Sans ce rappel du detecteur, la banniere « ⚠ Le plan a change → 🔄 Appliquer les changements » — le SEUL chemin qui les remet sur les bobines suivantes — n arrivait qu au geste suivant. Jumeau du correctif L375 sur ✕ RETIRER. Non destructif : la banniere ne recalcule rien, elle l offre en un tap. */
   _ncActionCue(id);   // [L132 · revue] l'indice « Action ⚠ requise » disparaît dès qu'une destination est choisie
 }
 function parseConf(val){
@@ -23867,10 +23889,10 @@ function _l345EditChip(id){ try{
     // ré-empaqueté depuis les bobines figées) → la ligne restait « à recalculer » et le ✂ verrouillé sans issue.
     // Après le tap RECALCULER, la config saisie DEVIENT la référence de la ligne (la règle « modifier ⇒ recalculer avant
     // de couper » est respectée ; jamais de tap mort permanent). Si la ligne est reconstruite, sa nouvelle config est de toute façon la référence.
-    let started=false; try{ const r=(typeof recalcEcartsFromFiche==='function')?recalcEcartsFromFiche():null; started=!!(r&&r.started); }catch(e){}
+    let started=false, _r54=null; try{ _r54=(typeof recalcEcartsFromFiche==='function')?recalcEcartsFromFiche():null; started=!!(_r54&&_r54.started); }catch(e){}
     const shareLock=(typeof _shareCurrentDocId==='function')&&!!_shareCurrentDocId();   // [L351 · audit] partage actif = recalcul impossible → on n'enferme pas l'opérateur
     if(started||shareLock) setTimeout(function(){ try{ const t=document.getElementById('flConf_'+id); if(t){ t.dataset.conf0=String(t.value||'').trim(); } _l345SyncEditChips(); }catch(e){} }, started?1300:0);
-    else { try{ showToast('♻ Recalcul non lancé — la bobine reste « à recalculer » (retape ♻ RECALCULER, ou remets la config d\'origine).','err'); }catch(e){} }
+    else if(!(_r54&&_r54.l554)) { try{ showToast('♻ Recalcul non lancé — la bobine reste « à recalculer » (retape ♻ RECALCULER, ou remets la config d\'origine).','err'); }catch(e){} }   /* [L554] refus par la garde NC non chiffree : son toast a deja explique */
     return;
   }
   const t=document.getElementById('flConf_'+id); if(t){ t.dataset.l363edit='1'; t.readOnly=false; t.focus(); try{ t.setSelectionRange(0,t.value.length); }catch(e){} t.addEventListener('blur',function _b(){ try{ t.removeEventListener('blur',_b); delete t.dataset.l363edit; if(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche()) t.readOnly=true;
@@ -24057,6 +24079,22 @@ function _l419Delivered(confStr,ncMap,origStr){ try{
    🗑 Dechet : quand la NC est CHIFFREE, la deduction s'applique aux DEUX destinations. Sans chiffrage, seul
    le Dechet exclut la bobine entiere (B54) — Chutes garde son comportement historique (rien de deduit). */
 function _l426NcOut(dechet,chutes,ncMap){ return (dechet||chutes)&&ncMap?ncMap:null; }
+/* [L554 · contre-lecture 22/10] PURE : bobines au 🗑 Dechet dont une NC est cochee mais ni CHIFFREE (lots quantite × laize) ni COMMENTEE —
+   la bobine ENTIERE compterait comme perdue (B54) et serait RE-PRODUITE en entier. Meme regle que l envoi (L400 : chiffrage OU detail).
+   Partagee par la barre (detecteur) et par recalcEcartsFromFiche (refus AVANT toute etape destructive : bouton de la barre, ♻ Ecarts,
+   blur de config, changement plan). ✂ Chutes non chiffrees : bobine comptee livree en entier → aucun risque, pas de garde. */
+function _l554NcNonChiffree(data){ try{ return (data||[]).filter(function(d){ return !!(d&&d.actDechet&&(d.ncLarg||d.ncQty||d.ncCasse||d.ncAng||d.ncHum)&&!(Array.isArray(d.ncLots)&&d.ncLots.length)&&!String(d.ncDetail||'').trim()); }); }catch(e){ return []; } }
+function _l554PosDe(id){ try{ const el=document.getElementById('pos_'+id); const t=el?String(el.textContent||'').trim():''; return 'bobine '+(t||'?'); }catch(e){ return 'bobine ?'; } }   /* numero RELATIF a la reference (« 2/3 »), comme la carte — jamais le rang global */
+function _l554RefDe(id){ try{ if(!(typeof fmmIsMulti==='function'&&fmmIsMulti())) return ''; const l=(ficheLines||[]).find(function(x){ return x&&x.id===id; }); const r=(l&&l.ref)?((typeof refDisp==='function')?refDisp(l.ref):String(l.ref)):''; return r?(r+' · '):''; }catch(e){ return ''; } }   /* multi-ref : « KX1045-1 · bobine 2/3 » (chaque reference a ses propres numeros) */
+function _l554MsgNonChiffre(nq){ return nq.map(function(d){ return _l554RefDe(d.id)+_l554PosDe(d.id); }).join(', ')+' au Déchet : saisis la quantité × laize du défaut (ou un commentaire si toute la bobine est perdue) — sinon toute la bobine compte comme perdue'; }
+/* [L554 · verification 22/10] PURE : ce qui a change entre AVANT et APRES un recalcul, PAR REFERENCE — avant = cle → configs normalisees des
+   bobines NON figees (dans l ordre) ; apres = cle → [{pos,conf,ref}]. « ♻ » config differente a la meme place, « ➕ » bobine en plus,
+   « ➖ » bobine en moins ; prefixe de la reference en multi-ref. (Une comparaison a plat, toutes references confondues, decalait tout des
+   qu une reference gagnait une bobine.) */
+function _l554Diff(avant,apres,multi){ const out=[]; try{ const keys=Object.keys(apres||{}); Object.keys(avant||{}).forEach(function(k){ if(keys.indexOf(k)<0) keys.push(k); });
+  keys.forEach(function(k){ const av=(avant&&avant[k])||[], ap=(apres&&apres[k])||[]; const pre=(multi&&ap[0]&&ap[0].ref)?(ap[0].ref+' · '):'';
+    ap.forEach(function(x,i){ const a=av[i]; if(a===undefined) out.push('➕ '+pre+x.pos+' ajoutée : '+x.conf); else if(a!==normConf(x.conf)) out.push('♻ '+pre+x.pos+' : '+x.conf+' (était '+a+')'); });
+    for(let i=ap.length;i<av.length;i++) out.push('➖ '+pre+'une bobine retirée : '+av[i]); }); }catch(e){} return out; }
 function _l416NcByWidthFd(fd){ try{ const lots=(fd&&Array.isArray(fd.ncLots))?fd.ncLots:[]; if(!lots.length) return null; const m={}; lots.forEach(function(x){ m[x.w]=(m[x.w]||0)+x.q; }); return m; }catch(e){ return null; } }
 function _l408NcLots(id){ try{
   const out=[];
