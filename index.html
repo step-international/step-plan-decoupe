@@ -2018,6 +2018,8 @@ html.theme-light #sendPlanBtn.not-ready{box-shadow:0 6px 0 rgba(255,255,255,.92)
   body.l542-banner #planLeft{padding-bottom:calc(96px + var(--l542-h,56px) + env(safe-area-inset-bottom,0px))}   /* [L542] derniere ligne de saisie defilable au-dessus du bandeau rouge */
 }
 #barExtras #etiqPhotoZone:has(img)+button,#etiqPhotoZone:has(img)~button{border-color:var(--green)!important;color:var(--green)!important}   /* le 📷＋ passe en vert dès qu'une photo est là */
+@media(min-width:1100px){#barExtras #etiqPhotoField{display:flex;align-items:center;gap:8px} #barExtras #reglPhotoField{margin:0!important} #reglPhotoZone:has(img)~button{border-color:var(--green)!important;color:var(--green)!important}}   /* [L556 · contre-lecture 23/10] paysage : le bloc reglages sur la MEME rangee que le 📷＋ des etiquettes (la barre d action reste sur UNE ligne, le CUMUL reste visible — L472) ; « 📷 Réglages » vert des qu une photo de reglages est la */
+@media(max-width:1099px){#reglPhotoField{display:none!important}}   /* [L556] ceinture CSS de la regle 3 : jamais en portrait, meme sans JavaScript */
 /* [L351 · audit régression] ♻ recalcul atteignable dès qu'une bobine est en NC (rebut/déchet) : le bouton ♻ de la carte en cours réapparaît (1 tap) */
 /* [L389 · demande Esteban : « enlève le bouton recalculer les écarts »] l exception badge-rouge retirée — la bannière rouge (L374) et ✓ APPLIQUER portent seuls le recalcul sur la carte en cours ; le flux corrections hors-coupe (lignes non courantes, chrono arrêté) garde ses ♻ */
 /* ============================================================
@@ -2693,6 +2695,13 @@ html.theme-light .fp-num small{color:#8a8a84}
         <div id="etiqPhotoZone" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
         <button class="btn btn-sm" style="min-height:48px;min-width:64px;justify-content:center" onclick="document.getElementById('etiqPhotoInput').click()" aria-label="Prendre ou ajouter une photo d'étiquette">📷＋</button>
       </div>
+      <div id="reglPhotoField" style="display:none;margin-top:10px"><!-- [L556 · demande Celine 23/10/2026 — etape 1] photo de l ecran de reglages MAVEG (automate Siemens : recette, angles) : PAYSAGE + machine courante MAVEG + commande ouverte, jamais en vue miroir ; facultatif ; photo SEULE (pas de n° de recette : etape 2, apres le nettoyage des recettes) ; rangee dans la fiche (commandeFiles) ; JAMAIS sur le papier -->
+        <label>📷 Réglages MAVEG <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— écran de la machine en fin de coupe (facultatif)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div id="reglPhotoZone" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
+          <button class="btn btn-sm" style="min-height:48px;min-width:64px;justify-content:center;white-space:nowrap" onclick="document.getElementById('reglPhotoInput').click()" aria-label="Photographier l’écran de réglages de la MAVEG">📷 Réglages</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -3291,6 +3300,7 @@ html.theme-light .fp-num small{color:#8a8a84}
 <input type="file" id="blFileInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
 <input type="file" id="commandeFilesInput" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple style="display:none">
 <input type="file" id="etiqPhotoInput" accept="image/*" capture="environment" multiple style="display:none"><!-- [L226 · ergo #14] caméra étiquettes -->
+<input type="file" id="reglPhotoInput" accept="image/*" capture="environment" style="display:none"><!-- [L556] caméra : écran de réglages MAVEG (une photo par appui) -->
 
 
 <script>/* [L388] html2canvas 1.4.1 EMBARQUÉ (PWA hors-ligne : aucune dépendance réseau) — captures d'écran des signalements 💬 */
@@ -3406,7 +3416,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.22-L555';
+const APP_VERSION='2026.10.23-L556';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5854,9 +5864,47 @@ function refreshEtiqPhotoZone(){
   const items=[]; (commandeFiles||[]).forEach((f,i)=>{ if(f&&f.type==='image'&&/^Étiquette /.test(f.name||'')) items.push({f,i}); });
   z.innerHTML=items.map(({f,i})=>`<span style="position:relative;display:inline-block"><img src="${esc(f.url)}" alt="${esc(f.name)}" title="${esc(f.name)} — toucher pour agrandir" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border2);cursor:pointer" onclick="openCommandeFileViewer(${i})" role="button" tabindex="0"><button onclick="deleteCommandeFile(${i})" aria-label="Supprimer cette photo" style="position:absolute;top:-10px;right:-10px;background:#7a2222;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;line-height:1;box-shadow:0 0 0 2px var(--card)">✕</button></span>`).join('');   /* [L386 · demande Esteban] ✕ pour supprimer (puis 📷＋ juste à côté pour en reprendre une) */
 }
-async function uploadCommandeFile(blob,ext,contentType){
+/* [L556 · demande Celine 23/10/2026 — etape 1] PHOTO DES REGLAGES MAVEG : l operateur photographie l ecran de l automate (recette, angles)
+   en fin de coupe ; la photo est rangee DANS la fiche (commandeFiles, nom « Réglages MAVEG N », regl:true, initiales, date ; pas de n° de recette : etape 2)
+   → elle suit plan / brouillon / fiche archivee et reste liee aux NC de la commande. JAMAIS sur le papier (decision Celine : filtre dans
+   buildFichePrintHTML, bloc « no-print » a l ecran seulement). Paysage + machine courante MAVEG + commande ouverte (regle 3 : portrait intact).
+   Envoi BORNE a 10 s ; compteur _photoUploadsPending DES L APPUI (compression comprise) ; photo rattachee a la SEULE commande de l appui (identite du
+   tableau commandeFiles : resetAll / chargement / miroir le remplacent) ; jamais en vue miroir (la photo n y serait ecrite nulle part) ; pas de repli
+   data-URL (il serait supprime a l envoi par _ficheStripHeavyPhotos) → toast honnete. Etape 2 (plus tard) : rappel des photos precedentes
+   a l ouverture d une commande MAVEG (meme matiere + meme laize), apres le nettoyage des recettes de l automate. */
+function _l556EstRegl(f){ return !!(f&&(f.regl===true||/^Réglages MAVEG /.test(String(f.name||'')))); }
+function _l556Actif(){ try{ return !(typeof _viewingSharedId!=='undefined'&&_viewingSharedId)&&(typeof _isLandscapeFiche==='function'&&_isLandscapeFiche())&&(typeof _l555MachineCourante==='function'&&_l555MachineCourante()==='maveg')&&Array.isArray(ficheLines)&&ficheLines.length>0; }catch(e){ return false; } }   /* [L556b] jamais chez le RECEPTEUR d un partage : sa photo serait ecrasee a la revision suivante */
+function _l556Sync(){ try{ const b=document.getElementById('reglPhotoField'); if(!b) return; const on=_l556Actif(); b.style.display=on?'':'none'; if(on) refreshReglPhotoZone(); }catch(e){} }
+function refreshReglPhotoZone(){ try{ const z=document.getElementById('reglPhotoZone'); if(!z) return; const m=document.getElementById('reglUploadingMsg'); if(m) m.remove();
+  const items=[]; (commandeFiles||[]).forEach(function(f,i){ if(_l556EstRegl(f)) items.push({f:f,i:i}); });
+  z.innerHTML=items.map(function(o){ const f=o.f, i=o.i; return '<span style="position:relative;display:inline-block"><img src="'+esc(f.url)+'" alt="'+esc(f.name)+'" title="'+esc(f.name)+' — toucher pour agrandir" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border2);cursor:pointer" onclick="openCommandeFileViewer('+i+')" role="button" tabindex="0">'+'<button onclick="deleteCommandeFile('+i+')" aria-label="Supprimer cette photo" style="position:absolute;top:-10px;right:-10px;background:#7a2222;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;line-height:1;box-shadow:0 0 0 2px var(--card)">✕</button></span>'; }).join(''); }catch(e){} }
+async function _l556Upload(blob){ let tard=false; const p=uploadCommandeFile(blob,'jpg','image/jpeg','REGL');
+  p.then(function(u){ if(tard&&u) deletePhotoFromStorage(u).catch(function(){}); }).catch(function(){});   /* [L556b] l envoi aboutit APRES la borne : le fichier n est reference nulle part → efface (pas d orphelin dans Storage) */
+  return await Promise.race([p, new Promise(function(_,rej){ setTimeout(function(){ tard=true; rej(new Error('délai réseau dépassé (10 s)')); },(window._l556UploadMs||10000)); })]); }   /* borne : jamais de sablier infini ; le compteur _photoUploadsPending est tenu par _l556OnPhoto (compression comprise) */
+async function _l556OnPhoto(file){   /* [L556b · contre-lecture 23/10] gestionnaire NOMME (execute par les tests) ; retourne un code pour les tests seulement */
+  if(trainingGuard()){ try{ showToast('🎓 Entraînement — photos désactivées.'); }catch(e){} return 'entrainement'; }
+  if(!file) return 'vide';
+  if(typeof _viewingSharedId!=='undefined'&&_viewingSharedId){ showToast('⚠ Vue miroir : la photo des réglages se prend sur la tablette qui a partagé la fiche.','err'); return 'miroir'; }
+  if(typeof _sendingFiche!=='undefined'&&_sendingFiche){ showToast('⏳ Envoi de la fiche en cours — photo refusée, reprends-la sur la commande suivante.','err'); return 'envoi'; }
+  if(!storage){ showToast('⚠ Photo NON enregistrée : stockage indisponible (réseau ?). Reprends-la quand le réseau revient.','err'); return 'stockage'; }
+  const cible=commandeFiles;   /* le tableau de la commande AU MOMENT DE L APPUI : resetAll / chargement / miroir le REMPLACENT (jamais en place) → une photo arrivee apres ne va plus dans la commande suivante */
+  const z=document.getElementById('reglPhotoZone'); if(z) z.insertAdjacentHTML('afterbegin','<span id="reglUploadingMsg" style="color:var(--muted);font-size:13px">⏳ Upload en cours…</span>');
+  _photoUploadsPending++;   /* des l appui : CONFIRMER et l arret manque-matiere attendent la compression ET l envoi (la photo bobine L72 fait pareil) */
+  let res='ok';
+  try{
+    const blob=await compressImageBlob(file,1400,0.7);
+    const url=await _l556Upload(blob);
+    if(commandeFiles!==cible||!(Array.isArray(ficheLines)&&ficheLines.length)){ deletePhotoFromStorage(url).catch(function(){}); showToast('⚠ La commande a changé pendant l’envoi — photo des réglages NON rattachée, reprends-la.','err'); res='commande-changee'; }
+    else{ const nb=cible.filter(_l556EstRegl).length+1; cible.push({url:url,type:'image',name:'Réglages MAVEG '+nb,regl:true,at:isoNow(),by:((typeof _l543LameWho==='function'&&_l543LameWho())||'')}); showToast('📷 Réglages MAVEG enregistrés — la photo partira avec la fiche','ok'); }
+  }catch(e){ console.warn('photo réglages',e); showToast('⚠ Photo des réglages NON enregistrée ('+(e&&e.message?e.message:'photo illisible ou réseau')+') — reprends-la.','err'); res='echec'; }
+  finally{ _photoUploadsPending=Math.max(0,_photoUploadsPending-1); }
+  try{ refreshReglPhotoZone(); }catch(e){} try{ refreshCommandePhotoZone(); }catch(e){}
+  return res;
+}
+document.getElementById('reglPhotoInput').addEventListener('change',function(){ const file=(this.files||[])[0]; this.value=''; _l556OnPhoto(file); });
+async function uploadCommandeFile(blob,ext,contentType,prefix){
   const ts=Date.now();
-  const path='commande/CMD_'+ts+'_'+Math.floor(Math.random()*9999)+'.'+ext;
+  const path='commande/'+(prefix||'CMD')+'_'+ts+'_'+Math.floor(Math.random()*9999)+'.'+ext;   /* [L556] prefixe optionnel (REGL_ pour les photos de reglages MAVEG) — meme dossier commande/ deja autorise depuis les tablettes */
   const ref=storage.ref(path);
   await ref.put(blob,{contentType});
   return await ref.getDownloadURL();
@@ -5897,6 +5945,7 @@ async function deleteCommandeFile(i){
     if(idx>-1) commandeFiles.splice(idx,1);
     refreshCommandePhotoZone();
     try{ refreshEtiqPhotoZone(); }catch(e){}   /* [L386] la vignette étiquette part aussi */
+    try{ refreshReglPhotoZone(); }catch(e){}   /* [L556] la vignette reglages aussi */
   } finally { _deletingCommandeFile=false; }
 }
 function openCommandeFileViewer(i){
@@ -11650,6 +11699,7 @@ async function stopManqueMatiere(){
       // de _pendingFicheId → son envoi ÉCRASAIT la fiche manque-matière déjà archivée
       // (production des bobines coupées perdue). Le plan source est déjà consommé → null.
       st.pendingFicheId=null; st.pendingTempsId=null; st.loadedSaveId=null;
+      try{ if(st.plan&&Array.isArray(st.plan.commandeFiles)) st.plan.commandeFiles=st.plan.commandeFiles.filter(function(f){ return !_l556EstRegl(f); }); }catch(e){}   /* [L556b · contre-lecture 23/10] les photos de reglages de la partie coupee restent dans la fiche manque-matiere archivee ; le solde repart SANS (rappel orange actif ; un ✕ au solde n efface plus un fichier que la fiche archivee reference) */
       // [L70 · Audit B24] le PLAN embarqué dans le solde = le RESTE uniquement (ordonné −
       // coupé − chutes stock, même calcul que le plan du reste), chutes/rouleaux consommés
       // vidés. Sinon un « Changement plan » à la reprise régénérait la commande COMPLÈTE
@@ -11833,11 +11883,12 @@ function confirmCommandeRecap(){
   const machStr=machSet.size?[...machSet].join(', '):'—';
   // [L319 · LOT 6] valeurs du récap (mêmes calculs que l'ancien confirm) + alarme étiquettes L243 conservée
   const _etiqCount=(commandeFiles||[]).filter(f=>f&&/^Étiquette /.test(f.name||'')).length;
+  const _reglCount=(commandeFiles||[]).filter(_l556EstRegl).length, _reglMaveg=(typeof _l556Actif==='function'&&_l556Actif());   /* [L556] rappel facultatif (orange) dans le volet de cloture, MAVEG paysage seulement */
   if(!_etiqCount){
     showToast('🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ? Aucune photo d\'étiquette jointe à cette commande.','err');
   }
   if(_armed){ confirmCommande(); return; }   // [L319 · LOT 6] envoi validé → envoi réel · [L506 · décision Esteban 05/09] le tick du mode apprenti est parti avec le mode
-  _openVictory({total:total,machStr:machStr,nc:ncCount,etiq:_etiqCount,chronoZero:(total>0&&!(chronoSec>0))});
+  _openVictory({total:total,machStr:machStr,nc:ncCount,etiq:_etiqCount,regl:_reglCount,reglMaveg:_reglMaveg,chronoZero:(total>0&&!(chronoSec>0))});
 }
 // [L319 · LOT 6 · §2.5] Volet de clôture : affichage pur (aucune écriture). « Enregistrer » ré-appelle
 // confirmCommandeRecap ARMÉ → toutes les gardes se re-déroulent à l'instant du vrai tap (état frais),
@@ -11856,6 +11907,7 @@ function _openVictory(p){
     const row=function(l,v,color){ return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--muted)">'+l+'</span><b style="text-align:right;'+(color?('color:'+color):'')+'">'+v+'</b></div>'; };
     body.innerHTML=
       (p.etiq?'' : '<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #7a2222;border-radius:9px;background:#2a1212;color:var(--red);font-weight:800;font-size:14px">🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?<div style="font-weight:600;font-size:12.5px;margin-top:3px;color:#fca5a5">Aucune photo jointe — bouton 📷＋ « Photos étiquettes » en pied de fiche, ou confirme quand même.</div></div>')
+      +(p.reglMaveg&&!p.regl?'<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #92400e;border-radius:9px;background:#2a1d0e;color:var(--orange);font-weight:800;font-size:14px">📷 Photo des réglages MAVEG ? <span style="font-weight:600;font-size:12.5px">Facultatif — bouton « 📷 Réglages » dans la barre du bas, à gauche d’IMPRIMER. Elle aidera le prochain qui coupe cette matière.</span></div>':'')   /* [L556 · decision Celine : facultatif + rappel, comme les etiquettes] */
       +'<div style="text-align:center;margin:6px 0 10px"><span class="victory-big">'+p.total+'/'+p.total+' <span style="color:var(--green)">✓</span></span>'
       +(cli||cmd?'<div style="color:var(--muted);font-size:13px;margin-top:2px">'+esc(cli)+(cmd?' · '+esc(cmd):'')+'</div>':'')+'</div>'
       +row('Temps', t?(t+(_o546?' ⚠':'')):'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?(_o546?'var(--orange)':null):'var(--red)')
@@ -20469,7 +20521,7 @@ function buildFichePrintHTML(d){
     table{width:100%;border-collapse:collapse;font-size:13px}
     th{padding:8px 12px;text-align:left;font-size:12px;color:#555;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #999}
     td{vertical-align:top}
-    @media print{body{padding:12px}button{display:none}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    @media print{body{padding:12px}button{display:none}html{filter:grayscale(1)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}@media print{.no-print{display:none!important}}   /* [L556] .no-print : visible dans la fiche de detail a l ecran, jamais imprime */
   </style>
   </head>`;
   const _body553=`<body>
@@ -20540,12 +20592,13 @@ function buildFichePrintHTML(d){
     <div>${(f.rows||[]).map(r=>`<span class="cmd-row">${r.qty} × ${r.width} mm</span>`).join('')}</div>
   </div>
   ${(()=>{
-    const cf=readCommandeFiles(f);
-    if(!cf.length) return '';
+    const cfAll=readCommandeFiles(f); const regl=cfAll.filter(_l556EstRegl); const cf=cfAll.filter(function(x){ return !_l556EstRegl(x); });   /* [L556 · decision Celine 23/10] les photos de reglages MAVEG ne sortent JAMAIS sur le papier : bloc no-print, visible a l ecran (fiche de detail) seulement */
+    if(!cf.length&&!regl.length) return '';
     const icon=t=>t==='image'?'🖼':t==='pdf'?'📄':t==='doc'?'📝':t==='xls'?'📊':'📎';
     const imgs=cf.filter(x=>x.type==='image').map(x=>`<a href="${esc(safeUrl(x.url))}" target="_blank"><img src="${esc(safeUrl(x.url))}" style="max-width:100%;border-radius:8px;border:1px solid #2a2a28;margin-bottom:8px"></a>`).join('');
     const docs=cf.filter(x=>x.type!=='image').map(x=>`<div style="margin:4px 0"><a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener" style="color:#60a5fa;font-weight:600">${icon(x.type)} ${esc(x.name||'fichier')}</a></div>`).join('');
-    return `<div class="card"><div class="card-title">Fichiers de la commande client</div>${imgs}${docs}</div>`;
+    const reglHtml=regl.length?('<div class="card no-print"><div class="card-title">📷 Réglages MAVEG — écran machine (à l’écran seulement, jamais imprimé)</div>'+regl.map(function(x){ return '<a href="'+esc(safeUrl(x.url))+'" target="_blank"><img src="'+esc(safeUrl(x.url))+'" style="max-width:480px;width:100%;border-radius:8px;border:1px solid #2a2a28;margin-bottom:8px"></a>'+(x.by?('<div style="font-size:12px;color:#555;margin:-4px 0 8px">'+esc(x.by)+'</div>'):''); }).join('')+'</div>'):'';   /* [L556] photo bornee a 480 px : le tableau des bobines reste a portee (Dominique) */
+    return (cf.length?`<div class="card"><div class="card-title">Fichiers de la commande client</div>${imgs}${docs}</div>`:'')+reglHtml;
   })()}
   <div class="card">
     <div class="card-title">Plan de découpe — bobine par bobine</div>
@@ -23432,6 +23485,7 @@ document.addEventListener('click',function(e){
       if(!f||!bar||!home) return;
       if(mq.matches){ if(f.parentElement!==bar) bar.appendChild(f); }
       else{ if(f.parentElement!==home) home.appendChild(f); }
+      try{ if(typeof _l556Sync==='function') _l556Sync(); }catch(_){}   /* [L556] paysage seulement */
     };
     place();
     if(mq.addEventListener) mq.addEventListener('change',place); else if(mq.addListener) mq.addListener(place);
@@ -23614,6 +23668,7 @@ function renderFicheHeadPills(){ try{
   const cli=v('fClient'), lame=v('fNumLame'), ini=v('fInitiales');
     try{ _l510PkgLine(); }catch(_){ }   /* [L510] ligne emballage/cerclage lecture seule, rafraichie avec l en-tete */
     try{ _l555EntretienSync(); }catch(_){ }   /* [L555] la carte Entretien suit la machine de la fiche */
+    try{ _l556Sync(); }catch(_){ }   /* [L556] le bloc photo reglages MAVEG suit la machine courante et l orientation */
   const ref=v('fRef').split(/\s\+\s/).map(function(x){ return refDisp(x); }).filter(Boolean).join(' + ');   // [L340 · fix audit] multi-réf : chaque réf raccourcie
   const m=(typeof ficheMachine==='string')?ficheMachine:'';
   const mLbl=m==='feba'?'FEBA':m==='maveg'?'MAVEG':m==='cevenini'?'CEVENINI':'';
