@@ -3416,7 +3416,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.23-L556';
+const APP_VERSION='2026.10.28-L557';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9860,13 +9860,15 @@ function openPrintWindow(html,autoPrint){
       ov.innerHTML='<div style="display:flex;gap:8px;align-items:center;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;background:#1c1c1b;border-bottom:1px solid #444;flex:0 0 auto">'
         +'<button id="printOverlayPrint" class="btn btn-blue btn-sm">🖨️ Imprimer</button>'
         +'<span style="color:#999;font-size:12px">Aperçu impression</span>'
+        +'<span id="printOverlayParts" style="display:inline-flex;align-items:center;flex-wrap:wrap"></span>'   /* [L557] cases Fiche / Bon de commande / BL du dossier (vides pour tout autre document) */
         +'<button id="printOverlayClose" style="margin-left:auto;background:#3d1414;border:1.5px solid #f87171;color:var(--red);font-weight:800;font-size:16px;padding:10px 20px;min-height:44px;border-radius:10px;cursor:pointer;font-family:inherit">✕ Fermer</button></div>'
         +'<iframe id="printOverlayFrame" title="Aperçu impression" style="flex:1 1 auto;width:100%;border:0;background:#fff"></iframe>';
       document.body.appendChild(ov);
-      document.getElementById('printOverlayClose').onclick=function(){ const _f=document.getElementById('printOverlayFrame'); if(_f){ _f.onload=null; try{ _f.srcdoc='<!doctype html><meta charset=utf-8>'; }catch(e){} } ov.style.display='none'; };   // [L258 · bug Esteban CERTAIN, revue ×2] fr.onload NULLIFIÉ AVANT de vider le srcdoc : sinon vider le srcdoc RECHARGE l'iframe → l'onload d'auto-impression se re-déclenche → print() FANTÔME sur page blanche 350 ms après la fermeture (feuille AirPrint qui resurgit → « la croix ne ramène pas à la fiche »). Vaut pour TOUTES les fermetures (étiquette + plan).
+      document.getElementById('printOverlayClose').onclick=function(){ try{ _l557PartsReset(); }catch(_){ } const _f=document.getElementById('printOverlayFrame'); if(_f){ _f.onload=null; try{ _f.srcdoc='<!doctype html><meta charset=utf-8>'; }catch(e){} } ov.style.display='none'; };   // [L258 · bug Esteban CERTAIN, revue ×2] fr.onload NULLIFIÉ AVANT de vider le srcdoc : sinon vider le srcdoc RECHARGE l'iframe → l'onload d'auto-impression se re-déclenche → print() FANTÔME sur page blanche 350 ms après la fermeture (feuille AirPrint qui resurgit → « la croix ne ramène pas à la fiche »). Vaut pour TOUTES les fermetures (étiquette + plan).
       document.getElementById('printOverlayPrint').onclick=function(){ try{ const w=document.getElementById('printOverlayFrame').contentWindow; w.focus(); w.print(); }catch(e){} };
     }
     ov.style.display='flex';
+    try{ _l557PartsReset(); }catch(_){ }   /* [L557] un autre document (plan, etiquettes, KPI) repart sans cases ni bouton bloque */
     const fr=document.getElementById('printOverlayFrame');
     fr.onload=function(){ if(autoPrint!==false){ setTimeout(function(){ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){} },350); } };
     fr.srcdoc=html;
@@ -18285,7 +18287,7 @@ function renderFiches(){
       </div>
       <div class="fc-actions">
         ${validBtns}
-        <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',false)">📄 PDF</button><!-- [L445 · demande ER] APERCU d'abord — l'impression part du bouton 🖨 de l'apercu, plus jamais toute seule -->
+        <button class="fc-btn fc-btn-ghost" onclick="showFicheDetail('${f._id}',false,null,true)">📄 PDF</button><!-- [L445 · demande ER] APERCU d'abord — l'impression part du bouton 🖨 de l'apercu, plus jamais toute seule -->
         <button class="fc-btn fc-btn-ghost fc-more-btn" onclick="event.stopPropagation();this.closest('.fiche-card').classList.toggle('fc-more-open')" title="Plus d'actions">⋯</button><!-- [L429 · demande ER] Modifier / Archiver / PDF par client derriere ⋯ -->
       </div>
       <div class="fc-more-row">
@@ -20614,7 +20616,7 @@ function buildFichePrintHTML(d){
   </body></html>`;
   return _head553+_l553PalettePapier(_body553).replace('background:__MACHCOL553__','background:'+machCol);   /* [L553] le corps (styles inline) passe par la palette papier ; l en-tete est ecrit en clair ; la pastille machine (fond CLAIR + texte sombre) est posee APRES la passe, sinon la couleur par defaut #a78bfa etait assombrie */
 }
-function showFicheDetail(id,autoPrint,cliFilter){
+function showFicheDetail(id,autoPrint,cliFilter,dossier){
   const f=fichesCache.find(x=>x._id===id);
   if(!f) return;
   // Le plan affiché/imprimé est TOUJOURS reconstruit depuis l'état réel des
@@ -20864,7 +20866,114 @@ function showFicheDetail(id,autoPrint,cliFilter){
 
   const html=buildFichePrintHTML({f,ecartBanner,partageBanner,op2Line,machLbl,machCol,pkgLine,notesLine,planRows,horsPlanRows,shareCol:sharedFiche,cliBanner,cliRecapCard,cliCol:multiCli});
 
-  openPrintWindow(html, !!autoPrint);
+  if(!dossier||cliFilter){ openPrintWindow(html, !!autoPrint); return; }   /* [L557 · contre-lecture 28/10] 👁 (consultation NC / KPI) et « PDF extrait » par client : apercu INCHANGE (un extrait ne doit jamais embarquer les pieces des autres clients) */
+  _l557OpenDossier(f, html);   /* [L557 · demande Celine 28/10] le bouton « 📄 PDF » des fiches validees ouvre le DOSSIER : fiche + bon de commande client + BL, un seul apercu, cases dans la barre */
+}
+
+/* [L557 · demande Celine 28/10/2026 (responsable qualite)] DOSSIER PDF par fiche validee — UN SEUL bouton « 📄 PDF » : la fiche de
+   decoupe (avec ses photos d etiquettes, deja dans la fiche) + le bon de commande client (pieces jointes du plan : PDF converti page
+   par page, Word / Excel signales) + le ou les BL, dans un seul apercu ; cases Fiche / Bon de commande / BL dans la barre (toutes
+   cochees, 44 px, reappliquees apres la pose : decocher pendant la preparation est respecte) ; nom du fichier Dossier_<client>_<n°>_<date
+   locale>, pose dans le titre du document ET de l onglet (le navigateur propose l un ou l autre a « Enregistrer au format PDF ») ; sans BL :
+   rien (decision Celine). 👁 et extraits par client : apercu inchange. Lecteur PDF libre Mozilla pdf.js 4.10.38 (ESM, Apache 2.0 ; la
+   3.11.174 portait la faille CVE-2024-4367 — contre-lecture 28/10), range dans lib/pdfjs-4.10.38/ (chemin versionne : une appli gelee ne
+   chargera jamais une autre version), identique a l octet pres sur cdnjs et jsDelivr, charge au 1er clic (une seule promesse), appele avec
+   isEvalSupported:false. Conversion bornee et ANNULABLE : 25 s par piece (AbortController sur le telechargement, destroy du document pdf.js,
+   canvas liberes), 90 s pour le dossier, 30 pages par piece, echelle plafonnee (1 800 px), pages deja converties conservees ; le bouton
+   Imprimer du gabarit est masque dans le dossier et celui de la barre attend la pose ET le chargement des images (10 s) ; jamais silencieux
+   (avertissement avec la raison traduite). Le jeton _l557Seq est perime par TOUTE ouverture (openPrintWindow) ou fermeture (✕) : un dossier
+   abandonne ne remplace jamais un autre document. Le papier de la fiche elle-meme est INCHANGE (regle 2) ; le dossier sort en niveaux de
+   gris comme la fiche (regle L553, decision a prendre par Celine pour les pieces). */
+const L557_PDFJS='./lib/pdfjs-4.10.38/pdf.min.mjs', L557_PDFJS_WORKER='./lib/pdfjs-4.10.38/pdf.worker.min.mjs', L557_MAX_PAGES=30, L557_MS=25000, L557_MS_TOTAL=90000, L557_MS_IMG=10000, L557_PX_MAX=1800;
+let _l557Seq=0;
+function _l557Clean(s){ return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40); }
+function _l557Date(v){ const d=new Date(v||''); if(isNaN(d)) return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }   /* date LOCALE, comme la date imprimee sur la fiche */
+function _l557Nom(f){ try{ const cli=_l557Clean((typeof _l528CliNom==='function')?_l528CliNom(f):(f&&f.client))||'client'; const n=_l557Clean((typeof _l517NumCmd==='function')?_l517NumCmd(f):(f&&f.numCmd))||'sans-numero'; const d=_l557Date(f&&f.date); return 'Dossier_'+cli+'_'+n+(d?('_'+d):''); }catch(e){ return 'Dossier'; } }
+function _l557Pieces(f){ try{ return readCommandeFiles(f).filter(function(x){ return !!(x&&x.url)&&x.type!=='image'&&!(typeof _l556EstRegl==='function'&&_l556EstRegl(x)); }); }catch(e){ return []; } }   /* les images (etiquettes, photo de commande) sont DEJA imprimees dans la fiche ; les photos de reglages ne sortent jamais sur le papier (L556) */
+function _l557Bls(f){ try{ return ficheBLs(f).filter(function(b){ return !!(b&&b.url); }); }catch(e){ return []; } }
+function _l557Raison(e){ const m=String((e&&e.message)||e||''); if((e&&e.name==='AbortError')||/délai/i.test(m)) return 'délai de '+Math.round(L557_MS/1000)+' s dépassé'; if(/Failed to fetch|NetworkError|Load failed|dynamically imported/i.test(m)) return 'fichier inaccessible (réseau ou autorisation)'; if(/password/i.test(m)) return 'PDF protégé par mot de passe'; if(/Invalid PDF|PDF header|FormatError|XRef/i.test(m)) return 'fichier PDF endommagé ou illisible'; if(/worker/i.test(m)) return 'lecteur PDF incomplet'; return m||'erreur'; }   /* raisons lisibles par Celine, jamais un message technique brut quand on le connait */
+function _l557Import(u){ return import(u); }   /* separe : les tests remplacent cette fonction (import() reel impossible hors navigateur) */
+function _l557LoadPdfjs(){ if(window._l557P) return window._l557P; window._l557P=(async function(){ try{ const lib=await _l557Borne(_l557Import(L557_PDFJS),15000,null); if(!lib||typeof lib.getDocument!=='function'||!lib.GlobalWorkerOptions) throw new Error('lecteur PDF inutilisable'); lib.GlobalWorkerOptions.workerSrc=(typeof document!=='undefined'&&document.baseURI)?new URL(L557_PDFJS_WORKER,document.baseURI).href:L557_PDFJS_WORKER; return lib; }catch(e){ window._l557P=null; throw new Error('lecteur PDF non chargé ('+_l557Raison(e)+')'); } })(); return window._l557P; }   /* une seule promesse : jamais deux chargements ; un echec permet un nouvel essai */
+function _l557Borne(p,ms,onDelai){ let t; const d=new Promise(function(_,rej){ t=setTimeout(function(){ try{ if(onDelai) onDelai(); }catch(_){ } rej(new Error('délai dépassé ('+Math.round(ms/1000)+' s)')); },ms); }); return Promise.race([p,d]).finally(function(){ clearTimeout(t); }); }
+async function _l557PdfPages(url,opts){ const o=opts||{}; const lib=await _l557LoadPdfjs(); const fin=o.finA||(Date.now()+L557_MS); const reste=function(){ return Math.max(0,fin-Date.now()); };
+  const ac=(typeof AbortController!=='undefined')?new AbortController():null; const abort=function(){ try{ if(ac) ac.abort(); }catch(_){ } };
+  const tf=setTimeout(abort,reste()); const ti=setInterval(function(){ try{ if(o.stop&&o.stop()) abort(); }catch(_){ } },500);   /* delai OU apercu ferme → telechargement annule (en-tetes ET corps) */
+  let buf; try{ const r=await fetch(url,ac?{signal:ac.signal}:undefined); if(!r.ok) throw new Error('téléchargement '+r.status); buf=await r.arrayBuffer(); }finally{ clearTimeout(tf); clearInterval(ti); }
+  if(reste()<=0) throw new Error('délai de '+Math.round(L557_MS/1000)+' s dépassé');
+  const task=lib.getDocument({data:buf,isEvalSupported:false});   /* isEvalSupported:false : parade officielle (CVE-2024-4367), en plus de la version corrigee */
+  let doc; try{ doc=await _l557Borne(task.promise,Math.max(1,reste()),null); }catch(e){ try{ task.destroy(); }catch(_){ } throw e; }   /* delai ou erreur : la tache pdf.js est detruite (rien ne continue en arriere-plan) */
+  const total=doc.numPages||0; const nb=Math.min(total,o.maxPages||L557_MAX_PAGES); const pages=[]; let delai=false;
+  try{ for(let i=1;i<=nb;i++){ if(reste()<=0||(o.stop&&o.stop())){ delai=true; break; }
+      const pg=await doc.getPage(i); const v1=pg.getViewport({scale:1}); const sc=Math.min(o.scale||2,L557_PX_MAX/Math.max(1,v1.width)); const vp=pg.getViewport({scale:sc});
+      const cv=document.createElement('canvas'); cv.width=Math.ceil(vp.width); cv.height=Math.ceil(vp.height);
+      let rt=null, parDelai=false; try{ rt=pg.render({canvasContext:cv.getContext('2d'),viewport:vp}); await _l557Borne(rt.promise,Math.max(1,reste()),function(){ parDelai=true; try{ if(rt&&rt.cancel) rt.cancel(); }catch(_){ } }); }catch(e){ cv.width=0; cv.height=0; if(!parDelai) throw e; delai=true; break; }   /* rendu d une page borne par le delai de la piece (tache de rendu annulee) ; une VRAIE erreur de rendu garde sa raison */
+      const u=cv.toDataURL('image/jpeg',0.85); cv.width=0; cv.height=0; try{ pg.cleanup(); }catch(_){ }
+      if(!u||u.length<100) throw new Error('page trop grande pour être convertie'); pages.push(u); } }
+  finally{ try{ doc.destroy(); }catch(_){ } }
+  return {pages:pages,total:total,tronque:total>nb,delai:delai}; }
+async function _l557Rendu(x,ctx){ const c=ctx||{}; const name=String((x&&x.name)||'pièce'); const out={name:name,ref:(x&&x.ref)||null,pages:[],notice:''};
+  try{
+    if(!x||!x.url){ out.notice='Pièce sans fichier : '+name; return out; }
+    if(x.type==='image'){ out.pages=[String(x.url)]; return out; }
+    if(x.type==='pdf'||/\.pdf(\?|$)/i.test(String(x.url))){ const r=await _l557PdfPages(x.url,{finA:c.finA,stop:c.stop}); out.pages=r.pages;
+      if(r.delai) out.notice='Délai dépassé après '+r.pages.length+' page(s) sur '+r.total+' — '+name+' (le reste est à ouvrir dans l’application)';
+      else if(r.tronque) out.notice='PDF de '+r.total+' pages : seules les '+r.pages.length+' premières sont dans le dossier — '+name;
+      if(!r.pages.length&&!out.notice) out.notice='PDF sans page lisible : '+name; return out; }
+    out.notice='Pièce non convertible ('+(x.type==='doc'?'Word':x.type==='xls'?'Excel':'format '+(x.type||'inconnu'))+') : '+name+' — à ouvrir dans l’application'; return out;
+  }catch(e){ out.pages=[]; out.notice='Conversion impossible : '+name+' ('+_l557Raison(e)+') — à ouvrir dans l’application'; return out; } }
+const _L557_CSS='.l557-part{page-break-before:always;break-before:page;margin-top:24px}.l557-part img{display:block;width:auto;max-width:100%;max-height:245mm;page-break-inside:avoid;break-inside:avoid;margin:0 auto 10px;border:1px solid #999}.l557-t{font-weight:800;font-size:16px;margin:0 0 10px;color:#111}.l557-s{font-weight:700;font-size:13px;margin:12px 0 6px;color:#333}.l557-n{border:2px solid #92400e;border-radius:8px;padding:10px 12px;color:#92400e;font-weight:700;margin:0 0 10px;background:#fff7e6}.l557-t,.l557-s,.l557-n{page-break-after:avoid;break-after:avoid}#l557-fiche button{display:none}@media print and (orientation:landscape){.l557-part img{max-height:170mm}}';   /* #l557-fiche button : le « 🖨 Imprimer » du gabarit L553 contournerait l attente du dossier ; la barre a le sien */
+function _l557PartsHtml(parts){ const E=function(v){ return (typeof esc==='function')?esc(v):String(v==null?'':v); }; return (parts||[]).map(function(p){ const items=(p.items||[]).map(function(it){ const sub=it.name+(it.ref?(' — réf. '+it.ref):''); return '<div class="l557-s">'+E(sub)+'</div>'+(it.notice?('<div class="l557-n">⚠ '+E(it.notice)+'</div>'):'')+(it.pages||[]).map(function(u,i){ return '<img src="'+E(u)+'" alt="'+E(it.name+' — page '+(i+1))+'">'; }).join(''); }).join(''); return '<div class="l557-part" id="l557-'+E(p.id)+'"><div class="l557-t">'+E(p.titre)+'</div>'+items+'</div>'; }).join(''); }
+function _l557DossierHtml(ficheHtml,titre){ let h=String(ficheHtml||''); const E=function(v){ return (typeof esc==='function')?esc(v):String(v==null?'':v); };
+  const iT=h.indexOf('<title>'), jT=h.indexOf('</title>'); if(iT>=0&&jT>iT) h=h.slice(0,iT)+'<title>'+E(titre)+'</title>'+h.slice(jT+8);   /* nom propose a « Enregistrer au format PDF » (avec le titre de l onglet, pose par _l557OpenDossier) */
+  const iS=h.indexOf('</style>'); if(iS>=0) h=h.slice(0,iS)+_L557_CSS+h.slice(iS);
+  const iB=h.indexOf('<body'); const iB2=iB>=0?h.indexOf('>',iB):-1; if(iB2>0) h=h.slice(0,iB2+1)+'<div id="l557-fiche">'+h.slice(iB2+1);
+  const jB=h.lastIndexOf('</body>'); if(jB>=0&&iB2>0) h=h.slice(0,jB)+'</div>'+h.slice(jB);
+  return h; }
+function _l557PartsReset(){ try{ _l557Seq++; const z=document.getElementById('printOverlayParts'); if(z) z.innerHTML=''; const b=document.getElementById('printOverlayPrint'); if(b){ b.disabled=false; delete b.dataset.l557Prep; b.textContent='🖨️ Imprimer'; } if(window._l557TitrePrec){ document.title=window._l557TitrePrec; window._l557TitrePrec=''; } }catch(e){} }   /* appele par CHAQUE ouverture (openPrintWindow) et par ✕ : perime tout dossier en cours, rend le titre de l onglet */
+function _l557Doc(){ try{ const fr=document.getElementById('printOverlayFrame'); const d=fr&&fr.contentDocument; return (d&&d.getElementById&&d.getElementById('l557-fiche'))?d:null; }catch(e){ return null; } }
+function _l557Applique(){ try{ const d=_l557Doc(); if(!d) return; const cases=Array.prototype.slice.call(document.querySelectorAll('#printOverlayParts input[data-l557]')); if(!cases.length) return;
+  let coches=0; const etat={}; cases.forEach(function(c){ const on=!!c.checked; etat[c.getAttribute('data-l557')]=on; if(on) coches++; });
+  const fiche=d.getElementById('l557-fiche'); if(fiche) fiche.style.display=(etat.fiche!==false)?'':'none';
+  let premiere=(etat.fiche===false);   /* fiche decochee : la 1re partie visible ne commence pas par un saut de page vide */
+  ['commande','bl'].forEach(function(id){ const el=d.getElementById('l557-'+id); if(!el) return; const on=etat[id]!==false; el.style.display=on?'':'none'; if(on){ el.style.breakBefore=premiere?'auto':''; el.style.pageBreakBefore=premiere?'auto':''; el.style.marginTop=premiere?'0':''; premiere=false; } });
+  const b=document.getElementById('printOverlayPrint'); if(b&&!b.dataset.l557Prep){ b.disabled=(coches===0); b.textContent=(coches===0)?'Rien à imprimer (coche une case)':'🖨️ Imprimer'; } }catch(e){} }
+function _l557Toggles(list){ try{ const z=document.getElementById('printOverlayParts'); if(!z) return; z.innerHTML=list.map(function(p){ return '<label style="display:inline-flex;align-items:center;gap:6px;color:#ddd;font-size:13px;margin-left:6px;padding:8px 10px;min-height:44px;cursor:pointer;user-select:none"><input type="checkbox" checked data-l557="'+p.id+'" style="-webkit-appearance:checkbox;appearance:auto;width:20px;height:20px;min-height:0;padding:0;margin:0;accent-color:#4f9df2"> '+p.label+'</label>'; }).join(''); z.querySelectorAll('input[data-l557]').forEach(function(c){ c.addEventListener('change',function(){ _l557Applique(); }); }); }catch(e){} }
+function _l557AttendImages(d,ms){ return new Promise(function(res){ try{ const imgs=Array.prototype.slice.call(d.querySelectorAll('.l557-part img')); const fin=Date.now()+ms; let reste=imgs.length; const finir=function(){ try{ imgs.forEach(function(im){ if(im.dataset.l557Vu) return; im.dataset.l557Vu='1'; if(!(im.complete&&im.naturalWidth>0)){ const nt=d.createElement('div'); nt.className='l557-n'; nt.textContent='⚠ Image illisible ou non chargée : '+(im.getAttribute('alt')||'image')+' — à ouvrir dans l’application'; if(im.parentNode) im.parentNode.insertBefore(nt,im); im.style.display='none'; } }); }catch(_){ } res(); };
+    if(!reste){ res(); return; } const un=function(){ if(--reste<=0) finir(); }; imgs.forEach(function(im){ if(im.complete){ un(); return; } im.addEventListener('load',un,{once:true}); im.addEventListener('error',un,{once:true}); }); setTimeout(finir,Math.max(0,fin-Date.now())); }catch(e){ res(); } }); }   /* jamais silencieux : une photo de BL supprimee ou injoignable a son avertissement ; borne */
+async function _l557OpenDossier(f,ficheHtml){
+  const pieces=_l557Pieces(f), bls=_l557Bls(f); const titre=_l557Nom(f); const base=_l557DossierHtml(ficheHtml,titre);
+  openPrintWindow(base,false);   /* remet l apercu a zero (cases, Imprimer, titre) et perime tout dossier precedent */
+  const seq=++_l557Seq;   /* jeton pris APRES l ouverture : toute autre ouverture ou fermeture le perime */
+  try{ if(!window._l557TitrePrec) window._l557TitrePrec=document.title; document.title=titre; }catch(e){}
+  const btn=document.getElementById('printOverlayPrint'), fr=document.getElementById('printOverlayFrame'), ov=document.getElementById('printOverlay');
+  const vivant=function(){ return seq===_l557Seq&&!(ov&&ov.style.display==='none'); };
+  if(!pieces.length&&!bls.length) return {parts:0};   /* ni piece ni BL : l apercu de la fiche, sans case (sans BL : rien — decision Celine) */
+  if(btn){ btn.disabled=true; btn.dataset.l557Prep='1'; btn.textContent='⏳ Préparation…'; }   /* Imprimer attend la pose ET les images : aucune page ne peut manquer */
+  _l557Toggles([{id:'fiche',label:'Fiche'}].concat(pieces.length?[{id:'commande',label:'Bon de commande'}]:[]).concat(bls.length?[{id:'bl',label:'BL'}]:[]));
+  const todo=[].concat(pieces.map(function(x){ return {kind:'commande',x:x}; }),bls.map(function(b){ return {kind:'bl',x:b}; }));
+  const finG=Date.now()+L557_MS_TOTAL; const items={commande:[],bl:[]}; const horsLigne=(typeof navigator!=='undefined'&&navigator.onLine===false);
+  for(let k=0;k<todo.length;k++){ if(!vivant()) return {parts:0,abandonne:true}; if(btn) btn.textContent='⏳ Préparation… '+(k+1)+'/'+todo.length; const it=todo[k]; const nom=String((it.x&&it.x.name)||'pièce');
+    if(horsLigne&&it.x.type!=='image'){ items[it.kind].push({name:nom,ref:it.x.ref||null,pages:[],notice:'Pas de réseau : '+nom+' n’a pas pu être jointe — réessaye en ligne'}); continue; }
+    if(Date.now()>finG){ items[it.kind].push({name:nom,ref:it.x.ref||null,pages:[],notice:'Délai global dépassé ('+Math.round(L557_MS_TOTAL/1000)+' s) : '+nom+' non jointe — à ouvrir dans l’application'}); continue; }
+    const finP=Math.min(Date.now()+L557_MS,finG);   /* la piece est bornee DANS l orchestrateur aussi : jamais une « Préparation… » sans fin */
+    items[it.kind].push(await _l557Borne(_l557Rendu(it.x,{finA:finP,stop:function(){ return !vivant(); }}),Math.max(1000,finP-Date.now()+2000),null).catch(function(e){ return {name:nom,ref:it.x.ref||null,pages:[],notice:'Conversion impossible : '+nom+' ('+_l557Raison(e)+') — à ouvrir dans l’application'}; })); }
+  if(!vivant()) return {parts:0,abandonne:true};
+  const parts=[]; if(items.commande.length) parts.push({id:'commande',titre:'📎 Bon de commande client — pièces jointes (les photos figurent dans la fiche)',items:items.commande}); if(items.bl.length) parts.push({id:'bl',titre:'🚚 Bon(s) de livraison',items:items.bl});
+  const html=_l557PartsHtml(parts);
+  const pose=function(){ try{ const d=_l557Doc(); if(!d||!d.body) return false; d.body.insertAdjacentHTML('beforeend',html); return true; }catch(e){ return false; } };
+  let ok=pose(); if(!ok){ await new Promise(function(r){ let k=0; (function w(){ if(!vivant()||(ok=pose())||++k>40) r(); else setTimeout(w,100); })(); }); }
+  if(!vivant()) return {parts:parts.length,abandonne:true};
+  let repli=false; if(!ok){ repli=true; try{ const j=base.lastIndexOf('</body>'); const full=(j>=0)?(base.slice(0,j)+html+base.slice(j)):(base+html); await new Promise(function(r){ let fini=false; const done=function(){ if(!fini){ fini=true; r(); } }; fr.onload=done; setTimeout(done,4000); fr.srcdoc=full; }); }catch(e){} }   /* repli : le document COMPLET recharge, seulement si l apercu est encore le notre (jamais une partie perdue en silence) */
+  if(!vivant()) return {parts:parts.length,abandonne:true};
+  if(repli){ await new Promise(function(r){ let k=0; (function w(){ const d2=_l557Doc(); if(!vivant()||(d2&&(d2.getElementById('l557-commande')||d2.getElementById('l557-bl')))||++k>40) r(); else setTimeout(w,100); })(); });
+    if(!vivant()) return {parts:parts.length,abandonne:true};
+    const d3=_l557Doc(); if(!(d3&&(d3.getElementById('l557-commande')||d3.getElementById('l557-bl')))){ if(btn){ btn.disabled=true; btn.textContent='Aperçu incomplet : ferme et rouvre'; } return {parts:parts.length,repli:true,incomplet:true}; } }   /* repli trop lent : Imprimer reste bloque et le dit (jamais un dossier incomplet imprime en silence) */
+  _l557Applique();
+  const d=_l557Doc(); if(d) await _l557AttendImages(d,L557_MS_IMG);
+  if(!vivant()) return {parts:parts.length,abandonne:true};
+  if(btn){ delete btn.dataset.l557Prep; btn.disabled=false; btn.textContent='🖨️ Imprimer'; }
+  _l557Applique();
+  return {parts:parts.length,repli:repli};
 }
 
 async function deleteFiche(id){

@@ -90,7 +90,10 @@ avec ces différences :
 ### ⚠ Publication GitHub Pages = LISTE BLANCHE (depuis le 24/08/2026)
 Le site public ne contient QUE ce que `tests/build_public.mjs` écrit dans `_site/` (appelé par le workflow
 `.github/workflows/static.yml`, étape « Assembler le site public », et par la batterie) : `index.html` et `sw.js`
-SANS leurs commentaires (arbre syntaxique prouvé identique), `manifest.json`, et les icônes `icon-*.png`. Tout le
+SANS leurs commentaires (arbre syntaxique prouvé identique), `manifest.json`, les icônes `icon-*.png` et, depuis L557 (28/10/2026),
+`lib/pdfjs-4.10.38/` (lecteur PDF libre du dossier par fiche, copié tel quel, chemin versionné : ne JAMAIS retirer un dossier
+`lib/pdfjs-<version>` déjà publié tant que des tablettes peuvent être gelées sur un lot qui l'utilise, règle L89 ; une montée de version
+AJOUTE un dossier). Tout le
 reste du dépôt répond **404 en production, sans message d'erreur**. Si tu ajoutes un fichier dont l'application
 a besoin au runtime (police, asset), tu DOIS l'ajouter dans `tests/build_public.mjs`, sinon il ne sera jamais servi. (Note : les icônes `icon-192*.png` / `icon-512*.png` sont dans le dépôt depuis L473 et copiées par le workflow.)
 

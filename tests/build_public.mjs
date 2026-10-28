@@ -6,6 +6,7 @@
 // Preuve embarquee : chaque bloc <script> est reparse (acorn, vendore dans tests/vendor/) et son ARBRE
 // SYNTAXIQUE doit etre identique avant/apres (positions exclues) ; zero commentaire restant ; blocs <style>
 // aux accolades equilibrees ; aucun <!-- --> hors script. Toute difference = sortie 1, rien n est ecrit.
+// [L557] s y ajoute lib/pdfjs-4.10.38/ (lecteur PDF du dossier par fiche), copie tel quel.
 // Usage : node tests/build_public.mjs [--out DIR]   (defaut : _site/ a la racine du depot)
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -82,5 +83,7 @@ const s = stripJs(sw, 'sw.js');
 writeFileSync(join(OUT, 'sw.js'), s.out);
 copyFileSync(join(ROOT, 'manifest.json'), join(OUT, 'manifest.json'));
 copyFileSync(join(ROOT, 'robots.txt'), join(OUT, 'robots.txt'));   /* [L539] demande de ne pas etre indexe, en plus de la balise meta */
+mkdirSync(join(OUT, 'lib', 'pdfjs-4.10.38'), { recursive: true });   /* [L557] lecteur PDF libre (Mozilla pdf.js 4.10.38, Apache 2.0, chemin VERSIONNE) du dossier par fiche : copie TELLE QUELLE (jamais reecrit, SHA-512 verifies par tests/dossier_l557_test.js) */
+for (const f of ['pdf.min.mjs', 'pdf.worker.min.mjs']) copyFileSync(join(ROOT, 'lib', 'pdfjs-4.10.38', f), join(OUT, 'lib', 'pdfjs-4.10.38', f));
 for (const f of readdirSync(ROOT)) if (/^icon-.*\.png$/.test(f)) copyFileSync(join(ROOT, f), join(OUT, f));
 console.log(`🏆 fichier public construit dans ${OUT} — ${ver} — index.html : ${h.n.scripts} scripts (${h.n.js} commentaires JS retires), ${h.n.styles} styles (${h.n.css} CSS), ${h.n.html} commentaires HTML ; ${(src.length / 1024).toFixed(0)} Ko → ${(h.out.length / 1024).toFixed(0)} Ko ; sw.js : ${s.removed} commentaires retires. Arbres syntaxiques identiques avant/apres.`);
