@@ -26,6 +26,7 @@ console.log('── C4 : pastille SOLDE si ✂ Chutes ──');
   ok(SOLDE({id:'a',ref:'R1',recut:true,actChutes:true})===false,'rouleau ♻ avec ✂ Chutes → jamais un solde (regle inchangee)');
   ok(SOLDE({id:'c',ref:'R1'})===true,'derniere bobine de la ref → solde (inchange)');
   ok(SOLDE({id:'a',ref:'R1',phaseEnd:true})===true,'fin de phase → solde (inchange)');
+  ok(SOLDE({id:'a',ref:'R1',resteGarde:true})===true,'[L558] reste garde (sans NC) → SOLDE (parite regle L513 : chute gardee)');
 }
 console.log('── C6 / C3 / C5 : cablage ──');
 ok(/if\(fd\.actDechet===true&&!fd\.recut&&typeof ncLoss==='function'\)\{ const n=ncLoss\(f,fd\); if\(n&&n\.m2>0\)\{ client-=n\.m2; \} \}/.test(src),'C6 : « m² decoupes et livres » n est plus debite du dechet d une ligne ♻ (jamais creditee)');

@@ -93,6 +93,8 @@ console.log('── 8. signature d edition : seule la MATIERE compte ──');
   ok(SIG(f,d2)!==s0,'changer une configuration → signature DIFFERENTE (recalcul + trace)');
   const d3=[Object.assign({},f.ficheDetail[0],{actDechet:true,ncLots:[{q:1,w:502}]})];
   ok(SIG(f,d3)!==s0,'marquer un bobineau 🗑 Dechet → signature DIFFERENTE');
+  const d4=[Object.assign({},f.ficheDetail[0],{resteGarde:true})];
+  ok(SIG(f,d4)!==s0,'[L558] cocher « chute gardee » sur une bobine → signature DIFFERENTE (la correction admin recalcule f.mat)');
 }
 console.log('── 9. fiche avec des bobines mais sans configuration lisible : jamais un faux 0 ──');
 {

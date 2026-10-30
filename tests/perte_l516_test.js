@@ -46,6 +46,7 @@ console.log('── 3. solde : derniere bobine de SA reference, fin de phase, ro
   // lignes anciennes sans refIdKey : cle par nom
   global.ficheLines=[{id:'o1',ref:'KX1045-1'},{id:'o2',ref:'KX1045-1'}];
   ok(SOLDE(ficheLines[0])===false&&SOLDE(ficheLines[1])===true,'sans identite : cle par nom, o2 derniere → SOLDE');
+  ok(SOLDE({id:'o1',ref:'KX1045-1',resteGarde:true})===true&&SOLDE({id:'o1',ref:'KX1045-1',recut:true,resteGarde:true})===false,'[L558] reste GARDE par l operateur (sans NC) → SOLDE ; jamais sur un rouleau ♻');
   ok(SOLDE(null)===false&&SOLDE({id:'z'})===false,'ligne absente / inconnue → jamais un solde (false), pas d exception');
 }
 console.log(fail?('💥 '+fail+' echec(s) sur '+total):('🏆 PERTE L516 OK : '+total+' verifications'));

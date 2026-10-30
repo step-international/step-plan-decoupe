@@ -1677,6 +1677,12 @@ body.atelier .stat-tile b{font-size:36px}
   .fl-current .fl-conf-long{display:block;font:700 15px/1.25 var(--f-head);letter-spacing:.02em;color:var(--text2);margin:4px 0 0}   /* [L518] echo lecture seule sous la configuration de la bobine en cours */
   body.atelier .fl-current .fl-conf-long{font-size:17px}
   body.atelier .fl-current .l516-note{font-size:17px}
+  body.atelier .fl-current .l516-note .l558-btn{font-size:17px;min-height:44px}   /* [L558 · contre-lecture] mode atelier (force pour l operateur) : le bouton a la taille de la phrase, 44 px */
+  .fl-current .l516-note.l558-rappel{color:var(--orange)}   /* [L558 · decision Celine 28/10] reste >= seuil non garde : RAPPEL orange (plus rouge), avec le bouton */
+  .fl-current .l516-note.l558-garde{color:#f5b301}   /* [L558] reste garde : ambre, comme SOLDE */
+  .fl-current .l516-note .l558-btn{margin-left:8px;min-height:40px;padding:6px 12px;border-radius:8px;border:1.5px solid currentColor;background:transparent;color:inherit;font:700 14px var(--f-head);cursor:pointer;vertical-align:middle}
+  .fl-current .fl-chute.rappel{color:var(--orange)}   /* [L558] pastille orange = reste a garder ou a assumer */
+  .fl-current .fl-chute.chute{color:#f5b301}   /* [L558] pastille GARDÉ (ambre) */
   .fl-current .fiche-chute-note{position:static;margin:4px 0 0}   /* la note « pris dans chute stock » revient dans le flux (le coin est pris par CHUTE + ✕) */
   /* — ⚠ DÉFAUT lisible (24px), indice « 1 tap » et sous-libellés au plancher 13px (constats design 8-9) — */
   .fl-current .fl-more>summary,body.atelier .fl-current .fl-more>summary{font-size:24px}   /* [fix audit] body.atelier .fl-more>summary (15px) battait la règle en atelier (défaut opérateur) */
@@ -2201,7 +2207,7 @@ html.theme-light .btn-green{background:#0e3a1c;color:#a7f3c0}html.theme-light .b
   .fl-current .fl-pos{background:transparent;border:1.5px solid #b8860b;color:#ffd45e}
   .fiche-line.fl-current:has(.fl-badge.badge-red) .fl-pos{color:#ff8a8f;border-color:#8a2b2f}
   .fl-current .fl-edit-chip:not(.need-recalc){display:none}   /* [L459 · demande Esteban 28/08] MODIFIER retire : on tape directement la barre de chiffres ; le bouton ne reapparait que devenu « APPLIQUER LES CHANGEMENTS » (need-recalc), indispensable au recalcul */
-  .fl-current .fl-chute:not(.over):not(.perte):not(.solde){color:var(--text2)}   /* [L516] le gris ne doit plus ecraser le rouge PERTE / l ambre SOLDE (cette regle est PLUS BAS dans la cascade que celle de .perte) */
+  .fl-current .fl-chute:not(.over):not(.perte):not(.solde):not(.rappel):not(.chute){color:var(--text2)}   /* [L516] le gris ne doit plus ecraser le rouge PERTE / l ambre SOLDE (cette regle est PLUS BAS dans la cascade que celle de .perte) · [L558 · contre-lecture] ni l orange RAPPEL ni l ambre GARDÉ (meme piege, specificite 0,5,0 contre 0,3,0) */
   .fl-current .cumul-card{border-color:var(--border2);background:#1a1a18}
   .fl-current .cc-t{color:var(--text2)}
   .fp-streak.s25{border-color:#b8860b;box-shadow:none}
@@ -3416,7 +3422,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.28-L557';
+const APP_VERSION='2026.10.28-L558';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -11662,7 +11668,8 @@ async function stopManqueMatiere(){
   _stoppingMM=true;   // [L73 · Lot 5 · B39] posé AVANT le confirm : garde le 2e tap dehors même boîte ouverte
   try{
   let _etq547=1; try{ _etq547=(commandeFiles||[]).filter(function(f){ return f&&/^Étiquette /.test(f.name||''); }).length; }catch(e){}   // [L547 · audit d'usage 06/10 : 4 des 7 fiches sans photo d'étiquette venaient d'un arrêt manque de matière] même contrôle que le volet de clôture (L243/L319)
-  if(!confirm((_etq547?'':'🛑 AUCUNE PHOTO D\'ÉTIQUETTE jointe à cette commande — « Annuler » pour la prendre d\'abord.\n\n')+`⛔ Arrêt manque de matière ?\n\n${done} bobine(s) coupée(s), ${reste} non réalisée(s).\n\nLes ${done} bobines coupées et le temps passé sont enregistrés dans la fiche (production comptée).\n\n`+(reste>0?`Le solde (${reste} bobine(s)) est placé en brouillon, reprenable quand la matière arrive.`:`Aucun solde à reprendre.`))) return;
+  let _ng558=''; try{ if(typeof _l558NonGardes==='function'&&(typeof _isLandscapeFiche!=='function'||_isLandscapeFiche())){ const _n=_l558NonGardes().length; if(_n) _ng558='🟠 '+_n+' bobine(s) coupée(s) avec un reste de '+PERTE_LAIZE_ALERTE_MM+' mm ou plus NON gardé : compté en PERTE (le pilotage peut corriger après coup dans Données > Fiches).\n\n'; } }catch(e){}   /* [L558 · contre-lecture] l arret manque-matiere est aussi une fin de commande : le dire (jamais bloquant) ; le bouton « garder » y viendra avec l etape L559 */
+  if(!confirm((_etq547?'':'🛑 AUCUNE PHOTO D\'ÉTIQUETTE jointe à cette commande — « Annuler » pour la prendre d\'abord.\n\n')+_ng558+`⛔ Arrêt manque de matière ?\n\n${done} bobine(s) coupée(s), ${reste} non réalisée(s).\n\nLes ${done} bobines coupées et le temps passé sont enregistrés dans la fiche (production comptée).\n\n`+(reste>0?`Le solde (${reste} bobine(s)) est placé en brouillon, reprenable quand la matière arrive.`:`Aucun solde à reprendre.`))) return;
 
   // 0. Construire le brouillon du SOLDE *avant* toute mutation/envoi : on sérialise
   //    l'état courant puis on ne garde que les bobines NON coupées, remises à neuf
@@ -11677,7 +11684,7 @@ async function stopManqueMatiere(){
       st.lines=(st.lines||[]).filter(l=>!l.coupee).map(l=>Object.assign({},l,{
         coupee:false, devi:false, droit:false, conforme:false, test2nc:false,
         ncRas:false, ncLarg:false, ncQty:false, ncCasse:false, ncAng:false, ncHum:false,
-        ncDetail:'', ncQtyVal:0, ncWidthVal:0, ncLots:[], photo:'', actDechet:false, actChutes:false, actAccept:false   /* [L412 audit] lots L408 remis a zero aussi (lot fantome au solde sinon) */
+        ncDetail:'', ncQtyVal:0, ncWidthVal:0, ncLots:[], photo:'', actDechet:false, actChutes:false, actAccept:false, resteGarde:false   /* [L558] le solde repart sans reste garde · [L412 audit] lots L408 remis a zero aussi (lot fantome au solde sinon) */
       }));
       st.chrono={sec:0, startTs:null, wasRunning:false, runStart:null};
       // [L103 · audit-max] les bascules « dès la bobine N » (lame / machine / op.2) sont des
@@ -11910,6 +11917,7 @@ function _openVictory(p){
     body.innerHTML=
       (p.etiq?'' : '<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #7a2222;border-radius:9px;background:#2a1212;color:var(--red);font-weight:800;font-size:14px">🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?<div style="font-weight:600;font-size:12.5px;margin-top:3px;color:#fca5a5">Aucune photo jointe — bouton 📷＋ « Photos étiquettes » en pied de fiche, ou confirme quand même.</div></div>')
       +(p.reglMaveg&&!p.regl?'<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #92400e;border-radius:9px;background:#2a1d0e;color:var(--orange);font-weight:800;font-size:14px">📷 Photo des réglages MAVEG ? <span style="font-weight:600;font-size:12.5px">Facultatif — bouton « 📷 Réglages » dans la barre du bas, à gauche d’IMPRIMER. Elle aidera le prochain qui coupe cette matière.</span></div>':'')   /* [L556 · decision Celine : facultatif + rappel, comme les etiquettes] */
+      +((typeof _l558VoletHtml==='function')?_l558VoletHtml():'')   /* [L558 · decision Celine 28/10 : rappel, jamais bloquant · contre-lecture] encadre orange des restes non gardes : rendu PUR, re-rendu LOCAL par _l558VoletSet (idempotent, anti-rebond, « annuler »), paysage seulement */
       +'<div style="text-align:center;margin:6px 0 10px"><span class="victory-big">'+p.total+'/'+p.total+' <span style="color:var(--green)">✓</span></span>'
       +(cli||cmd?'<div style="color:var(--muted);font-size:13px;margin-top:2px">'+esc(cli)+(cmd?' · '+esc(cmd):'')+'</div>':'')+'</div>'
       +row('Temps', t?(t+(_o546?' ⚠':'')):'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?(_o546?'var(--orange)':null):'var(--red)')
@@ -13367,6 +13375,7 @@ function getFicheLinesData(){
       conf0:(get('flConf')?.dataset.conf0!==undefined?get('flConf').dataset.conf0:undefined),   // [L379 · fix audit n°6] baseline « config éditée » : la protection B8 survit au brouillon
       origConf:(L.origConf!==undefined?L.origConf:undefined), rattrapage:L.rattrapage||undefined, autoLabel:String(L.label||''),   // [L97 · relecture #19] le gel « conf modifiée » et le flag rattrapage survivent au brouillon/partage — [L102 · BUG L97] la clé meta s'appelait « label » : DOUBLON avec l'étiquette saisie (ligne du dessus), la dernière gagnait → l'archive/PDF/brouillon portaient l'étiquette AUTO au lieu du vrai n° de bobine tapé par l'opérateur, et le retour de brouillon dé-gelait la ligne. Clé renommée autoLabel, toujours émise (même vide : le gel d'une ligne manuelle survit aussi au round-trip).
       recut:L.recut||false, rollW:L.rollW||0, phaseEnd:L.phaseEnd||undefined,   // [L103 · audit-max]
+      resteGarde:((typeof _l558Garde==='function')&&_l558Garde(L))||undefined,   /* [L558] emis seulement si le drapeau est VALIDE (predicat unique _l558Garde : pose, pas ♻, configuration encore celle du marquage) */
       cliParts:(Array.isArray(L.cliParts)&&L.cliParts.length)?L.cliParts:undefined,   // [L71 · Audit B14] snapshot figé (undefined = retiré au JSON)
       devi:get('flDevi')?.checked||false,
       droit:get('flDroit')?.checked||false,
@@ -18901,6 +18910,7 @@ async function editFicheConfigs(id){   // [L74 · Design Lot E] async (appelée 
             <input class="ef-lab" value="${esc(d.label)}" placeholder="Étiquette" style="width:100px;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-size:13px">
             <input class="ef-cf" value="${esc(d.conf)}" placeholder="ex : 5×80 + 3×50" style="flex:1;min-width:120px;padding:8px;background:#111;border:1px solid #333;border-radius:8px;color:#eee;font-family:monospace;font-size:13px">
             <span class="ef-photo" data-orig="${d.i}" style="display:flex;gap:6px;align-items:center;flex-shrink:0"></span>
+            ${(()=>{ const fd=(f.ficheDetail||[])[d.i]||{}; return (typeof canManageData==='function'&&canManageData()&&!fd.recut&&fd.coupee!==false)?('<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#f5b301;min-height:44px;cursor:pointer;flex-shrink:0" title="Reste de laize gardé sur palette : compté en chute gardée, pas en perte"><input type="checkbox" class="ef-rg-cb" '+(fd.resteGarde===true?'checked':'')+' style="-webkit-appearance:checkbox;appearance:auto;width:20px;height:20px;min-height:0;padding:0;margin:0;accent-color:#f5b301"> ✂ chute gardée</label>'):''; })()}
             <button onclick="efRemoveBob(this)" title="Supprimer cette bobine" style="background:#3a1414;border:1px solid #5a2020;color:var(--red);border-radius:8px;padding:8px 11px;cursor:pointer;flex-shrink:0">✕</button>
           </div>`).join('')}
       </div>
@@ -19110,7 +19120,8 @@ async function saveFicheConfigs(id){
         else { const g=f.refGroups[_k]; _defs={useful:_l507GroupUseful(g),blade:(g.blade!=null&&g.blade!=='')?(parseNum(g.blade)||0):(parseNum(f.blade)||0),ref:g.ref||'',refIdx:_k}; try{ _defs.refIdKey=_l507KeyOf(g); }catch(_){ } }
       }
     }
-    newDetail.push({..._defs,...base,label:r.querySelector('.ef-lab').value,conf:r.querySelector('.ef-cf').value,photo});   /* [L506 · vérification adverse] une ligne neuve (base={}) sans laize mettait la chute reconstruite de TOUTE la fiche à 0 m² après upd.chuteM2=null */
+    newDetail.push({..._defs,...base,label:r.querySelector('.ef-lab').value,conf:r.querySelector('.ef-cf').value,photo});
+    { const _cb=r.querySelector('.ef-rg-cb'); const _d=newDetail[newDetail.length-1]; if(_cb){ if(_cb.checked) _d.resteGarde=true; else delete _d.resteGarde; } }   /* [L558] correction admin : ...base recopie l ancienne valeur, il faut l ecraser explicitement */   /* [L506 · vérification adverse] une ligne neuve (base={}) sans laize mettait la chute reconstruite de TOUTE la fiche à 0 m² après upd.chuteM2=null */
   });
   if(!newDetail.length){showToast('Il faut au moins une bobine.','err');return;}
   if(_multiEF){ try{ const _rg=f.refGroups; newDetail.forEach(d=>{ if(!d||typeof d.refIdx==='number') return; const g=_l506RefGroupFor(f,d); if(g){ d.refIdx=_rg.indexOf(g); if(!d.refIdKey){ try{ d.refIdKey=_l507KeyOf(g); }catch(_){ } } } }); }catch(_){ } }   /* [L507 · 6e passe adverse] une fiche éditée ne reste pas en état MIXTE (lignes anciennes sans refIdx + ligne neuve avec) : l identité est renseignée sur toutes les lignes résolubles */
@@ -19996,7 +20007,7 @@ async function exportNc(){
    Jamais un faux 0 : metrage absent ou ref irresolue -> ok=false, m² null, _l505Warn (regle 7). Remplace computePerteChute (code mort
    depuis L479/L480) et la triangulation « bords + m² utiles × % » du mois (L480). Le moteur gele n est PAS touche (calcStats est LU). */
 function _l513Matiere(f){
-  const R={perteM2:null,chutesM2:null,dechetM2:null,m2Coupes:null,clientM2:null,surplusM2:null,surplusInc:0,lamesM2:null,bordsM2:null,resteM2:null,recutM2:null,ok:false,calcWarn:0,regleVer:'L513'};   /* [L526 · demande Celine 16/09] decomposition de la PERTE : traits de lame / bords / laize restante non gardee (+ residu des rouleaux recoupes). Memes gardes, meme perimetre keepNc, meme arrondi r1 que perteM2 : lamesM2+bordsM2+resteM2 === perteM2 PAR CONSTRUCTION. _l513Matiere n est PAS gelee (engine_identity.js ne fige que calcStats parmi les briques matiere) ; le moteur reste LU. */
+  const R={perteM2:null,chutesM2:null,dechetM2:null,m2Coupes:null,clientM2:null,surplusM2:null,surplusInc:0,lamesM2:null,bordsM2:null,resteM2:null,recutM2:null,resteGardeN:0,resteGardeM2:null,ok:false,calcWarn:0,regleVer:'L513'};   /* [L526 · demande Celine 16/09] decomposition de la PERTE : traits de lame / bords / laize restante non gardee (+ residu des rouleaux recoupes). Memes gardes, meme perimetre keepNc, meme arrondi r1 que perteM2 : lamesM2+bordsM2+resteM2 === perteM2 PAR CONSTRUCTION. _l513Matiere n est PAS gelee (engine_identity.js ne fige que calcStats parmi les briques matiere) ; le moteur reste LU. */
   try{
     const det=(f&&f.ficheDetail)||[]; const multi=Array.isArray(f.refGroups)&&f.refGroups.length>0;
     const mlOf=v=>parseFloat(String(v==null?'':v).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.'));
@@ -20017,7 +20028,8 @@ function _l513Matiere(f){
     const lisible=fd=>{ const p=Array.isArray(fd.pattern)?fd.pattern:parseConf(fd.conf||''); return p.length>0; };
     const lastByRef={}; det.forEach((fd,i)=>{ if(!keep(fd)||fd.recut||!lisible(fd)) return; const bk=bucket(fd); if(bk!=null) lastByRef[bk]=i; });   /* la DERNIERE ligne lisible de chaque ref porte le solde, quel que soit son libelle (terrain) */
     const lastIdx=new Set(Object.values(lastByRef));
-    let perte=0,chutes=0,dechet=0,coupes=0,client=0,ok=true,nKept=0,pLames=0,pBords=0,pReste=0,pRecut=0,pSurplus=0,nSurplusInc=0;   /* [L526] chaque `perte+=` a son jumeau : pLames+pBords+pReste === perte par construction (matiere_l513_test bloc 17) */
+    let perte=0,chutes=0,dechet=0,coupes=0,client=0,ok=true,nKept=0,pLames=0,pBords=0,pReste=0,pRecut=0,pSurplus=0,nSurplusInc=0;
+    let rgN=0,rgM2=0;   /* [L558 · contre-lecture] restes gardes par l operateur qui CHANGENT le calcul (ni derniere bobine de sa ref, ni fin de phase, ni ✂ Chutes NC) : papier, et plafond des bobineaux hors commande (L559) */   /* [L526] chaque `perte+=` a son jumeau : pLames+pBords+pReste === perte par construction (matiere_l513_test bloc 17) */
     det.forEach((fd,i)=>{
       if(!keepNc(fd)) return;
       if(fd.actDechet===true&&typeof ncLoss==='function'){ const nd=ncLoss(f,fd); if(nd&&nd.m2>0){ dechet+=nd.m2; } }   /* dechet NC d abord : compte meme si la configuration est illisible */
@@ -20035,7 +20047,8 @@ function _l513Matiere(f){
       perte+=lames*k; pLames+=lames*k;
       if(fd.recut){ perte+=w*k; pReste+=w*k; }
       else { nKept++; coupes+=c.mother*k; perte+=c.edge*k; pBords+=c.edge*k; client+=laizes*k;
-             if(fd.actChutes||fd.phaseEnd||lastIdx.has(i)) chutes+=w*k; else { perte+=w*k; pReste+=w*k; } }
+             if(fd.resteGarde===true&&!fd.actChutes&&!fd.phaseEnd&&!lastIdx.has(i)){ rgN++; rgM2+=w*k; }
+             if(fd.actChutes||fd.phaseEnd||fd.resteGarde===true||lastIdx.has(i)) chutes+=w*k; else { perte+=w*k; pReste+=w*k; }   /* [L558] reste GARDE par l operateur = chute gardee (decision Celine 28/10) */ }
       if(fd.recut){ let _nc28=0; if((fd.actDechet===true||fd.actChutes===true)&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0) _nc28=n.m2; } pRecut+=Math.max(0,laizes*k-_nc28); }   /* [L528 · decision Celine 17/09] m² LIVRES depuis les rouleaux ♻ : bobineaux coupes dans le rouleau, MOINS ceux jetes (🗑) ou gardes en stock (✂) — jamais credites dans clientM2 (regle L513 inchangee : colonne « m² decoupes et livres » du CSV par commande = bobines meres seules) ; exposes A PART (recutM2) pour « tout ce qui part chez le client » */
       if(fd.ncQty&&!fd.ncLarg&&!fd.ncCasse&&!fd.ncAng&&!fd.ncHum&&!fd.actAccept&&typeof ncLoss==='function'){ let q=null; const _st30=(Array.isArray(fd.ncLots)&&fd.ncLots.some(function(x){ return (parseNum(x&&x.q)||0)>0&&(parseNum(x&&x.w)||0)>0; }))||((parseNum(fd.ncQtyVal)||0)>0&&(parseNum(fd.ncWidthVal)||0)>0);   /* [revue adverse] saisie STRUCTUREE seulement (lots L408, quantite × largeur L400) : un commentaire libre « 2x65 en trop sur 13x65 » contient deux « q×w » et retirait toute la ligne */
         if(_st30) try{ const _pl=fd.ncLarg; fd.ncLarg=true; try{ q=ncLoss(f,fd); }finally{ if(_pl===undefined) delete fd.ncLarg; else fd.ncLarg=_pl; } }catch(_e){ q=null; }
@@ -20046,7 +20059,7 @@ function _l513Matiere(f){
     if(!nKept&&(Number(f.totalBobines)||0)>0){ ok=false; warn('detail',new Error('fiche avec bobines mais sans configuration lisible')); }   /* jamais un faux 0 : des bobines archivees sans detail exploitable = inconnu, pas 0 m² */
     if(!ok){ R.dechetM2=Math.round(dechet*10)/10; return R; }   /* [revue adversariale L513] perte/chutes/m² inconnus (null) MAIS le dechet NC — seul indicateur ISO — est rendu : il ne depend pas des configurations */
     const r1=x=>Math.round(x*10)/10;
-    return Object.assign(R,{perteM2:r1(perte),chutesM2:r1(chutes),dechetM2:r1(dechet),m2Coupes:Math.round(coupes),clientM2:r1(client),surplusM2:r1(pSurplus),surplusInc:nSurplusInc,lamesM2:r1(pLames),bordsM2:r1(pBords),resteM2:r1(pReste),recutM2:r1(pRecut),ok:true});
+    return Object.assign(R,{perteM2:r1(perte),chutesM2:r1(chutes),dechetM2:r1(dechet),m2Coupes:Math.round(coupes),clientM2:r1(client),surplusM2:r1(pSurplus),surplusInc:nSurplusInc,lamesM2:r1(pLames),bordsM2:r1(pBords),resteM2:r1(pReste),recutM2:r1(pRecut),resteGardeN:rgN,resteGardeM2:r1(rgM2),ok:true});
   }catch(e){ try{ _l505Warn('l513·matiere',e); }catch(_){ } R.calcWarn++; return R; }
 }
 /* Un seul point de lecture : l instantane pose a l envoi (f.mat) s il est de la regle courante, sinon calcul vif (fiches anterieures a L513). */
@@ -20430,7 +20443,7 @@ function _l528ChiffresBlock(note){
 /* Signature « matiere » d une fiche editee par l admin : si elle ne change pas (client, n° de commande, date, lame, photo...),
    l instantane n est PAS recalcule — un m² ne bouge que si une configuration, une bobine ou une action NC change. */
 function _l513MatSig(f,det){ try{ return JSON.stringify({ rg:(f.refGroups||[]).map(g=>[g.mother,g.edge,g.longueur]), mo:f.mother, us:f.useful, bl:f.blade, lg:f.longueur, mm:!!f.manqueMatiere,
-  d:(det||[]).map(fd=>[fd.conf,!!fd.recut,fd.rollW,!!fd.phaseEnd,fd.refIdx,fd.refIdKey,fd.useful,fd.blade,!!fd.actDechet,!!fd.actChutes,!!fd.actAccept,fd.ncLots,fd.ncQtyVal,fd.ncWidthVal,fd.ncDetail,!!fd.coupee]) }); }catch(e){ return String(Math.random()); } }
+  d:(det||[]).map(fd=>[fd.conf,!!fd.recut,fd.rollW,!!fd.phaseEnd,fd.refIdx,fd.refIdKey,fd.useful,fd.blade,!!fd.actDechet,!!fd.actChutes,!!fd.actAccept,!!fd.resteGarde,fd.ncLots,fd.ncQtyVal,fd.ncWidthVal,fd.ncDetail,!!fd.coupee]) }); }catch(e){ return String(Math.random()); } }
 /* Adaptateurs : la MEME definition pour le plan automatique, le plan manuel et le volet de cloture, sans dupliquer le calcul.
    Plan auto : pseudo-fiche batie depuis les groupes CALCULES (refGroups = les memes blocs, index alignes : refIdx = index du bloc). */
 function _l513FicheFromPlan(computed){ const cs=(computed||[]); const det=[];
@@ -20545,8 +20558,10 @@ function buildFichePrintHTML(d){
         let chutesLbl='aucune';
         try{ const gs9=Array.isArray(f.groups)?f.groups:[]; const w9=gs9.length?(parseNum(gs9[gs9.length-1].waste)||0):0;
              const _rec9=String(gs9.length?(gs9[gs9.length-1].label||''):'').indexOf('♻')>=0;   /* residu de rouleau recoupe = PERTE, pas une chute */
-             if(w9>0&&!_rec9) chutesLbl='1 bobineau '+fmt(w9)+' mm'+(lg9?' × '+fmt(lg9)+' m':'')
-               +((_m13.ok&&_m13.chutesM2>0)?(' (total chutes gardées : '+_l513M2(_m13.chutesM2)+' m²)'):''); }catch(_){ }   /* [L513] m² des chutes gardées depuis la source unique — TOTAL de la fiche (solde + fins de phase + NC en chutes), le libellé le dit (revue adversariale) */
+             const _ng=(_m13&&_m13.ok&&_m13.resteGardeN>0)?_m13.resteGardeN:0;   /* [L558 · contre-lecture] restes gardes qui CHANGENT le calcul, depuis la source unique (jamais la derniere bobine ni une fin de phase, deja soldes) */
+             const _tot=(_m13.ok&&_m13.chutesM2>0)?(' (total chutes gardées : '+_l513M2(_m13.chutesM2)+' m²)'):'';
+             if(w9>0&&!_rec9) chutesLbl='1 bobineau '+fmt(w9)+' mm'+(lg9?' × '+fmt(lg9)+' m':'')+(_ng?(' + '+_ng+' reste(s) gardé(s)'):'')+_tot;
+             else if(_ng) chutesLbl=_ng+' reste(s) gardé(s)'+_tot; }catch(_){ }   /* [L513] m² des chutes gardées depuis la source unique — TOTAL de la fiche (solde + fins de phase + NC en chutes), le libellé le dit (revue adversariale) */
         return `<div class="sub" style="margin-top:4px">🗑 Perte : <b style="color:var(--red)">${_l513M2(perteM2)} m²</b> · Déchet (NC) : <b style="color:var(--red)">${_l513M2(dechetM2)} m²</b> · ✂ Chutes gardées : <b style="color:#f59e0b">${chutesLbl}</b></div>`;
       }catch(e){ return ''; }})()}<!-- [L479] vocabulaire ACTE : Perte / Dechet (NC) / Chutes gardees en « N bobineaux × largeur × longueur » -->
       ${(()=>{const cs=f.chutesStock||{};const ks=Object.keys(cs);if(!ks.length)return '';const lbl=ks.map(w=>cs[w]+'×'+fmt(Number(w))).join(' + ');return `<div style="margin-top:8px;border:2px solid #f59e0b;background:#fff7e6;border-radius:8px;padding:9px 12px;color:#7a5200;font-size:13px;font-weight:600">✂ Chutes en stock utilisées : <b style="color:#b45309">${lbl} mm</b> — bobineaux prélevés du stock, non découpés sur bobine mère.</div>`;})()}
@@ -20765,7 +20780,7 @@ function showFicheDetail(id,autoPrint,cliFilter,dossier){
         <td style="padding:10px 12px;font-family:monospace;font-size:13px">${isLegrandFr?esc(_l518Label(labelLegrand(g.label))):esc(_l518Label(g.label))}</td><!-- [L518] archive intacte, reformatee a l impression -->
         ${multiCli?`<td style="padding:10px 12px;font-size:12px">${cliCellPdf(fd)}</td>`:''}
         <td style="padding:10px 12px;text-align:right;color:#60a5fa;white-space:nowrap">${g.total} mm</td>
-        <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${(isLast&&k===g.count-1)?'Solde ':'Perte '}${g.waste} mm</td><!-- [L518] meme predicat que [SOLDE] -->
+        <td style="padding:10px 12px;text-align:right;color:#888;white-space:nowrap">${(isLast&&k===g.count-1)?'Solde ':((fd&&fd.resteGarde===true&&!fd.recut&&!fd.phaseEnd&&!fd.actChutes&&fd.coupee!==false)?'Chute ':'Perte ')}${g.waste} mm</td><!-- [L518] meme predicat que [SOLDE] · [L558] « Chute » si le reste est garde (decision du 28/10, responsable qualite : papier ok) -->
         <td style="padding:10px 12px">${etiq}</td>
         <td style="padding:10px 12px">${photoCell}</td>
         <td style="padding:10px 12px">${test2}</td>
@@ -22582,7 +22597,8 @@ function addFicheLine(data){
     // Marqueur bobine ROULEAU CHUTE : permet au ♻ Recalculer de savoir quels
     // rouleaux saisis sont déjà consommés par des bobines figées (coupées).
     recut:!!data.recut, rollW:data.rollW||0,
-    phaseEnd:!!data.phaseEnd});   // [L103 · audit-max] fin de phase (plan phasé ≤4 palettes) : reste à CONSERVER — porté par la ligne pour l'étiquette solde
+    phaseEnd:!!data.phaseEnd,
+    resteGarde:!!data.resteGarde, resteGardeConf:(data.resteGarde?_l558Conf(data.conf):'')});   /* [L558 · decision Celine 28/10] reste de laize GARDE par l operateur (sans NC) : chute gardee, pas perte ; lie a la configuration du moment (retire si elle change) */   // [L103 · audit-max] fin de phase (plan phasé ≤4 palettes) : reste à CONSERVER — porté par la ligne pour l'étiquette solde
   const div=document.createElement('div');
   div.className='fiche-line'+machineCls(data.machine);div.id=id;
   if(data.rattrapage){ div.style.borderColor='#caa15a'; div.style.background='rgba(245,158,11,0.05)'; }
@@ -22831,6 +22847,7 @@ function coupeeTapOne(id){
   }
   toggleCoupee(id);
   const cutNow=line.classList.contains('coupee');
+  try{ if(!already&&cutNow&&typeof _l558Rappel==='function'&&(typeof _isLandscapeFiche!=='function'||_isLandscapeFiche())){ const _r=_l558Rappel(id); if(_r>0) showToast('🟠 Reste '+fmt(_r)+' mm non gardé = compté en PERTE. Tu peux encore le garder à la fin, dans l’écran CONFIRMER (encadré orange).',null,8000); } }catch(e){}   /* [L558 · decision Celine 28/10 : rappel, jamais bloquant · contre-lecture : apres la coupe REELLE (pas avant un refus), paysage seulement (regle 3), 8 s] */
   if((setD||setR)&&!cutNow){
     // refus d'une garde (chrono, champ manquant…) → rollback des coches automatiques
     if(setD&&d) d.checked=false;
@@ -24130,12 +24147,94 @@ function _l353Overflow(id){ try{ const l=(typeof ficheLines!=='undefined')?fiche
 function _l516EstSolde(l){ try{
   if(!l||l.recut) return false;
   if(l.actChutes===true) return true;   /* [L521 · audit adverse] parite avec la regle L513 (actChutes || phaseEnd || derniere) : une bobine dont l operateur a choisi ✂ Chutes est comptee en CHUTES GARDEES dans les m² — la pastille doit dire SOLDE, pas PERTE */
+  if(l.resteGarde===true) return true;   /* [L558 · decision Celine 28/10] reste garde par l operateur (sans NC) = chute gardee, meme parite que la regle L513 */
   try{ const _b=(typeof document!=='undefined')?document.getElementById('act_chutes_'+l.id):null; if(_b&&_b.classList.contains('btn-orange')) return true; }catch(_){ }   /* meme lecture qu a l envoi (getFicheLinesData) */
   if(l.phaseEnd) return true;
   const k=_refKeyOf(l); let last=null;
   (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(x){ if(x&&_refKeyOf(x)===k) last=x; });
   return !!last&&last.id===l.id;
 }catch(e){ return false; } }
+/* [L558 · decision Celine 28/10] Etat ETENDU de la pastille (pur, testable) : over > GARDE (reste garde par l operateur) > solde > RAPPEL (reste >= seuil
+   non garde : orange + bouton « ✂ Chute gardée ») > neutre. _l516ChipEtat reste intacte (signature verrouillee par le gardien, perte_l516_test). */
+function _l558Etat(waste,solde,garde,seuil){
+  const S=(typeof seuil==='number'&&isFinite(seuil))?seuil:PERTE_LAIZE_ALERTE_MM; const mm=fmt(Math.abs(waste))+' mm';
+  if(waste<-0.5) return {cls:'over',label:'⚠ DÉPASSE '+mm};
+  if(garde) return {cls:'chute',label:'GARDÉ '+mm};
+  if(solde) return {cls:'solde',label:'SOLDE '+mm};
+  if(waste>=S) return {cls:'rappel',label:'PERTE '+mm};
+  return {cls:'',label:'PERTE '+mm};
+}
+/* [L558 · decision Celine 28/10 · contre-lecture 3 angles] Comparaison du marquage : configuration normalisee SANS espaces (retaper
+   « 5×80+3×50 » au lieu de « 5×80 + 3×50 » ne fait pas tomber le drapeau). normConf (partagee) n est pas touchee. */
+function _l558Conf(c){ return normConf(c||'').replace(/\s+/g,''); }
+/* PUR : le drapeau d une ligne est-il VALIDE ? (pose, pas un rouleau ♻, et la configuration du champ est encore celle du marquage ; sans champ —
+   tests, ligne hors DOM — le drapeau fait foi). Predicat UNIQUE pour l envoi, le brouillon, le partage, la pastille et le recap. */
+function _l558Garde(L){ try{
+  if(!L||L.recut||L.resteGarde!==true) return false;
+  if(typeof document==='undefined') return true;
+  const el=document.getElementById('flConf_'+L.id); if(!el) return true;
+  return _l558Conf(el.value||'')===(L.resteGardeConf||'');
+}catch(e){ return false; } }
+/* Drapeau PERIME (configuration changee depuis le marquage) → il tombe, le rappel revient — pour TOUTE bobine, pas seulement celle en cours. */
+function _l558Purge(L){ try{ if(L&&L.resteGarde===true&&!_l558Garde(L)){ L.resteGarde=false; L.resteGardeConf=''; return true; } return false; }catch(e){ return false; } }
+/* Lecture d une bobine mere (calcStats LU, moteur gele intact) : reste (mm), depassement, solde par la REGLE (derniere de sa ref / fin de phase /
+   ✂ Chutes NC — SANS le drapeau : l etiquette solde prime, le drapeau n y change rien), garde valide. null si ♻ ou configuration illisible. */
+function _l558Lire(id){ try{
+  const L=(typeof ficheLines!=='undefined'?ficheLines:[]).find(function(x){ return x&&x.id===id; }); if(!L||L.recut) return null;
+  const conf=(document.getElementById('flConf_'+id)||{}).value||''; const pieces=parseConf(conf); if(!pieces.length) return null;
+  const useful=(L.useful>0)?L.useful:((typeof getUseful==='function')?getUseful():0); const blade=(typeof L.blade==='number')?L.blade:((typeof getBlade==='function')?getBlade():0); if(!(useful>0)) return null;
+  const w=useful-calcStats(pieces,blade).total;
+  _l558Purge(L);
+  const soldeRegle=_l516EstSolde(Object.assign({},L,{resteGarde:false}));
+  return {L:L,w:w,over:w<-0.5,soldeRegle:soldeRegle,garde:!soldeRegle&&L.resteGarde===true};
+}catch(e){ return null; } }
+/* Pose / retire le reste garde — IDEMPOTENT (un double appui ne bascule pas deux fois). Jamais sur un rouleau ♻, jamais sur une bobine coupee par
+   un COLLEGUE (sa trace « coupee par » reste la sienne : c est lui qui garde ou non), jamais sur une bobine deja solde par la regle. Memorise la
+   configuration du marquage, rafraichit la pastille, republie le partage (bobine coupee par moi), brouillon auto. */
+function _l558Set(id,on){ try{
+  const L=(typeof ficheLines!=='undefined'?ficheLines:[]).find(function(x){ return x&&x.id===id; }); if(!L||L.recut) return false; on=!!on;
+  const el=document.getElementById(id); if(el&&el.classList.contains('coupee-other')){ try{ showToast('🔒 Bobine coupée par un collègue : c’est lui qui garde (ou non) son reste.','err'); }catch(_){ } return false; }
+  const x=_l558Lire(id); if(on&&x&&x.soldeRegle){ try{ showToast('Cette bobine est déjà un SOLDE (dernière de sa référence ou fin de phase) : étiquette solde, rien à garder en plus.'); }catch(_){ } return false; }
+  if(on===(L.resteGarde===true)) return on;
+  if(on){ L.resteGarde=true; L.resteGardeConf=_l558Conf((document.getElementById('flConf_'+id)||{}).value||''); try{ showToast('✂ Reste gardé : compté en chute gardée, pas en perte (pas d\'étiquette).','ok'); }catch(_){ } }
+  else { L.resteGarde=false; L.resteGardeConf=''; try{ showToast('Reste de la bobine à nouveau compté en PERTE.'); }catch(_){ } }
+  try{ _l340RenderChuteChip(); }catch(_){ } try{ if(typeof _l426ShareRepub==='function') _l426ShareRepub(id); }catch(_){ } try{ if(typeof autosaveDraftTick==='function') autosaveDraftTick(); }catch(_){ }
+  return !!L.resteGarde;
+}catch(e){ return false; } }
+/* Bouton de la note (« ✂ Chute gardée » / « annuler ») : bascule = Set(!etat). */
+function _l558Toggle(id){ try{ const L=(typeof ficheLines!=='undefined'?ficheLines:[]).find(function(x){ return x&&x.id===id; }); if(!L||L.recut) return false; return _l558Set(id,!(L.resteGarde===true)); }catch(e){ return false; } }
+/* Reste (mm) d une bobine si elle appelle le RAPPEL (>= seuil, pas solde par la regle, pas gardee, pas depassee, pas ♻), sinon 0. */
+function _l558Rappel(id){ try{ const x=_l558Lire(id); if(!x||x.over||x.soldeRegle||x.garde) return 0; return (x.w>=PERTE_LAIZE_ALERTE_MM)?x.w:0; }catch(e){ return 0; } }
+/* Candidats du recap de cloture : bobines coupees PAR MOI (jamais coupee-other), non ♻, non solde par la regle, reste >= seuil OU deja gardees :
+   [{id,n,w,garde,lbl}] — lbl = numero RELATIF a la reference comme la carte (_l554PosDe), prefixe de la ref + rang global en multi-ref (lien avec le papier). */
+function _l558Candidats(){ try{ const out=[]; (typeof ficheLines!=='undefined'?ficheLines:[]).forEach(function(L,i){
+  if(!L||L.recut) return; const el=document.getElementById(L.id); if(!el||!el.classList.contains('coupee')||el.classList.contains('coupee-other')) return;
+  const x=_l558Lire(L.id); if(!x||x.over||x.soldeRegle) return; if(!x.garde&&x.w<PERTE_LAIZE_ALERTE_MM) return;
+  const ref=(typeof _l554RefDe==='function')?_l554RefDe(L.id):''; const pos=(typeof _l554PosDe==='function')?_l554PosDe(L.id):('bobine '+(i+1));
+  out.push({id:L.id,n:i+1,w:x.w,garde:x.garde,lbl:ref+pos+(ref?(' (n° '+(i+1)+')'):'')}); }); return out; }catch(e){ return []; } }
+function _l558NonGardes(){ try{ return _l558Candidats().filter(function(c){ return !c.garde; }); }catch(e){ return []; } }
+/* Encadre orange du volet de cloture : rendu PUR ('' si rien, ou en portrait — regle 3 : portrait = ecran historique ; tablettes toujours en
+   paysage, decision Celine 28/10). Chaque bobine garde SA place (« ✂ garder » ou « ✓ … gardé · annuler ») : rien ne disparait sous le doigt. */
+function _l558VoletHtml(){ try{
+  if(typeof _isLandscapeFiche==='function'&&!_isLandscapeFiche()) return '';
+  const C=_l558Candidats(); if(!C.length) return '';
+  const ng=C.filter(function(c){ return !c.garde; }).length;
+  return '<div id="l558Volet" style="margin:0 0 10px;padding:10px 12px;border:2px solid #92400e;border-radius:9px;background:#2a1d0e;color:var(--orange);font-weight:800;font-size:14px">✂ '
+    +(ng?(ng+' bobine(s) avec un reste de '+PERTE_LAIZE_ALERTE_MM+' mm ou plus non gardé (compté en perte) <span style="font-weight:600;font-size:12.5px">— garde-le si tu l’as mis sur palette (pas d’étiquette) :</span>'):'Reste(s) gardé(s) : compté(s) en chute gardée, pas en perte (pas d’étiquette) <span style="font-weight:600;font-size:12.5px">— « annuler » si tu l’as jeté :</span>')
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'
+    +C.map(function(c){ return c.garde
+      ?('<span style="display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 10px;border:1.5px solid #f5b301;border-radius:8px;color:#f5b301;font-weight:700">✓ '+esc(c.lbl)+' · '+fmt(c.w)+' mm gardé <button type="button" class="btn btn-sm" style="min-height:40px;border-color:#f5b301;color:#f5b301" onclick="_l558VoletSet(\''+c.id+'\',false)">annuler</button></span>')
+      :('<button type="button" class="btn btn-sm" style="min-height:44px;border-color:var(--orange);color:var(--orange)" onclick="_l558VoletSet(\''+c.id+'\',true)">'+esc(c.lbl)+' · '+fmt(c.w)+' mm → ✂ garder</button>'); }).join('')
+    +'</div></div>';
+}catch(e){ return ''; } }
+/* Appui dans l encadre : pose / retire (idempotent) puis re-rend l ENCADRE SEUL (jamais toute la cloture : ses gardes ne sont pas relancees, le
+   volet reste ouvert, les positions ne bougent pas). Anti-rebond 500 ms contre le double appui. */
+let _l558VoletT=0;
+function _l558VoletSet(id,on){ try{
+  const now=Date.now(); if(now-_l558VoletT<500) return; _l558VoletT=now;
+  _l558Set(id,on);
+  const box=document.getElementById('l558Volet'); if(box){ const h=_l558VoletHtml(); if(h) box.outerHTML=h; else box.remove(); }
+}catch(e){} }
 /* Etat de la pastille (pur, testable) : over > solde > perte (>= seuil) > neutre. label = texte affiche. */
 function _l516ChipEtat(waste,solde,seuil){
   const S=(typeof seuil==='number'&&isFinite(seuil))?seuil:PERTE_LAIZE_ALERTE_MM; const mm=fmt(Math.abs(waste))+' mm';
@@ -24157,16 +24256,25 @@ function _l340RenderChuteChip(){ try{
   const pieces=parseConf(conf); if(!pieces.length){ if(chip) chip.remove(); const _n1=cur.querySelector('.l516-note'); if(_n1) _n1.remove(); return; }
   const waste=useful-calcStats(pieces,blade).total;
   if(!chip){ chip=document.createElement('span'); chip.className='fl-chute'; const hd=cur.querySelector('.fiche-line-header'); if(hd) hd.appendChild(chip); else cur.appendChild(chip); }
-  const _solde=_l516EstSolde(l); const _e=_l516ChipEtat(waste,_solde,PERTE_LAIZE_ALERTE_MM);   /* [L516] PERTE / SOLDE / ⚠ DÉPASSE — même tolérance 0,5 mm que _l353Overflow (chip et confirm disent la même chose) */
+  const _x=(l&&!l.recut)?_l558Lire(id):null;   /* [L558 · contre-lecture] lecture UNIQUE : purge du drapeau perime, solde de la REGLE (sans le drapeau), garde valide */
+  const _garde=!!(_x&&_x.garde); const _solde=_x?_x.soldeRegle:_l516EstSolde(l);
+  const _e=(l&&l.recut)?_l516ChipEtat(waste,false,PERTE_LAIZE_ALERTE_MM):_l558Etat(waste,_solde,_garde,PERTE_LAIZE_ALERTE_MM);   /* rouleau ♻ : etat L516 historique (rouge, note sans bouton — un rouleau n est jamais une chute gardee) ; bobine mere : etat etendu */   /* [L516→L558] PERTE / SOLDE / GARDÉ / ⚠ DÉPASSE — même tolérance 0,5 mm que _l353Overflow (chip et confirm disent la même chose) */
   chip.textContent=_e.label;
-  chip.title=(_e.cls==='over')?'La configuration dépasse la laize utile':(_e.cls==='solde')?'Chute GARDÉE : dernière bobine de cette référence ou fin de phase — étiquette solde':(_e.cls==='perte')?'PERTE : laize restante non gardée — VOIR '+_l543PilotNom()+' : laize réutilisable ?':'PERTE : laize restante non gardée';
+  /* [L558 · contre-lecture] (ancien chip.title retire : il etait ecrase plus bas par l infobulle Σ laizes) */
   chip.classList.toggle('over',_e.cls==='over');
   chip.classList.toggle('solde',_e.cls==='solde');
   chip.classList.toggle('perte',_e.cls==='perte');
+  chip.classList.toggle('rappel',_e.cls==='rappel'); chip.classList.toggle('chute',_e.cls==='chute');   /* [L558] orange = reste >= seuil non garde ; ambre = reste garde */
   /* [L516 · formulation retenue par Celine] la consigne VISIBLE (pas seulement une infobulle) vit sur une ligne sous la CONFIGURATION :
      la pastille est nowrap avec ~150 px de budget (lecon L509), le texte y aurait masque la configuration. */
   let note=cur.querySelector('.l516-note');
-  if(_e.cls==='perte'){ if(!note){ note=document.createElement('div'); note.className='l516-note'; const fld=cur.querySelector('.fiche-grid>.field:has([id^="flConf_"])'); if(fld) fld.appendChild(note); else cur.appendChild(note); }   /* sous la configuration (le header est en position:absolute : apres lui, la note chevauchait la pastille BOBINE n/T) */ note.textContent='⚠ PERTE '+fmt(Math.abs(waste))+' mm · VOIR '+_l543PilotNom()+' : laize réutilisable ?'; }
+  if(_e.cls==='rappel'||_e.cls==='chute'||_e.cls==='perte'){ if(!note){ note=document.createElement('div'); note.className='l516-note'; const fld=cur.querySelector('.fiche-grid>.field:has([id^="flConf_"])'); if(fld) fld.appendChild(note); else cur.appendChild(note); }   /* sous la configuration (le header est en position:absolute : apres lui, la note chevauchait la pastille BOBINE n/T) */
+    note.classList.toggle('l558-rappel',_e.cls==='rappel'); note.classList.toggle('l558-garde',_e.cls==='chute');
+    /* [L558 · decision Celine 28/10] seuil 20 mm (PERTE_LAIZE_ALERTE_MM) : RAPPEL ORANGE + bouton « ✂ Chute gardée » (sans NC) ; marque : GARDÉ + annuler. Jamais bloquant. */
+    if(_e.cls==='perte'){ note.textContent='⚠ PERTE '+fmt(Math.abs(waste))+' mm · VOIR '+_l543PilotNom()+' : laize réutilisable ?'; }   /* rouleau ♻ : note L516 historique, SANS bouton (jamais un tap mort, doctrine L288) */
+    else note.innerHTML=(_e.cls==='rappel')
+      ?('⚠ RESTE '+fmt(Math.abs(waste))+' mm · VOIR '+_l543PilotNom()+' : laize réutilisable ?'+' <button type="button" class="l558-btn" onclick="_l558Toggle(\''+id+'\')" aria-label="Garder ce reste comme chute">✂ Chute gardée</button>')
+      :('✂ RESTE GARDÉ '+fmt(Math.abs(waste))+' mm — compté en chute gardée, pas en perte (pas d’étiquette)'+' <button type="button" class="l558-btn" onclick="_l558Toggle(\''+id+'\')" aria-label="Annuler : compter ce reste en perte">annuler</button>'); }
   else if(note) note.remove();
   /* [L514 · signalements JF 08/09 « le logiciel dit 1000 mm de découpé, en réalité 920 » / « si je change à la main cela écrit défaut »]
      le chiffre que l opérateur ne retrouvait pas sur son rouleau = la PERTE DE LAME du plan (5 mm × 15 coupes = 75 mm), paramètre
@@ -25103,8 +25211,9 @@ function _syncSharedApply(doc){
     const ae=document.activeElement;
     const editedLine=ae?ae.closest('.fiche-line'):null;
     if(editedLine){ const l=(Array.isArray(ficheLines)?ficheLines:[]).find(function(x){return x&&x.id===editedLine.id;});
-      if(l&&!editedLine.classList.contains('coupee-other')){ const lbl=_shareLineLabel(l.id); if(lbl){ const q=_shareQualityRead(l.id); if(q.larg||q.qty||q.casse||q.ang||q.hum||q.devi||q.droit||q.t2nc||(q.det||'').trim()||q.act) _prevQ[lbl]=q;   /* [L440 · audit #1] q.hum manquait : une coche « Humain » en cours chez le destinataire etait effacee par le push de l'emetteur */ } } }
+      if(l&&!editedLine.classList.contains('coupee-other')){ const lbl=_shareLineLabel(l.id); if(lbl){ const q=_shareQualityRead(l.id); if(q.larg||q.qty||q.casse||q.ang||q.hum||q.devi||q.droit||q.t2nc||(q.det||'').trim()||q.act||q.rg) _prevQ[lbl]=q;   /* [L440 · audit #1] q.hum manquait : une coche « Humain » en cours chez le destinataire etait effacee par le push de l'emetteur */ } } }
   }catch(e){}
+  const _prevRg={}; try{ (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l){ const line=document.getElementById(l.id); if(!line||line.classList.contains('coupee-other')) return; if(typeof _l558Garde==='function'&&_l558Garde(l)){ const lbl=_shareLineLabel(l.id); if(lbl) _prevRg[lbl]=true; } }); }catch(e){}   /* [L558 · contre-lecture] le « ✂ Chute gardée » pose chez le destinataire AVANT la coupe survit au rafraichissement du miroir (toutes ses lignes non verrouillees, pas seulement celle qui a le focus) */
   try{ restoreFicheState(_shareCloneForReceiver(doc.state)); }
   catch(e){ console.warn('Miroir live :',e); return; }
   try{ restoreChrono(_prevChrono); }catch(e){}
@@ -25114,6 +25223,7 @@ function _syncSharedApply(doc){
   try{ applySharedCuts(doc.cuts||{}); }catch(e){}
   // [L168 · audit #14] restaurer la saisie locale préservée sur les lignes que le destinataire peut éditer.
   try{ (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l){ const line=document.getElementById(l.id); if(!line||line.classList.contains('coupee-other')) return; const lbl=_shareLineLabel(l.id); if(lbl&&_prevQ[lbl]) _shareQualityApply(l.id,_prevQ[lbl]); }); }catch(e){}
+  try{ (Array.isArray(ficheLines)?ficheLines:[]).forEach(function(l){ const line=document.getElementById(l.id); if(!line||line.classList.contains('coupee-other')||l.recut) return; const lbl=_shareLineLabel(l.id); if(lbl&&_prevRg[lbl]&&l.resteGarde!==true){ l.resteGarde=true; l.resteGardeConf=_l558Conf((document.getElementById('flConf_'+l.id)||{}).value||''); } }); try{ _l340RenderChuteChip(); }catch(_){ } }catch(e){}   /* [L558] idem pour le reste garde */
   refreshShareReception();
 }
 
@@ -25139,7 +25249,8 @@ function _shareQualityRead(id){
     if(d&&d.classList.contains('btn-red'))return'dechet'; if(c&&c.classList.contains('btn-orange'))return'chutes'; if(a&&a.classList.contains('btn-green'))return'accept'; return'';})();
   const det=document.getElementById('nc_detail_'+id);
   return {larg:ck('larg'),qty:ck('qty'),casse:ck('casse'),ang:ck('ang'),hum:ck('hum'),det:(det?det.value||'':''),devi:cb2('flDevi'),droit:cb2('flDroit'),t2nc:cb2('flTest2nc'),act:act,
-    lots:(typeof _l408NcLots==='function')?_l408NcLots(id):[]};   /* [L426 · audit doubles comptages] le CHIFFRAGE de la NC voyage : sans lui l'emetteur comptait la bobine ENTIERE au rebut (15/30 au lieu de 29/30) */
+    lots:(typeof _l408NcLots==='function')?_l408NcLots(id):[],
+    rg:(function(){ try{ const L=ficheLines.find(function(x){ return x&&x.id===id; }); return !!(L&&typeof _l558Garde==='function'&&_l558Garde(L)); }catch(e){ return false; } })()};   /* [L558] le reste garde (VALIDE) voyage avec la qualite (c est l emetteur qui envoie la fiche) · [L426 · audit doubles comptages] le CHIFFRAGE de la NC voyage : sans lui l'emetteur comptait la bobine ENTIERE au rebut (15/30 au lieu de 29/30) */
 }
 // Application IDEMPOTENTE côté émetteur (la bobine est coupee-other, verrouillée → aucun conflit avec sa saisie).
 function _shareQualityApply(id,q){
@@ -25172,6 +25283,7 @@ function _shareQualityApply(id,q){
       dirty=true;
     }
   }catch(e){}
+  try{ if(q&&('rg' in q)){ const L=ficheLines.find(function(x){ return x&&x.id===id; }); if(L&&!L.recut&&!!L.resteGarde!==!!q.rg){ L.resteGarde=!!q.rg; L.resteGardeConf=q.rg?_l558Conf(document.getElementById('flConf_'+id)?.value||''):''; dirty=true; try{ _l340RenderChuteChip(); }catch(_){ } } } }catch(e){}   /* [L558] reste garde pose par le collegue → rejoue chez l emetteur */
   if(dirty){ try{ updateAllCumuls(); }catch(e){} }
 }
 /* [L426 · audit doubles comptages] republie la QUALITE d'une bobine deja coupee quand la NC/l'action/le
@@ -26370,6 +26482,7 @@ function restoreFicheLineFromData(ld){
     origConf:(ld.origConf!==undefined?ld.origConf:undefined), rattrapage:!!ld.rattrapage,   // [L97 · relecture #19]
     autoLabel:(ld.autoLabel!==undefined?ld.autoLabel:undefined),   // [L102 · BUG L97] étiquette AUTO (meta du gel) restaurée séparément de la saisie
     phaseEnd:!!ld.phaseEnd,   // [L103 · audit-max] fin de phase restaurée (étiquette solde)
+    resteGarde:!!ld.resteGarde,   /* [L558] reste garde restaure (brouillon / partage / reprise) */
     cliParts:Array.isArray(ld.cliParts)?ld.cliParts:null,   // [L71 · Audit B14] snapshot figé restauré (brouillon/partage)
     recut:!!ld.recut, rollW:ld.rollW||0,
     // La note turquoise des bobines rouleau est reconstruite (déterministe depuis rollW).
