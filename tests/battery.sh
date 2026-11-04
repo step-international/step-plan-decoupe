@@ -75,11 +75,11 @@ step "6. simulation (plancher 8 scenarios, jamais --n 4 : ecrase le rapport comm
 node tests/sim200.mjs --n 8 --seed 7 --multi 0.5 --url "$BAT_URL" >/tmp/_bat_$$.log 2>&1 || { tail -12 /tmp/_bat_$$.log; red "sim : sim200.mjs sort en erreur (code de sortie)"; exit 1; }
 grep -q "🏆" /tmp/_bat_$$.log || { tail -12 /tmp/_bat_$$.log; red "sim : anomalie"; exit 1; }
 # [L504] les compteurs vivent sous r.summary (lire r.n direct rendait la batterie ROUGE sur un rapport vert)
-node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if((s.withBugs||0)+(s.jsErrors||0)+(s.domGuards||0)>0||(s.n||0)<8){console.log(JSON.stringify(s));process.exit(1)} console.log('rapport relu : n='+s.n+' bugs='+(s.withBugs||0)+' errs='+(s.jsErrors||0)+' gardes='+(s.domGuards||0))"
+node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if((s.withBugs||0)+(s.jsErrors||0)+(s.domGuards||0)>0||(s.n||0)<8){console.log(JSON.stringify(s));process.exit(1)} const nn=s.n-(s.skipN||0); if((s.l559Bloc||0)!==nn||((s.l559Refus||0)+(s.l559SansReste||0))!==nn||(s.l559Oui||0)<1||(s.l559Aucun||0)<1){console.log('L559 : couverture de la question obligatoire incomplete : '+JSON.stringify({bloc:s.l559Bloc,refus:s.l559Refus,oui:s.l559Oui,aucun:s.l559Aucun,sansReste:s.l559SansReste,n:s.n,skip:s.skipN}));process.exit(1)} console.log('rapport relu : n='+s.n+' bugs='+(s.withBugs||0)+' errs='+(s.jsErrors||0)+' gardes='+(s.domGuards||0))"
 tail -1 /tmp/_bat_$$.log
 
 step "7. smokes (le capteur doit EXISTER : 0 erreur ne vaut rien si rien ne compte)"
-for s in plan fiche fiche-start fiche-cut fiche-dechet fiche-entretien fiche-reglages fiche-dossier fiche-reste donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
+for s in plan fiche fiche-start fiche-cut fiche-dechet fiche-entretien fiche-reglages fiche-dossier fiche-reste fiche-horscmd donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
   # [L506 · verification adverse] le CODE DE SORTIE juge (le || true le jetait : une smoke rouge passait verte) ; le grep n est qu un 2e filet, sentinelles de shot.mjs comprises (il echoue en francais)
   if ! node tests/shot.mjs --scene "$s" --url "$BAT_URL" --out "/tmp/_bat_${s}_$$.png" --json >"/tmp/_bat_${s}_$$.log" 2>&1; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : shot.mjs sort en erreur"; exit 1; fi
   if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_bat_${s}_$$.log"; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : sentinelle d erreur dans la sortie"; exit 1; fi

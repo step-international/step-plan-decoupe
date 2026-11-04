@@ -25,7 +25,7 @@ const CHARGEES=[]; ['parseNum','parseConf','calcStats','_refIdKey','_refKeyOf','
 ok(CHARGEES.length===29,'29 fonctions VRAIES extraites du source → '+CHARGEES.length+(CHARGEES.length<29?' (absentes : '+['_l558Conf','_l558Garde','_l558Purge','_l558Lire','_l558Set','_l558Toggle','_l558Rappel','_l558Candidats','_l558NonGardes','_l558VoletHtml','_l558VoletSet'].filter(n=>CHARGEES.indexOf(n)<0).join(', ')+')':''));
 global.normConf=(function(){ try{ return eval('('+fnOf('normConf')+')'); }catch(e){ const m=src.match(/^(?:const|let|var) normConf=([^\n]+?);\s*(?:\/\/.*)?$/m); if(!m) throw e; return eval('('+m[1]+')'); } })();   /* normConf est declaree en const (pas en function) */
 global._l507Traced=new WeakSet(); let warns=0; global._l505Warn=function(){ warns++; };
-const T=(f)=>{ try{ return f(); }catch(e){ return 'ERR '+(e&&e.message||e); } };   /* une exception = valeur 'ERR …' (jamais un test qui s arrete) */
+const T=(f)=>{ try{ return f(); }catch(e){ console.log('   (exception : '+(e&&e.message||e)+')'); return false; } };   /* [L559 · contre-lecture] une exception = ROUGE (la chaine « ERR … » comptait VRAI : faux vert) ; jamais un test qui s arrete */
 
 console.log('── 1. calcul matiere : le reste GARDE passe de PERTE a CHUTES GARDEES (EXECUTE, vraie _l513Matiere) ──');
 { const L=(conf,x)=>Object.assign({conf:conf,coupee:true,useful:2090},x||{});
@@ -81,6 +81,7 @@ global.fmmIsMulti=()=>false;
 global._isLandscapeFiche=()=>landscape;
 global._l408NcLots=()=>[]; global.updateAllCumuls=()=>{}; global.updateNC=()=>{}; global.updateTest2Subs=()=>{}; global.toggleAction=()=>{};
 global._l558VoletT=0;
+global.ficholinePhotos={};   /* [L559 · contre-lecture] lu par getFicheLinesData : sans ce stub les 3 verifications executees levaient une exception (comptee VERTE par l ancienne T) */
 function fixture(){ for(const k of Object.keys(DOM)) delete DOM[k]; toasts=[]; renders=0; repubs=[]; autosaves=0; outer=[]; landscape=true; global._l558VoletT=0;
   global.ficheLines=[{id:'b1',ref:'R1',useful:2090,blade:0},{id:'b2x',ref:'R1',useful:2090,blade:0},{id:'r1',ref:'R1',recut:true,rollW:600,useful:600,blade:0},{id:'b3',ref:'R1',useful:2090,blade:0}];
   mk('b1'); DOM.b1.classList.add('coupee'); mk('flConf_b1',{value:'1×1180'}); mk('pos_b1',{textContent:'1/3'});

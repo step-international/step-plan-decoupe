@@ -1683,6 +1683,16 @@ body.atelier .stat-tile b{font-size:36px}
   .fl-current .l516-note .l558-btn{margin-left:8px;min-height:40px;padding:6px 12px;border-radius:8px;border:1.5px solid currentColor;background:transparent;color:inherit;font:700 14px var(--f-head);cursor:pointer;vertical-align:middle}
   .fl-current .fl-chute.rappel{color:var(--orange)}   /* [L558] pastille orange = reste a garder ou a assumer */
   .fl-current .fl-chute.chute{color:#f5b301}   /* [L558] pastille GARDÉ (ambre) */
+  .l559-row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}   /* [L559] cases Quantite × Largeur (pave numerique), 44 px */
+  .l559-row input{min-height:44px;width:92px;padding:6px 8px;border-radius:8px;border:1px solid #555;background:#111;color:#eee;font:700 18px var(--f-head);text-align:center}
+  .l559-row select{min-height:44px;padding:6px 8px;border-radius:8px;border:1px solid #555;background:#111;color:#eee;font:700 14px var(--f-head);max-width:260px}
+  .l559-row .l559-x,.l559-row .l559-u{color:#9fb7d1;font-weight:700}
+  .l559-del{min-height:44px;min-width:44px;border-radius:8px;border:1px solid #555;background:transparent;color:#fca5a5;font-size:18px;cursor:pointer}
+  .l559-rep,.l559-key{min-height:44px;border-color:#8ec5ff!important;color:#8ec5ff!important}
+  .l559-rep.l559-sel{background:#f5b301!important;color:#1a1a1a!important;border-color:#f5b301!important}
+  body.atelier .l559-row input{min-height:48px;height:48px;width:100px;padding:4px 6px;margin:0;font-size:20px}   /* [L559 · contre-lecture] le mode atelier agrandit tous les champs : cases bornees pour tenir dans le volet */
+  body.atelier .l559-row select{min-height:48px;font-size:15px;padding:4px 6px;margin:0;max-width:300px}
+  body.atelier .l559-rep,body.atelier .l559-key,body.atelier .l559-del{min-height:48px;font-size:16px}
   .fl-current .fiche-chute-note{position:static;margin:4px 0 0}   /* la note « pris dans chute stock » revient dans le flux (le coin est pris par CHUTE + ✕) */
   /* — ⚠ DÉFAUT lisible (24px), indice « 1 tap » et sous-libellés au plancher 13px (constats design 8-9) — */
   .fl-current .fl-more>summary,body.atelier .fl-current .fl-more>summary{font-size:24px}   /* [fix audit] body.atelier .fl-more>summary (15px) battait la règle en atelier (défaut opérateur) */
@@ -3422,7 +3432,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.10.28-L558';
+const APP_VERSION='2026.11.04-L559';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -5319,6 +5329,7 @@ let chronoSec = 0;
 // et saveCommandeFiche) → un double-tap tablette créait 2 plans identiques.
 let _sendingFiche=false, _savingChrono=false, _savingPlan=false, _draftWarnShown=false;
 let _stoppingMM=false;   // [L73 · Lot 5 · B39] verrou dédié à l'arrêt manque matière (re-tap pendant l'envoi)
+window._l559Hc=null;   /* [L559 · decisions Celine 28/10 et 04/11] reponse « bobineaux HORS COMMANDE, pour le stock » de la fiche en cours : {rep:'aucun'|'oui'|'sans-reste', items:[{n,w,ref?,refIdx?,refIdKey?,auto?}], by, at, sig} | null. Suit le brouillon (st.fiche.horsCmd), remise a null a chaque nouvelle commande (resetAll, Parquer/Effacer, chargement, solde manque-matiere, clone du partage). */
 // ENVOI-1 : id de fiche/temps réservé AVANT l'envoi et conservé dans l'état sérialisé.
 // Au renvoi d'un brouillon, on réutilise le même id → batch.set() écrase au lieu de créer
 // un doublon (idempotence). Remis à null sur envoi réussi et sur nouveau plan.
@@ -10857,6 +10868,7 @@ function _newCmdClearLiveFiche(){
   // l'écrasait définitivement (perte de fiche silencieuse). Le brouillon parqué a déjà
   // sérialisé SES ids AVANT ce clear (newCmdPark → saveDraftManual) : son renvoi reste idempotent.
   _pendingFicheId=null; _pendingTempsId=null; _autosaveLastSig='';
+  window._l559Hc=null; window._l559Repli=false;   /* [L559] Parquer / Effacer : la question se repose */
   _resumedForeignDraftId=null;   // [L103 · audit-max] idem resetAll : passation abandonnée
   _resumedDraftId=null; _loadedSoldeDraftId=null;   // [L108 · Phase 4C] · [L367]
   _localCopyFromShare=null; try{ renderSharedViewBar(); }catch(e){}   // [L103 · audit-max] fiche vidée : le bandeau « copie d'un partage terminé » ne concerne plus rien
@@ -11065,6 +11077,7 @@ async function doLoad(){
   // (_resumedDraftId / passation _resumedForeignDraftId) restait « armé » et se faisait consommer
   // à l'envoi de CETTE nouvelle commande — comme le fait déjà _newCmdClearLiveFiche/resetAll.
   _resumedDraftId=null; _resumedForeignDraftId=null;
+  window._l559Hc=null;   /* [L559] chargement d un plan : la question se repose */
   window._l377MachinePrep=null;   // [L379 · fix audit n°12] trace « prép. X » d'une commande abandonnée : jamais héritée (le swap L376 la re-posera s'il a lieu)
   loadedSaveId=s._id; // mémorisé pour suppression auto après confirmation de la fiche
   // [L366] plan du RESTE chargé : le brouillon ⛔ solde jumeau (d_solde_<fiche>) sera consommé à l'envoi (branche _resumedDraftId du balayage, concordance client/n° garantie)
@@ -11670,6 +11683,7 @@ async function stopManqueMatiere(){
   let _etq547=1; try{ _etq547=(commandeFiles||[]).filter(function(f){ return f&&/^Étiquette /.test(f.name||''); }).length; }catch(e){}   // [L547 · audit d'usage 06/10 : 4 des 7 fiches sans photo d'étiquette venaient d'un arrêt manque de matière] même contrôle que le volet de clôture (L243/L319)
   let _ng558=''; try{ if(typeof _l558NonGardes==='function'&&(typeof _isLandscapeFiche!=='function'||_isLandscapeFiche())){ const _n=_l558NonGardes().length; if(_n) _ng558='🟠 '+_n+' bobine(s) coupée(s) avec un reste de '+PERTE_LAIZE_ALERTE_MM+' mm ou plus NON gardé : compté en PERTE (le pilotage peut corriger après coup dans Données > Fiches).\n\n'; } }catch(e){}   /* [L558 · contre-lecture] l arret manque-matiere est aussi une fin de commande : le dire (jamais bloquant) ; le bouton « garder » y viendra avec l etape L559 */
   if(!confirm((_etq547?'':'🛑 AUCUNE PHOTO D\'ÉTIQUETTE jointe à cette commande — « Annuler » pour la prendre d\'abord.\n\n')+_ng558+`⛔ Arrêt manque de matière ?\n\n${done} bobine(s) coupée(s), ${reste} non réalisée(s).\n\nLes ${done} bobines coupées et le temps passé sont enregistrés dans la fiche (production comptée).\n\n`+(reste>0?`Le solde (${reste} bobine(s)) est placé en brouillon, reprenable quand la matière arrive.`:`Aucun solde à reprendre.`))) return;
+  { const _r59=await _l559AskMM(); if(_r59===false){ try{ showToast('↩ Arrêt manque de matière ANNULÉ — rien n’est enregistré, tu es revenu à la fiche.','err'); }catch(_){ } return; } }   /* [L559 · decision Celine 04/11] meme question qu a CONFIRMER (+ rappel des restes non gardes L558) dans une fenetre dediee : APRES le confirm natif, AVANT la construction du solde ; « Annuler » annule l arret (le finally libere le verrou) ; portrait → pas de question */
 
   // 0. Construire le brouillon du SOLDE *avant* toute mutation/envoi : on sérialise
   //    l'état courant puis on ne garde que les bobines NON coupées, remises à neuf
@@ -11708,6 +11722,7 @@ async function stopManqueMatiere(){
       // de _pendingFicheId → son envoi ÉCRASAIT la fiche manque-matière déjà archivée
       // (production des bobines coupées perdue). Le plan source est déjà consommé → null.
       st.pendingFicheId=null; st.pendingTempsId=null; st.loadedSaveId=null;
+      try{ if(st.fiche) st.fiche.horsCmd=null; }catch(e){}   /* [L559] le solde est une NOUVELLE commande : sa question se repose (sinon double comptage a la reprise) */
       try{ if(st.plan&&Array.isArray(st.plan.commandeFiles)) st.plan.commandeFiles=st.plan.commandeFiles.filter(function(f){ return !_l556EstRegl(f); }); }catch(e){}   /* [L556b · contre-lecture 23/10] les photos de reglages de la partie coupee restent dans la fiche manque-matiere archivee ; le solde repart SANS (rappel orange actif ; un ✕ au solde n efface plus un fichier que la fiche archivee reference) */
       // [L70 · Audit B24] le PLAN embarqué dans le solde = le RESTE uniquement (ordonné −
       // coupé − chutes stock, même calcul que le plan du reste), chutes/rouleaux consommés
@@ -11917,13 +11932,14 @@ function _openVictory(p){
     body.innerHTML=
       (p.etiq?'' : '<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #7a2222;border-radius:9px;background:#2a1212;color:var(--red);font-weight:800;font-size:14px">🛑 AVEZ-VOUS PRIS LA PHOTO DES ÉTIQUETTES ?<div style="font-weight:600;font-size:12.5px;margin-top:3px;color:#fca5a5">Aucune photo jointe — bouton 📷＋ « Photos étiquettes » en pied de fiche, ou confirme quand même.</div></div>')
       +(p.reglMaveg&&!p.regl?'<div style="margin:0 0 10px;padding:10px 12px;border:2px solid #92400e;border-radius:9px;background:#2a1d0e;color:var(--orange);font-weight:800;font-size:14px">📷 Photo des réglages MAVEG ? <span style="font-weight:600;font-size:12.5px">Facultatif — bouton « 📷 Réglages » dans la barre du bas, à gauche d’IMPRIMER. Elle aidera le prochain qui coupe cette matière.</span></div>':'')   /* [L556 · decision Celine : facultatif + rappel, comme les etiquettes] */
+      +((typeof _l559VoletHtml==='function')?_l559VoletHtml():'')   /* [L559 · decision Celine 04/11] bobineaux HORS COMMANDE, pour le stock : question obligatoire, rendue AVANT l encadre des restes (on dit d abord ce qu on a coupe, puis on garde ce qui reste) */
       +((typeof _l558VoletHtml==='function')?_l558VoletHtml():'')   /* [L558 · decision Celine 28/10 : rappel, jamais bloquant · contre-lecture] encadre orange des restes non gardes : rendu PUR, re-rendu LOCAL par _l558VoletSet (idempotent, anti-rebond, « annuler »), paysage seulement */
       +'<div style="text-align:center;margin:6px 0 10px"><span class="victory-big">'+p.total+'/'+p.total+' <span style="color:var(--green)">✓</span></span>'
       +(cli||cmd?'<div style="color:var(--muted);font-size:13px;margin-top:2px">'+esc(cli)+(cmd?' · '+esc(cmd):'')+'</div>':'')+'</div>'
       +row('Temps', t?(t+(_o546?' ⚠':'')):'⚠ CHRONO À ZÉRO — aucun temps enregistré', t?(_o546?'var(--orange)':null):'var(--red)')
       +(_o546?'<div style="margin:4px 0 2px;color:var(--orange);font-size:13px;line-height:1.4;font-weight:700">⚠ '+esc(_l546Txt(_o546))+'.</div>':'')
       +row('Non-conformités', p.nc?(p.nc+' NC déclarée(s)'):'0 NC ✓', p.nc?'var(--red)':'var(--green)')
-      +((window._l513LastMat&&window._l513LastMat.ok)?row('Perte matière', _l513M2(window._l513LastMat.perteM2)+' m²'):'')   /* [L344 · §2.5 → L513 · décision Céline 09/09] perte m² du plan (auto ET manuel), même règle que la fiche et le mois ; plus de % */
+      +((window._l513LastMat&&window._l513LastMat.ok)?row('Perte matière (plan)', _l513M2(window._l513LastMat.perteM2)+' m²'):'')   /* [L344 · §2.5 → L513 · décision Céline 09/09] perte m² du plan (auto ET manuel), même règle que la fiche et le mois ; plus de % */
       +((false)?row('Série sans NC', '×'+streakGet()+(streakGet()>=25?' ⭐':streakGet()>=10?' 🔥':''),'#ffd45e'):'')   /* [L344 · §2.5] série (localStorage, jamais en base) */
       +row('Machine(s)', esc(p.machStr))
       +row('Lame · Opérateur', esc(lame||'—')+' · '+esc(op||'—'))
@@ -11933,8 +11949,8 @@ function _openVictory(p){
     document.getElementById('victoryOverlay')?.classList.add('open');
   }catch(e){ try{ if(confirm('Enregistrer la fiche définitivement et vider le plan ?')){ _victoryArmed=true; confirmCommandeRecap(); } }catch(_){} }   // repli ultime : jamais un envoi bloqué par le volet — [L351 · audit] mais jamais SANS confirmation
 }
-function victoryClose(){ try{ document.getElementById('victoryOverlay')?.classList.remove('open'); }catch(e){} }
-function victoryConfirm(){ victoryClose(); _victoryArmed=true; confirmCommandeRecap(); }
+function victoryClose(){ try{ document.getElementById('victoryOverlay')?.classList.remove('open'); const _vb=document.getElementById('victoryBody'); if(_vb) _vb.innerHTML=''; }catch(e){} }   /* [L559 · contre-lecture] le corps du volet est VIDE une fois ferme : plus d encadre cache (identifiants en double avec la fenetre manque-matiere) */
+function victoryConfirm(){ if(typeof _l559PeutEnvoyer==='function'&&!_l559PeutEnvoyer()){ try{ window._l355SameClient=null; }catch(e){} _l559Refus(); return; } victoryClose(); _victoryArmed=true; confirmCommandeRecap(); }   /* [L559 · decision Celine 04/11] question OBLIGATOIRE « bobineaux hors commande » : sans reponse, le volet reste ouvert (toast + mise en avant), jamais un bouton grise ; la branche armee de confirmCommandeRecap est intacte */
 // [L355 · §2.22-2] même envoi que victoryConfirm (aucune garde contournée) ; l'intention « même client » est consommée UNE fois par
 // saveCommandeFiche (tentative suivante, ≤ 2 min) et n'agit qu'APRÈS le resetAll du succès — jamais sur un échec/brouillon.
 function victoryConfirmSame(){ try{ const cli=(document.getElementById('fClient')?.value||'').trim(); window._l355SameClient=cli?{cli:cli,ts:Date.now()}:null; }catch(e){} victoryConfirm(); }
@@ -12816,6 +12832,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
     bls:[],
     valide:null,valideBy:null,valideAt:null,
     chutesStock:getPlanChutesUsedByWidth(),
+    horsCmd:_l559HcForFiche(opts),   /* [L559] saisie SEULE {rep,items,by,at} ; les m² vivent dans f.mat (source unique) */
     manqueMatiere:opts.manqueMatiere===true,
     // [L63 · Lot 5] méta de partage : qui a partagé, avec qui — bandeau + colonne
     // « Coupé par » sur le PDF. null sur les fiches non partagées (rendu inchangé).
@@ -13218,6 +13235,7 @@ function resetAll(){
   try{ _l555ResetCarte(); }catch(e){}   /* [L555 · contre-lecture 2] jumeau : le resume et le ↩ Entretien ne survivent pas non plus a la commande (apres l envoi les initiales sont videes — le ↩ ne pourrait plus servir) */
   try{ window._l440LamePosed=null; ['chgLame','chgMach','chgOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.remove('chg-ok'); }); ['chgDoneLame','chgDoneMach','chgDoneOp2'].forEach(function(id){ const el=document.getElementById(id); if(el) el.textContent=''; }); }catch(e){}   /* [L440 · audit #9] le ✓ vert et le resume « registre a jour » d'une commande PRECEDENTE ne survivent plus au reset/envoi */
   _pendingFicheId=null; _pendingTempsId=null;   // ENVOI-1 : plan vierge → aucun id de fiche réservé
+  window._l559Hc=null; window._l559Repli=false;   /* [L559] nouvelle commande : la question se repose */
   _resumedForeignDraftId=null;   // [L103 · audit-max] passation abandonnée : ne pas purger le brouillon d'un autre poste sur un envoi SANS RAPPORT
   _resumedDraftId=null; _loadedSoldeDraftId=null;   // [L108 · Phase 4C] · [L367]
   // [L67 · Audit] « Nouveau plan » clôt le partage émetteur : sans ça, la commande SUIVANTE
@@ -14926,6 +14944,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   const mach={};MACH.forEach(m=>mach[m]={bobines:0,wpNum:0,wpDen:0,dur:0,laizes:0,perteM2:0});   /* [L513] + perte m² par machine */
   let totalBobines=0,wpNum=0,wpDen=0,tempsSec=0,autresBobines=0,soldeMm=0,chutesPieces=0;   // [L83 · Audit #44][L98 · #13]
   let m2Total=0; const cliM2={}; let perteM2=0, dechetM2=0, chuteM2=0;   /* [L513 · decisions Celine 09/09, responsable qualite] UNE SEULE MATIERE, en m², familles DISJOINTES, lue par _l513MatiereOf (instantane f.mat pose a l envoi, sinon calcul vif) : PERTE = bords + lames + laize restante NON gardee (+ residu ♻) ; CHUTES GARDEES = solde de la derniere bobine de chaque ref + fins de phase + ✂ Chutes ; DECHET NC = bobineaux 🗑 Dechet (ncLoss) = le seul indicateur ISO. Remplace L463/L477/L480/L482/L485/L493 (triangulation bords + m² utiles × %, chuteM2 persiste/reconstruit) — les commentaires historiques ci-dessous restent pour la lecture du code. m2Total = Σ meres coupees (♻ exclus ; manque-matiere : lignes coupees seules). */
+  let horsCmdM2=0, horsCmdN=0, horsCmdRepN=0, horsCmdDepN=0, horsCmdDepM2=0;   /* [L559] bobineaux hors commande du mois (m² retires de la perte, nombre, fiches renseignees) */
   // [L247 · R3] QUALITÉ + PONCTUALITÉ + ÉCARTS — nouveaux champs DANS l'agrégat (collection 'agregats'
   // inchangée, rules isManage sans whitelist → zéro impact règles). Mois FIGÉS avant cette version :
   // champs absents → l'écran affiche « — » (JAMAIS 0) ; complétés uniquement via « ♻ Recalculer ».
@@ -14970,7 +14989,7 @@ function buildMonthlyKpi(ym,fiches,temps){
        la tuile « calculs en repli » le montre). Ventilation machine = meme cle que les bobines (relais op.2 : part b1/b et cut2/b). */
     const _m13=_l513MatiereOf(f);
     if(_m13===f.mat&&_m13.calcWarn>0&&typeof window!=='undefined') window._l505WarnN=(window._l505WarnN||0)+_m13.calcWarn;   /* [revue adversariale L513] les replis comptes a l ENVOI (instantane) sont rejoues dans le compteur du mois : la tuile « calculs en repli » les voit */
-    if(_m13.ok){ m2Total+=_m13.m2Coupes; perteM2+=_m13.perteM2; chuteM2+=_m13.chutesM2; dechetM2+=_m13.dechetM2; (cliM2[c]=cliM2[c]||0); cliM2[c]+=_m13.m2Coupes;
+    if(_m13.ok){ m2Total+=_m13.m2Coupes; perteM2+=_m13.perteM2; chuteM2+=_m13.chutesM2; dechetM2+=_m13.dechetM2; if(typeof _m13.horsCmdM2==='number'){ horsCmdM2+=_m13.horsCmdM2; horsCmdN+=(Number(_m13.horsCmdN)||0); horsCmdRepN++; if((Number(_m13.horsCmdDepM2)||0)>0.05){ horsCmdDepN++; horsCmdDepM2+=Number(_m13.horsCmdDepM2); } } (cliM2[c]=cliM2[c]||0); cliM2[c]+=_m13.m2Coupes;
       if(_sp551){ Object.keys(_sp551).forEach(k=>{ if(mach[k]) mach[k].perteM2+=_m13.perteM2*(_sp551[k]/b); }); }   /* [L551] meme cle que les bobines */
       else {
       const _sh1=(b>0)?(b1/b):1, _sh2=(b>0&&cut2>0)?(cut2/b):0;
@@ -15025,7 +15044,7 @@ function buildMonthlyKpi(ym,fiches,temps){
   const machines={};
   MACH.forEach(m=>{const d=mach[m];machines[m]={bobines:d.bobines,pertePct:d.wpDen?+(d.wpNum/d.wpDen).toFixed(1):0,secLaize:d.laizes?Math.round(d.dur/d.laizes):0,perteM2:Math.round(d.perteM2*10)/10};});   /* [L513] perteM2 par machine (m²) ; pertePct conserve pour le CSV (L514) */
   const topClientsM2=Object.entries(cliM2).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({k:e[0],v:Math.round(e[1])}));
-  return {mois:ym,regleVer:'L513',calcWarn:(typeof window!=='undefined'?(window._l505WarnN||0):0),nbFiches:F.length,totalBobines,m2:Math.round(m2Total),perteM2:Math.round(perteM2),dechetM2:Math.round(dechetM2*10)/10,chuteM2:Math.round(chuteM2*10)/10,topClientsM2,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13] · [L463] m2
+  return {mois:ym,regleVer:'L513',calcWarn:(typeof window!=='undefined'?(window._l505WarnN||0):0),nbFiches:F.length,totalBobines,m2:Math.round(m2Total),perteM2:Math.round(perteM2),dechetM2:Math.round(dechetM2*10)/10,chuteM2:Math.round(chuteM2*10)/10,horsCmdM2:Math.round(horsCmdM2*10)/10,horsCmdN:horsCmdN,horsCmdRepN:horsCmdRepN,horsCmdDepN:horsCmdDepN,horsCmdDepM2:Math.round(horsCmdDepM2*10)/10,topClientsM2,pertePct:wpDen?+(wpNum/wpDen).toFixed(1):0,tempsSec,machines,topClients,topRefs,autresBobines,soldeMm:Math.round(soldeMm),chutesPieces,   // [L83 · Audit #44][L98 · #13] · [L463] m2
     qual:{ctrl:qCtrl,nc:qNc,larg:qLarg,qty:qQty,casse:qCasse,ang:qAng,hum:qHum,ouv:qOuv,delaiMoy:qDelaiN?+(qDelaiSum/qDelaiN).toFixed(1):null},   // [L247 · R3]
     liv:{tot:livTot,ok:livOk},ecartsN};   // [L247 · R3]
 }
@@ -15164,7 +15183,7 @@ function printKpiMois(ym){
    L ancien pertePct (moyenne de f.pct, base laize UTILE, traits de lame comptes comme utilises : VEKA 4501931723 = 1,5 % contre 19,4 % L513)
    reste dans l agregat (kpi_test) mais n est PLUS exporte ; « Rendement % » (100 - pertePct) disparait ; par machine : perte m² L513 (ce que
    l ecran et le PDF affichent deja) — un % par machine exigerait un m² par machine, absent des agregats figes. */
-const _L526_KPI_HDR=['Mois','Statut','Fiches','Bobines','m² coupés (bobines mères)','Perte % (m²)','Perte m²','Déchet m²','Déchet %','Chutes gardées m²','Temps (h)','Bob. NC','Bob. contrôlées','NC %','NC ouvertes','Délai NC (j)','Liv. à temps','Fiches datées','À temps %','Fiches en écart','Bobineaux pris en stock','FEBA bob','FEBA perte m²','FEBA s/laize','MAVEG bob','MAVEG perte m²','MAVEG s/laize','CEVENINI bob','CEVENINI perte m²','CEVENINI s/laize'];   /* 30 colonnes (meme NOMBRE qu avant) ; ordre du CSV fiches : positions 5-9 reordonnees et perte machine en m² — un classeur base sur les lettres de colonnes d un export anterieur au 16/09/2026 est a rebrancher */
+const _L526_KPI_HDR=['Mois','Statut','Fiches','Bobines','m² coupés (bobines mères)','Perte % (m²)','Perte m²','Déchet m²','Déchet %','Chutes gardées m²','Temps (h)','Bob. NC','Bob. contrôlées','NC %','NC ouvertes','Délai NC (j)','Liv. à temps','Fiches datées','À temps %','Fiches en écart','Bobineaux pris en stock','FEBA bob','FEBA perte m²','FEBA s/laize','MAVEG bob','MAVEG perte m²','MAVEG s/laize','CEVENINI bob','CEVENINI perte m²','CEVENINI s/laize','Bobineaux hors commande pour le stock (nb)','Bobineaux hors commande pour le stock (m²)'];   /* [L559] 2 colonnes EN FIN DE LIGNE (32 colonnes) */   /* 30 colonnes (meme NOMBRE qu avant) ; ordre du CSV fiches : positions 5-9 reordonnees et perte machine en m² — un classeur base sur les lettres de colonnes d un export anterieur au 16/09/2026 est a rebrancher */
 function _l526KpiMois(agregats,cur,fenetre){ const W=new Set(fenetre||[]); return (agregats||[]).filter(a=>a&&a.mois&&a.mois!==cur&&W.has(a.mois)&&((Number(a.nbFiches)||0)>0||(Number(a.totalBobines)||0)>0)).sort((a,b)=>a.mois<b.mois?-1:1); }
 function _l526KpiRow(k,cur){
   const M=k.machines||{}, q=k.qual||null, lv=k.liv||null, N=v=>(typeof v==='number'&&isFinite(v))?v:'n/d';
@@ -15177,7 +15196,7 @@ function _l526KpiRow(k,cur){
     q?q.nc:'n/d',q?q.ctrl:'n/d',(q&&q.ctrl)?Math.round(q.nc/q.ctrl*1000)/10:'n/d',q?q.ouv:'n/d',(q&&q.delaiMoy!=null)?q.delaiMoy:'n/d',
     lv?lv.ok:'n/d',lv?lv.tot:'n/d',(lv&&lv.tot)?Math.round(lv.ok/lv.tot*1000)/10:'n/d',
     N(k.ecartsN),N(k.chutesPieces)]
-    .concat(mrow('FEBA')).concat(mrow('MAVEG')).concat(mrow('CEVENINI'))
+    .concat(mrow('FEBA')).concat(mrow('MAVEG')).concat(mrow('CEVENINI')).concat([N(k.horsCmdN),N(k.horsCmdM2)])   /* [L559] meme ordre que le CSV fiches (nb, m²) ; n/d pour un mois fige avant le lot */
     .map(v=>(typeof v==='number'&&isFinite(v))?_l517Num(v,1):v);   /* virgule FR comme le CSV fiches ; les entiers restent entiers */
 }
 async function exportDashboardCsv(){
@@ -15199,6 +15218,7 @@ async function exportDashboardCsv(){
       rows.push(_l526KpiRow(k,cur).map(csvCell).join(';'));   /* [L526] ligne PURE (tests/csv_kpi_l526_test.js) ; csvCell conserve (anti-injection Excel L83 #18) */
     });
     rows.push('# n/d = mois figé AVANT la version qui calcule ce champ (« ♻ Recalculer ce mois » pour le compléter)');
+    rows.push('# Bobineaux hors commande (pour le stock) : depuis le 04/11/2026 (L559), leurs m² sont RETIRÉS de la perte (pris dans les restes non gardés, puis dans les chutes gardées) et ne sont ni découpés ni livrés — la Perte m² d\'un mois n\'est donc plus comparable à un mois d\'avant cette date');
     rows.push('# Colonnes par machine : depuis le 07/10/2026 (L551), une commande coupée sur 2 machines est ventilée bobine par bobine ; un mois figé avant reste sur la machine de l\'en-tête de fiche tant qu\'il n\'est pas recalculé (« ♻ Recalculer ce mois »)');
     rows.push('# Fenêtre : 12 derniers mois glissants, mois sans fiche ni bobine omis · Perte % (m²) = Perte m² / « m² coupés (bobines mères) » et Déchet % = Déchet m² / « m² coupés (bobines mères) » (règle L513 — mêmes définitions que le CSV par commande) · Déchet % : le déchet NC des fiches non calculables est compté au numérateur alors que les m² ne le sont pas (ratio majoré si « calculs incertains » > 0) · « m² coupés (bobines mères) » et Perte m² du mois arrondis à l\'unité (agrégat), le reste au dixième : la somme des lignes du CSV par commande ne retombe pas exactement sur la ligne du mois · « ancienne définition » = mois figé avant L513 : Perte m² non comparable, % en n/d · colonnes 5 à 9 réordonnées et perte par machine en m² depuis le 16/09/2026 (L526) : rebrancher un classeur basé sur les lettres de colonnes · colonne « m² » renommée « m² coupés (bobines mères) » le 18/09/2026 (L530), position inchangée');   /* [L526] */
     // ── Section 2 : débit par machine ──
@@ -15334,11 +15354,12 @@ function kpiMoisInnerHTML(ym){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px">
       <div ${_fchClick} style="background:var(--section);border-radius:9px;padding:12px;cursor:${_mf26?'default':'pointer'}" title="${_mf26?'Liste non filtrable — revenir à « Toutes » pour l\'ouvrir':'Voir la liste des fiches du mois'}"><div style="font-size:12px;color:#999;margin-bottom:5px">${_mf26?'Fiches':'Fiches ▾'}</div><div style="font-size:24px;font-weight:800">${kpi.nbFiches||0}</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobines</div><div style="font-size:24px;font-weight:800">${(kpi.totalBobines||0).toLocaleString('fr-FR')}</div>${_delta(kpi.totalBobines,prevKpi&&prevKpi.totalBobines,'',false)}</div>
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">🗑 Perte</div>${(typeof kpi.perteM2==='number')?`<div style="font-size:24px;font-weight:800;color:var(--orange)">${_l513M2(kpi.perteM2)} m²${_pct26?_l526PctSpan(kpi.perteM2,kpi.m2,'Perte % (m²)'):''}</div><div style="font-size:11px;color:#999;margin-top:3px">bords + lames + laize restante</div>${(prevKpi&&prevKpi.regleVer==='L513')?_delta(kpi.perteM2,prevKpi.perteM2,' m²',true):(prevKpi?'<div style="font-size:11px;color:#777;margin-top:3px">mois préc. sous l ancienne définition — ♻ Recalculer</div>':'')}`:_naTile}</div><!-- [L513 · décision resp. qualité 09/09] m² depuis la source unique ; Δ seulement entre deux mois de la MÊME règle (revue adversariale) -->
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">🗑 Perte</div>${(typeof kpi.perteM2==='number')?`<div style="font-size:24px;font-weight:800;color:var(--orange)">${_l513M2(kpi.perteM2)} m²${_pct26?_l526PctSpan(kpi.perteM2,kpi.m2,'Perte % (m²)'):''}</div><div style="font-size:11px;color:#999;margin-top:3px">bords + lames + laize restante</div>${(prevKpi&&prevKpi.regleVer==='L513')?((!(prevKpi.horsCmdRepN>0)&&kpi.horsCmdM2>0)?'<div style="font-size:11px;color:#777;margin-top:3px">écart non comparable : bobineaux hors commande retirés de la perte depuis le 04/11/2026 (L559)</div>':_delta(kpi.perteM2,prevKpi.perteM2,' m²',true)):(prevKpi?'<div style="font-size:11px;color:#777;margin-top:3px">mois préc. sous l ancienne définition — ♻ Recalculer</div>':'')}`:_naTile}</div><!-- [L513 · décision resp. qualité 09/09] m² depuis la source unique ; Δ seulement entre deux mois de la MÊME règle (revue adversariale) -->
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">🗑 Déchet (NC)</div>${(typeof kpi.dechetM2==='number')?`<div style="font-size:24px;font-weight:800;color:${kpi.dechetM2>0?'#f87171':'var(--green)'}">${_l513M2(kpi.dechetM2)} m²${_pct26?_l526PctSpan(kpi.dechetM2,kpi.m2,'Déchet %'):''}</div><div style="font-size:11px;color:#999;margin-top:3px">bobineaux jetés — indicateur ISO</div>${_delta(kpi.dechetM2,prevKpi&&prevKpi.dechetM2,' m²',true)}`:_naTile}</div><!-- [L513] vert 0 / rouge > 0 -->
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Temps total</div><div style="font-size:24px;font-weight:800;color:var(--green)">${fmtHm(kpi.tempsSec||0)}</div></div>
       <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Chutes gardées</div>${(typeof kpi.chuteM2==='number')?`<div style="font-size:24px;font-weight:800;color:#5eead4">${_l513M2(kpi.chuteM2)} m²</div>`:_naTile}<div style="font-size:11px;color:#999;margin-top:3px">soldes conservés (≠ perte)${(kpi.calcWarn>0)?` · <span ${_repClick} style="cursor:${_mf26?'default':'pointer'};text-decoration:${_mf26?'none':'underline'};color:#fbbf24" title="${_mf26?'Liste non filtrable — revenir à « Toutes » pour l\'ouvrir':'Voir les fiches concernées et la cause'}">⚠ ${kpi.calcWarn} calcul(s) incertain(s) · fiches à vérifier</span>`:''}</div></div><!-- [L493 · décision ER] était une somme de LARGEURS en mm affichée en mètres (« 6 m » ne veut rien dire) : passe en m², même source que le diagramme et la ligne « Matière ce mois » -->
-      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>${r3Tiles}
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux pris en stock</div><div style="font-size:24px;font-weight:800;color:var(--orange)">${(kpi.chutesPieces||0).toLocaleString('fr-FR')}</div><div style="font-size:11px;color:#999;margin-top:3px">chutes réutilisées</div></div>
+      <div style="background:var(--section);border-radius:9px;padding:12px"><div style="font-size:12px;color:#999;margin-bottom:5px">Bobineaux hors commande (pour le stock)</div>${(typeof kpi.horsCmdM2==='number')?`<div style="font-size:24px;font-weight:800;color:#8ec5ff">${_l513M2(kpi.horsCmdM2)} m²</div>`:_naTile}<div style="font-size:11px;color:#999;margin-top:3px">${(typeof kpi.horsCmdM2==='number')?((kpi.horsCmdN||0)+' bobineau(x) coupés POUR le stock (≠ pris DU stock) · '+(kpi.horsCmdRepN||0)+'/'+(kpi.nbFiches||0)+' fiche(s) renseignée(s)'+((kpi.horsCmdDepN||0)>0?(' · <span style="color:#fbbf24">⚠ '+kpi.horsCmdDepN+' fiche(s) à vérifier : '+_l513M2(kpi.horsCmdDepM2)+' m² déclarés au-delà des restes</span>'):'')+' · retirés de la perte, jamais livrés'):'depuis le 04/11/2026 (L559)'}</div></div>${r3Tiles}
     </div>
     <div id="kpiFichesList" style="display:none"></div><!-- [L249 · R4b] drill-down fiches du mois -->
     <div id="kpiReplisList" style="display:none"></div><!-- [L517] drill-down fiches en repli (conteneur DISTINCT : sinon les deux tuiles s ecrasent) -->
@@ -18276,7 +18297,8 @@ function renderFiches(){
         <div class="fc-status" style="${statusColor}">${statusBadge}</div>
       </div>
       ${(function(){ /* [L427] UNE ligne : puces d'alerte a gauche, « Ajouter un BL » (plus gros) a droite */
-        const chips=[mmBadge,(f.modifie||f.hasEcart)?`<span class="fc-chip fc-chip-a" title="${esc(f.ecartMsg||'')}">⚠ ${f.modifie?'Modifiée':'Écart plan'}</span>`:'',shareBadge,cliBadge].filter(Boolean).join('');
+        const hcChip=(function(){ try{ const h=f.horsCmd; if(!h||h.rep!=='oui') return ''; const m=_l513MatiereOf(f); const nbb=Number(m&&m.horsCmdN)||0; if(!nbb) return ''; const dep=!!(m&&typeof m.horsCmdDepM2==='number'&&m.horsCmdDepM2>0.05); return '<span class="fc-chip'+(dep?' fc-chip-a':'')+'" style="text-transform:none" title="'+esc(_l559Txt(h))+'">📦 '+nbb+' bob. pour le stock · '+((m&&typeof m.horsCmdM2==='number')?_l513M2(m.horsCmdM2):'—')+' m²'+(dep?(' · ⚠ +'+_l513M2(m.horsCmdDepM2)+' m² à vérifier'):'')+'</span>'; }catch(e){ return ''; } })();   /* [L559] puce « bobineaux pour le stock » (ambre si la saisie depasse les restes : a verifier par le pilotage) */
+        const chips=[mmBadge,hcChip,(f.modifie||f.hasEcart)?`<span class="fc-chip fc-chip-a" title="${esc(f.ecartMsg||'')}">⚠ ${f.modifie?'Modifiée':'Écart plan'}</span>`:'',shareBadge,cliBadge].filter(Boolean).join('');
         const blBtn=(canValidate()&&!blOk)?`<button class="fc-bl-add" onclick="triggerBLFiche('${f._id}',null)" title="Joindre le bon de livraison">📎 Ajouter un BL</button>`
           :(blOk?(function(){ /* [L442 · demande Esteban 27/08] le NOM du fichier joint (il porte le n° de BL) s'affiche sur la puce — fini la chasse au document */
             const _bl42=ficheBLs(f); const _n1=(_bl42[0]&&_bl42[0].name)?String(_bl42[0].name).replace(/\.(pdf|jpe?g|png|webp)$/i,''):'';
@@ -18854,7 +18876,7 @@ function _ficheEditSig(data){
   // [L79] Signature CANONIQUE (clés triées récursivement) : deux lectures Firestore du même doc
   // renvoient parfois les clés dans un ORDRE différent → un JSON.stringify simple produisait deux
   // signatures ≠ = faux « Fiche modifiée ailleurs » qui BLOQUAIT l'enregistrement d'une simple modif.
-  return _canonStringify({client:data.client||'',ref:data.ref||'',numCmd:data.numCmd||'',dateLiv:data.dateLiv||'',lame:data.lame||'',valide:data.valide===true,fd:fd});
+  return _canonStringify({client:data.client||'',ref:data.ref||'',numCmd:data.numCmd||'',dateLiv:data.dateLiv||'',lame:data.lame||'',valide:data.valide===true,hc:((data.horsCmd&&data.horsCmd.rep)?[data.horsCmd.rep,(Array.isArray(data.horsCmd.items)?data.horsCmd.items:[])]:null),fd:fd});   /* [L559] le verrou optimiste voit aussi les bobineaux hors commande */
 }
 // Édition du plan de découpe par Dominique : modifie en-tête + configuration des bobines
 async function editFicheConfigs(id){   // [L74 · Design Lot E] async (appelée uniquement par onclick)
@@ -18898,6 +18920,7 @@ async function editFicheConfigs(id){   // [L74 · Design Lot E] async (appelée 
         <div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">N° Commande</label><input id="ef_numcmd" value="${esc(f.numCmd||'')}" style="width:100%;${inp}"></div>
         <div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Livraison client</label><input id="ef_dateliv" value="${esc(f.dateLiv||'')}" placeholder="jj/mm/aaaa" style="width:100%;${inp}"></div>
         <div><label style="font-size:12px;color:#888;display:block;margin-bottom:4px">Lame N°</label><input id="ef_lame" value="${esc(f.lame||'')}" style="width:100%;${inp}"></div>
+        ${(typeof canManageData==='function'&&canManageData())?('<div style="grid-column:1/-1"><label style="font-size:12px;color:#8ec5ff;display:block;margin-bottom:4px">📦 Bobineaux hors commande, pour le stock — nb × largeur, plusieurs lots avec + (vide = aucun)'+((Array.isArray(f.refGroups)&&f.refGroups.length>1)?' · référence :':'')+'</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="ef_horscmd" value="'+esc((typeof _l559Txt==='function')?_l559Txt(f.horsCmd):'')+'" data-init="'+esc((typeof _l559Txt==='function')?_l559Txt(f.horsCmd):'')+'" placeholder="2×120 + 1×80" style="flex:1;min-width:160px;'+inp+'">'+((Array.isArray(f.refGroups)&&f.refGroups.length>1)?('<select id="ef_horscmd_ref" data-init="'+((f.horsCmd&&Array.isArray(f.horsCmd.items)&&f.horsCmd.items[0]&&typeof f.horsCmd.items[0].refIdx==='number')?f.horsCmd.items[0].refIdx:0)+'" style="'+inp+'">'+f.refGroups.map(function(g,i){ const cur=(f.horsCmd&&Array.isArray(f.horsCmd.items)&&f.horsCmd.items[0]&&typeof f.horsCmd.items[0].refIdx==='number')?f.horsCmd.items[0].refIdx:0; return '<option value="'+i+'"'+(i===cur?' selected':'')+'>'+esc(String(g.longueur||'?')+' m · '+String(g.ref||('Référence '+(i+1))))+'</option>'; }).join('')+'</select>'):'')+'</div><div id="ef_horscmd_err" role="alert" style="display:none;margin-top:6px;color:#fca5a5;font-weight:700;font-size:12.5px"></div></div>'):''}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div style="font-size:12px;color:#888;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Configuration des bobines</div>
@@ -19101,6 +19124,8 @@ async function saveFicheConfigs(id){
   const numCmd=document.getElementById('ef_numcmd').value;
   const dateLiv=document.getElementById('ef_dateliv')?document.getElementById('ef_dateliv').value:(f.dateLiv||'');
   const lame=document.getElementById('ef_lame').value;
+  let _hcNew; { const _ef=document.getElementById('ef_horscmd'); if(_ef){ const _sel=document.getElementById('ef_horscmd_ref'); const _d=_l559EditDiff(f,_ef.value,_sel?_sel.value:null,{txt:_ef.dataset.init,sel:_sel?_sel.dataset.init:null}); if(_d.err){ const _m='❌ Bobineaux hors commande : « '+_d.err.join(' », « ')+' » illisible — écris « nb × largeur », par exemple 2×120 + 1×80.'; try{ const _e=document.getElementById('ef_horscmd_err'); if(_e){ _e.textContent=_m; _e.style.display='block'; } }catch(_){ } showToast(_m,'err'); return; } if(_d.chg){ _hcNew=Object.assign({},_d.hc,{by:_ini(),at:isoNow()}); if(f.horsCmd&&f.horsCmd.rep) _hcNew.prev={rep:String(f.horsCmd.rep),by:String(f.horsCmd.by||''),at:String(f.horsCmd.at||''),items:(Array.isArray(f.horsCmd.items)?f.horsCmd.items.map(function(i){ return {n:+i.n||0,w:+i.w||0,refIdx:(typeof i.refIdx==='number')?i.refIdx:null}; }):[])}; } } }   /* [L559 · contre-lecture] diff PUR contre l etat initial : une correction qui ne touche pas au champ n ecrit RIEN (jamais un « aucun » invente sur une fiche ancienne, jamais un recalcul de f.mat sans raison) ; illisible = refus explicite */
+  const _hcChg=(_hcNew!==undefined);
   const orig=f.ficheDetail||[];
   const newDetail=[];
   let _efNewUnresolved=null;
@@ -19136,6 +19161,7 @@ async function saveFicheConfigs(id){
     nbFiche:newDetail.length,totalBobines:_d.totalBobines,   /* [L506] mères du plan seules (un ♻ de 300 mm était compté comme une mère de 1560 mm : m² +20 %) */
     hasEcart:f.hasEcart===true,ecartMsg:f.ecartMsg||'',modifie:true};
   if(_l544Iso) upd.dateLivIso=_l544Iso;   /* [L544] */
+  if(_hcChg) upd.horsCmd=_hcNew;   /* [L559] */
   upd.groups=_d.groups;                                               /* [L506] régénéré aussi en MULTI-réf (laize de chaque ligne) : des groups périmés contredisaient le tableau de la fiche imprimée */
   // [L76 · B53] Plan théorique FIGÉ quand un écart d'origine est conservé (bandeau PDF « ÉCART — +2 bobines » cohérent). Seul consommateur de nbPlan : cet affichage.
   if(f.hasEcart!==true) upd.nbPlan=_d.nbPlan;                         /* [L506] mères + ♻ du plan, hors plan exclu (comme à la création) */
@@ -19146,11 +19172,11 @@ async function saveFicheConfigs(id){
   let _l513Trace='';
   try{
     const _sigOld=_l513MatSig(f,f.ficheDetail), _sigNew=_l513MatSig(f,newDetail);
-    if(_sigOld!==_sigNew){
-      const _m0=_l513MatiereOf(f), _m1=_l513Matiere(Object.assign({},f,{ficheDetail:newDetail}));
+    if(_sigOld!==_sigNew||_hcChg){   /* [L559] les deux signatures recoivent le MEME f : une correction des seuls bobineaux hors commande doit AUSSI recalculer f.mat */
+      const _m0=_l513MatiereOf(f), _m1=_l513Matiere(Object.assign({},f,{ficheDetail:newDetail},_hcChg?{horsCmd:_hcNew}:{}));
       upd.mat=_m1;
       const _v=x=>(x==null?'?':x);
-      _l513Trace='perte '+_v(_m0.perteM2)+'→'+_v(_m1.perteM2)+' m² · chutes '+_v(_m0.chutesM2)+'→'+_v(_m1.chutesM2)+' m² · déchet '+_v(_m0.dechetM2)+'→'+_v(_m1.dechetM2)+' m²';
+      _l513Trace='perte '+_v(_m0.perteM2)+'→'+_v(_m1.perteM2)+' m² · chutes '+_v(_m0.chutesM2)+'→'+_v(_m1.chutesM2)+' m² · déchet '+_v(_m0.dechetM2)+'→'+_v(_m1.dechetM2)+' m²'+(_hcChg?(' · hors commande '+_v(_m0.horsCmdM2)+'→'+_v(_m1.horsCmdM2)+' m²'):'');   /* [L559] */
     }
   }catch(e){ _l505Warn('l513·edition',e); }
   try{
@@ -20007,7 +20033,8 @@ async function exportNc(){
    Jamais un faux 0 : metrage absent ou ref irresolue -> ok=false, m² null, _l505Warn (regle 7). Remplace computePerteChute (code mort
    depuis L479/L480) et la triangulation « bords + m² utiles × % » du mois (L480). Le moteur gele n est PAS touche (calcStats est LU). */
 function _l513Matiere(f){
-  const R={perteM2:null,chutesM2:null,dechetM2:null,m2Coupes:null,clientM2:null,surplusM2:null,surplusInc:0,lamesM2:null,bordsM2:null,resteM2:null,recutM2:null,resteGardeN:0,resteGardeM2:null,ok:false,calcWarn:0,regleVer:'L513'};   /* [L526 · demande Celine 16/09] decomposition de la PERTE : traits de lame / bords / laize restante non gardee (+ residu des rouleaux recoupes). Memes gardes, meme perimetre keepNc, meme arrondi r1 que perteM2 : lamesM2+bordsM2+resteM2 === perteM2 PAR CONSTRUCTION. _l513Matiere n est PAS gelee (engine_identity.js ne fige que calcStats parmi les briques matiere) ; le moteur reste LU. */
+  const R={perteM2:null,chutesM2:null,dechetM2:null,m2Coupes:null,clientM2:null,surplusM2:null,surplusInc:0,horsCmdM2:null,horsCmdN:0,horsCmdSaisiM2:null,horsCmdDepM2:null,horsCmdInc:0,lamesM2:null,bordsM2:null,resteM2:null,recutM2:null,resteGardeN:0,resteGardeM2:null,ok:false,calcWarn:0,regleVer:'L513'};   /* [L526 · demande Celine 16/09] decomposition de la PERTE : traits de lame / bords / laize restante non gardee (+ residu des rouleaux recoupes). Memes gardes, meme perimetre keepNc, meme arrondi r1 que perteM2 : lamesM2+bordsM2+resteM2 === perteM2 PAR CONSTRUCTION. _l513Matiere n est PAS gelee (engine_identity.js ne fige que calcStats parmi les briques matiere) ; le moteur reste LU. */
+  try{ if(f&&f.horsCmd&&f.horsCmd.rep==='oui'&&Array.isArray(f.horsCmd.items)) R.horsCmdN=f.horsCmd.items.reduce(function(s,h){ const n=Math.floor(Number(h&&h.n)||0), w=Number(h&&h.w)||0; return s+((n>=1&&w>0)?n:0); },0); }catch(_){ }   /* [L559 · contre-lecture] le NOMBRE de bobineaux saisis ne depend pas du calcul : pose avant les sorties anticipees (fiche non calculable : nb juste, m² null) */
   try{
     const det=(f&&f.ficheDetail)||[]; const multi=Array.isArray(f.refGroups)&&f.refGroups.length>0;
     const mlOf=v=>parseFloat(String(v==null?'':v).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.'));
@@ -20029,7 +20056,7 @@ function _l513Matiere(f){
     const lastByRef={}; det.forEach((fd,i)=>{ if(!keep(fd)||fd.recut||!lisible(fd)) return; const bk=bucket(fd); if(bk!=null) lastByRef[bk]=i; });   /* la DERNIERE ligne lisible de chaque ref porte le solde, quel que soit son libelle (terrain) */
     const lastIdx=new Set(Object.values(lastByRef));
     let perte=0,chutes=0,dechet=0,coupes=0,client=0,ok=true,nKept=0,pLames=0,pBords=0,pReste=0,pRecut=0,pSurplus=0,nSurplusInc=0;
-    let rgN=0,rgM2=0;   /* [L558 · contre-lecture] restes gardes par l operateur qui CHANGENT le calcul (ni derniere bobine de sa ref, ni fin de phase, ni ✂ Chutes NC) : papier, et plafond des bobineaux hors commande (L559) */   /* [L526] chaque `perte+=` a son jumeau : pLames+pBords+pReste === perte par construction (matiere_l513_test bloc 17) */
+    let rgN=0,rgM2=0; const hcNg={},hcCh={};   /* [L559] reservoirs des bobineaux hors commande par reference : reste NON garde (perte) / chute gardee */   /* [L558 · contre-lecture] restes gardes par l operateur qui CHANGENT le calcul (ni derniere bobine de sa ref, ni fin de phase, ni ✂ Chutes NC) : papier, et plafond des bobineaux hors commande (L559) */   /* [L526] chaque `perte+=` a son jumeau : pLames+pBords+pReste === perte par construction (matiere_l513_test bloc 17) */
     det.forEach((fd,i)=>{
       if(!keepNc(fd)) return;
       if(fd.actDechet===true&&typeof ncLoss==='function'){ const nd=ncLoss(f,fd); if(nd&&nd.m2>0){ dechet+=nd.m2; } }   /* dechet NC d abord : compte meme si la configuration est illisible */
@@ -20047,6 +20074,7 @@ function _l513Matiere(f){
       perte+=lames*k; pLames+=lames*k;
       if(fd.recut){ perte+=w*k; pReste+=w*k; }
       else { nKept++; coupes+=c.mother*k; perte+=c.edge*k; pBords+=c.edge*k; client+=laizes*k;
+             { const _bk59=bucket(fd); if(_bk59!=null){ if(fd.actChutes||fd.phaseEnd||fd.resteGarde===true||lastIdx.has(i)) hcCh[_bk59]=(hcCh[_bk59]||0)+w*k; else hcNg[_bk59]=(hcNg[_bk59]||0)+w*k; } }   /* [L559] predicat JUMEAU de la ligne chutes/perte ci-dessous (teste) */
              if(fd.resteGarde===true&&!fd.actChutes&&!fd.phaseEnd&&!lastIdx.has(i)){ rgN++; rgM2+=w*k; }
              if(fd.actChutes||fd.phaseEnd||fd.resteGarde===true||lastIdx.has(i)) chutes+=w*k; else { perte+=w*k; pReste+=w*k; }   /* [L558] reste GARDE par l operateur = chute gardee (decision Celine 28/10) */ }
       if(fd.recut){ let _nc28=0; if((fd.actDechet===true||fd.actChutes===true)&&typeof ncLoss==='function'){ const n=ncLoss(f,fd); if(n&&n.m2>0) _nc28=n.m2; } pRecut+=Math.max(0,laizes*k-_nc28); }   /* [L528 · decision Celine 17/09] m² LIVRES depuis les rouleaux ♻ : bobineaux coupes dans le rouleau, MOINS ceux jetes (🗑) ou gardes en stock (✂) — jamais credites dans clientM2 (regle L513 inchangee : colonne « m² decoupes et livres » du CSV par commande = bobines meres seules) ; exposes A PART (recutM2) pour « tout ce qui part chez le client » */
@@ -20059,11 +20087,22 @@ function _l513Matiere(f){
     if(!nKept&&(Number(f.totalBobines)||0)>0){ ok=false; warn('detail',new Error('fiche avec bobines mais sans configuration lisible')); }   /* jamais un faux 0 : des bobines archivees sans detail exploitable = inconnu, pas 0 m² */
     if(!ok){ R.dechetM2=Math.round(dechet*10)/10; return R; }   /* [revue adversariale L513] perte/chutes/m² inconnus (null) MAIS le dechet NC — seul indicateur ISO — est rendu : il ne depend pas des configurations */
     const r1=x=>Math.round(x*10)/10;
+    { /* [L559 · decisions Celine 28/10 et 04/11] 5e famille : bobineaux HORS COMMANDE (pour le stock) coupes dans les restes. m² = n × w/1000 × longueur de LEUR reference ;
+         pris d abord dans les restes NON gardes de la reference (sortent de la PERTE et de resteM2), puis dans ses chutes gardees (solde de la derniere bobine,
+         fins de phase, restes gardes) ; au-dela : horsCmdDepM2 (avertissement, jamais compte). Invariant perte + chutes + dechet + client + horsCmd = m² coupes.
+         Jamais via warn() (ce n est pas un calcul en repli). Les fiches sans reponse (anciennes, non-demande, repli) gardent horsCmdM2 null : cellule CSV vide. */
+      const hcR=(f&&f.horsCmd&&typeof f.horsCmd==='object')?String(f.horsCmd.rep||''):''; const hc=(hcR==='oui'&&Array.isArray(f.horsCmd.items))?f.horsCmd.items:[];
+      let hcTot=0,hcDep=0,hcN=0,hcInc=0,hcSaisi=0; const S={};
+      hc.forEach(h=>{ const n=Math.floor(Number(h&&h.n)||0), w=Number(h&&h.w)||0; if(!(n>=1&&w>0)){ hcInc++; return; }
+        let bk='mono', ml=mlOf(f.longueur); if(multi){ const g=_l506RefGroupFor(f,h); if(!g){ hcInc++; return; } bk='g'+f.refGroups.indexOf(g); ml=mlOf(g.longueur); }
+        if(!(ml>0)){ hcInc++; return; } const m2=n*w/1000*ml; S[bk]=(S[bk]||0)+m2; hcN+=n; hcSaisi+=m2; });
+      Object.keys(S).forEach(bk=>{ const a=Math.min(S[bk],hcNg[bk]||0); const b=Math.min(S[bk]-a,hcCh[bk]||0); perte-=a; pReste-=a; chutes-=b; hcTot+=a+b; hcDep+=S[bk]-a-b; });
+      if(hcR==='oui'||hcR==='aucun'||hcR==='sans-reste'){ R.horsCmdM2=r1(hcTot); R.horsCmdSaisiM2=r1(hcSaisi); R.horsCmdDepM2=r1(hcDep); } R.horsCmdN=hcN; R.horsCmdInc=hcInc; }
     return Object.assign(R,{perteM2:r1(perte),chutesM2:r1(chutes),dechetM2:r1(dechet),m2Coupes:Math.round(coupes),clientM2:r1(client),surplusM2:r1(pSurplus),surplusInc:nSurplusInc,lamesM2:r1(pLames),bordsM2:r1(pBords),resteM2:r1(pReste),recutM2:r1(pRecut),resteGardeN:rgN,resteGardeM2:r1(rgM2),ok:true});
   }catch(e){ try{ _l505Warn('l513·matiere',e); }catch(_){ } R.calcWarn++; return R; }
 }
 /* Un seul point de lecture : l instantane pose a l envoi (f.mat) s il est de la regle courante, sinon calcul vif (fiches anterieures a L513). */
-function _l513MatiereOf(f){ return (f&&f.mat&&f.mat.regleVer==='L513'&&f.mat.ok)?f.mat:_l513Matiere(f); }
+function _l513MatiereOf(f){ return (f&&f.mat&&f.mat.regleVer==='L513'&&f.mat.ok&&!(f.horsCmd&&f.horsCmd.rep==='oui'&&typeof f.mat.horsCmdM2!=='number'))?f.mat:_l513Matiere(f); }   /* [L559] instantane pose par un poste reste en L558 sur une fiche qui a des bobineaux hors commande : calcul vif (jamais une perte qui les ignore) */
 /* Affichage m² : au plus un dixieme (78,5 reste 78,5 : le dechet NC est l indicateur ISO, on ne l arrondit pas a 79), « — » si inconnu (jamais un 0 a la place d un inconnu). */
 function _l513M2(v){ if(typeof v!=='number'||isNaN(v)) return '—'; return v.toLocaleString('fr-FR',{maximumFractionDigits:1}); }
 /* [L526 · demande Celine 16/09/2026] UN seul % matiere = part des m² coupes (base bobine mere, regle L513), arrondi au dixieme : la MEME formule que pc() du CSV fiches (_l517FicheRow) et que _pctOf des tuiles qualite. null (jamais 0) si un terme est inconnu ou si le denominateur est 0. Sert aux tuiles Perte / Dechet ET au CSV tableau de bord : une definition, trois surfaces. */
@@ -20201,7 +20240,8 @@ function _l517FicheRow(f){
     (_c17.ok?'calculée':('non calculable : '+_c17.cause)).replace(/[\n\r;]/g,' '),
     n26(_d26.lamesM2),n26(_d26.bordsM2),n26(_d26.resteM2),   /* [L526 · Celine 16/09] 3 composantes de « Perte m² » (somme = Perte m² a 0,15 pres : trois arrondis independants au dixieme) */
     [_l526Diag(f,_d26,_c17,PERTE_DIAG_SEUIL_PCT),((_b30&&_b30.surplusInc)?'quantité en trop non chiffrée (m² livrés surestimés)':'')].filter(Boolean).join(' · ').replace(/[\n\r;]/g,' '),   /* [L530 · revue adverse] la ligne DIT quand sa quantite en trop n est pas chiffree */
-    ((_b30&&_b30.surplusM2!=null&&!_b30.surplusInc)?_l517Num(_b30.surplusM2):''),((_b30&&_b30.stockM2!=null)?_l517Num(_b30.stockM2):''),((_b30&&_b30.ok)?_l517Num(_b30.livresM2):'')   /* [L530] VIDES (jamais 0) quand ils ne sont pas chiffrables */
+    ((_b30&&_b30.surplusM2!=null&&!_b30.surplusInc)?_l517Num(_b30.surplusM2):''),((_b30&&_b30.stockM2!=null)?_l517Num(_b30.stockM2):''),((_b30&&_b30.ok)?_l517Num(_b30.livresM2):''),   /* [L530] VIDES (jamais 0) quand ils ne sont pas chiffrables */
+    ((f.horsCmd&&/^(aucun|oui|sans-reste)$/.test(String(f.horsCmd.rep||'')))?String(Number(_m17.horsCmdN)||0):''),((typeof _m17.horsCmdM2==='number')?_l517Num(_m17.horsCmdM2):''),((typeof _m17.horsCmdDepM2==='number'&&_m17.horsCmdDepM2>0.05)?_l517Num(_m17.horsCmdDepM2):'')   /* [L559] VIDES pour une fiche sans reponse (anciennes, non-demande) ; « aucun » = 0 ; depassement = a verifier */
   ];
 }
 /* ── [L528 · demandes Celine 17/09/2026] MATIERE PAR REFERENCE (lecteur pur) + CSV « volumes livres » + bloc Analyse « Chiffres » ──
@@ -20304,25 +20344,26 @@ function _l528ParRef(f,m){
     const r1=x=>Math.round(x*10)/10;
     const rg=Array.isArray(f&&f.refGroups)?f.refGroups:null;
     if(!rg||!rg.length){ const b0=_l530Bilan(f,m); if(b0.decoupesM2==null) return R;   /* mono-ref (refGroups null a l archivage) : la fiche EST la reference (f.ref, f.longueur) — [L530] son bilan complet */
-      return Object.assign(R,{ok:true,src:'mono',refs:[{gi:-1,ref:String((f&&f.ref)||''),longueur:String((f&&f.longueur)||''),nMeres:null,m2Coupes:m.m2Coupes,clientM2:m.clientM2,decoupesM2:b0.decoupesM2,surplusM2:b0.surplusM2,surplusInc:b0.surplusInc,stockM2:b0.stockM2,livresM2:(b0.ok?b0.livresM2:null),perteM2:m.perteM2,chutesM2:m.chutesM2}]}); }
+      return Object.assign(R,{ok:true,src:'mono',refs:[{gi:-1,ref:String((f&&f.ref)||''),longueur:String((f&&f.longueur)||''),nMeres:null,m2Coupes:m.m2Coupes,clientM2:m.clientM2,decoupesM2:b0.decoupesM2,surplusM2:b0.surplusM2,surplusInc:b0.surplusInc,stockM2:b0.stockM2,livresM2:(b0.ok?b0.livresM2:null),perteM2:m.perteM2,chutesM2:m.chutesM2,horsCmdM2:((typeof m.horsCmdM2==='number')?m.horsCmdM2:null)}]}); }
     if(_hasW) window._l505Warn=function(){};   /* rejeu MUET : N+1 appels re-emettraient les memes replis dans la tuile du mois */
     const det=Array.isArray(f.ficheDetail)?f.ficheDetail:[]; const gOf=det.map(fd=>fd?_l506RefGroupFor(f,fd):null);   /* resolution UNIQUE, sur la fiche ENTIERE */
     const st=_l530Stock(f,m); if(!st.ok||(st.pieces>0&&!st.parRef)) return R;   /* [L530] bobineaux pris du stock non rattachables a LEUR reference → fiche « non ventilable » (ses m² restent dans le total client) */
-    const refs=[]; let sC=0,sL=0,sP=0,sR=0,bad=false;
+    const refs=[]; let sC=0,sL=0,sP=0,sR=0,sH=0,bad=false;
     rg.forEach((g,gi)=>{ if(bad) return; const sub=det.filter((fd,i)=>gOf[i]===g);
       const sg=(st.parRef&&st.parRef[gi])||null;
-      const stockOnly=function(){ if(sg&&sg.m2>0) refs.push({gi:gi,ref:String((g&&g.ref)||''),longueur:String((g&&g.longueur)||''),nMeres:0,m2Coupes:0,clientM2:0,decoupesM2:0,surplusM2:0,stockM2:sg.m2,livresM2:sg.m2,perteM2:0,chutesM2:0}); };   /* [L530] reference ENTIEREMENT servie par le stock : aucune bobine coupee, mais elle PART chez le client */
+      const stockOnly=function(){ if(sg&&sg.m2>0) refs.push({gi:gi,ref:String((g&&g.ref)||''),longueur:String((g&&g.longueur)||''),nMeres:0,m2Coupes:0,clientM2:0,decoupesM2:0,surplusM2:0,stockM2:sg.m2,livresM2:sg.m2,perteM2:0,chutesM2:0,horsCmdM2:0}); };   /* [L530] reference ENTIEREMENT servie par le stock : aucune bobine coupee, mais elle PART chez le client */
       if(!sub.length){ stockOnly(); return; }   /* groupe commande sans ligne : ABSENT (jamais une ligne a 0), sauf s il est servi par le stock */
       const kept=sub.filter(fd=>fd&&(!f.manqueMatiere||fd.coupee===true)); if(!kept.length){ stockOnly(); return; }   /* [revue adverse] manque-matiere : un groupe dont AUCUNE ligne n est retenue par la source (jamais commence) est ABSENT — sinon la garde « jamais un faux 0 » refusait toute la fiche */
       const nb=kept.filter(fd=>!fd.recut).length;
       const L=_l513Matiere(Object.assign({},f,{ficheDetail:sub,totalBobines:nb}));   /* refGroups INTACT ; totalBobines du sous-ensemble */
       if(!L||!L.ok||typeof L.recutM2!=='number'){ bad=true; return; }
-      refs.push({gi:gi,ref:String((g&&g.ref)||''),longueur:String((g&&g.longueur)||''),nMeres:nb,m2Coupes:L.m2Coupes,clientM2:L.clientM2,decoupesM2:r1(L.clientM2+L.recutM2),surplusM2:(Number(L.surplusM2)||0),surplusInc:(Number(L.surplusInc)||0),stockM2:(sg?sg.m2:0),livresM2:r1(Math.max(0,L.clientM2+L.recutM2-(Number(L.surplusM2)||0))+(sg?sg.m2:0)),perteM2:L.perteM2,chutesM2:L.chutesM2});
-      sC+=L.m2Coupes; sL+=L.clientM2; sP+=L.perteM2; sR+=L.recutM2; });
+      refs.push({gi:gi,ref:String((g&&g.ref)||''),longueur:String((g&&g.longueur)||''),nMeres:nb,m2Coupes:L.m2Coupes,clientM2:L.clientM2,decoupesM2:r1(L.clientM2+L.recutM2),surplusM2:(Number(L.surplusM2)||0),surplusInc:(Number(L.surplusInc)||0),stockM2:(sg?sg.m2:0),livresM2:r1(Math.max(0,L.clientM2+L.recutM2-(Number(L.surplusM2)||0))+(sg?sg.m2:0)),perteM2:L.perteM2,chutesM2:L.chutesM2,horsCmdM2:((typeof L.horsCmdM2==='number')?L.horsCmdM2:null)});
+      sC+=L.m2Coupes; sL+=L.clientM2; sP+=L.perteM2; sR+=L.recutM2; sH+=(Number(L.horsCmdM2)||0); });
     if(bad||!refs.length) return R;
     const N=refs.length;
     if(Math.abs(sC-m.m2Coupes)>0.5*N+0.5||Math.abs(sL-m.clientM2)>0.05*N+0.05||Math.abs(sP-m.perteM2)>0.05*N+0.05) return R;   /* jamais une ventilation qui ne somme pas a sa propre fiche (borne = N+1 arrondis independants) */
     if(typeof m.recutM2==='number'&&Math.abs(sR-m.recutM2)>0.05*N+0.05) return R;   /* rouleaux ♻ : meme concordance quand l instantane les connait */
+    if(typeof m.horsCmdM2==='number'&&Math.abs(sH-m.horsCmdM2)>0.05*N+0.05) return R;   /* [L559] bobineaux hors commande : meme concordance (chaque sous-fiche ne retire que les siens : les autres references n ont pas de reservoir) */
     return Object.assign(R,{ok:true,src:'rejeu',refs:refs});
   }catch(e){ R.err=String((e&&e.message)||e); _bug=true; _l528BugN++; if(_hasW) window._l505Warn=_pw; try{ _l505Warn('l528·parref',e); }catch(_){ } return R; }
   finally{ if(_hasW){ window._l505Warn=_pw; if(!_bug) window._l505WarnN=_pn; } }
@@ -20442,7 +20483,7 @@ function _l528ChiffresBlock(note){
 }
 /* Signature « matiere » d une fiche editee par l admin : si elle ne change pas (client, n° de commande, date, lame, photo...),
    l instantane n est PAS recalcule — un m² ne bouge que si une configuration, une bobine ou une action NC change. */
-function _l513MatSig(f,det){ try{ return JSON.stringify({ rg:(f.refGroups||[]).map(g=>[g.mother,g.edge,g.longueur]), mo:f.mother, us:f.useful, bl:f.blade, lg:f.longueur, mm:!!f.manqueMatiere,
+function _l513MatSig(f,det){ try{ return JSON.stringify({ rg:(f.refGroups||[]).map(g=>[g.mother,g.edge,g.longueur]), mo:f.mother, us:f.useful, bl:f.blade, lg:f.longueur, mm:!!f.manqueMatiere, hc:((f.horsCmd&&f.horsCmd.rep)?[f.horsCmd.rep,(Array.isArray(f.horsCmd.items)?f.horsCmd.items:[]).map(h=>[h&&h.n,h&&h.w,h&&h.refIdx,h&&h.refIdKey,h&&h.ref])]:null),
   d:(det||[]).map(fd=>[fd.conf,!!fd.recut,fd.rollW,!!fd.phaseEnd,fd.refIdx,fd.refIdKey,fd.useful,fd.blade,!!fd.actDechet,!!fd.actChutes,!!fd.actAccept,!!fd.resteGarde,fd.ncLots,fd.ncQtyVal,fd.ncWidthVal,fd.ncDetail,!!fd.coupee]) }); }catch(e){ return String(Math.random()); } }
 /* Adaptateurs : la MEME definition pour le plan automatique, le plan manuel et le volet de cloture, sans dupliquer le calcul.
    Plan auto : pseudo-fiche batie depuis les groupes CALCULES (refGroups = les memes blocs, index alignes : refIdx = index du bloc). */
@@ -21309,7 +21350,7 @@ async function exportFiches(){
   if(!fullHistoryLoaded){ const ok=await ensureFullHistory(); if(!ok&&!(await confirmDlg('Historique complet indisponible. Exporter uniquement les données récentes ?',{ok:'Exporter le récent'}))) return; }   // [L74 · Design Lot E] confirm() natif → modale
   const fiches=fichesCache.filter(f=>!f.deleted);
   if(!fiches.length){showToast('Aucune donnée.','err');return;}
-  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Client (nom seul);N° commande;Livraison;Mois livraison;Référence;Machine;Machine op.2;Largeur bobine mère (mm);Utile;Perte lame (mm);Longueur bobine mère (m);N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines mères;Bobines mères coupées;Bobineaux découpés;m² coupés (bobines mères);Perte % (m²);Perte m²;Déchet m²;Déchet %;Chutes gardées m²;m² découpés (bobineaux);Temps;Statut validation;Validée par;Validée le;Règle;Matière;Traits de lame m²;Bords m²;Laize restante m²;Diagnostic;m² mis au stock (quantité en trop);m² pris du stock;m² livrés (bobineaux)';   /* [L530 · decisions Celine 18/09/2026] 50 colonnes : « m² » devient « m² coupés (bobines mères) », « m² découpés et livrés » devient « m² découpés (bobineaux) » (= bobines meres + rouleaux ♻ : la valeur monte pour les fiches a rouleau recoupe), + 3 colonnes EN FIN DE LIGNE (positions 1-47 inchangees) ; m² livres = decoupes − mis au stock + pris du stock */   /* [L517 · 12 points Celine 26/08 + ajouts 10/09, decision Celine responsable qualite] 47 colonnes = 43 (L517) + 4 EN FIN DE LIGNE [L526 · Celine 16/09/2026 : Traits de lame m², Bords m², Laize restante m², Diagnostic (seuil PERTE_DIAG_SEUIL_PCT) ; positions 1-43 inchangees] ; l ancien « Perte % » (f.pct, base utile) quitte le CSV, remplace par « Perte % (m²) » = perte m² / m² coupes (base mere) ; virgule decimale FR ; « Regle » (L513 ou vide) et « Matiere » (calculee / non calculable : cause) en fin de ligne */
+  const hdr='Nom;Date;Opérateur 1;Opérateur 2;Reprise bobine;Client;Client (nom seul);N° commande;Livraison;Mois livraison;Référence;Machine;Machine op.2;Largeur bobine mère (mm);Utile;Perte lame (mm);Longueur bobine mère (m);N°Lame;Lame remplacée;Lame chgée dès bob.;N°Jour;Palette;Type cond.;Étiquetage;Cerclage;Notes emballage;Commande;Total bobines mères;Bobines mères coupées;Bobineaux découpés;m² coupés (bobines mères);Perte % (m²);Perte m²;Déchet m²;Déchet %;Chutes gardées m²;m² découpés (bobineaux);Temps;Statut validation;Validée par;Validée le;Règle;Matière;Traits de lame m²;Bords m²;Laize restante m²;Diagnostic;m² mis au stock (quantité en trop);m² pris du stock;m² livrés (bobineaux);Bobineaux hors commande pour le stock (nb);Bobineaux hors commande pour le stock (m²);Bobineaux hors commande au-delà des restes (m²)';   /* [L559] 3 colonnes EN FIN DE LIGNE (positions 1-50 stables) */   /* [L530 · decisions Celine 18/09/2026] 50 colonnes : « m² » devient « m² coupés (bobines mères) », « m² découpés et livrés » devient « m² découpés (bobineaux) » (= bobines meres + rouleaux ♻ : la valeur monte pour les fiches a rouleau recoupe), + 3 colonnes EN FIN DE LIGNE (positions 1-47 inchangees) ; m² livres = decoupes − mis au stock + pris du stock */   /* [L517 · 12 points Celine 26/08 + ajouts 10/09, decision Celine responsable qualite] 47 colonnes = 43 (L517) + 4 EN FIN DE LIGNE [L526 · Celine 16/09/2026 : Traits de lame m², Bords m², Laize restante m², Diagnostic (seuil PERTE_DIAG_SEUIL_PCT) ; positions 1-43 inchangees] ; l ancien « Perte % » (f.pct, base utile) quitte le CSV, remplace par « Perte % (m²) » = perte m² / m² coupes (base mere) ; virgule decimale FR ; « Regle » (L513 ou vide) et « Matiere » (calculee / non calculable : cause) en fin de ligne */
   const rows=fiches.map(f=>_l517FicheRow(f).map(csvCell).join(';')).join('\n');   /* [L517] la ligne est PURE et testee hors DOM (tests/csv_l517_test.js) ; csvCell conserve (anti-injection Excel, L83 #18) */
   const b=new Blob(['\ufeff'+csvMetaLine('Fiches de découpe',fiches.length)+hdr+'\n'+rows],{type:'text/csv;charset=utf-8'});   // [L251 · R6] périmètre DANS le fichier
   downloadBlob(b,'step_fiches_'+todayISO()+'.csv');   // [L98 · simpl.8]
@@ -24220,7 +24261,7 @@ function _l558VoletHtml(){ try{
   const C=_l558Candidats(); if(!C.length) return '';
   const ng=C.filter(function(c){ return !c.garde; }).length;
   return '<div id="l558Volet" style="margin:0 0 10px;padding:10px 12px;border:2px solid #92400e;border-radius:9px;background:#2a1d0e;color:var(--orange);font-weight:800;font-size:14px">✂ '
-    +(ng?(ng+' bobine(s) avec un reste de '+PERTE_LAIZE_ALERTE_MM+' mm ou plus non gardé (compté en perte) <span style="font-weight:600;font-size:12.5px">— garde-le si tu l’as mis sur palette (pas d’étiquette) :</span>'):'Reste(s) gardé(s) : compté(s) en chute gardée, pas en perte (pas d’étiquette) <span style="font-weight:600;font-size:12.5px">— « annuler » si tu l’as jeté :</span>')
+    +(ng?(ng+' bobine(s) avec un reste de '+PERTE_LAIZE_ALERTE_MM+' mm ou plus non gardé (compté en perte) <span style="font-weight:600;font-size:12.5px">— garde-le si tu l’as mis sur palette (pas d’étiquette)'+((window._l559Hc&&window._l559Hc.rep==='oui')?' · si tu y as coupé des bobineaux, garde seulement si la bande qui RESTE part entière sur palette (le reste gardé compte en entier)':'')+' :</span>'):'Reste(s) gardé(s) : compté(s) en chute gardée, pas en perte (pas d’étiquette) <span style="font-weight:600;font-size:12.5px">— « annuler » si tu l’as jeté :</span>')
     +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'
     +C.map(function(c){ return c.garde
       ?('<span style="display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 10px;border:1.5px solid #f5b301;border-radius:8px;color:#f5b301;font-weight:700">✓ '+esc(c.lbl)+' · '+fmt(c.w)+' mm gardé <button type="button" class="btn btn-sm" style="min-height:40px;border-color:#f5b301;color:#f5b301" onclick="_l558VoletSet(\''+c.id+'\',false)">annuler</button></span>')
@@ -24233,8 +24274,137 @@ let _l558VoletT=0;
 function _l558VoletSet(id,on){ try{
   const now=Date.now(); if(now-_l558VoletT<500) return; _l558VoletT=now;
   _l558Set(id,on);
-  const box=document.getElementById('l558Volet'); if(box){ const h=_l558VoletHtml(); if(h) box.outerHTML=h; else box.remove(); }
+  const box=((typeof _l559Box==='function')?_l559Box('l558Volet'):null)||document.getElementById('l558Volet'); if(box){ const h=_l558VoletHtml(); if(h) box.outerHTML=h; else box.remove(); }   /* [L559 · contre-lecture] conteneur ACTIF (volet ouvert ou fenetre manque-matiere), jamais la copie cachee */
+  try{ if(typeof _l559Resume==='function') _l559Resume(); }catch(_){ }   /* [L559] un reste garde / rendu change les restes disponibles : le resume des bobineaux hors commande suit */
 }catch(e){} }
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   [L559 · decisions Celine 28/10 et 04/11/2026, responsable qualite] BOBINEAUX HORS COMMANDE, POUR LE STOCK (cas 2 de la reunion restes).
+   Question OBLIGATOIRE en fin de commande (volet CONFIRMER, et fenetre dediee a l arret manque-matiere) : « en as-tu coupe dans un reste ? »
+   « Aucun » vaut reponse ; « Oui » = cases Quantite × Largeur (plusieurs largeurs) ; reference par ligne seulement si plusieurs references
+   de longueurs differentes (sinon attribution automatique, auto:true) ; sans aucun reste >= seuil : « sans-reste » note tout seul.
+   La reponse vit en memoire (window._l559Hc) et dans le brouillon (st.fiche.horsCmd) ; elle part dans ficheEntry.horsCmd (saisie SEULE :
+   les m² vivent dans f.mat, source unique _l513Matiere : pris d abord dans les restes NON gardes, puis dans les chutes gardees ; au-dela =
+   avertissement, jamais compte, jamais bloquant). Paysage seulement (regle 3) ; la garde au tap Enregistrer verifie la PRESENCE du bloc
+   (jamais un envoi bloque sans question visible). Rien sur le papier ; pas dans « decoupes » ni « livres ». Jamais via window.__rng (sim).
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+/* [L559 · contre-lecture] Les encadres existent dans le volet CONFIRMER (#victoryBody) ET dans la fenetre manque-matiere (#l559MMBody) : jamais
+   document.getElementById (il rend la copie CACHEE). Conteneur ACTIF = la fenetre si elle est ouverte, sinon le volet OUVERT ; rien si aucun n est ouvert. */
+function _l559Root(){ try{ if(window._l559MM){ const b=document.getElementById('l559MMBody'); if(b) return b; } return document.querySelector('#victoryOverlay.open #victoryBody'); }catch(e){ return null; } }
+function _l559Box(id){ try{ const r=_l559Root(); return r?r.querySelector('#'+id):null; }catch(e){ return null; } }
+/* PUR (teste) : correction admin. init = {txt,sel} a l ouverture. Rend {chg:false} si rien n a change (ou champ vide sur une fiche sans reponse « oui ») ;
+   {chg:false,err:[…]} si illisible ; {chg:true,hc:{rep,items,admin:true}} sinon (vide sur une reponse « oui » = « aucun » explicite). */
+function _l559EditDiff(f,txt,sel,init){ try{ const t=String(txt||'').trim(); const t0=String((init&&init.txt)||'').trim(); const s1=(sel==null||sel==='')?'':String(sel); const s0=(init&&init.sel!=null&&init.sel!=='')?String(init.sel):'';
+  if(t===t0&&s1===s0) return {chg:false};
+  const rep0=String((f&&f.horsCmd&&f.horsCmd.rep)||'');
+  if(!t){ if(rep0!=='oui') return {chg:false}; return {chg:true,hc:{rep:'aucun',items:[],admin:true}}; }
+  const p=_l559Parse(t); if(p.bad.length) return {chg:false,err:p.bad};
+  let ref={}; if(f&&Array.isArray(f.refGroups)&&f.refGroups.length>1&&s1!==''){ const g=f.refGroups[+s1]; if(g){ ref={ref:String(g.ref||''),refIdx:+s1}; try{ const k=_l507KeyOf(g); if(k) ref.refIdKey=k; }catch(_){ } } }
+  return {chg:true,hc:{rep:'oui',items:p.items.map(function(i){ return Object.assign({n:i.n,w:i.w},ref); }),admin:true}}; }catch(e){ return {chg:false,err:[String(e&&e.message||e)]}; } }
+function _l559Ml(v){ const x=parseFloat(String(v==null?'':v).replace(/\s+/g,'').replace(/[Oo]/g,'0').replace(',','.')); return (x>0)?x:0; }   /* meme lecture que mlOf de _l513Matiere */
+function _l559Ini(){ try{ const v=String((document.getElementById('fInitiales')||{}).value||'').trim().toUpperCase(); return v||((typeof _ini==='function')?_ini():''); }catch(e){ return ''; } }
+/* Lecture d une saisie TEXTE « nb × largeur » (correction admin) : lots separes par + , ; ou retour a la ligne ; quantite ENTIERE 1..10000 ;
+   largeur 1..10000 mm ; « × » obligatoire (x, X, * acceptes). Rend {items:[{n,w}], bad:[segments illisibles]}. parseConf / normConf intactes. */
+function _l559Parse(txt){ const out={items:[],bad:[]}; try{ String(txt||'').replace(/(\d),(\d)/g,'$1.$2').replace(/\r?\n|;/g,'+').split(/[+,]/).forEach(function(seg){ const s=seg.trim(); if(!s) return; const m=s.match(/^(\d+)\s*[x×X*]\s*(\d+(?:\.\d+)?)\s*(?:mm)?$/); if(!m){ out.bad.push(s); return; } const n=parseInt(m[1],10), w=parseFloat(m[2]); if(!(n>=1&&n<=10000&&w>=1&&w<=10000)){ out.bad.push(s); return; } out.items.push({n:n,w:w}); }); }catch(e){} return out; }
+function _l559Items(h){ return (h&&Array.isArray(h.items)?h.items:[]).filter(function(i){ return i&&Number.isInteger(+i.n)&&+i.n>=1&&+i.w>=1; }).map(function(i){ const o=Object.assign({},i,{n:+i.n,w:+i.w}); return o; }); }
+function _l559Txt(h){ try{ if(!h||h.rep!=='oui') return ''; return _l559Items(h).map(function(i){ return i.n+'×'+fmt(i.w); }).join(' + '); }catch(e){ return ''; } }
+function _l559HcSer(){ try{ const h=window._l559Hc; return (h&&typeof h==='object')?JSON.parse(JSON.stringify(h)):null; }catch(e){ return null; } }
+/* Empreinte des bobines coupees (nombre + configurations) : une reponse donnee avant un changement est signalee « a verifier », jamais effacee en silence. */
+function _l559Sig(){ try{ return (ficheLines||[]).filter(function(L){ const el=L&&document.getElementById(L.id); return !!(el&&el.classList.contains('coupee')); }).map(function(L){ return (L.recut?'r':'')+_l558Conf((document.getElementById('flConf_'+L.id)||{}).value||''); }).join('|'); }catch(e){ return ''; } }
+/* References vivantes avec des lignes : [{idx,ref,refIdKey,ml,lbl}] (multi-ref seulement). idx = index de getRefGroups = de serializeRefGroups = de f.refGroups. */
+function _l559Refs(){ try{ if(!(typeof fmmIsMulti==='function'&&fmmIsMulti())) return []; const sg=(typeof serializeRefGroups==='function')?serializeRefGroups():[]; return fmmRawRefs().map(function(r){ let key=null; try{ key=_l507KeyOf(sg[r.idx])||null; }catch(_){ } return {idx:r.idx,ref:r.ref,refIdKey:key,ml:_l559Ml(r.longueur),lbl:((typeof refDispCtx==='function')?refDispCtx(r.ref,r.refKey):String(r.ref))+((typeof _l527LotLbl==='function')?_l527LotLbl(r):'')}; }); }catch(e){ return []; } }
+function _l559RefsDiff(){ try{ const Rf=_l559Refs(); return Rf.length>1&&(new Set(Rf.map(function(r){ return r.ml; }))).size>1; }catch(e){ return false; } }
+/* Restes VIFS des bobines coupees (par moi seulement a l arret manque-matiere), par reference : {bk:{ref,refIdx,refIdKey,ml,blade,ng:[mm],chute:[mm]}}.
+   ng = reste NON garde (perte) ; chute = solde de la regle / reste garde / ✂ Chutes (chute gardee). Lecture seule (_l558Lire ; calcStats LU). */
+function _l559RestesVifs(mineOnly){ const out={}; try{ const multi=(typeof fmmIsMulti==='function')&&fmmIsMulti(); const refs=multi?_l559Refs():[]; (ficheLines||[]).forEach(function(L){ if(!L||L.recut) return; const el=document.getElementById(L.id); if(!el||!el.classList.contains('coupee')) return; const other59=el.classList.contains('coupee-other'); const x=(typeof _l558Lire==='function')?_l558Lire(L.id):null; if(!x) return; let bk='mono', meta; if(multi){ const di=(typeof _l527DomIdx==='function')?_l527DomIdx(L):((typeof L.refIdx==='number')?L.refIdx:-1); const r=refs.find(function(q){ return q.idx===di; })||refs.find(function(q){ return nrm(q.ref)===nrm(L.ref||''); }); if(!r) return;   /* [L559 · contre-lecture] L.refIdx est l index du plan CALCULE : converti en index DOM par _l527DomIdx (jumeau), repli par le nom */ bk='g'+r.idx; meta={ref:r.ref,refIdx:r.idx,refIdKey:r.refIdKey,ml:r.ml}; } else { const g0=(typeof getRefGroups==='function')?getRefGroups()[0]:null; meta={ref:(g0&&g0.ref)||'',refIdx:0,refIdKey:null,ml:_l559Ml((g0&&g0.longueur)||(document.getElementById('fLongueur')||{}).value||(document.getElementById('planLongueur')||{}).value)}; } const B=out[bk]||(out[bk]=Object.assign({ng:[],chute:[],blade:((typeof L.blade==='number')?L.blade:((typeof getBlade==='function')?getBlade():0))},meta)); B._lastNg=null; if((mineOnly&&other59)||x.over||!(x.w>0)) return;   /* la DERNIERE bobine coupee LISIBLE de la reference (la mienne OU celle du collegue) decide du solde : exactement lastIdx de l archive */ if(x.garde||x.soldeRegle){ B.chute.push(x.w); } else { B.ng.push(x.w); if(mineOnly) B._lastNg=x.w; } });
+  if(mineOnly) Object.keys(out).forEach(function(bk){ const B=out[bk]; if(B._lastNg!=null&&B.ng.length){ const i=B.ng.lastIndexOf(B._lastNg); if(i>=0){ B.ng.splice(i,1); B.chute.push(B._lastNg); } } delete B._lastNg; if(!B.ng.length&&!B.chute.length) delete out[bk]; });   /* [contre-lecture 2] a l arret manque-matiere, la derniere bobine COUPEE de chaque reference porte le solde (lastIdx de _l513Matiere) : meme classement que l archive */
+  else Object.keys(out).forEach(function(bk){ delete out[bk]._lastNg; if(!out[bk].ng.length&&!out[bk].chute.length) delete out[bk]; }); }catch(e){} return out; }
+function _l559ARestes(D){ try{ return Object.keys(D||{}).some(function(k){ const B=D[k]; return B.ng.concat(B.chute).some(function(w){ return w>=PERTE_LAIZE_ALERTE_MM; }); }); }catch(e){ return false; } }
+/* multi-ref : la reference qui a le plus de reste disponible (auto:true quand les longueurs sont egales : l operateur ne choisit pas). */
+function _l559RefDefaut(){ try{ const Rf=_l559Refs(); if(!Rf.length) return {}; const D=_l559RestesVifs(!!window._l559MM); let best=Rf[0],bv=-1; Rf.forEach(function(r){ const B=D['g'+r.idx]; const v=B?(B.ng.reduce(function(s,x){ return s+x; },0)+B.chute.reduce(function(s,x){ return s+x; },0)/1000):0; if(v>bv){ bv=v; best=r; } }); const o={ref:best.ref,refIdx:best.idx,refIdKey:best.refIdKey}; if(!_l559RefsDiff()) o.auto=true; return o; }catch(e){ return {}; } }
+/* [L559 · contre-lecture 2] PLACEMENT PARTAGE « premier reste qui tient » : les restes de chaque reference (copies), TOUTES les lignes par largeur
+   decroissante, chaque bobineau va dans le plus grand reste disponible — NON garde d abord, puis chute (solde / reste garde) — parmi les references
+   permises : la sienne, ou toutes celles de MEME longueur pour une ligne attribuee toute seule (auto). Une ligne auto est eclatee par reference (chaque
+   reference ne retire que les siens : reservoirs par seau, _l528ParRef concordant). Ce qui ne tient nulle part reste sur la reference de la ligne
+   (depassement signale). Sert a la fiche envoyee (_l559Repartir) ET aux avertissements du resume (meme capacite partagee entre les lignes). */
+function _l559Placer(items,D){ try{ const refs=_l559Refs(); const pools={}; Object.keys(D||{}).forEach(function(bk){ pools[bk]={lame:D[bk].blade||0,r:D[bk].ng.map(function(w){ return {w:w,w0:w,t:'ng'}; }).concat(D[bk].chute.map(function(w){ return {w:w,w0:w,t:'ch'}; }))}; });
+  const info=items.map(function(it,k){ return {k:k,place:0,placeCh:0,nonPlace:0,maxR:0}; }); const out=[];
+  items.map(function(it,k){ return {it:it,k:k}; }).sort(function(a,b){ return (+b.it.w||0)-(+a.it.w||0); }).forEach(function(o){ const it=o.it; const own=(typeof it.refIdx==='number')?('g'+it.refIdx):'mono'; let cands=[own];
+    if(it.auto&&typeof it.refIdx==='number'){ const r0=refs.find(function(r){ return r.idx===it.refIdx; }); const ml=r0?r0.ml:0; cands=refs.filter(function(r){ return r.ml===ml; }).map(function(r){ return 'g'+r.idx; }); if(cands.indexOf(own)<0) cands.unshift(own); }
+    let maxR=0; cands.forEach(function(bk){ (pools[bk]?pools[bk].r:[]).forEach(function(x){ if(x.w0>maxR) maxR=x.w0; }); }); info[o.k].maxR=maxR;   /* le plus grand reste tel que l operateur le VOIT (avant placement), pour un message juste */
+    const alloc={};
+    for(let i=0;i<(+it.n||0);i++){ let best=null,bestBk=null; ['ng','ch'].some(function(t){ cands.forEach(function(bk){ const P=pools[bk]; if(!P) return; P.r.forEach(function(x){ if(x.t===t&&x.w>=(+it.w)+P.lame&&(best==null||x.w>best.w)){ best=x; bestBk=bk; } }); }); return best!=null; });
+      if(best){ best.w-=(+it.w)+pools[bestBk].lame; alloc[bestBk]=(alloc[bestBk]||0)+1; info[o.k].place++; if(best.t==='ch') info[o.k].placeCh++; } else { info[o.k].nonPlace++; alloc[own]=(alloc[own]||0)+1; } }
+    Object.keys(alloc).forEach(function(bk){ const r=(bk==='mono')?null:refs.find(function(x){ return ('g'+x.idx)===bk; }); out.push(Object.assign({},it,{n:alloc[bk]},r?{ref:r.ref,refIdx:r.idx,refIdKey:r.refIdKey}:{})); }); });
+  return {items:out,info:info}; }catch(e){ return {items:items,info:[]}; } }
+function _l559Repartir(items,D){ try{ return _l559Placer(items,D).items; }catch(e){ return items; } }
+/* ── etat ── */
+function _l559Set(rep){ try{ window._l559Repli=false; const h=window._l559Hc||{}; const keep=(rep==='oui'&&Array.isArray(h.items)&&h.items.length)?h.items:[]; window._l559Hc={rep:rep,items:(rep==='oui'?(keep.length?keep:[Object.assign({n:1,w:0},_l559RefDefaut())]):[]),by:_l559Ini(),at:isoNow(),sig:_l559Sig()}; _l559Rendu(); try{ if(typeof autosaveDraftTick==='function') autosaveDraftTick(); }catch(_){ } }catch(e){} }
+function _l559Row(i,k,v){ try{ const h=window._l559Hc; if(!h||h.rep!=='oui'||!h.items[i]) return; if(k==='ref'){ const r=_l559Refs().find(function(q){ return String(q.idx)===String(v); }); if(r){ h.items[i].ref=r.ref; h.items[i].refIdx=r.idx; h.items[i].refIdKey=r.refIdKey; delete h.items[i].auto; } } else { h.items[i][k]=Math.max(0,parseInt(v,10)||0); } h.at=isoNow(); h.by=_l559Ini(); h.sig=_l559Sig(); try{ const er=document.getElementById('l559MMErr'); if(er) er.style.display='none'; }catch(_){ } _l559Resume(); try{ clearTimeout(window._l559AsT); window._l559AsT=setTimeout(function(){ try{ if(typeof autosaveDraftTick==='function') autosaveDraftTick(); }catch(_){ } },800); }catch(_){ } }catch(e){} }   /* brouillon 800 ms apres la derniere frappe (pas a chaque chiffre) */
+function _l559RowAdd(w){ try{ const h=window._l559Hc; if(!h||h.rep!=='oui') return; const def=_l559RefDefaut(); const vide=(w>0)?h.items.find(function(i){ return !(+i.w>0); }):null; const ex=(w>0&&!vide)?h.items.find(function(i){ return +i.w===+w&&String(i.refIdx)===String(def.refIdx); }):null; if(vide){ vide.w=+w; if(!(+vide.n>0)) vide.n=1; } else if(ex) ex.n=(+ex.n||0)+1; else h.items.push(Object.assign({n:1,w:(w>0?+w:0)},def)); h.at=isoNow(); h.sig=_l559Sig(); _l559Rendu(); try{ if(typeof autosaveDraftTick==='function') autosaveDraftTick(); }catch(_){ } }catch(e){} }
+function _l559RowDel(i){ try{ const h=window._l559Hc; if(!h||h.rep!=='oui') return; h.items.splice(i,1); if(!h.items.length) h.items.push(Object.assign({n:1,w:0},_l559RefDefaut())); h.at=isoNow(); h.sig=_l559Sig(); _l559Rendu(); try{ if(typeof autosaveDraftTick==='function') autosaveDraftTick(); }catch(_){ } }catch(e){} }
+/* ── garde au tap Enregistrer (volet) / Enregistrer l arret (manque-matiere) ── */
+function _l559PeutEnvoyer(){ try{ const box=_l559Box('l559Volet'); if(!box) return true;   /* bloc NON rendu dans le conteneur OUVERT (portrait, repli, ancien volet) : jamais un envoi bloque sans question visible → la fiche part « non-demande » */
+  const h=window._l559Hc; if(!h||!h.rep) return false; if(h.rep==='oui') return _l559Items(h).length>0&&!_l559Incomplets(h).length; return true; }catch(e){ return true; } }
+/* lignes TOUCHEES mais incompletes (quantite sans largeur ou l inverse) : jamais perdues en silence (refus explicite) */
+function _l559Incomplets(h){ try{ return (h&&Array.isArray(h.items)?h.items:[]).map(function(i,k){ return {i:i,k:k}; }).filter(function(x){ const n=+x.i.n>0, w=+x.i.w>0; return n!==w||(n&&w&&!Number.isInteger(+x.i.n)); }); }catch(e){ return []; } }
+function _l559Refus(){ try{ const h=window._l559Hc; const inc=_l559Incomplets(h); const msg=(h&&h.rep==='oui')?('⚠ Bobineaux hors commande : '+(inc.length?('ligne '+(inc[0].k+1)+' : '+((+inc[0].i.w>0)?'quantité':'largeur')+' manquante — complète-la ou retire-la (✕)'):'quantité ET largeur sur chaque ligne')+', ou choisis « Aucun ».'):'⚠ Réponds à « Bobineaux hors commande » (même « Aucun ») avant d\'enregistrer.'; showToast(msg,'err'); try{ const er=document.getElementById('l559MMErr'); if(er&&window._l559MM){ er.textContent=msg; er.style.display='block'; } }catch(_){ } const box=_l559Box('l559Volet'); if(box){ try{ box.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){ } try{ box.animate([{outline:'3px solid #8ec5ff',outlineOffset:'2px'},{outline:'3px solid rgba(142,197,255,0)'}],{duration:1400}); }catch(_){ } } }catch(e){} }
+/* ── ce qui part dans la fiche (saisie seule ; jamais d undefined, regle L439) ── */
+function _l559HcForFiche(opts){ try{ const h=window._l559Hc; const repli=!!window._l559Repli; window._l559Repli=false; if(!h||!h.rep){ return {rep:(repli?'repli':'non-demande'),items:[],by:'',at:isoNow()}; } if(h.rep==='oui'&&!_l559Items(h).length) return {rep:'non-demande',items:[],by:String(h.by||''),at:isoNow()};   /* « oui » sans aucune ligne valide (rotation, encadre retire) : pas une reponse */
+  const items=(h.rep==='oui')?_l559Repartir(_l559Items(h),_l559RestesVifs(!!(opts&&opts.manqueMatiere===true))).map(function(i){ const o={n:i.n,w:i.w}; if(i.ref) o.ref=String(i.ref); if(typeof i.refIdx==='number') o.refIdx=i.refIdx; if(i.refIdKey) o.refIdKey=String(i.refIdKey); if(i.auto) o.auto=true; return o; }):[]; return {rep:String(h.rep),items:items,by:String(h.by||''),at:String(h.at||isoNow())}; }catch(e){ return {rep:'repli',items:[],by:'',at:isoNow()}; } }
+/* ── rendu PUR du bloc ('' en portrait, regle 3) ; re-rendu LOCAL (jamais _openVictory) ── */
+function _l559KeysHtml(D){ try{ const ws=[]; Object.keys(D).forEach(function(k){ const lame=D[k].blade||0; D[k].ng.concat(D[k].chute).forEach(function(w){ const r=Math.floor(w-lame); if(r>=PERTE_LAIZE_ALERTE_MM&&ws.indexOf(r)<0) ws.push(r); }); });   /* [contre-lecture] largeur du reste MOINS la lame : la touche ne propose jamais ce qui « ne tient pas » */ return ws.sort(function(a,b){ return b-a; }).slice(0,4).map(function(w){ return '<button type="button" class="btn btn-sm l559-key" onclick="_l559RowAdd('+w+')">+1 × '+w+'</button>'; }).join(''); }catch(e){ return ''; } }
+function _l559DispoTxt(D){ try{ const parts=Object.keys(D).map(function(k){ const B=D[k]; const ng=B.ng.filter(function(w){ return w>=PERTE_LAIZE_ALERTE_MM; }).map(function(w){ return fmt(Math.round(w)); }); const ch=B.chute.filter(function(w){ return w>=PERTE_LAIZE_ALERTE_MM; }).map(function(w){ return fmt(Math.round(w)); }); if(!ng.length&&!ch.length) return ''; return (B.ref?(esc(B.ref)+' ('+fmt(B.ml)+' m) : '):'')+(ng.length?(ng.join(', ')+' mm non gardé(s)'):'')+(ng.length&&ch.length?' · ':'')+(ch.length?('solde / gardé '+ch.join(', ')+' mm'):''); }).filter(Boolean); return parts.length?('Restes disponibles : '+parts.join(' · ')+'.'):''; }catch(e){ return ''; } }
+function _l559PartageTxt(){ try{ const other=!!document.querySelector('.fiche-line.coupee-other'); const op2=!!(document.getElementById('fOp2Active')&&document.getElementById('fOp2Active').checked); return (other||op2)?' Commande à plusieurs (autre poste / opérateur 2) : compte aussi les bobineaux coupés par le collègue, demande-lui.':''; }catch(e){ return ''; } }
+function _l559ResumeHtml(D){ try{ const h=window._l559Hc; const items=_l559Repartir(_l559Items(h),D); const inc=_l559Incomplets(h); if(!items.length&&!inc.length) return '<div style="font-weight:700;color:#f5b301;font-size:14px;margin-top:8px">Tape une quantité et une largeur (ou choisis « Aucun »).</div>'; if(!items.length) return '<div style="font-weight:700;color:var(--orange);font-size:13px;margin-top:8px">⚠ Ligne '+(inc[0].k+1)+' : '+((+inc[0].i.w>0)?'quantité':'largeur')+' manquante — complète-la ou retire-la (✕).</div>';
+  let nb=0,m2=0; const msgs=[], notes=[]; const multi=Object.keys(D).some(function(k){ return k!=='mono'; });
+  items.forEach(function(it){ const bk=multi?('g'+it.refIdx):'mono'; const B=D[bk]; const ml=B?B.ml:_l559Ml((document.getElementById('fLongueur')||{}).value||(document.getElementById('planLongueur')||{}).value); nb+=it.n; m2+=it.n*it.w/1000*ml; });
+  const P=_l559Placer(_l559Items(h),D);   /* [contre-lecture 2] capacite PARTAGEE entre toutes les lignes (et les references de meme longueur) : memes regles que la fiche envoyee */
+  _l559Items(h).forEach(function(it,k){ const inf=(P.info&&P.info[k])||{place:0,placeCh:0,nonPlace:0,maxR:0}; const bk=multi?('g'+it.refIdx):'mono'; const B=D[bk]; const lame=B?(B.blade||0):0;
+    if(!(inf.maxR>0)) msgs.push(fmt(it.w)+' mm : aucun reste coupé'+(B&&B.ref?(' sur '+esc(B.ref)):''));
+    else if(inf.nonPlace>=it.n&&it.w+lame>inf.maxR) msgs.push(fmt(it.w)+' mm ne tient dans aucun reste (le plus grand fait '+fmt(Math.round(inf.maxR))+' mm)');
+    else if(inf.nonPlace>0) msgs.push(it.n+' × '+fmt(it.w)+' mm demandés, place pour '+(it.n-inf.nonPlace)+' au plus dans les restes');
+    else if(inf.placeCh>0) notes.push(fmt(it.w)+' mm : pris en partie dans un reste gardé ou le solde — ces m² sortiront des chutes gardées'); });
+  return '<div style="font-weight:700;color:#f5b301;font-size:14px;margin-top:8px">= '+nb+' bobineau'+(nb>1?'x':'')+' · '+_l513M2(Math.round(m2*10)/10)+' m² pour toute la commande</div>'
+    +(inc.length?('<div style="font-weight:700;color:var(--orange);font-size:13px;line-height:1.4;margin-top:4px">⚠ Ligne '+(inc[0].k+1)+' : '+((+inc[0].i.w>0)?'quantité':'largeur')+' manquante — complète-la ou retire-la (✕).</div>'):'')
+    +(msgs.length?('<div style="font-weight:700;color:var(--orange);font-size:13px;line-height:1.4;margin-top:4px">⚠ '+msgs.join(' · ')+'. Vérifie la saisie ; l’envoi reste possible.</div>'):'')
+    +(notes.length?('<div style="font-weight:600;color:#9fb7d1;font-size:12.5px;line-height:1.4;margin-top:4px">'+notes.join(' · ')+'.</div>'):''); }catch(e){ return ''; } }
+function _l559RowsHtml(h){ try{ const diff=_l559RefsDiff(), refs=diff?_l559Refs():[]; return (h.items||[]).map(function(it,i){ return '<div class="l559-row"><input type="number" inputmode="numeric" min="1" step="1" value="'+((+it.n>0)?+it.n:'')+'" aria-label="Quantité" oninput="_l559Row('+i+',\'n\',this.value)"><span class="l559-x">×</span><input type="number" inputmode="numeric" min="1" step="1" value="'+((+it.w>0)?+it.w:'')+'" aria-label="Largeur en mm" oninput="_l559Row('+i+',\'w\',this.value)"><span class="l559-u">mm</span>'+(diff?('<select aria-label="Référence" onchange="_l559Row('+i+',\'ref\',this.value)">'+refs.map(function(r){ return '<option value="'+r.idx+'"'+(String(r.idx)===String(it.refIdx)?' selected':'')+'>'+esc(fmt(r.ml)+' m · '+r.lbl)+'</option>'; }).join('')+'</select>'):'')+'<button type="button" class="l559-del" aria-label="Retirer cette ligne" onclick="_l559RowDel('+i+')">✕</button></div>'; }).join(''); }catch(e){ return ''; } }
+function _l559VoletHtml(opts){ try{
+  if(typeof _isLandscapeFiche==='function'&&!_isLandscapeFiche()) return '';
+  const mm=!!(opts&&opts.mm); const D=_l559RestesVifs(mm); const any=_l559ARestes(D);
+  let h=window._l559Hc;
+  if(!any&&!(h&&(h.rep==='oui'||h.rep==='aucun'))){ if(!(h&&h.rep==='sans-reste')) window._l559Hc={rep:'sans-reste',items:[],by:_l559Ini(),at:isoNow(),sig:_l559Sig()};   /* un « aucun » explicite n est jamais remplace */
+    return '<div id="l559Volet" style="margin:0 0 10px;padding:8px 12px;border:1px solid #3a3a36;border-radius:9px;background:#1a1a18;color:#9a9a92;font-weight:600;font-size:13px">📦 Bobineaux hors commande : aucun reste de '+PERTE_LAIZE_ALERTE_MM+' mm ou plus sur les bobines coupées — rien à déclarer (noté automatiquement)</div>'; }
+  if(any&&h&&h.rep==='sans-reste'){ window._l559Hc=null; h=null; }
+  const rep=h?h.rep:'';
+  const sel=function(r){ return 'class="btn btn-sm l559-rep'+(rep===r?' l559-sel':'')+'"'; };
+  let s='<div id="l559Volet" style="margin:0 0 10px;padding:10px 12px;border:2px solid #1e4d8a;border-radius:9px;background:#0f1d2e;color:#8ec5ff;font-weight:800;font-size:14px">📦 Bobineaux HORS COMMANDE, pour le stock : en as-tu coupé dans un reste '+(mm?'des bobines coupées':'de cette commande')+' ? <span style="font-weight:600;font-size:12.5px">(obligatoire, même pour dire « aucun »)</span>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><button type="button" '+sel('aucun')+' onclick="_l559Set(\'aucun\')">Aucun</button><button type="button" '+sel('oui')+' onclick="_l559Set(\'oui\')">Oui, j’en ai coupé</button></div>'
+    +((!mm&&_l559PartageTxt())?('<div style="font-weight:600;font-size:12px;color:#9fb7d1;margin-top:6px">'+_l559PartageTxt().trim()+'</div>'):'');   /* rappel partage / operateur 2 AVANT toute reponse, volet seulement (a l arret, seules les bobines de ce poste comptent) */
+  if(rep==='aucun') s+='<div style="font-weight:600;font-size:12.5px;margin-top:6px">✓ Réponse de '+esc(h.by||'?')+' : aucun bobineau hors commande</div>';
+  if(rep==='oui'){ s+='<div id="l559Resume">'+_l559ResumeHtml(D)+'</div>'
+    +'<div id="l559Rows">'+_l559RowsHtml(h)+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center"><button type="button" class="btn btn-sm l559-rep" onclick="_l559RowAdd(0)">+ une autre largeur</button>'+_l559KeysHtml(D)+'</div>'
+    +'<div style="font-weight:600;font-size:12px;color:#9fb7d1;margin-top:8px;line-height:1.4">'+_l559DispoTxt(D)+' Déjà comptés ailleurs, ne pas ressaisir : les pièces « + » de la configuration, les quantités en trop (NC).</div>'; }
+  if(h&&h.sig&&h.sig!==_l559Sig()) s+='<div style="font-weight:700;font-size:12.5px;color:var(--orange);margin-top:6px">⚠ Les bobines ont changé depuis la réponse de '+esc(h.by||'?')+' : vérifie, puis touche à nouveau ta réponse pour confirmer.</div>';
+  return s+'</div>';
+}catch(e){ try{ _l505Warn('l559·volet',e); }catch(_){ } window._l559Repli=true; return ''; } }   /* un affichage qui plante est TRACE et la fiche part « repli » (jamais un silence) */
+function _l559Rendu(){ try{ try{ const er=document.getElementById('l559MMErr'); if(er) er.style.display='none'; }catch(_){ } const box=_l559Box('l559Volet'); if(!box) return; const h=_l559VoletHtml({mm:!!window._l559MM}); if(h) box.outerHTML=h; else box.remove(); const b8=_l559Box('l558Volet'); if(b8&&typeof _l558VoletHtml==='function'){ const h8=_l558VoletHtml(); if(h8) b8.outerHTML=h8; else b8.remove(); } }catch(e){} }   /* [contre-lecture 2] l encadre orange L558 est redessine avec le bleu (sa consigne depend de la reponse) ; l erreur de la fenetre s efface */
+function _l559Resume(){ try{ const r=_l559Box('l559Resume'); if(!r) return; r.innerHTML=_l559ResumeHtml(_l559RestesVifs(!!window._l559MM)); }catch(e){} }
+/* ── arret manque de matiere : fenetre dediee (apres le confirm natif, avant la construction du solde) avec les DEUX encadres ── */
+function _l559AskMM(){ return new Promise(function(res){ try{
+  if(typeof _isLandscapeFiche==='function'&&!_isLandscapeFiche()){ res(true); return; }   /* portrait : pas de question (regle 3) → la fiche part « non-demande » */
+  let ov=document.getElementById('l559MMOverlay');
+  if(!ov){ ov=document.createElement('div'); ov.id='l559MMOverlay'; ov.className='modal-overlay'; ov.style.zIndex='9998'; ov.innerHTML='<div class="modal" role="dialog" aria-modal="true" aria-labelledby="l559MMTitle"><h3 id="l559MMTitle" style="margin-bottom:8px">⛔ Arrêt manque de matière</h3><div id="l559MMBody"></div><div id="l559MMErr" role="alert" style="display:none;margin-top:8px;padding:8px 10px;border:1px solid #7a2222;border-radius:8px;background:#3d1414;color:#fca5a5;font-weight:700;font-size:13px"></div><div class="modal-btns" style="margin-top:12px"><button type="button" class="btn btn-ghost" id="l559MMNo" style="min-height:56px">↩ Ne pas arrêter (revenir à la fiche)</button><button type="button" class="btn btn-blue" id="l559MMYes" style="min-height:56px;flex:1;justify-content:center">Enregistrer l’arrêt</button></div></div>'; document.body.appendChild(ov); }   /* z 9998 : au-dessus du volet (200), SOUS les toasts (9999) ; confirmDlg (100000) n est jamais ouvert en meme temps */
+  const body=document.getElementById('l559MMBody'); window._l559MM=true; try{ document.getElementById('l559MMErr').style.display='none'; }catch(_){ }
+  body.innerHTML=((typeof _l559VoletHtml==='function')?_l559VoletHtml({mm:true}):'')+((typeof _l558VoletHtml==='function')?_l558VoletHtml():'')+'<div style="font-size:12px;color:var(--muted);margin-top:6px">Les bobineaux se rapportent aux bobines coupées sur ce poste. Le solde repart sans cette réponse.</div>';
+  const done=function(v){ ov.style.display='none'; window._l559MM=false; try{ body.innerHTML=''; }catch(_){ } res(v); };
+  if(window._l559Hc&&window._l559Hc.rep==='sans-reste'&&!body.querySelector('#l558Volet')){ done(true); return; }   /* rien a decider (aucun reste, rien a garder) : pas d ecran de plus */
+  document.getElementById('l559MMNo').onclick=function(){ done(false); };
+  document.getElementById('l559MMYes').onclick=function(){ if(!_l559PeutEnvoyer()){ _l559Refus(); return; } done(true); };
+  ov.onclick=null;   /* pas d annulation par un appui sur le fond (gant) : l arret ne s annule que par le bouton nomme */
+  ov.style.display='flex';
+}catch(e){ try{ _l505Warn('l559·mm',e); }catch(_){ } window._l559MM=false; res(true); } }); }
 /* Etat de la pastille (pur, testable) : over > solde > perte (>= seuil) > neutre. label = texte affiche. */
 function _l516ChipEtat(waste,solde,seuil){
   const S=(typeof seuil==='number'&&isFinite(seuil))?seuil:PERTE_LAIZE_ALERTE_MM; const mm=fmt(Math.abs(waste))+' mm';
@@ -25059,6 +25229,7 @@ function _shareCloneForReceiver(state){
   st.loadedSaveId=null;   // [L104 · Phase 2 · U] le destinataire ne doit pas hériter du plan sauvegardé chargé par l'ÉMETTEUR : sinon, après « Quitter la vue » (copie locale renvoyable), son envoi archiverait (soft-delete) le plan de l'émetteur — un plan qu'il n'a pas produit.
   st.resumedDraftId=null;   // [L170 · revue] ni le lien de reprise de solde de l'émetteur
   if(st.plan) st.plan.planManual=null;   // [L170 · revue régression] le PLAN MANUEL (L164 #3, ajouté pour brouillon/reprise) ne doit PAS être imposé au destinataire du miroir : il travaille les LIGNES, pas le plan-side de l'émetteur
+  try{ if(st.fiche) st.fiche.horsCmd=null; }catch(e){}   /* [L559] la reponse de l emetteur ne s impose pas au destinataire (il n envoie pas ; la copie locale apres partage repose la question) */
   return st;
 }
 function openSharedCommand(id){
@@ -25743,7 +25914,7 @@ function serializeFicheState(){
     fiche:{machine:ficheMachine,machine2:ficheMachine2,op2DiffMachine:g('fOp2DiffMachine')?.checked||false,mother2:g('fMother2')?.value||'',edge2:g('fEdge2')?.value||'',blade2:g('fBlade2')?.value||'',ini:g('fInitiales')?.value||'',ini2:g('fInitiales2')?.value||'',op2Active:g('fOp2Active')?.checked||false,op2Bob:g('fOp2Bobine')?.value||'',lameChg:g('fLameChg')?.checked||false,lameNew:g('fLameNew')?.value||'',lameChgBob:g('fLameChgBob')?.value||'',machChg:g('fMachChg')?.checked||false,machChgTo:g('fMachChgTo')?.value||'',machChgBob:g('fMachChgBob')?.value||'',
       lame:g('fNumLame')?.value||'',numJour:g('fNumJour')?.value||'',longueur:g('fLongueur')?.value||'',client:g('fClient')?.value||'',ref:g('fRef')?.value||'',
       numCmd:g('fNumCmd')?.value||'',dateLiv:g('fDateLiv')?.value||'',type:g('fType')?.value||'',palette:g('fPalette')?.value||'',etiquetage:g('fEtiquetage')?.value||'',cerclage:g('fCerclage')?.value||'',notes:g('fNotesEmballage')?.value||'',
-      refOrder:(typeof ficheRefOrder!=='undefined'?ficheRefOrder.slice():[]),refValidated:(typeof ficheRefValidated!=='undefined'?Array.from(ficheRefValidated):[]),planValidated:fichePlanValidated},   // [L89] le verrou « Changement plan » survit au rechargement
+      refOrder:(typeof ficheRefOrder!=='undefined'?ficheRefOrder.slice():[]),refValidated:(typeof ficheRefValidated!=='undefined'?Array.from(ficheRefValidated):[]),planValidated:fichePlanValidated,horsCmd:_l559HcSer()},   // [L559] la reponse « bobineaux hors commande » suit le brouillon (null = pas de reponse, jamais undefined) · [L89] le verrou « Changement plan » survit au rechargement
     chrono:{sec:chronoSec, startTs:chronoStartTs, wasRunning:chronoRunning, runStart:chronoRunStart, began:_chronoRunBeganAt||null},   /* [L496 · chrono 28 h] l instant REEL du ▶ voyage avec le brouillon : sans lui, restoreChrono reprenait le chrono EN MARCHE avec _chronoRunBeganAt=null et la garde cross-day etait neutralisee pour toute la session */
     lines:getFicheLinesData(),
     pendingFicheId:_pendingFicheId||null, pendingTempsId:_pendingTempsId||null,   // ENVOI-1 : renvoi idempotent
@@ -26535,6 +26706,7 @@ function restoreFicheState(st){
   // Données→Plans (double découpe possible). Brouillons antérieurs (sans champ) : null,
   // comportement d'avant (on n'archive jamais « consommé » un plan jamais coupé).
   loadedSaveId=st.loadedSaveId||null;
+  try{ window._l559Hc=(st.fiche&&st.fiche.horsCmd&&typeof st.fiche.horsCmd==='object')?JSON.parse(JSON.stringify(st.fiche.horsCmd)):null; }catch(e){ window._l559Hc=null; }   /* [L559] reprise / brouillon / partage : la reponse suit l etat (un ancien brouillon sans le champ = pas de reponse) */
   window._l377MachinePrep=null;   // [L379 · n°12] la reprise repart proprement (le swap de passation re-posera la valeur s'il a lieu)
   try{ _l370HabitualWidths(); }catch(e){}   // [L371 · fix audit] brouillon restauré : chips du bon couple client+réf
   if(st.plan.machine) selectMachine(st.plan.machine); else currentMachine='feba';   /* [L516 · signalement Celine 10/09] brouillon SANS machine (poste de pilotage depuis L511) : on ne force plus FEBA dans les selects vides a chaque ouverture — repli interne inchange, l ecran reste sur « — choisir — » */

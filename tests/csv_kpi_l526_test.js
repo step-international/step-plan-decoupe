@@ -18,7 +18,9 @@ console.log('── 1. structure : 30 colonnes, libelles du CSV fiches, ancienne
 if(HDR&&ROW){
   const K={mois:'2026-07',regleVer:'L513',nbFiches:2,totalBobines:4,m2:4200,perteM2:193,dechetM2:78.5,chuteM2:1771,pertePct:7.4,tempsSec:0,calcWarn:0,machines:{FEBA:{bobines:3,secLaize:0,perteM2:185.5},MAVEG:{bobines:1,secLaize:0,perteM2:7.5},CEVENINI:{bobines:0,secLaize:0,perteM2:0}},chutesPieces:0};
   const r=ROW(K,'2026-09');
-  ok(HDR.length===30&&r.length===30,'30 colonnes en-tete et 30 cellules (meme nombre qu avant : aucun decalage) → '+HDR.length+' / '+r.length);
+  ok(HDR.length===32&&r.length===32,'32 colonnes en-tete et 32 cellules (30 + 2 colonnes L559 en fin de ligne : aucun decalage) → '+HDR.length+' / '+r.length);
+  ok(HDR[30]==='Bobineaux hors commande pour le stock (nb)'&&HDR[31]==='Bobineaux hors commande pour le stock (m²)'&&r[30]==='n/d'&&r[31]==='n/d','[L559] colonnes 31-32 en FIN de ligne, meme ordre que le CSV fiches (nb, m²) ; mois sans le champ → n/d (jamais 0) → '+r[30]+' / '+r[31]);
+  { const K2=Object.assign({},K,{horsCmdM2:12.5,horsCmdN:3}); const r2=ROW(K2,'2026-10'); ok(r2[30]==='3'&&r2[31]==='12,5','[L559] mois renseigne : nb puis m² (une inversion serait rouge) → '+r2[30]+' / '+r2[31]); }
   ok(HDR.indexOf('Perte %')<0&&HDR.indexOf('Rendement %')<0&&HDR.indexOf('FEBA perte %')<0,'« Perte % » (base utile), « Rendement % » et « X perte % » ont disparu');
   ok(HDR.join(';').indexOf('m² coupés (bobines mères);Perte % (m²);Perte m²;Déchet m²;Déchet %;Chutes gardées m²')>=0,'bloc matiere dans l ORDRE du CSV fiches : m² ; Perte % (m²) ; Perte m² ; Déchet m² ; Déchet % ; Chutes gardées m²');
   console.log('── 2. jeu de reference kpi_test (m² 4200, perte 193, dechet 78,5, ancien pertePct 7,4) ──');
