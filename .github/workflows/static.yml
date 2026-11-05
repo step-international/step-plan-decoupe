@@ -135,10 +135,10 @@ jobs:
           node tests/sim200.mjs --n 8 --seed 7 --multi 0.5 > /tmp/_sim.log 2>&1 || { tail -12 /tmp/_sim.log; exit 1; }
           grep -q "🏆" /tmp/_sim.log || { tail -12 /tmp/_sim.log; exit 1; }
           node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if((s.withBugs||0)+(s.jsErrors||0)+(s.domGuards||0)>0||(s.n||0)<8){console.log(JSON.stringify(s));process.exit(1)} const nn=s.n-(s.skipN||0); if((s.l559Bloc||0)!==nn||((s.l559Refus||0)+(s.l559SansReste||0))!==nn||(s.l559Oui||0)<1||(s.l559Aucun||0)<1){console.log('L559 : couverture incomplete '+JSON.stringify(s));process.exit(1)} console.log('rapport relu : n='+s.n+' l559 refus='+s.l559Refus+' oui='+s.l559Oui+' aucun='+s.l559Aucun)"
-      - name: Smokes (12 scenes, capteur d erreurs et sentinelles)
+      - name: Smokes (13 scenes, capteur d erreurs et sentinelles)
         run: |
           set -euo pipefail
-          for s in plan fiche fiche-start fiche-cut fiche-dechet fiche-entretien fiche-reglages fiche-dossier fiche-reste fiche-horscmd donnees analyse; do
+          for s in plan fiche fiche-start fiche-cut fiche-dechet fiche-entretien fiche-reglages fiche-dossier fiche-reste fiche-horscmd fiche-ordre donnees analyse; do
             if ! node tests/shot.mjs --scene "$s" --out "/tmp/_smoke_$s.png" --json > "/tmp/_smoke_$s.log" 2>&1; then tail -8 "/tmp/_smoke_$s.log"; echo "smoke $s : shot.mjs sort en erreur"; exit 1; fi
             if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_smoke_$s.log"; then tail -8 "/tmp/_smoke_$s.log"; echo "smoke $s : sentinelle d erreur"; exit 1; fi
             printf '%-11s ok\n' "$s"

@@ -1508,6 +1508,8 @@ body.atelier #chronoStartBtn,body.atelier #chronoPauseBtn{font-size:22px;min-hei
   .fmm-order-btns{display:flex;flex-direction:column;gap:8px;margin-left:auto}
   .fmm-order-btns .btn{min-width:48px;min-height:48px;padding:4px 10px}   /* [L460 · audit #15] plancher tactile 48px + ecart 8px entre ▲ et ▼ (seul geste de reordonnancement desormais) */
   .fmm-order-btns .fmm-first-btn{display:none}
+  .fmm-order-row.l560-fig .fmm-order-btns .btn{display:none}
+  .fmm-order-row.l560-fig .fmm-order-btns::after{content:'🔒';display:flex;align-items:center;justify-content:center;min-width:48px;min-height:48px;font-size:22px;opacity:.8}   /* [L560] reference COMMENCEE : un cadenas a la place des fleches (elle garde sa place) — paysage seulement, le portrait garde la disposition historique */
   /* le 🖨 du rail se masque : IMPRIMER vit dans la barre (§2.18) */
   #fMachineMulti>button[onclick="printFichePlan()"]{display:none}
   /* — ordre vertical du rail (maquette 17) : chrono → ordre de coupe → étiquette solde → … → PARTAGER en dernier — */
@@ -3432,7 +3434,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.11.04-L559';
+const APP_VERSION='2026.11.05-L560';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -21558,7 +21560,7 @@ function _fmmOrderGuardsOk(){
   if(typeof _shareCurrentDocId==='function' && _shareCurrentDocId()){
     showToast('🔒 Commande PARTAGÉE : réordonne AVANT de partager (arrête le partage d\'abord).','err'); return false; }
   if(typeof isFicheUntouched==='function' && !isFicheUntouched()){
-    showToast('🔒 Ordre de découpe FIGÉ : une bobine est déjà engagée (coupée, NC, photo ou test 2ᵉ).','err'); return false; }
+    showToast('🔒 Commande démarrée : utilise les flèches ▲▼ de la liste « Ordre de coupe » — seules les références PAS ENCORE COMMENCÉES changent d\'ordre.','err'); return false; }   /* [L560] « Couper en 1er », le glisser et leur annulation REGENERENT la fiche : ils restent geles commande demarree (jumeaux laisses tels quels a dessein) ; les fleches, elles, deplacent sans regenerer (_l560Deplacer) */
   return true;
 }
 function fmmMoveRefTo(idx,toPos){
@@ -21593,6 +21595,7 @@ function _fmmShowUndo(){
   }catch(e){}
 }
 function fmmUndoOrder(){
+  if(window._l560Undo){ const u=window._l560Undo; window._l560Undo=null; try{ document.getElementById('fmmUndoBar')?.remove(); }catch(e){} if(Date.now()-u.t<10000&&typeof isFicheUntouched==='function'&&!isFicheUntouched()){ _l560Deplacer(u.idx,u.dir,{undo:true}); return; } }   /* [L560] annulation d un echange fait commande DEMARREE : l echange inverse, memes gardes, jamais de regeneration ; jeton perime = ignore */
   if(!_fmmPrevOrder||!_fmmOrderGuardsOk()) return;
   const _lbl434=_l434SnapLabels();   /* [L434] */
   ficheRefOrder=_fmmPrevOrder.slice(); _fmmPrevOrder=null;
@@ -21662,7 +21665,8 @@ function fmmMoveRef(idx,dir){
   // no-op + toast. isFicheUntouched = la notion existante de « production engagée »
   // (coupée / NC / photo / test 2ᵉ / action).
   if(typeof isFicheUntouched==='function' && !isFicheUntouched()){
-    showToast('🔒 Ordre de découpe FIGÉ : une bobine est déjà engagée (coupée, NC, photo ou test 2ᵉ).\n\nTermine la commande — ou repars d\'une fiche neuve pour changer l\'ordre.','err');
+    { const _d560=Date.now()-(window._l560T||0); if(_d560>=0&&_d560<500) return; }   /* [L560] anti-rebond : apres un echange le rail est re-rendu et le bandeau Annuler decale les rangees ; le 2e appui d un double appui tombait sur une AUTRE fleche (echange defait ou double). Horloge reculee = pas un rebond */
+    _l560Deplacer(idx,dir);   /* [L560 · demande Celine 05/11/2026] commande DEMARREE : plus de refus global. On echange deux references VOISINES PAS ENCORE COMMENCEES en deplacant leurs cartes existantes : rien n est regenere, donc le danger decrit ci-dessus (L106) ne peut plus se produire, et une reference commencee garde sa place. */
     return;
   }
   // [L113 · audit U12] isFicheUntouched ne voit NI étiquette tapée NI conf éditée, mais régénérer
@@ -21678,6 +21682,92 @@ function fmmMoveRef(idx,dir){
   renderFicheMachineBlocks();
   _l434RestoreLabels(_lbl434);   /* [L434] */
 }
+/* [L560 · demande Celine 05/11/2026, remontee des equipes] ORDRE DES REFERENCES, COMMANDE DEJA DEMARREE.
+   Avant la 1re coupe, ▲▼ regenere la fiche dans le nouvel ordre. Des qu une bobine etait engagee, le gel L106 refusait TOUT
+   (« Ordre de decoupe FIGE »), meme pour une urgence. Decision Celine : le plan de decoupe ne change pas ; seul l ordre de PASSAGE
+   des references change, et seulement pour les references PAS ENCORE COMMENCEES (la reference en cours se termine d abord).
+   Ici RIEN n est regenere ni recalcule : on DEPLACE les cartes existantes, par bloc entier de reference. Etiquettes, configurations,
+   NC, photos, restes gardes restent donc sur leur carte ; les numeros n/T sont comptes par reference, donc inchanges (deux blocs
+   d une MEME reference sur deux machines partagent leur compteur : leur echange est refuse). Le moteur gele n est ni modifie ni
+   appele ; recalcEcartsFromFiche n est pas touche (un recalcul ulterieur suit ficheRefOrder, donc le meme ordre). Le gel L106 reste
+   vrai pour toute reference commencee ; le partage reste refuse (L113) ; « Couper en 1er », le glisser et leur annulation restent
+   geles une fois la commande demarree (jumeaux laisses tels quels a dessein : ils regenerent). */
+function _l560Echange(cles,a,b){   /* PURE : permutation (anciens rangs, dans le nouvel ordre) qui echange les deux PLAGES contigues et adjacentes des cles a et b ; null si une plage est morcelee, si elles ne se touchent pas ou si a = b ; identite si l une des deux n a aucune ligne (reference couverte par le stock) */
+  if(!Array.isArray(cles)||a===b) return null;
+  const plage=function(k){ let s=-1,e=-1; for(let i=0;i<cles.length;i++){ if(cles[i]!==k) continue; if(s<0){ s=i; e=i; } else if(e===i-1){ e=i; } else return null; } return {s:s,e:e}; };
+  const A=plage(a),B=plage(b); if(!A||!B) return null;
+  const id=cles.map(function(_,i){ return i; });
+  if(A.s<0||B.s<0) return id;
+  const X=(A.s<B.s)?A:B, Y=(A.s<B.s)?B:A;
+  if(Y.s!==X.e+1) return null;
+  return id.slice(0,X.s).concat(id.slice(Y.s,Y.e+1),id.slice(X.s,X.e+1),id.slice(Y.e+1));
+}
+function _l560RefCommencee(idx){ try{ return (ficheLines||[]).some(function(l){ return !!l&&_l527DomIdx(l)===idx&&_l525Done(document.getElementById(l.id),l.id); }); }catch(e){ return true; } }   /* critere UNIQUE « reference commencee » (garde + rail) : une de ses bobines est coupee, jetee ou engagee par un geste operateur (_l525Done, defini en L525). En cas d erreur : COMMENCEE (le verrou se ferme dans le doute) */
+function _l560Pivots(){ try{ const out=[]; [['fOp2Active','fOp2Bobine','opérateur 2'],['fLameChg','fLameChgBob','changement de lame'],['fMachChg','fMachChgBob','changement de machine']].forEach(function(t){ const c=document.getElementById(t[0]); if(!c||!c.checked) return; const lid=(typeof _bobineSelLid==='function')?_bobineSelLid(t[1]):null; if(lid) out.push({lid:lid,nom:t[2]}); }); return out; }catch(e){ return []; } }   /* bascules ACTIVES « a partir de la bobine N » : leur bobine pivot ne doit pas changer de rang */
+function _l560Bandes(){   /* bande rouge « CHANGEMENT DE MACHINE » : elle depend de la reference PRECEDENTE. Recalculee seulement la ou elle doit changer ; fiche a une seule machine : rien a faire, les separateurs deplaces sont exacts */
+  const cont=document.getElementById('ficheLines'); if(!cont) return; const raw=fmmRawRefs(); let prev='';
+  const seps=Array.prototype.slice.call(cont.querySelectorAll('.fiche-ref-sep'));
+  seps.forEach(function(s){
+    const mach=MACHINE_KEYS.find(function(k){ return s.classList.contains(k); })||'';
+    const lbl=mach?getMachineLabel(mach):'', pl=prev?getMachineLabel(prev):'';
+    const veut=!!(lbl&&pl&&pl!==lbl); const a=s.querySelector('.frs-change');
+    const bon=veut?(!!a&&a.textContent===('⚙ CHANGEMENT DE MACHINE — '+pl+' → '+lbl)):!a;
+    if(!bon){ const rs=raw.filter(function(r){ return !!s.dataset.refKey&&r.refKey===s.dataset.refKey; }); const twin=s.classList.contains('twin')||seps.filter(function(x){ return refDisp(x.dataset.ref||'')===refDisp(s.dataset.ref||''); }).length>1;
+      insertFicheRefSeparator(s.dataset.ref||'',null,(rs.length===1?rs[0].longueur:''),mach,prev,null,null,twin,s.dataset.refKey||null);
+      const neuf=cont.lastElementChild; if(neuf&&neuf!==s) cont.replaceChild(neuf,s); }
+    if(mach) prev=mach;
+  });
+}
+function _l560RailSync(){ try{ const cont=document.getElementById('fmmOrder'); if(!cont) return; const eng=(typeof isFicheUntouched==='function')&&!isFicheUntouched(); const com=new Set(); if(eng){ const vu={}; (ficheLines||[]).forEach(function(l){ if(!l||!_l525Done(document.getElementById(l.id),l.id)) return; const c=String(l.refIdKey||'')+'¦'+(typeof l.refIdx==='number'?l.refIdx:'?'); if(!(c in vu)) vu[c]=_l527DomIdx(l); com.add(vu[c]); }); } cont.querySelectorAll('.fmm-order-row').forEach(function(row){ const h=row.querySelector('.fmm-drag-handle'); const m=h&&String(h.getAttribute('onpointerdown')||'').match(/,(\d+)\)/); if(!m) return; row.classList.toggle('l560-fig',com.has(+m[1])); }); }catch(e){} }   /* liste « Ordre de coupe » : une reference COMMENCEE porte un cadenas a la place des fleches (visuel en paysage seulement, regle 3). UN seul passage sur les bobines, et le Plan n est relu que pour les bobines commencees (une fois par reference) : ce rafraichissement tourne a CHAQUE coupe */
+function _l560SoldeSig(d){ return /^p_/.test(String(d.key))?String(d.key):['r',d.ref,d.film,d.veka,d.longueur,d.mother].join('¦'); }   /* identite d une etiquette solde, independante de son rang r0 / r1 / r2 (qui glisse quand deux references s echangent) */
+function _l560SoldeSnap(){ const m={}; try{ getEtiquetteSoldeList().forEach(function(d){ const s=_l560SoldeSig(d); if(s in m){ m[s]=null; return; } const g=function(p){ const e=document.getElementById(p+d.key); return (e&&String(e.value)!==String(e.defaultValue||''))?String(e.value):null; }; m[s]={solde:g('etiqSolde_'),num:g('etiqNumMere_'),refNum:g('etiqRefNum_')}; }); }catch(e){} return m; }   /* ne retient que ce qui a ete TAPE (valeur differente de celle posee par le rendu) ; deux etiquettes indiscernables : rien n est retenu, plutot que de transplanter une saisie */
+function _l560SoldeRestore(m){ try{ if(!m) return; const L=getEtiquetteSoldeList(), n={}; L.forEach(function(d){ const s=_l560SoldeSig(d); n[s]=(n[s]||0)+1; }); L.forEach(function(d){ const s=_l560SoldeSig(d), v=m[s]; if(!v||n[s]!==1) return; [['etiqSolde_',v.solde],['etiqNumMere_',v.num],['etiqRefNum_',v.refNum]].forEach(function(t){ const e=document.getElementById(t[0]+d.key); if(e&&t[1]!=null) e.value=t[1]; }); try{ updateEtiquetteBtn(d.key); }catch(_){ } }); }catch(e){} }   /* la saisie de l etiquette solde (laize restante corrigee, n° de bobine mere, n° de reference) SUIT sa reference apres le re-rendu de la liste */
+function _l560Deplacer(idx,dir,opts){ try{
+  const o=opts||{};
+  if(typeof _shareCurrentDocId==='function'&&_shareCurrentDocId()){ showToast('🔒 Commande PARTAGÉE : arrête le partage avant de changer l\'ordre de découpe.','err'); return false; }
+  if(typeof _recalcPending!=='undefined'&&_recalcPending){ showToast('⏳ Recalcul en cours : réessaie dans une seconde.','err'); return false; }
+  { const bl=document.getElementById('planDriftBanner'); if(bl&&bl.style&&bl.style.display!=='none'&&String(bl.textContent||'').trim()){ showToast('🔒 Le plan a changé : applique d\'abord les changements (bandeau rouge « Le plan a changé »), puis change l\'ordre.','err'); return false; } }   /* derive du plan en attente : les bobines a l ecran ne correspondent plus forcement aux references de la liste */
+  const order=fmmCutOrder(); const pos=order.indexOf(idx), to=pos+dir; if(pos<0||to<0||to>=order.length) return false;
+  const autre=order[to]; const raw=fmmRawRefs();
+  const nom=function(i){ const r=raw.find(function(x){ return x.idx===i; }); return r?((typeof refDispCtx==='function')?refDispCtx(String(r.ref),r.refKey):refDisp(String(r.ref))):('Référence '+(i+1)); };   /* nom AVEC son contexte (metrage, rang) : deux references homonymes ne donnent plus « KX1035 passe avant KX1035 » */
+  { const rI=raw.find(function(x){ return x.idx===idx; }), rA=raw.find(function(x){ return x.idx===autre; }); if(rI&&rA&&rI.refKey&&rI.refKey===rA.refKey){ showToast('🔒 Ces deux lignes sont la MÊME référence, coupée sur deux machines : leur ordre ne se change pas une fois la commande démarrée.','err'); return false; } }   /* deux blocs d une meme reference partagent leur compteur n/T et leur « derniere bobine » (solde) : les echanger les renumeroterait */
+  const cont=document.getElementById('ficheLines');
+  const cles=ficheLines.map(function(l){ return _l527DomIdx(l); });
+  const noeuds=ficheLines.map(function(l){ return document.getElementById(l.id); });
+  const range=!!cont&&noeuds.every(function(n,i){ return !!n&&n.parentNode===cont&&(i===0||!!(noeuds[i-1].compareDocumentPosition(n)&4)); });   /* 4 = DOCUMENT_POSITION_FOLLOWING : l ecran suit bien l ordre de ficheLines */
+  if(!range||cles.some(function(k){ return !(k>=0); })){ showToast('🔒 Ordre non modifiable pour l\'instant : une bobine n\'est pas rattachée à sa référence. Rien n\'a été changé.','err'); return false; }
+  const fig=[idx,autre].filter(_l560RefCommencee);
+  if(fig.length){ showToast('🔒 « '+nom(fig[0])+' » a déjà une bobine coupée ou renseignée : elle garde sa place.\n\nSeules les références PAS ENCORE COMMENCÉES changent d\'ordre.','err'); return false; }
+  const piv=_l560Pivots().filter(function(p){ const n=ficheLines.findIndex(function(l){ return l.id===p.lid; }); return n>=0&&(cles[n]===idx||cles[n]===autre); });
+  if(piv.length){ showToast('🔒 Un '+piv[0].nom+' démarre sur une bobine de ces références : retire-le d\'abord (Changements), puis change l\'ordre.','err'); return false; }
+  { const hI=cles.indexOf(idx), hA=cles.indexOf(autre); if(hI>=0&&hA>=0&&((hI<hA)!==(pos<to))){ showToast('🔒 Ordre non modifiable ici : la liste « Ordre de coupe » et les bobines à l\'écran ne sont pas dans le même ordre. Rien n\'a été changé.','err'); return false; } }   /* la liste doit SUIVRE les cartes : sinon l echange partirait a contresens et le message dirait l inverse de l ecran */
+  const perm=_l560Echange(cles,idx,autre);
+  if(!perm){ showToast('🔒 Ordre non modifiable ici : les bobines de ces références ne se suivent pas. Rien n\'a été changé.','err'); return false; }
+  const sol560=_l560SoldeSnap();   /* AVANT toute permutation : les cles r0 / r1 lues correspondent encore aux champs a l ecran */
+  if(perm.some(function(v,i){ return v!==i; })){
+    const debut=function(n){ let d=noeuds[n]; for(let p=d.previousElementSibling;p&&!(p.classList&&p.classList.contains('fiche-line'));p=p.previousElementSibling) d=p; return d; };   /* bloc d une reference = TOUT ce qui suit la derniere bobine de la reference precedente : separateur, carte de reference, jalon cache de l en-tete depliee (.l352-home) */
+    const hX=Math.min(cles.indexOf(idx),cles.indexOf(autre)), hY=Math.max(cles.indexOf(idx),cles.indexOf(autre)), fY=cles.lastIndexOf(cles[hY]);
+    const ancre=debut(hX), lot=[]; for(let d=debut(hY);d;d=d.nextElementSibling){ lot.push(d); if(d===noeuds[fY]) break; }
+    lot.forEach(function(d){ cont.insertBefore(d,ancre); });   /* le bloc du BAS remonte d un seul tenant devant le bloc du HAUT : aucun noeud n est recree */
+    ficheLines=perm.map(function(i){ return ficheLines[i]; });
+  }
+  const no=order.slice(); no[pos]=autre; no[to]=idx; ficheRefOrder=no;
+  let ko=0; const sur=function(etape,f){ try{ f(); }catch(e){ ko++; try{ _l505Warn('l560·'+etape,e); }catch(_){ } } };   /* un rafraichissement en panne est TRACE et dit a l operateur (jamais un vert seul) */
+  sur('bandes',function(){ _l560Bandes(); });
+  sur('numeros',function(){ renumberFicheLines(); });
+  sur('pivots',function(){ refreshOp2BobineList(); });
+  sur('liste',function(){ renderFicheMachineBlocks(); });
+  sur('compteurs',function(){ updateCoupeeStatus(); });
+  sur('cumuls',function(){ updateAllCumuls(); });
+  sur('solde',function(){ refreshEtiquetteSolde(); _l560SoldeRestore(sol560); });
+  sur('brouillon',function(){ autosaveDraftTick(true); });
+  sur('journal',function(){ const p=logAudit('edit','fiches','*','Ordre de coupe changé EN COURS de commande : « '+nom(idx)+' » passe '+(dir<0?'avant':'après')+' « '+nom(autre)+' » (cartes déplacées, rien de recalculé)',{client:String((document.getElementById('fClient')||{}).value||''),ref:nom(idx)}); if(p&&p.catch) p.catch(function(){}); });
+  if(o.undo){ showToast('↩ Ordre de coupe rétabli.','ok'); }
+  else { window._l560Undo={idx:idx,dir:-dir,t:Date.now()}; try{ _fmmPrevOrder=null; }catch(_){ } try{ _fmmShowUndo(); }catch(_){ } showToast('✅ « '+nom(idx)+' » passe '+(dir<0?'avant':'après')+' « '+nom(autre)+' ». Le plan de découpe ne change pas.','ok'); }
+  if(ko) showToast('⚠ Ordre changé, mais un affichage ne s\'est pas rafraîchi : vérifie la liste « Ordre de coupe » et les bobines avant de continuer.','err');
+  window._l560T=Date.now();   /* anti-rebond des fleches (lu par fmmMoveRef) */
+  return true;
+}catch(e){ try{ _l505Warn('l560·ordre',e); }catch(_){ } try{ showToast('⚠ Changement d\'ordre interrompu : vérifie la liste « Ordre de coupe » avant de continuer.','err'); }catch(_){ } return false; } }
 function fmmIsMulti(){ return fmmRawRefs().length>1; }
 // Index de la réf « en cours » = 1re réf non encore validée (ordre plan).
 function fmmActiveIdx(){
@@ -21824,6 +21914,7 @@ function renderFicheMachineBlocks(opts){
     });
     oh+='</div>';
     orderEl.innerHTML=oh;
+    try{ _l560RailSync(); }catch(_){ }   /* [L560] cadenas des references commencees (classe posee apres coup : le gabarit des rangees n est pas touche) */
   }
   // Construit et INSÈRE le bloc machine de chaque réf JUSTE AVANT sa 1re bobine
   // dans la liste (1re réf = au-dessus de la 1re bobine à couper ; réfs
@@ -24462,6 +24553,7 @@ function _l340SyncOrderStates(){ try{
   const cont=document.getElementById('fmmOrder'); if(!cont||typeof fmmGetRefs!=='function') return;
   const rows=cont.querySelectorAll('.fmm-order-row'); if(!rows.length) return;
   const refs=fmmGetRefs(); let curTaken=false;
+  try{ _l560RailSync(); }catch(_){ }   /* [L560] jumeau du rendu : le cadenas suit les coupes sans re-rendre le rail */
   rows.forEach(function(row){
     const h=row.querySelector('.fmm-drag-handle'); const m=h&&String(h.getAttribute('onpointerdown')||'').match(/,(\d+)\)/); if(!m) return;
     const idx=+m[1]; const r=refs.find(function(x){ return x.idx===idx; }); if(!r) return;
