@@ -190,8 +190,8 @@ console.log('── D. cablage (source) ──');
       if(c==='{'){ pile.push(src.slice(d0,k).replace(/\/\*[\s\S]*?\*\//g,'').trim()); d0=k+1; } else if(c==='}'){ pile.pop(); d0=k+1; } else if(c===';'){ d0=k+1; } }
     return pile; };
   ok(['.fmm-order-row.l560-fig .fmm-order-btns .btn{display:none}','.fmm-order-row.l560-fig .fmm-order-btns::after{'].every(function(r){ const b=blocs560(r); return !!b&&b.length===1&&b[0]==='@media(min-width:1100px)'; }),'les DEUX regles du cadenas (fleches masquees, 🔒) vivent, une seule fois, dans un unique bloc @media(min-width:1100px) (accolades comptees) : portrait inchange (regle 3)');
-  ok(/const APP_VERSION='2026\.11\.05-L560';/.test(src),'version L560');
-  ok(/'fiche-ordre': `/.test(shot)&&/'fiche-ordre': "/.test(shot)&&/fiche-horscmd fiche-ordre donnees analyse/.test(bat)&&/fiche-horscmd fiche-ordre donnees analyse/.test(ci)&&/Smokes .13 scenes/.test(ci),'scene « fiche-ordre » (3 references, vraie fleche) dans shot.mjs, la batterie ET la CI (13 scenes)');
+  ok((function(){ const m=/const APP_VERSION='[0-9.]+-L(\d+)';/.exec(src); return !!m&&(+m[1])>=560; })(),'version L560 ou suivante');
+  ok(/'fiche-ordre': `/.test(shot)&&/'fiche-ordre': "/.test(shot)&&/fiche-horscmd fiche-ordre (?:[a-z0-9-]+ )*analyse/.test(bat)&&/fiche-horscmd fiche-ordre (?:[a-z0-9-]+ )*analyse/.test(ci)&&/Smokes .[0-9]+ scenes/.test(ci),'scene « fiche-ordre » (3 references, vraie fleche) dans shot.mjs, la batterie ET la CI (d autres scenes peuvent suivre)');
 }
 console.log(fail?('\n💥 '+fail+'/'+total+' ECHEC(S) ORDRE L560'):('\n🏆 ORDRE L560 OK : '+total+' verifications'));
 process.exit(fail?1:0);

@@ -3434,7 +3434,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.11.05-L560';
+const APP_VERSION='2026.11.05-L561';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -4716,7 +4716,7 @@ document.addEventListener('keydown',function(e){
    apres connexion (_l486LoadClients), rejoues depuis le cache local step_clients_v1 au demarrage (ci-dessous, en
    SYNCHRONE, avant la construction des menus — le role que tenaient les graines). Un poste sans cache ni reseau voit
    un bandeau « liste clients non chargee » (_l537CatalogCheck) au lieu d une liste vide silencieuse. `var` (et non
-   `const`) pour permettre la reassignation. Les regles d emballage se modifient dans la base partagee. */
+   `const`) pour permettre la reassignation. Les regles d emballage se modifient dans Donnees > Clients (editeur L561). */
 var CLIENT_DATA_SEED=null, PKG_CLIENTS_SEED=null;
 var CLIENT_DATA = {
 };
@@ -4750,7 +4750,7 @@ var PKG_DEFAULT={palette:'80×120',type:'Caisse',etiquetage:'Standard',cerclage:
      `config` en ecriture est aujourd hui isAdmin() : un compte pilotage recoit un toast
      explicite plutot qu un echec muet (meme pattern que la cible m² L463).
    ============================================================ */
-var _l486Loaded=false, _l486SeenAt, _l486Unsub=null, _l486Retries=0;   /* [L493] abonnement temps reel : poignee de desabonnement + compteur de repli, meme motif que _brouillonsUnsub */   /* [L492] horodatage du referentiel tel qu on l a charge (undefined = jamais lu) */
+var _l486Loaded=false, _l486SeenAt, _l486Unsub=null, _l486Retries=0, _l486EnVol=0;   /* [L561] _l486EnVol : publications de config/clients en vol sur CE poste */   /* [L493] abonnement temps reel : poignee de desabonnement + compteur de repli, meme motif que _brouillonsUnsub */   /* [L492] horodatage du referentiel tel qu on l a charge (undefined = jamais lu) */
 /* [L487 · demande Esteban 28/08] Le referentiel CLIENTS n est PAS ouvert a tout le bureau :
    seuls les comptes ADMIN (Esteban, Christian) et DOMINIQUE (DC, pilotage) y touchent.
    canManageData() etait trop large — un futur compte pilotage aurait herite du droit. */
@@ -4896,6 +4896,7 @@ async function _l486Publish(btn,silencieux){
   if(nP<5){ showToast('Règles d’emballage en mémoire anormalement peu nombreuses ('+nP+') — publication refusée. Recharge la page connectée au réseau.','err'); if(btn) btn.disabled=false; return false; }   /* [L541 · audit adverse 26/09] meme garde que le catalogue : 20 clients avaient une regle avant L537, jamais publier une table vide ou appauvrie */
   if(!silencieux&&typeof confirmDlg==='function'&&!(await confirmDlg('Publier la liste actuelle a TOUS les postes ?\n\n· '+nC+' client(s) avec leurs references\n· '+nP+' regle(s) d emballage\n\nChaque tablette la recevra a son prochain demarrage.',{ok:'Publier'}))) return false;
   if(btn) btn.disabled=true;
+  _l486EnVol++;   /* [L561] une publication de config/clients est en vol sur CE poste : sa charge utile (figee ci-dessous) emporte TOUTE la memoire */
   try{
     /* [L492 · audit 20 agents, CRITIQUE] chaque poste lit le referentiel UNE fois a la connexion et
        reecrivait le document ENTIER a partir de cette photo : le poste le plus ancien effacait les clients
@@ -4934,7 +4935,7 @@ async function _l486Publish(btn,silencieux){
     else showToast('Enregistrement impossible — rien n’a été enregistré : '+m,'err');
     return false;
   }
-  finally{ if(btn) btn.disabled=false; }
+  finally{ _l486EnVol--; if(btn) btn.disabled=false; }
 }
 function _l410PkgResolve(nom){ try{
   if(typeof PKG_CLIENTS==='undefined') return null;
@@ -7498,7 +7499,7 @@ function cliEdit(id,field,value){
   if(field==='nom'){
     // Pré-remplir le packaging du client depuis les règles connues (comme le client A).
     try{ const p=(typeof _l410PkgResolve==='function')?_l410PkgResolve(value):null;   /* [L401→L410] resolution tolerante extraite en helper partage */
-      if(p){ c.palette=p.palette||c.palette; c.typeCond=p.type||c.typeCond; c.etiquetage=p.etiquetage||c.etiquetage; c.cerclage=p.cerclage||c.cerclage; if(p.notes)c.notes=p.notes; renderCliPanel(); }
+      if(p){ c.palette=p.palette||''; c.typeCond=p.type||''; c.etiquetage=p.etiquetage||''; c.cerclage=p.cerclage||''; c.notes=p.notes||''; renderCliPanel(); }   /* [L561] regle trouvee : ses 5 valeurs telles quelles — un choix vide ou des notes vides ne laissent plus rien du client precedent (comme le client A) */
       else { const d10=PKG_DEFAULT; c.palette=d10.palette||''; c.typeCond=d10.type||''; c.etiquetage=d10.etiquetage||''; c.cerclage=d10.cerclage||''; c.notes=d10.notes||''; renderCliPanel(); } }catch(e){}   /* [L410→L412 audit] client inconnu : remise a plat DEFAUT TOUJOURS — les regles du nom precedent (VEKA...) survivaient au changement */
     cliRefreshRows(); recalcPlan();
   }
@@ -19498,9 +19499,138 @@ async function _l508Apply(btn){
   showToast('✔ '+applied.length+' référence(s) harmonisée(s) — les autres postes l\'auront à leur prochain démarrage.','ok');
 }
 
+/* [L561 · demande Celine 05/11/2026] REGLES D EMBALLAGE MODIFIABLES AU BUREAU (Donnees > Clients).
+   Jusqu ici la table pkgClients (palette, type, etiquetage, cerclage, notes) ne se modifiait que dans la console Firestore : le
+   bureau dependait d un proprietaire du projet pour une simple consigne (cas reel : cerclage de la laize 49 en DQ1042).
+   Chaque client montre maintenant la regle QUI S APPLIQUE a lui (cle exacte, sinon la resolution tolerante du Plan,
+   _l410PkgResolve : c est le MEME objet) et un editeur : modifier, creer, donner une regle propre a un client rattrape par une
+   regle partagee, supprimer. Tout enregistrement passe par _l486Publish (transaction, refus de concurrence, gardes « table
+   appauvrie », trace d audit) : AUCUNE autre ecriture. La regle vaut pour les PROCHAINES commandes du client, sur tous les postes
+   (abonnement temps reel L493) ; une commande deja a l ecran garde ses valeurs tant qu on n y rechoisit ni le client ni la
+   reference (onClientChange / onRefChange rappellent applyPackagingRules ; saisie manuelle conservee, L363). Aucune regle
+   Firestore a publier (config/clients est ouvert a l admin et au pilotage depuis L493). Rien ne change sur le papier : les notes
+   s impriment par les chemins existants. */
+const _L561_CHAMPS=['palette','type','etiquetage','cerclage','notes'];
+function _l561PkgNorm(o){ const s=function(v){ return String(v==null?'':v).trim(); }; const n=String((o&&o.notes)==null?'':o.notes).replace(/\r\n?/g,'\n').split('\n').map(function(l){ return l.replace(/\s+$/,''); }).join('\n').replace(/\n{3,}/g,'\n\n').trim(); return {palette:s(o&&o.palette),type:s(o&&o.type),etiquetage:s(o&&o.etiquetage),cerclage:s(o&&o.cerclage),notes:n}; }   /* PURE : les 5 champs en texte, notes aux fins de ligne unifiees */
+function _l561PkgErreur(r){ if(!r) return 'Règle illisible.'; if(!_L561_CHAMPS.some(function(k){ return !!r[k]; })) return 'Remplis au moins un champ, ou touche « Annuler ».'; if(String(r.notes||'').length>2000) return 'Notes trop longues : '+String(r.notes).length+' caractères, 2000 au plus.'; if(['palette','type','etiquetage','cerclage'].some(function(k){ return String(r[k]||'').length>80; })) return 'Un choix dépasse 80 caractères.'; return ''; }   /* PURE : '' si la regle est enregistrable */
+function _l561PkgEgal(a,b){ return !!a&&!!b&&_L561_CHAMPS.every(function(k){ return String(a[k]||'')===String(b[k]||''); }); }   /* PURE */
+function _l561PkgCle(nom){ try{ if(typeof PKG_CLIENTS==='undefined'||!PKG_CLIENTS) return null; if(Object.prototype.hasOwnProperty.call(PKG_CLIENTS,nom)&&PKG_CLIENTS[nom]) return nom; const r=(typeof _l410PkgResolve==='function')?_l410PkgResolve(nom):null; if(!r) return null; const k=Object.keys(PKG_CLIENTS).find(function(x){ return PKG_CLIENTS[x]===r; }); return k||null; }catch(e){ try{ _l505Warn('l561·cle',e); }catch(_){ } return null; } }   /* cle de la regle QUI S APPLIQUE a ce client : son nom exact, sinon celle que le Plan trouverait (meme objet) ; null = regles par defaut */
+function _l561PkgPartage(cle,noms){ try{ return (noms||[]).filter(function(n){ return _l561PkgCle(n)===cle; }); }catch(e){ try{ _l505Warn('l561·partage',e); }catch(_){ } return []; } }   /* clients de la liste auxquels cette regle s applique */
+function _l561PkgEffet(cle,noms){ const reel=PKG_CLIENTS; try{ if(!cle||!reel||typeof reel!=='object') return null; if(Object.prototype.hasOwnProperty.call(reel,cle)&&reel[cle]) return []; const liste=(noms||[]).filter(function(n){ return n!==cle; }); const av={}; liste.forEach(function(n){ av[n]=_l561PkgCle(n); }); const copie={}; Object.keys(reel).filter(function(k){ return k!==cle; }).concat([cle]).sort().forEach(function(k){ copie[k]=(k===cle)?{}:reel[k]; }); PKG_CLIENTS=copie; return liste.filter(function(n){ return _l561PkgCle(n)===cle; }).map(function(n){ return {nom:n,avant:av[n]||null}; }); }catch(e){ try{ _l505Warn('l561·effet',e); }catch(_){ } return null; }finally{ PKG_CLIENTS=reel; } }   /* A BLANC, sur une COPIE de la table (la vraie est remise dans tous les cas) : AUTRES clients de la liste que la creation de cette regle rattraperait (la resolution du Plan prend le nom qui commence pareil, cle la plus longue) ; [] = aucun ou regle existante ; null = verification impossible */
+function _l561PkgListe(idPlan,val){ let o=[]; try{ const s=document.getElementById(idPlan); if(s&&s.options) o=Array.prototype.map.call(s.options,function(x){ return String(x.value); }); }catch(e){ try{ _l505Warn('l561·liste',e); }catch(_){ } } if(o.indexOf('')<0) o.unshift(''); if(val&&o.indexOf(val)<0) o.push(val); return o.map(function(v){ return '<option value="'+_l486Esc(v)+'"'+(v===val?' selected':'')+'>'+(v?_l486Esc(v):'—')+'</option>'; }).join(''); }   /* memes choix que la carte Emballage du Plan (source unique : ses listes) ; une valeur ancienne hors liste est conservee */
+function _l561PkgBloc(nom,noms,cleDirecte){ try{
+  const e=_l486Esc; const cle=cleDirecte||_l561PkgCle(nom); const r=(cle&&PKG_CLIENTS&&PKG_CLIENTS[cle])?_l561PkgNorm(PKG_CLIENTS[cle]):null;
+  const ligne=r?[r.palette,r.type,r.etiquetage?('étiquetage '+r.etiquetage):'',r.cerclage?('cerclage '+r.cerclage):''].filter(Boolean).map(e).join(' · '):'';
+  const part=(cle&&!cleDirecte)?_l561PkgPartage(cle,noms).filter(function(x){ return x!==nom; }):[];
+  const partagee=!!(cle&&!cleDirecte&&nom&&cle!==nom);
+  return '<div class="l561-pkg" style="margin-top:8px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;font-size:13px">'
+    +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="flex:1;min-width:0">📦 Emballage'+(cleDirecte?(' — '+e(cleDirecte)):'')+'</b>'
+    +'<button class="btn btn-sm l561-btn" data-cli="'+e(nom||'')+'" data-cle="'+e(cleDirecte||'')+'" onclick="_l561PkgEditer(this.dataset.cli,this,this.dataset.cle)" title="Modifier la palette, le type, l’étiquetage, le cerclage et les notes d’emballage">'+(r?'✏️ Modifier l’emballage':'➕ Créer une règle d’emballage')+'</button>'
+    +(partagee?('<button class="btn btn-sm l561-propre" data-cli="'+e(nom)+'" data-cle="'+e(nom)+'" onclick="_l561PkgEditer(this.dataset.cli,this,this.dataset.cle)" title="Créer une règle au nom exact de ce client : elle s’appliquera à lui seul, la règle partagée reste inchangée pour les autres">➕ Règle propre à ce client</button>'):'')+'</div>'
+    +(r?('<div class="l561-ligne" style="margin-top:4px">'+(ligne||'—')+'</div>'+(r.notes?('<div class="l561-notes-vue" style="margin-top:4px;white-space:pre-line;color:var(--muted)">'+e(r.notes)+'</div>'):''))
+       :'<div class="l561-ligne" style="margin-top:4px;color:var(--muted)">Aucune règle pour ce client : les règles par défaut s’appliquent.</div>')
+    +(partagee?('<div style="font-size:12px;color:var(--muted);margin-top:3px">Règle « '+e(cle)+' » : elle s’applique à ce client parce que son nom commence pareil.</div>'):'')
+    +(part.length?('<div style="font-size:12px;color:var(--muted);margin-top:3px">La même règle s’applique aussi à : '+part.map(e).join(', ')+'.</div>'):'')
+    +'</div>';
+}catch(err){ try{ _l505Warn('l561·bloc',err); }catch(_){ } return ''; } }
+function _l561PkgOrphelines(noms){ try{
+  const pris={}; (noms||[]).forEach(function(n){ const k=_l561PkgCle(n); if(k) pris[k]=1; });
+  const o=Object.keys(PKG_CLIENTS||{}).filter(function(k){ return !pris[k]; }).sort(function(a,b){ return a.localeCompare(b,'fr'); });
+  if(!o.length) return '';
+  return '<details class="l561-orph" style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px"><summary style="cursor:pointer;font-weight:700;font-size:13.5px">📦 '+o.length+' règle(s) d’emballage sans client dans la liste <span style="color:var(--muted);font-weight:600;font-size:12px">— le nom de la règle ne correspond à aucun client ci-dessus</span></summary>'
+    +o.map(function(k){ return _l561PkgBloc('',noms,k); }).join('')+'</details>';
+}catch(err){ try{ _l505Warn('l561·orphelines',err); }catch(_){ } return ''; } }   /* rien n est cache : une regle dont le nom ne rattrape aucun client reste visible, modifiable et supprimable */
+function _l561PkgLu(d){ const lire=function(c){ const x=(d&&d.querySelector)?d.querySelector(c):null; return x?x.value:''; }; return JSON.stringify(_l561PkgNorm({palette:lire('.l561-palette'),type:lire('.l561-type'),etiquetage:lire('.l561-etiquetage'),cerclage:lire('.l561-cerclage'),notes:lire('.l561-notes')})); }   /* le contenu de l editeur, normalise : sert a savoir si quelque chose a ete tape */
+function _l561PkgEditer(nom,btn,cleDirecte){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à l’administration et au pilotage.','err'); return; }
+  const hote=btn&&btn.closest?btn.closest('.l561-pkg'):null; if(!hote) return;
+  const dj=document.querySelector('.l561-edit');
+  if(dj&&dj.dataset.init&&_l561PkgLu(dj)!==dj.dataset.init){ showToast('Une saisie d’emballage est en cours pour « '+dj.dataset.cle+' » : enregistre-la ou touche « Annuler » avant d’en ouvrir une autre.','err'); return; }   /* une saisie modifiee n est jamais jetee par l ouverture d un autre editeur */
+  if(dj) dj.remove();   /* un seul editeur ouvert a la fois */
+  const cle=String(cleDirecte||'')||_l561PkgCle(nom)||String(nom||''); if(!cle) return;   /* cle recalculee a l appui pour un client (jamais celle du rendu, qui peut dater) ; cle explicite pour une regle sans client ou une regle propre */
+  const existe=!!(PKG_CLIENTS&&Object.prototype.hasOwnProperty.call(PKG_CLIENTS,cle)&&PKG_CLIENTS[cle]);
+  const heritee=existe?null:_l561PkgCle(cle);   /* regle partagee qui s applique aujourd hui a ce nom : base de la « regle propre » (null = regles par defaut) */
+  const r=_l561PkgNorm(existe?PKG_CLIENTS[cle]:(heritee?PKG_CLIENTS[heritee]:((typeof PKG_DEFAULT!=='undefined')?PKG_DEFAULT:{})));
+  const eff=existe?[]:(_l561PkgEffet(cle,Object.keys((typeof CLIENT_DATA!=='undefined'&&CLIENT_DATA)||{}))||[]);
+  const e=_l486Esc; const inp='padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px';
+  const d=document.createElement('div');
+  d.className='l561-edit'; d.dataset.cle=cle; d.dataset.cli=String(nom||''); d.dataset.avant=JSON.stringify(existe?_l561PkgNorm(PKG_CLIENTS[cle]):null);   /* empreinte de la regle a l ouverture : sert au refus si un autre poste l a changee entre-temps */
+  d.style.cssText='display:flex;flex-direction:column;gap:8px;padding:10px;margin:6px 0;background:var(--bg);border:1px dashed var(--border2);border-radius:8px';
+  const champ=function(lib,cls,idPlan,val){ return '<label style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);flex:1;min-width:180px">'+lib+'<select class="'+cls+'" style="'+inp+'">'+_l561PkgListe(idPlan,val)+'</select></label>'; };
+  d.innerHTML='<div style="font-size:12px;color:var(--muted)">'+(existe?'✏️ Règle d’emballage « '+e(cle)+' »':'➕ Nouvelle règle d’emballage pour « '+e(cle)+' » (pré-remplie avec '+(heritee?('la règle « '+e(heritee)+' », qui reste inchangée pour les autres clients'):'les règles par défaut')+')')+' — elle s’appliquera aux PROCHAINES commandes, sur tous les postes. Une commande déjà à l’écran garde ses valeurs tant qu’on n’y rechoisit ni le client ni la référence.</div>'
+    +(eff.length?('<div class="l561-effet" style="font-size:12.5px;font-weight:700;color:var(--orange)">⚠ Cette règle s’appliquera AUSSI à : '+eff.map(function(x){ return e(x.nom)+(x.avant?(' (qui ne suivra plus la règle « '+e(x.avant)+' »)'):''); }).join(', ')+' — leur nom commence pareil. Une confirmation sera demandée à l’enregistrement.</div>'):'')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+champ('Palette','l561-palette','planPalette',r.palette)+champ('Type de conditionnement','l561-type','planType',r.type)+'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+champ('Étiquetage','l561-etiquetage','planEtiquetage',r.etiquetage)+champ('Cerclage','l561-cerclage','planCerclage',r.cerclage)+'</div>'
+    +'<label style="display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted)">Notes d’emballage — affichées sur le Plan (carte Emballage) et imprimées sur la fiche. Une consigne par ligne, par exemple : « DQ1042 : cerclage sur la laize 49 ».<textarea class="l561-notes" rows="6" maxlength="2000" style="'+inp+';min-height:110px;line-height:1.4">'+e(r.notes)+'</textarea></label>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-blue l561-ok" style="min-height:40px" onclick="_l561PkgEnregistrer(this)">✔ Enregistrer pour tous les postes</button><button class="btn btn-sm l561-annuler" onclick="this.closest(&quot;.l561-edit&quot;).remove()">Annuler</button>'
+    +(existe?'<button class="btn btn-sm l561-suppr" style="margin-left:auto;background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" onclick="_l561PkgSupprimer(this)" title="Supprimer cette règle : les clients concernés repassent aux règles par défaut">🗑 Supprimer cette règle</button>':'')+'</div>';
+  d.dataset.init=_l561PkgLu(d);   /* contenu a l ouverture */
+  hote.after(d);
+  try{ d.querySelector('.l561-notes').focus(); }catch(_){ }
+}
+async function _l561PkgEnregistrer(btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à l’administration et au pilotage.','err'); return false; }
+  const d=btn&&btn.closest?btn.closest('.l561-edit'):null; if(!d) return false;
+  const cle=String(d.dataset.cle||''); if(!cle) return false;
+  const lire=function(c){ const x=d.querySelector(c); return x?x.value:''; };
+  const nouv=_l561PkgNorm({palette:lire('.l561-palette'),type:lire('.l561-type'),etiquetage:lire('.l561-etiquetage'),cerclage:lire('.l561-cerclage'),notes:lire('.l561-notes')});
+  const err=_l561PkgErreur(nouv); if(err){ showToast(err,'err'); return false; }
+  if(!(PKG_CLIENTS&&Object.prototype.hasOwnProperty.call(PKG_CLIENTS,cle)&&PKG_CLIENTS[cle])){   /* CREATION : dire AVANT quels autres clients la regle rattraperait, et le faire confirmer */
+    const lst=function(){ return _l561PkgEffet(cle,Object.keys((typeof CLIENT_DATA!=='undefined'&&CLIENT_DATA)||{})); };
+    const eff=lst();
+    if(eff===null){ showToast('Impossible de vérifier à quels autres clients cette règle s’appliquerait. Rien n’a été enregistré.','err'); return false; }
+    if(eff.length){
+      if(typeof confirmDlg!=='function'||!(await confirmDlg('Créer la règle d’emballage « '+cle+' » ?\n\nElle s’appliquera AUSSI à '+eff.length+' autre(s) client(s) de la liste, parce que leur nom commence pareil :\n'+eff.map(function(x){ return '· '+x.nom+(x.avant?(' — ne suivra plus la règle « '+x.avant+' »'):' — aujourd’hui : règles par défaut'); }).join('\n'),{ok:'Créer pour ces clients aussi'}))) return false;
+      if(JSON.stringify(lst())!==JSON.stringify(eff)){ showToast('⚠ La liste a changé pendant la confirmation. Rien n’a été enregistré — vérifie, puis recommence.','err'); renderClients(); return false; }
+    }
+  }
+  const table=PKG_CLIENTS;
+  const brut=(table&&Object.prototype.hasOwnProperty.call(table,cle))?table[cle]:undefined;   /* l objet d origine : ses eventuels autres champs sont conserves */
+  const actuel=brut?_l561PkgNorm(brut):null;
+  let avant=null; try{ avant=JSON.parse(d.dataset.avant||'null'); }catch(_){ }
+  if(JSON.stringify(actuel)!==JSON.stringify(avant)){ showToast('⚠ Cette règle vient d’être modifiée sur un autre poste. Rien n’a été enregistré — ta saisie reste à l’écran, la version actuelle est affichée juste au-dessus. Pour reprendre : copie tes notes, touche « Annuler », rouvre « Modifier l’emballage », puis recolle.','err'); renderClients(); return false; }   /* la saisie n est PAS jetee : renderClients conserve l editeur ouvert ; l empreinte reste celle de l ouverture, donc aucun remplacement a l aveugle */
+  if(actuel&&_l561PkgEgal(actuel,nouv)){ showToast('Rien à enregistrer : la règle est identique.','ok'); return false; }
+  if(typeof _l486EnVol!=='undefined'&&_l486EnVol>0){ showToast('⏳ Un autre enregistrement de cet onglet est encore en cours sur ce poste. Rien n’a été envoyé — attends sa réponse (10 s au plus), puis recommence.','err'); return false; }   /* jamais de publication croisee : _l486Publish envoie TOUTE la memoire, donc aussi la modification encore en attente de l autre geste */
+  const pose=Object.assign({},brut||{}); _L561_CHAMPS.forEach(function(k){ if(!actuel||actuel[k]!==nouv[k]) pose[k]=nouv[k]; });   /* seuls les champs REELLEMENT changes sont reecrits : les autres gardent leur valeur d origine au caractere pres */
+  table[cle]=pose;
+  let ok=false;
+  try{ ok=await _l486Publish(btn,true); }catch(e){ ok=false; try{ _l505Warn('l561·publication',e); }catch(_){ } try{ showToast('Enregistrement impossible — rien n’a été enregistré.','err'); }catch(_){ } }
+  if(!ok){ if(PKG_CLIENTS===table){ if(brut===undefined) delete table[cle]; else table[cle]=brut; } return false; }   /* echec : la memoire revient a l etat d avant (sauf si le serveur vient de la remplacer) ; _l486Publish a deja dit pourquoi ; la saisie reste a l ecran */
+  showToast('✔ Emballage de « '+cle+' » enregistré pour tous les postes — il s’appliquera aux prochaines commandes.','ok');
+  try{ const p=logAudit('edit','config','clients','Règle d’emballage « '+cle+' » '+(brut===undefined?'créée':'modifiée')+' : '+_L561_CHAMPS.filter(function(k){ return !actuel||actuel[k]!==nouv[k]; }).join(', ')+(actuel?(' — règle remplacée : '+JSON.stringify(actuel)):'')); if(p&&p.catch) p.catch(function(){}); }catch(e){ try{ _l505Warn('l561·journal',e); }catch(_){ } }   /* le journal garde l ANCIENNE regle : une consigne ecrasee par erreur se retrouve */
+  try{ d.remove(); }catch(_){ }   /* enregistre : l editeur se ferme (renderClients conserve un editeur encore ouvert) */
+  renderClients();
+  return true;
+}
+async function _l561PkgSupprimer(btn){
+  if(!_l486CanEdit()){ showToast('🔒 Réservé à l’administration et au pilotage.','err'); return false; }
+  const d=btn&&btn.closest?btn.closest('.l561-edit'):null; if(!d) return false;
+  const cle=String(d.dataset.cle||''); if(!cle) return false;
+  let avant=null; try{ avant=JSON.parse(d.dataset.avant||'null'); }catch(_){ }
+  const meme=function(){ const t=PKG_CLIENTS; const b=(t&&Object.prototype.hasOwnProperty.call(t,cle))?t[cle]:undefined; return !!b&&!!avant&&JSON.stringify(_l561PkgNorm(b))===JSON.stringify(avant); };   /* la regle est-elle encore celle qu on a ouverte ? */
+  const change=function(){ showToast('⚠ Cette règle vient d’être modifiée sur un autre poste. Rien n’a été supprimé — vérifie la version affichée, puis recommence.','err'); renderClients(); return false; };
+  if(!meme()) return change();
+  if(Object.keys(PKG_CLIENTS).length<=5){ showToast('Suppression refusée : il doit rester au moins 5 règles d’emballage (garde contre une table vidée par erreur).','err'); return false; }   /* meme seuil que _l486Publish, dit en clair AVANT la question */
+  const touches=_l561PkgPartage(cle,Object.keys((typeof CLIENT_DATA!=='undefined'&&CLIENT_DATA)||{}));
+  if(typeof confirmDlg!=='function'){ showToast('Suppression indisponible sur ce poste — rien n’a été supprimé.','err'); return false; }   /* jamais de suppression sans question */
+  if(!(await confirmDlg('Supprimer la règle d’emballage « '+cle+' » ?\n\n'+(touches.length?('Elle s’applique aujourd’hui à : '+touches.join(', ')+'.\nCes clients repasseront aux règles par défaut (ou à une autre règle dont le nom commence pareil).'):'Aucun client de la liste ne l’utilise.')+'\n\nValable sur tous les postes, pour les prochaines commandes.',{ok:'Supprimer',danger:true}))) return false;
+  if(!meme()) return change();   /* le serveur a pu remplacer la table pendant la question */
+  if(typeof _l486EnVol!=='undefined'&&_l486EnVol>0){ showToast('⏳ Un autre enregistrement de cet onglet est encore en cours sur ce poste. Rien n’a été envoyé — attends sa réponse (10 s au plus), puis recommence.','err'); return false; }
+  const table=PKG_CLIENTS; const sans={}; Object.keys(table).forEach(function(k){ if(k!==cle) sans[k]=table[k]; });
+  PKG_CLIENTS=sans;   /* table SANS la regle, posee en memoire : _l486Publish fige PKG_CLIENTS ; l ancienne table reste intacte pour le retour arriere */
+  let ok=false;
+  try{ ok=await _l486Publish(btn,true); }catch(e){ ok=false; try{ _l505Warn('l561·suppression',e); }catch(_){ } try{ showToast('Suppression impossible — rien n’a été enregistré.','err'); }catch(_){ } }
+  if(!ok){ if(PKG_CLIENTS===sans) PKG_CLIENTS=table; return false; }   /* echec : la memoire revient a la table d avant, sauf si le serveur vient de la remplacer */
+  showToast('✔ Règle d’emballage « '+cle+' » supprimée pour tous les postes.','ok');
+  try{ const p=logAudit('edit','config','clients','Règle d’emballage « '+cle+' » supprimée'+(touches.length?(' (elle s’appliquait à : '+touches.join(', ')+')'):'')+' — règle supprimée : '+JSON.stringify(avant)); if(p&&p.catch) p.catch(function(){}); }catch(e){ try{ _l505Warn('l561·journal',e); }catch(_){ } }
+  try{ d.remove(); }catch(_){ }
+  renderClients();
+  return true;
+}
 function renderClients(){
   const c=document.getElementById('tabContentClients'); if(!c) return;
   const _l498Deplies=new Set(); try{ c.querySelectorAll('details[open][data-cli]').forEach(function(x){ _l498Deplies.add(x.dataset.cli); }); }catch(_){ }   /* [L498] état ouvert conservé au re-rendu (motif L367) — sans ça, chaque ✏️/⧉ refermait tous les clients */
+  const _l561Ed=c.querySelector?c.querySelector('.l561-edit'):null;   /* [L561] l editeur d emballage ouvert (et sa saisie, jusqu a 2000 caracteres) survit au re-rendu : mis de cote ici, re-pose sous son client apres c.innerHTML */
   if(!_l486CanEdit()){ c.innerHTML='<div style="padding:20px;color:var(--muted)">Accès réservé à l’administration et au pilotage.</div>'; return; }
   const noms=Object.keys(CLIENT_DATA||{}).sort(function(a,b){ return a.localeCompare(b,'fr'); });
   const nRefs=noms.reduce(function(s2,n){ return s2+((CLIENT_DATA[n]||[]).length); },0);
@@ -19523,10 +19653,11 @@ function renderClients(){
         +'<button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-cli="'+_l486Esc(n)+'" data-idx="'+i+'" onclick="_l486DelRef(this.dataset.cli,+this.dataset.idx,this)" title="Retirer cette référence">✕</button>'
         +'</div>';
     }).join('')||'<div style="font-size:12px;color:var(--muted);padding:3px 0">aucune référence</div>';
-    const pkg=(PKG_CLIENTS||{})[n];
+    const pkg=_l561PkgCle(n);   /* [L561] la regle QUI S APPLIQUE a ce client (cle exacte ou resolution tolerante du Plan), plus seulement la cle exacte */
     return '<details data-cli="'+_l486Esc(n)+'"'+(_l498Deplies.has(n)?' open':'')+' style="background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:8px 12px">'
       +'<summary style="cursor:pointer;font-weight:700;font-size:13.5px">'+_l486Esc(n)+' <span style="color:var(--muted);font-weight:600;font-size:12px">— '+((CLIENT_DATA[n]||[]).length)+' réf.'+(pkg?' · 📦 emballage':'')+'</span></summary>'
       +'<div style="margin-top:6px">'+refs+'</div>'
+      +_l561PkgBloc(n,noms)   /* [L561] emballage du client : resume + bouton Modifier */
       +'<div style="margin-top:8px;text-align:right"><button class="btn btn-sm" style="background:rgba(248,113,113,.10);border:1px solid #6b2020;color:var(--red)" data-cli="'+_l486Esc(n)+'" onclick="_l489DelCli(this.dataset.cli,this)" title="Supprimer ce client et toutes ses références">🗑 Supprimer ce client</button></div>'
       +'</details>';
   }).join('');
@@ -19547,9 +19678,17 @@ function renderClients(){
       +'<div style="font-size:12px;color:var(--muted);margin-top:9px;font-variant-numeric:tabular-nums">'+noms.length+' client(s) · '+nRefs+' référence(s) · '+refsAll.length+' référence(s) distincte(s) · source : '+(_l486Loaded?'partagé (Firestore)':'cache local (pas encore synchronisé)')+'</div>'
     +'</div>'
     +rows
-    +'<div style="font-size:11.5px;color:var(--muted);padding:0 4px">Les règles d’emballage (palette, cerclage, spécificités) se modifient dans la base partagée (console Firestore, document config/clients) — dis-moi si tu veux les éditer ici.</div>'
+    +_l561PkgOrphelines(noms)   /* [L561] regles d emballage dont le nom ne rattrape aucun client de la liste : visibles et modifiables */
+    +'<div style="font-size:11.5px;color:var(--muted);padding:0 4px">Les règles d’emballage (palette, type, étiquetage, cerclage, notes) se modifient ici, client par client : bouton « ✏️ Modifier l’emballage ». Elles s’appliquent aux prochaines commandes du client, sur tous les postes.</div>'
   +'</div>';
   _l488Seq=0; _l488AddRow();   /* une ligne de reference prete a remplir */
+  if(_l561Ed){ try{   /* [L561] re-pose l editeur conserve sous le bloc Emballage de son client (a defaut : sous le bloc de sa regle) */
+    const cli=String(_l561Ed.dataset.cli||''), cle=String(_l561Ed.dataset.cle||''); const bs=Array.prototype.slice.call(c.querySelectorAll('.l561-btn'));
+    const b=bs.find(function(x){ return !!cli&&x.dataset.cli===cli; })||bs.find(function(x){ return !!x.dataset.cle&&x.dataset.cle===cle; });
+    const h=b?b.closest('.l561-pkg'):null;
+    if(h){ const dt=h.closest('details'); if(dt) dt.open=true; h.after(_l561Ed); }
+    else showToast('La saisie d’emballage en cours (« '+cle+' ») a été fermée : ce client n’est plus dans la liste.','err');
+  }catch(e){ try{ _l505Warn('l561·editeur',e); }catch(_){ } } }
 }
 /* [L488] Lignes de reference du formulaire : autant qu on veut, chacune avec sa laize et son ou
    ses metres lineaires. La reference se choisit dans la liste des references DEJA connues
