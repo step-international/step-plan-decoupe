@@ -562,6 +562,9 @@ body.training #actionBar{bottom:calc(64px + env(safe-area-inset-bottom,0px)) !im
 .save-title-wrap{font-size:15px;font-weight:700;white-space:normal;word-break:break-word;line-height:1.35}
 /* [L83 · Audit #28] .save-refs/.save-refrow/.rdot supprimés (ne matchaient plus aucun HTML) */
 .save-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+.l564-pa,.l564-pb{display:none}/* [L564 · règle 3] portrait = disposition historique : ni « x/N » des versions repliées, ni bandeau « version plus avancée », ni phrase de la fenêtre « déjà commencée » (tout est montré à partir de 1100 px : tablette en paysage, PC) */
+.l564-alerte{font-weight:700;color:var(--orange)}
+@media(min-width:1100px){ .l564-pa{display:inline} .l564-pb{display:block} }
 .save-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
 /* [L106 · Phase 1 · S] corbeille 🗑 TOUJOURS en dernier, calée à droite — harmonisé Plans/Corbeille/Brouillons (+ Fiches via .fc-actions) */
 .save-actions .btn-red{order:99;margin-left:auto}
@@ -3220,6 +3223,7 @@ html.theme-light .fp-num small{color:#8a8a84}
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn btn-green" id="l545DejaResume" style="width:100%;justify-content:center"></button>
       <button class="btn btn-ghost" id="l545DejaLoad" style="width:100%;justify-content:center">Charger quand même (repartir de zéro)</button>
+      <div class="l564-pb" style="font-size:13px;color:var(--muted);text-align:center;line-height:1.5">Ta version actuelle reste dans Brouillons.</div>   <!-- [L564 · A] vrai : l'ancienne sauvegarde automatique est archivée avant d'être remplacée -->
       <button class="btn btn-ghost" id="l545DejaCancel" style="width:100%;justify-content:center">Annuler</button>
     </div>
   </div>
@@ -3448,7 +3452,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.11.23-L563';
+const APP_VERSION='2026.11.23-L564';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -13233,6 +13237,7 @@ async function saveCommandeFiche(rows,useful,blade,opts){
       chronoReset(true);      // [L79] reset forcé (envoi) — pas de confirm, purge la clé live
       clearCurrentDraft(ficheRef.id);    // …puis purge FIABLE des brouillons AUTO (delete attendu, repli consumed) — DRAFT-4
       try{ _l384DeriveSoldeTwin(); }catch(e){}   // [L384 · audit final] AVANT le bloc #5 : loadedSaveId encore vivant
+      const _l564SidEnvoi=String(loadedSaveId||'');   /* [L564 · v3 · F2] plan source de l'envoi, lu AVANT sa remise à null (bloc #5 juste dessous) */
       // #5 : si la fiche vient d'un plan sauvegardé chargé, on retire ce plan de Données→Plans (archive douce)
       if(loadedSaveId){
         try{
@@ -13319,7 +13324,8 @@ async function saveCommandeFiche(rows,useful,blade,opts){
                et l'envoi (une restauration renouvelle les ids) : sinon contrôle prudent, brouillon gardé et signalé. Le contrôle des codes (_unc) reste toujours. */
             const _snap=_dLines.filter(function(l){ return l&&l.coupee; }).every(function(l){ return !!(l.id&&_l545CutIds.has(l.id)); });
             const _short=_snap?[]:Object.keys(_dl).filter(function(k){ return (_l545Fc[k]||0)<_dl[k]; });
-            if(_unc.length||_short.length){ _l545Kept.push({d:d,unc:_unc,short:_short}); return false; }
+            const _cutD=_dLines.filter(function(l){ return l&&l.coupee; }).length, _autre564=!!(d.archive===true&&opts&&opts.manqueMatiere===true&&_l564SidEnvoi&&d.state&&d.state.loadedSaveId&&String(d.state.loadedSaveId)!==_l564SidEnvoi), _plus=(d.archive===true&&!_snap&&(_cutD>_l545CutIds.size||_autre564))?(_cutD+'/'+_dLines.length):'';   /* [L564 · P1 · F2] jamais ranger une ARCHIVE qui a PLUS de coupées que la fiche envoyée (arrêt manque matière après « Charger quand même ») ni, en arrêt manque matière, celle d'un AUTRE plan source connu (le compte de coupées ne prouve rien entre deux plans) */
+            if(_unc.length||_short.length||_plus){ _l545Kept.push({d:d,unc:_unc,short:_short,plus:_plus,autre:_autre564&&!!_plus}); return false; }
             return true;
           });
           /* [L545 · B11] brouillon REPRIS rangé par la règle L245 (n° égal, réf. ignorée — protection anti double reprise, inchangée) alors
@@ -13334,11 +13340,11 @@ async function saveCommandeFiche(rows,useful,blade,opts){
           }
           if(_l545Kept.length){   /* [L545 · B11] rien n'est rangé en silence : l'opérateur sait qu'une réf. de la commande n'est pas partie */
             const _kK=_l545Kept.filter(function(k){ return !k.gone; }), _kG=_l545Kept.filter(function(k){ return k.gone; });
-            const _kOne=function(k){ const p=[]; if(k.unc&&k.unc.length) p.push('réf. absente : '+_l545Describe(k.d,k.unc)); if(k.short&&k.short.length) p.push('plus de bobines que la fiche : '+_l545Describe(k.d,k.short)+' contre '+k.short.map(function(c){ return _l545Fc[c]||0; }).join('/')+' bob. dans la fiche'); return '« '+String(k.d.label||k.d.id)+' » → '+p.join(' ; '); };
+            const _kOne=function(k){ const p=[]; if(k.unc&&k.unc.length) p.push('réf. absente : '+_l545Describe(k.d,k.unc)); if(k.plus) p.push(k.autre?'archive d’un AUTRE plan de cette commande : '+k.plus+' coupée(s), ses bobines ne sont peut-être pas dans cette fiche':'plus de coupées que la fiche : '+k.plus+' coupée(s) dans ce brouillon'); if(k.short&&k.short.length) p.push('plus de bobines que la fiche : '+_l545Describe(k.d,k.short)+' contre '+k.short.map(function(c){ return _l545Fc[c]||0; }).join('/')+' bob. dans la fiche'); return '« '+String(k.d.label||k.d.id)+' » → '+p.join(' ; '); };
             const _kMsg=(_kK.length?'⚠ Brouillon GARDÉ (même commande, mais une partie de son travail n\'est PAS dans la fiche envoyée) : '+_kK.map(_kOne).join(' ; ')+'. Vérifie AVANT de le supprimer (pas de corbeille) : ses coupées peuvent n\'être dans aucune fiche — sinon reprends-le et envoie-le (Données > Brouillons).':'')   /* [L545 · revue adverse 4] texte ferme : jamais d'invitation à supprimer la seule trace de bobines coupées */
               +(_kG.length?(_kK.length?' ':'')+'⚠ Brouillon repris rangé, mais ces réf. ne sont PAS dans la fiche envoyée : '+_kG.map(function(k){ return _l545Describe(k.d,k.unc); }).join(' ; ')+' — vérifie qu\'il ne reste rien à couper.':'');
             setTimeout(function(){ try{ showToast(_kMsg,'err'); }catch(_){} },4500);   // après le « ✓ Commande confirmée » (sinon il l'écraserait aussitôt)
-            _l545Kept.forEach(function(k){ try{ logAudit('edit','brouillons',k.d.id,(k.gone?'Brouillon repris RANGÉ à l\'envoi alors que ces réf. sont hors fiche : ':'Brouillon CONSERVÉ à l\'envoi — même commande, travail hors fiche : ')+(k.unc||[]).map(function(c){ return c||'sans nom'; }).join(', ')+((k.short&&k.short.length)?' · plus de bobines que la fiche : '+k.short.map(function(c){ return c||'sans nom'; }).join(', '):''),{ficheId:(ficheRef&&ficheRef.id)||''}).catch(function(){}); }catch(_){} });
+            _l545Kept.forEach(function(k){ try{ logAudit('edit','brouillons',k.d.id,(k.gone?'Brouillon repris RANGÉ à l\'envoi alors que ces réf. sont hors fiche : ':'Brouillon CONSERVÉ à l\'envoi — même commande, travail hors fiche : ')+(k.unc||[]).map(function(c){ return c||'sans nom'; }).join(', ')+((k.short&&k.short.length)?' · plus de bobines que la fiche : '+k.short.map(function(c){ return c||'sans nom'; }).join(', '):'')+(k.plus?(k.autre?' · archive d’un AUTRE plan de cette commande : ':' · plus de coupées que la fiche : ')+k.plus+' coupée(s) dans cette archive':''),{ficheId:(ficheRef&&ficheRef.id)||''}).catch(function(){}); }catch(_){} });
           }
           if(_victims.length){ _resumedDraftId=null; _loadedSoldeDraftId=null; try{ if(document.getElementById('draftsList')) renderDrafts(); }catch(e){} }
         }catch(e){}
@@ -13468,6 +13474,10 @@ function resetSiteConfirm(){
     const _all=loadDrafts();
     const _aDoc=_all.find(function(d){return d.id===_aid;}), _pDoc=_all.find(function(d){return d.id===_pid;});
     const _keepA=_protege(_aDoc), _keepP=_protege(_pDoc);
+    try{ if(!_keepA&&_aDoc){ const _a564=_l564ArchiveDe(_aDoc,_l434ResetSnap||{});   /* [L564 · v3 · F1] */
+        if(_a564&&!_l564Existe(_a564.id)){ _all.push(_draftStrip(_a564.doc)); _l564Fait[_a564.id]=1;
+          try{ showToast('🗄 Ton travail précédent ('+_a564.cut+'/'+_a564.total+' coupées) est gardé dans Données › Brouillons.','ok'); }catch(e){}
+          try{ logAudit('create','brouillons',_a564.id,'Archive avant remplacement (↺) — '+_a564.doc.label).catch(function(){}); }catch(e){} } } }catch(e){ console.warn('[L564] archive ↺ :',e&&e.message); }
     /* [L440 · audit #20] depuis L435-L437 il n'y a PLUS de bouton 💾 Brouillon : le ↺ etait le seul geste
        pour passer a une autre commande, et il JETAIT le travail entame (bobines coupees / chrono). Une
        commande ENTAMEE est desormais PARQUEE (copie en brouillon normal, visible dans Donnees > Brouillons,
@@ -19024,7 +19034,7 @@ function _l430IsResidualDraft(d){ try{
   if(!d||d.solde||d.isSolde||/solde/i.test(String(d.label||''))) return false;   /* le plan du reste doit rester */
   if(typeof _isSharedDoc==='function'&&_isSharedDoc(d)) return false;            /* jamais un doc de partage */
   const isAuto=!!(d.auto||(typeof d.id==='string'&&d.id.indexOf('d_autosave')===0));
-  if(!isAuto&&!d.fromSend) return false;                                          /* parkings MANUELS 💾 : jamais masques */
+  if(!isAuto&&!d.fromSend&&!(typeof _l564ArchiveEnvoyee==='function'&&_l564ArchiveEnvoyee(d))) return false;   /* [L564 · P7] archive d'une commande DÉJÀ ENVOYÉE = résiduelle */                                          /* parkings MANUELS 💾 : jamais masques */
   const st=d.state||{}, f=st.fiche||{}, pl=st.plan||{};
   const n=nrm(f.numCmd||pl.numCmd||d.numCmd||''); if(!n||n==='—') return false;
   const c=nrm(f.client||pl.client||d.client||'');
@@ -26508,6 +26518,7 @@ function _supersededManualDrafts(newId,newLabel,newDraft){
     }
     if(d.auto||(typeof d.id==='string'&&d.id.indexOf('d_autosave_')===0)) return false;
     if(_isSharedDoc(d)||d.fromFicheId) return false;
+    if(typeof _l564PlusAvance==='function'&&_l564PlusAvance(d,newDraft)) return false;   /* [L564 · C] l'ancien a PLUS de coupées que ce parcage : jamais consommé (« Charger quand même » puis reparquer faisait disparaître le brouillon à 5/8 ; un doublon visible vaut mieux qu'une perte silencieuse, L254) */
     if(d.id===_resumedDraftId){
       // [L273 · audit #6 + revue sceptique #1] repris explicitement, MAIS consommé UNIQUEMENT si la commande
       // parquée est LE MÊME travail. Identité de A lue depuis le PLAN (parité avec l'ENVOI L245). Au parcage la
@@ -26644,9 +26655,13 @@ function autosaveDraftTick(force){
   // [L72 · Audit B08] DEUX ONGLETS sur la même tablette (synchronizeTabs) : l'onglet resté
   // ouvert sur l'ANCIENNE commande pouvait, via son tick (surtout forcé), RESSUSCITER le
   // brouillon d'une commande déjà envoyée → reproposée à la reprise → double découpe.
+  let _cur=null, _l564Leve=false;   /* [L564] hissés hors du try : le bloc « archiver avant d'écraser » plus bas lit l'ancienne sauvegarde */
   try{
-    const _cur=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(d=>d&&d.id===aid);
-    if(_cur&&_cur.consumed) return;   // commande déjà produite sur cette tablette : on ne réécrit pas
+    _cur=(Array.isArray(brouillonsCache)?brouillonsCache:[]).find(d=>d&&d.id===aid)||null;
+    if(_cur&&_cur.consumed){
+      if(_l564MemeCommande(_cur,st)) return;   // commande déjà produite sur cette tablette : on ne réécrit pas (garde L72 intacte pour la MÊME commande)
+      _l564Leve=true;   /* [L564 · B] le marqueur concerne une AUTRE commande que l'écran : il ne doit plus arrêter la sauvegarde (avant : plus aucune ligne en base jusqu'à la purge, 45 j) */
+    }
     if(_pendingFicheId&&Array.isArray(fichesCache)&&fichesCache.some(x=>x&&x._id===_pendingFicheId)) return;   // la fiche est déjà en base
     // [L78 · Audit B08] Résurrection DEUX ONGLETS EN LIGNE : à l'envoi, l'AUTRE onglet de la
     // même tablette fait delete() du doc — RÉUSSI en ligne (donc jamais marqué consumed, et le
@@ -26659,10 +26674,139 @@ function autosaveDraftTick(force){
     if(_autosaveLastSig && !_cur) return;
   }catch(e){}
   const label='🔄 Auto · '+((st.fiche.client||st.plan.client||'—')+' / '+(st.fiche.numCmd||st.plan.numCmd||'sans n°'));
+  /* [L564 · v3 · F3] LIRE AVANT D'ÉCRIRE À L'AVEUGLE : la sauvegarde de cet emplacement est ABSENTE du cache (hors de la fenêtre limit(300), instantané pas encore reçu, persistance hors ligne vide) :
+     une lecture bornée (4 s) du document, UNE fois par session et par emplacement, puis le tick est rejoué. Les ticks qui arrivent pendant la lecture sont repris par le rejeu (état frais ; un tick forcé garde son drapeau). */
+  if(!_cur&&db){ const _kLu='lu|'+aid;
+    if(_l564Fait[_kLu]===2){ if(force) _l564LuForce=true; return; }
+    if(_l564Fait[_kLu]!==1){ _l564Fait[_kLu]=2; _l564LuForce=!!force; _l564Lire(aid,function(f){ autosaveDraftTick(f); }); return; }
+  }
+  /* [L564 · A] ARCHIVER AVANT D'ÉCRASER : l'emplacement d_autosave est UN par compte + appareil, la commande suivante le remplace. Si l'ancien contenu a au moins
+     1 coupée, n'est pas consommé, et que le nouvel état est une autre commande (plan source différent, sinon client + n° différents) ou une version en recul,
+     il est écrit sous d_arch_… (écriture BORNÉE) AVANT l'écrasement ; le tick est ensuite rejoué en entier. Échec : RIEN ne change, un toast par minute. */
+  try{ const _ar=_l564ArchiveDe(_cur,st);
+    if(_ar&&!_l564Existe(_ar.id)){ _l564Archiver(_ar,function(f){ autosaveDraftTick(force||f); },force); return; }
+  }catch(e){ console.warn('[L564] archive :',e&&e.message); _l564Alerte('⚠ Ton travail précédent n’a pas pu être mis de côté. Ta commande à l’écran n’est pas encore sauvegardée : nouvel essai dans quelques secondes.'); return; }
   const drafts=loadDrafts().filter(d=>d.id!==aid);
   drafts.unshift({id:aid,savedAt:isoNow(),label,state:st,auto:true,owner:_ini(),ownerPost:_machinePostName()});
-  if(persistDrafts(drafts)) _autosaveLastSig=sig;
+  if(persistDrafts(drafts)){ _autosaveLastSig=sig;
+    if(_l564Leve){ try{ logAudit('edit','brouillons',aid,'Marqueur consommé levé — nouvelle commande').catch(function(){}); }catch(e){} }   /* [L564 · B] set() complet : le document repart sans « consumed » */
+  }
 }
+// ============================================================
+// [L564 · brouillons fiables · LOT 1 · demande de la responsable qualité du 20/11/2026 : « le travail de découpe ne doit plus JAMAIS être perdu »]
+// Déclencheur : une commande PRIMA (13 bobines coupées) a disparu. Enquête : l'emplacement UNIQUE d_autosave (un par compte + appareil) est
+// remplacé par la commande suivante, un marqueur « consommé » arrête toute sauvegarde de la tablette, et un parcage plus ancien consommait un
+// parcage plus avancé. Quatre changements, rien de plus (ni copie continue, ni règle Firestore, ni changement de purge) :
+//   A  ARCHIVER AVANT D'ÉCRASER (autosaveDraftTick) : le travail de l'ancienne sauvegarde automatique est mis de côté (d_arch_…) avant d'être remplacé ;
+//   B  LEVER le blocage « consommé » quand le marqueur concerne une AUTRE commande que celle de l'écran ;
+//   C  NE PLUS CONSOMMER un brouillon plus avancé (_supersededManualDrafts) ;
+//   D  liste lisible : « x/N coupée(s) » sur chaque version repliée + bandeau quand une version repliée est plus avancée.
+//   v3 (contre-lecture adverse) : F1 le ↺ archive la sauvegarde qu'il supprime (resetSiteConfirm) · F2 arrêt manque matière : une archive d'un AUTRE plan source connu n'est jamais rangée (saveCommandeFiche)
+//      · F3 sauvegarde absente du cache : une lecture bornée avant d'écrire à l'aveugle (_l564Lire) · F4 une coupée de l'ancienne sauvegarde hors du nouvel état = archive (_l564CoupeeHors)
+//      · F6 même écran qui continue (mêmes ids de ligne) = jamais d'archive (_l564MemeEcran) · F7 l'archive fige le chrono. NON faits : F5 (clearCurrentDraft intact), C8, C9 (lot 3).
+// Fonctions PURES (sauf _l564Archiver et _l564Lire, qui lisent / écrivent une fois, bornées) : testées sur les vraies fonctions par tests/brouillons_lot1_test.js.
+// ============================================================
+let _l564Busy=false;      // une écriture d'archive est en vol : le tick qui arrive ne fait rien (le suivant reprendra)
+const _l564Fait={};       // archives déjà écrites dans cette session (un instantané en retard ne la fait pas réécrire)
+let _l564AlerteAt=0;      // dernier toast d'échec (1 par minute)
+let _l564Rejeu=false;     // un tick FORCÉ (pause / arrêt du chrono) est arrivé pendant l'écriture de l'archive : il sera rejoué à la fin
+let _l564LuForce=false;    // [v3 · F3] un tick FORCÉ est arrivé pendant la lecture de la sauvegarde absente du cache : le rejeu le reprend
+function _l564Hash(s){ s=String(s==null?'':s); let h1=0x811c9dc5, h2=(0x01000193^s.length)>>>0; for(let i=0;i<s.length;i++){ const c=s.charCodeAt(i); h1^=c; h1=Math.imul(h1,16777619)>>>0; h2=(Math.imul(h2^c,2246822519)+i)>>>0; } return h1.toString(36)+h2.toString(36); }
+/* coupées / total d'un brouillon (ou de {state:…}) */
+function _l564Coupees(d){ try{ const L=(d&&d.state&&Array.isArray(d.state.lines))?d.state.lines:[]; return {cut:L.filter(function(l){ return !!(l&&l.coupee); }).length,total:L.length}; }catch(e){ return {cut:0,total:0}; } }
+/* identité d'une commande lue dans un état : plan source (loadedSaveId), client, n° */
+function _l564Ident(s){ const p=(s&&s.plan)||{}, f=(s&&s.fiche)||{}; const n=String(f.numCmd||p.numCmd||'').trim(); return {sid:String((s&&s.loadedSaveId)||''),cli:nrm(f.client||p.client||''),num:nrm((n&&n!=='—')?n:'')}; }
+/* MÊME commande ? cur = brouillon (document), st = état de l'écran. Deux plans sources connus : ils décident ; sinon client + n°.
+   Identité de l'ancien inconnue (marqueur sans état) : on cherche la fiche envoyée ; toujours inconnue → « même commande » (comportement d'avant : on ne touche à rien). */
+function _l564MemeCommande(cur,st){ try{
+  let a=_l564Ident(cur&&cur.state); const b=_l564Ident(st);
+  if(!a.sid&&!a.cli&&!a.num&&cur&&cur.ficheId&&Array.isArray(fichesCache)){ const fc=fichesCache.find(function(x){ return x&&x._id===cur.ficheId; }); if(fc){ const n=String(fc.numCmd||'').trim(); a={sid:'',cli:nrm(fc.client||''),num:nrm((n&&n!=='—')?n:'')}; } }
+  if(a.sid&&b.sid) return a.sid===b.sid;
+  if(!a.cli&&!a.num) return true;
+  return a.cli===b.cli&&a.num===b.num;
+}catch(e){ return true; } }
+/* [v3 · F6] MÊME ÉCRAN qui continue : toutes les coupées de l'ancienne sauvegarde sont encore coupées sur les MÊMES ids de ligne (les ids sont uniques : date + compteur + aléa,
+   une commande rechargée ou une autre commande en reçoit de neufs). Corriger le client ou le n° en cours de route n'est donc JAMAIS une autre commande : aucune archive. */
+function _l564MemeEcran(cur,st){ try{
+  const m={}; ((st&&Array.isArray(st.lines))?st.lines:[]).forEach(function(l){ if(l&&l.id&&l.coupee) m[l.id]=1; });
+  const cc=cur.state.lines.filter(function(l){ return !!(l&&l.coupee); });
+  return cc.length>0&&cc.every(function(l){ return !!(l.id&&m[l.id]===1); });
+}catch(e){ return false; } }
+/* [v3 · F4] une coupée de l'ancienne sauvegarde (référence + configuration + laize) n'est PAS parmi les coupées du nouvel état : ce travail ne serait plus nulle part
+   (autre brouillon repris, même plan rechargé puis 5 AUTRES bobines cochées : le simple compte de coupées ne le voit pas). Multiplicité comprise. En cas de doute : vrai (une archive de trop vaut mieux qu'une perte). */
+function _l564CoupeeHors(cur,st){ try{
+  const k=function(l){ return String(l.ref||'')+'¦'+String(l.conf||'')+'¦'+String(l.useful||''); };
+  const m={}; ((st&&Array.isArray(st.lines))?st.lines:[]).forEach(function(l){ if(l&&l.coupee){ const q=k(l); m[q]=(m[q]||0)+1; } });
+  return cur.state.lines.some(function(l){ if(!(l&&l.coupee)) return false; const q=k(l); if(m[q]>0){ m[q]--; return false; } return true; });
+}catch(e){ return true; } }
+/* [A] l'archive à écrire AVANT d'écraser l'ancienne sauvegarde automatique, ou null.
+   Condition : l'ancienne a au moins 1 coupée, n'est ni consommée ni supprimée, et le nouvel état est une AUTRE commande ou une version en RECUL ou n'a plus toutes ses coupées.
+   Jamais d'archive si c'est le MÊME ÉCRAN qui continue (F6 : mêmes ids de ligne pour toutes ses coupées, quels que soient client et n°). */
+function _l564ArchiveDe(cur,st){
+  if(!cur||cur.consumed||cur.deleted||!cur.state||!Array.isArray(cur.state.lines)) return null;
+  const x=_l564Coupees(cur); if(!x.cut) return null;
+  const nouv=_l564Coupees({state:st}).cut;
+  if(_l564MemeEcran(cur,st)) return null;   /* [v3 · F6] */
+  if(_l564MemeCommande(cur,st)&&!(nouv<x.cut)&&!_l564CoupeeHors(cur,st)) return null;   /* [v3 · F4] : même commande qui avance ET aucune coupée de l'ancienne hors du nouvel état */
+  const f=cur.state.fiche||{}, p=cur.state.plan||{};
+  const id='d_arch_'+_l564Hash(_machinePostName()+'|'+cur.id+'|'+cur.savedAt);   // idempotent : deux onglets / deux ticks → un seul document
+  const fige=(cur.state.chrono&&cur.state.chrono.wasRunning)?Object.assign({},cur.state,{chrono:Object.assign({},cur.state.chrono,{wasRunning:false,runStart:null})}):cur.state;   /* [v3 · F7] chrono FIGÉ (comme le parcage L440) : sinon la reprise compte tout le temps passé depuis sur l'autre commande */
+  const doc={id:id,savedAt:cur.savedAt||isoNow(),label:'🗄 Avant remplacement · '+(f.client||p.client||'—')+' / '+(f.numCmd||p.numCmd||'sans n°')+' · '+x.cut+'/'+x.total+' coupée(s)',state:fige,auto:false,archive:true};
+  if(cur.owner!=null) doc.owner=cur.owner; if(cur.ownerPost!=null) doc.ownerPost=cur.ownerPost; if(cur.ownerUid!=null) doc.ownerUid=cur.ownerUid;   // jamais undefined (Firestore le refuse) ; pas de fromFicheId
+  return {id:id,doc:doc,cut:x.cut,total:x.total};
+}
+function _l564Existe(id){ return _l564Fait[id]===1||(Array.isArray(brouillonsCache)&&brouillonsCache.some(function(x){ return x&&x.id===id; })); }
+function _l564Alerte(msg){ try{ const t=Date.now(); if(t-_l564AlerteAt>60000){ _l564AlerteAt=t; showToast(msg,'err'); } }catch(e){} }
+/* [v3 · F3] la sauvegarde de cet emplacement est ABSENTE du cache (hors de la fenêtre limit(300), instantané pas encore reçu après un rechargement, persistance hors ligne vide) : avant d'écrire À
+   L'AVEUGLE, UNE lecture bornée (4 s) du document, une fois par session et par emplacement ; le document lu rejoint le cache, puis le tick est rejoué (état frais, toutes les gardes relues).
+   Échec ou délai dépassé : le tick est rejoué quand même (comme avant le lot). */
+async function _l564Lire(aid,suite){
+  let d=null;
+  try{
+    if(!db) throw new Error('base indisponible');
+    const snap=await Promise.race([db.collection('brouillons').doc(aid).get(), new Promise(function(r){ setTimeout(function(){ r(null); },4000); })]);
+    if(snap&&snap.exists) d=Object.assign({id:aid},snap.data());
+  }catch(e){ console.warn('[L564] lecture de la sauvegarde :',e&&e.message); }
+  _l564Fait['lu|'+aid]=1; const f=_l564LuForce; _l564LuForce=false;
+  try{ const c=Array.isArray(brouillonsCache)?brouillonsCache:[]; if(d&&!c.some(function(x){ return x&&x.id===aid; })) brouillonsCache=c.concat([d]); }catch(e){}
+  try{ if(typeof suite==='function') suite(f); }catch(e){ console.warn('[L564] suite de la lecture :',e&&e.message); }
+}
+/* écrit l'archive (borné) puis rejoue le tick ENTIER (état frais, toutes les gardes relues) ; échec = RIEN ne change, un toast par minute */
+async function _l564Archiver(ar,suite,force){
+  if(_l564Busy){ if(force) _l564Rejeu=true; return; }   /* [P5] le tick forcé qui arrive pendant l'écriture n'est pas perdu : drapeau, rejoué à la fin */
+  _l564Busy=true; _l564Rejeu=false; let ok=false, stripped=null;
+  try{
+    if(!db) throw new Error('base indisponible');
+    stripped=_draftStrip(ar.doc);
+    await boundedWrite(db.collection('brouillons').doc(ar.id).set(stripped),8000);
+    ok=true;
+  }catch(e){ ok=!!(e&&e.queued); if(!ok) console.warn('[L564] archive refusée :',e&&e.message); }   // mise en file (réseau lent) = écriture NON perdue : même règle que partout (L139)
+  _l564Busy=false; const _rej=_l564Rejeu; _l564Rejeu=false;
+  /* [P3] échec = l'écrasement est BLOQUÉ (sûr pour la commande précédente : elle reste en base) ; la commande à l'écran n'est alors enregistrée que sur cette tablette */
+  if(!ok){ _l564Alerte('⚠ Ton travail précédent ('+ar.cut+'/'+ar.total+' coupées) n’a pas pu être mis de côté. Ta commande à l’écran n’est pas encore sauvegardée : nouvel essai dans quelques secondes.'); return; }
+  _l564Fait[ar.id]=1;
+  try{ brouillonsCache=[stripped].concat((Array.isArray(brouillonsCache)?brouillonsCache:[]).filter(function(x){ return x&&x.id!==ar.id; })); if(document.getElementById('draftsList')) renderDrafts(); }catch(e){}
+  try{ showToast('🗄 Ton travail précédent ('+ar.cut+'/'+ar.total+' coupées) est gardé dans Données › Brouillons.','ok'); }catch(e){}
+  try{ logAudit('create','brouillons',ar.id,'Archive avant remplacement — '+ar.doc.label).catch(function(){}); }catch(e){}
+  try{ if(typeof suite==='function') suite(_rej); }catch(e){ console.warn('[L564] suite du tick :',e&&e.message); }
+}
+/* [C] un brouillon qui a PLUS de coupées que le nouveau parcage n'est jamais consommé par lui (un doublon visible vaut mieux qu'une perte silencieuse, L254) */
+function _l564PlusAvance(d,nouv){ try{ return _l564Coupees(d).cut>_l564Coupees(nouv).cut; }catch(e){ return true; } }
+/* [D] « x/N coupée(s) » sur une ligne de version repliée (rien si le brouillon n'a aucune bobine) */
+function _l564LigneXN(o){ try{ if(o&&o.archive===true&&/coupée\(s\)\s*$/.test(String(o.label||''))) return '';   /* [P2] le libellé d'une archive dit déjà « x/N coupée(s) » : pas de doublon */
+  const c=_l564Coupees(o); if(!c.total) return ''; return '<span class="l564-pa"> · <b>'+c.cut+'/'+c.total+' coupée(s)</b></span>'; }catch(e){ return ''; } }
+/* [D] bandeau sur la carte du dessus quand une version repliée a PLUS de coupées. Jamais sur une carte « déjà envoyée » (si = état d'envoi) : « reprends plutôt celle-là » y serait dangereux. */
+function _l564Bandeau(top,old,si){ try{
+  if(!Array.isArray(old)||!old.length) return '';
+  if(si&&si.kind==='sent') return '';
+  if(top&&(top.solde||top.isSolde||/solde/i.test(String(top.label||'')))) return '';   /* [V2] carte du dessus = un solde : jamais « reprends plutôt celle-là » (même test que _l430IsResidualDraft) */
+  const c0=_l564Coupees(top).cut; let best=null;
+  old.forEach(function(o){ const c=_l564Coupees(o); if(c.cut>c0&&(!best||c.cut>best.cut)) best=c; });
+  if(!best) return '';
+  return '<div class="save-meta l564-pb l564-alerte">⚠ Une version plus avancée existe plus bas : '+best.cut+'/'+best.total+' coupées. Reprends plutôt celle-là.</div>';
+}catch(e){ return ''; } }
+/* [P7 + V1] une archive dont la commande est DÉJÀ ENVOYÉE (état L545 « sent » SANS arrêt manque matière : l'arrêt manque matière est partiel par nature, une archive n'est jamais masquée par lui ; tout son travail est dans la fiche) se comporte comme un brouillon résiduel pour le filtre L430 (masquée seulement si la fiche est validée ; rien n'est supprimé). Sinon elle reste visible. */
+function _l564ArchiveEnvoyee(d){ try{ if(!d||d.archive!==true) return false; const s=_l545SentInfo(d,Array.isArray(fichesCache)?fichesCache:[]); return !!s&&s.kind==='sent'&&!s.mm; }catch(e){ return false; } }
 function startAutosave(){
   if(_autosaveTimer) return;
   autosaveDraftTick();                 // capture immédiate de l'état au démarrage
@@ -27478,10 +27622,10 @@ function renderDrafts(){
     const _other=!!(_pst&&_myP&&_pst!==_myP);
     const _chip=_posteChip(_pst)+(_other?'<span class="frs-mch" style="--mc:#8a94a6;margin-left:4px" title="Créé sur une autre tablette — le reprendre ici = passation">autre tablette</span>':'');
     const _mcVar=(MACHINE_KEYS.indexOf(String(_pst).toLowerCase())>=0)?('var(--'+String(_pst).toLowerCase()+')'):'var(--border2)';
-    const _oldH=(_older[d.id]||[]).length?'<details'+(_openV.has(d.id)?' open':'')+' style="margin-top:4px"><summary style="font-size:13px;color:var(--muted);cursor:pointer;min-height:48px;display:flex;align-items:center">+'+_older[d.id].length+' version(s) plus ancienne(s)</summary>'+_older[d.id].map(o=>'<div style="font-size:13px;padding:3px 0">'+esc(o.label)+(o.fromSend?' <b style="color:var(--orange)">non envoyé</b>':'')+' · '+new Date(o.savedAt).toLocaleDateString('fr-FR')+' '+new Date(o.savedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' <button class="btn btn-ghost btn-sm" style="min-height:48px" onclick="resumeDraft(\''+o.id+'\')">▶</button></div>').join('')+'</details>':'';   // [L367] date + tag non envoyé + cibles 48px + état ouvert conservé
+    const _oldH=(_older[d.id]||[]).length?'<details'+(_openV.has(d.id)?' open':'')+' style="margin-top:4px"><summary style="font-size:13px;color:var(--muted);cursor:pointer;min-height:48px;display:flex;align-items:center">+'+_older[d.id].length+' version(s) plus ancienne(s)</summary>'+_older[d.id].map(o=>'<div style="font-size:13px;padding:3px 0">'+esc(o.label)+((typeof _l564LigneXN==='function')?_l564LigneXN(o):'')+(o.fromSend?' <b style="color:var(--orange)">non envoyé</b>':'')+' · '+new Date(o.savedAt).toLocaleDateString('fr-FR')+' '+new Date(o.savedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' <button class="btn btn-ghost btn-sm" style="min-height:48px" onclick="resumeDraft(\''+o.id+'\')">▶</button></div>').join('')+'</details>':'';   // [L367] date + tag non envoyé + cibles 48px + état ouvert conservé
     return `<div class="save-card${_other?' poste-other':''}" style="--mc:${_mcVar};border-left:4px solid var(--mc)" data-poste="${esc(_pst)}" data-id="${esc(d.id)}"${(_si&&_si.kind==='sent')?' data-l545sent="1"':''}>
       <div class="save-info">
-        <div class="save-title">${_chip} ${esc(d.label)}${tag}</div>
+        <div class="save-title">${_chip} ${esc(d.label)}${tag}</div>${(typeof _l564Bandeau==='function')?_l564Bandeau(d,_older[d.id],_si):''}
         <div class="save-meta">Brouillon ${esc(_pst||'')} du ${ds} · ${meta}${_who?' · <b style="color:var(--blue)">'+esc(_who)+'</b>':''}</div>${_sentH}${_oldH}
       </div>
       <div class="save-actions">
