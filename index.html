@@ -3448,7 +3448,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.11.19-L562';
+const APP_VERSION='2026.11.23-L563';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -8938,6 +8938,144 @@ function _l444Regroup(computed){
 // de bobines que le brut ET que le pic NATUREL du brut respecte deja PALETTES_MAX (mesure par _seqPeak,
 // la fonction OFFICIELLE du moteur), on garde le brut — la matiere prime, et la contrainte des 4
 // palettes reste respectee. Aucune fonction gelee n'est modifiee.
+// ============================================================
+// [L563 · 19/11/2026] FAMILLES DE LAIZES DISJOINTES — recherche EXACTE dans la COUCHE (moteur gele intact).
+// Defaut constate (commande LEGRAND SPAIN p427611 : 11 laizes, utile 2080, lame 0) : le brut tient en 3 bobines
+// mais fait un pic de 7 palettes (refuse par la tolerance L448 = 6) ; le plan « palettes » du moteur (_palRepack :
+// phases CONSECUTIVES du ruban trie) coute 4 bobines et 2949 mm de chute, alors qu'il existe des plans a 3 bobines
+// avec au plus 4 laizes par bobine (869 mm de chute). Le decoupage consecutif rate les familles qui melangent
+// grandes et petites laizes ; la couche ne le rattrapait pas.
+// Ici, SEULEMENT quand le plan palettes retenu a PLUS de bobines que le brut (et que le brut est refuse par L448) :
+// partition des laizes en FAMILLES disjointes de 1 a PALETTES_MAX laizes, chaque famille emballee par le MOTEUR GELE
+// (pack, meme laize utile, meme lame), programmation dynamique EXACTE sur les 2^n sous-ensembles (n <= L563_N_MAX ;
+// au-dela : comportement d'avant, inchange). ORDRE DE PRIORITE (regle atelier donnee par la responsable qualite le
+// 19/11/2026 : « en priorite les laizes voisines, car un changement important d'angle de lame peut produire des
+// non-conformites ») :
+//   (1) le moins de bobines meres ;
+//   (2) a nombre egal, des familles aussi VOISINES que possible dans la liste triee : la plus petite SOMME des
+//       ecarts (max - min des largeurs) des familles — une partition en tranches consecutives du ruban (ce que fait
+//       le moteur) gagne donc toujours quand elle atteint le minimum de bobines ;
+//   (3) puis la perte la plus faible (chute moins les soldes de fin de famille, comme la passe 2 de _palRepack) ;
+//   (4) puis le moins de familles ; a egalite complete : premier trouve (ordre canonique) — DETERMINISTE, jamais une
+//       borne en temps (un plan identique sur PC et tablette, regle « toutes les surfaces »).
+// Les quatre composantes sont ADDITIVES : un seul DP lexicographique par iteration, sans seuil ni recherche binaire.
+// EVALUATION PARESSEUSE (le temps est dans pack, pas dans le DP) : une famille pas encore emballee compte pour sa
+// borne basse (ceil(somme des (laize+lame) / (utile+lame)) bobines, perte 0) ; seules les familles de l'optimum
+// courant sont emballees par le moteur, et on recommence jusqu'a ce que l'optimum ne contienne que des familles
+// emballees. Preuve : chaque composante estimee est <= la vraie, donc la valeur estimee de toute partition est <= sa
+// vraie valeur ; l'optimum trouve, entierement exact, n'est battu par aucune partition. Chaque famille emballee
+// l'est UNE fois (memo) ; le garde-fou du moteur (packTruncated) est remis tel qu'il etait.
+// BORNE DE SURETE (L563_PACK_MAX) : au plus 800 appels au moteur par recherche — un COMPTE, jamais un temps, donc le
+// meme plan sur toutes les machines ; depassee, la recherche renonce (null = plan d'avant, jamais un plan partiel).
+// Adopte UNIQUEMENT si strictement moins de bobines que le plan palettes retenu (jamais moins bien que lui).
+// Familles disjointes => pic de palettes <= PALETTES_MAX par construction, RE-MESURE avec _seqPeak (la fonction
+// officielle) avant d'accepter. Jamais de familles quand des chutes en stock ou des rouleaux a recouper sont
+// presents (comme _palRepack) ; multi-references : reference par reference (chaque c de _l444Pal) ; papier intact.
+// FAMILLES PRESERVEES : un plan en familles n'est PAS remelange ensuite par le regroupement des chutes _l444Regroup
+// (voir la derniere ligne de _l444Pal) — sinon la priorite (2) disparaissait de l'ecran (pic 5-6, bobines a 5-6 laizes).
+// SORTIE : exactement la forme de _palRepack + _palSplitSolde + _palBobines (planGroups count/pattern, dernier
+// motif de chaque famille sauf la derniere marque _phaseEnd, solde eclate, bobines, stats, _palPhases, _palPeak)
+// parce que 5 surfaces la lisent (ecran Plan, PDF, fiche BOB-xxx, archive f.groups, editeur manuel).
+// Ordre des familles : grosses laizes d'abord (la famille qui contient la plus grande laize ouvre le plan), dans
+// chaque famille l'ordre du moteur. La regle L448 (brut accepte si pic <= 6 et moins de bobines) passe AVANT.
+// ============================================================
+var L563_N_MAX=14;   /* borne de la recherche exacte : 2^14 masques x familles de <= PALETTES_MAX laizes ; au-dela, plan d'avant (dans la chaine actuelle la recherche n'est atteinte que de 5 a 12 laizes : _palRepack renonce au-dela) */
+var L563_PACK_MAX=800;   /* borne DETERMINISTE de surete : au plus 800 appels au moteur (pack) par recherche — un compte, jamais un temps ; depassee -> null = plan d'avant (v2 : 400 ; 800 depuis le 20/11/2026 : les 12 cas lents naturels du verificateur tiennent en <= 699 appels) */
+function _l563Familles(c,b){
+  if(!c||!b||!Array.isArray(c.bobines)||!Array.isArray(b.bobines)) return null;
+  if(!(b.bobines.length<c.bobines.length)) return null;                                /* le plan palettes ne coute rien de plus : rien a faire */
+  if(Object.keys(c.chutesUsed||{}).length>0||(c.recutBobines||[]).length) return null;   /* flux a annotations (chutes stock, rouleaux) : jamais re-packes */
+  const useful=Number(c.useful)||0, blade=Math.max(0,Number(c.blade)||0);
+  if(!(useful>0)) return null;
+  const valid=(c.rows||[]).filter(function(r){ return r.width<=useful; });
+  if(!valid.length) return null;
+  const items=expandDemand(valid);
+  const widths=[...new Set(items)].sort(function(x,y){ return y-x; });                 /* index 0 = plus grande laize */
+  const n=widths.length;
+  if(n<=PALETTES_MAX||n>L563_N_MAX) return null;                                        /* <= 4 : une seule famille ; > borne : repli sur le plan d'avant */
+  const qty={}; items.forEach(function(w){ qty[w]=(qty[w]||0)+1; });
+  const N=1<<n, full=N-1, T=c.bobines.length-1;                                         /* cible : au plus T bobines = strictement moins que le plan palettes */
+  const lowIdx=function(m){ return 31-Math.clz32(m&-m); };                              /* bit bas = plus grande laize de l'ensemble */
+  const highIdx=function(m){ return 31-Math.clz32(m); };                                /* bit haut = plus petite laize de l'ensemble */
+  const cap=useful+blade+0.01;                                                          /* une bobine : somme des (laize+lame) <= utile+lame (tolerance 0,01 du moteur) */
+  const slots=new Float64Array(N), lbArr=new Int32Array(N), ecart=new Float64Array(N);
+  for(let m=1;m<=full;m++){ const i=lowIdx(m), w=widths[i]; slots[m]=slots[m^(1<<i)]+(w+blade)*qty[w]; lbArr[m]=Math.ceil(slots[m]/cap-1e-9); ecart[m]=widths[i]-widths[highIdx(m)]; }
+  const knowNb=new Int32Array(N).fill(-1), knowPerte=new Float64Array(N), bobsOf=new Array(N);   /* -1 : pas encore emballee ; -2 : famille invalide ; >= 0 : nb exact */
+  const _pt=packTruncated; let nPack=0, borne=false;
+  const costOf=function(S){                                                             /* une famille emballee par le MOTEUR GELE, une seule fois */
+    if(knowNb[S]!==-1) return;
+    if(nPack>=L563_PACK_MAX){ borne=true; return; }                                    /* borne de surete atteinte : la recherche renonce (plan d'avant) */
+    nPack++;
+    const set=new Set(); let pieces=0; for(let i=0;i<n;i++){ if((S>>i)&1){ set.add(widths[i]); pieces+=qty[widths[i]]; } }
+    const bobs=pack(items.filter(function(w){ return set.has(w); }),useful,blade);
+    let placed=0, used=0;
+    bobs.forEach(function(p){ p.forEach(function(x){ placed+=Number(x.qty)||0; }); used+=calcStats(p,blade).total; });
+    if(!bobs.length||placed!==pieces){ knowNb[S]=-2; return; }
+    const gs=groupBobines(bobs,blade), lp=gs.length?gs[gs.length-1].pattern:[];
+    const solde=Math.max(0,useful-calcStats(lp,blade).total);                          /* reste de la DERNIERE bobine de la famille = chute reutilisable (solde conserve) */
+    knowNb[S]=bobs.length; knowPerte[S]=bobs.length*useful-used-solde; bobsOf[S]=bobs;
+  };
+  /* DP sur les sous-ensembles : best[m] = meilleure partition de m dont la famille qui contient la plus grande laize
+     de m est enumeree directement (<= PALETTES_MAX-1 autres laizes de m), et dont le total ne peut plus depasser T
+     bobines (borne basse du reste). Objectif additif lexicographique : nb, somme des ecarts, perte, nb de familles ;
+     egalite : premier trouve. Famille non emballee : borne basse (nb) et perte 0. */
+  const bNb=new Int32Array(N), bSs=new Float64Array(N), bPe=new Float64Array(N), bFam=new Int32Array(N), bPrev=new Int32Array(N), bSub=new Int32Array(N), bOk=new Uint8Array(N);
+  let m=0, rest=0, okm=0, cNb=0, cSs=0, cPe=0, cFam=0, cSub=0;
+  const consider=function(S){
+    const pm=m^S; if(!bOk[pm]) return;
+    const kn=knowNb[S]; if(kn===-2) return;
+    const nb=bNb[pm]+(kn>=0?kn:lbArr[S]); if(nb+rest>T) return;                        /* elagage par borne basse */
+    const ss=bSs[pm]+ecart[S], pe=bPe[pm]+(kn>=0?knowPerte[S]:0), fam=bFam[pm]+1;
+    if(!okm||nb<cNb||(nb===cNb&&(ss<cSs-1e-9||(Math.abs(ss-cSs)<=1e-9&&(pe<cPe-1e-9||(Math.abs(pe-cPe)<=1e-9&&fam<cFam)))))){ okm=1; cNb=nb; cSs=ss; cPe=pe; cFam=fam; cSub=S; }
+  };
+  const bits=[];
+  const run=function(){
+    bOk.fill(0); bOk[0]=1; bNb[0]=0; bSs[0]=0; bPe[0]=0; bFam[0]=0;
+    for(m=1;m<=full;m++){
+      const b0=1<<lowIdx(m); rest=lbArr[full^m]; okm=0;
+      bits.length=0; for(let x=m^b0;x;x&=x-1) bits.push(x&-x);
+      const nb0=bits.length;
+      consider(b0);
+      if(PALETTES_MAX>=2) for(let a=0;a<nb0;a++){ consider(b0|bits[a]);
+        if(PALETTES_MAX>=3) for(let bb=a+1;bb<nb0;bb++){ consider(b0|bits[a]|bits[bb]);
+          if(PALETTES_MAX>=4) for(let cc=bb+1;cc<nb0;cc++){ consider(b0|bits[a]|bits[bb]|bits[cc]); } } }
+      bOk[m]=okm; if(okm){ bNb[m]=cNb; bSs[m]=cSs; bPe[m]=cPe; bFam[m]=cFam; bSub[m]=cSub; bPrev[m]=m^cSub; }
+    }
+    return !!bOk[full];
+  };
+  const solve=function(){                                                              /* DP, puis emballage reel des familles de l'optimum, jusqu'a convergence (ou borne de surete) */
+    for(;;){ if(!run()) return false; let inconnues=0; for(let x=full;x>0;x=bPrev[x]){ if(knowNb[bSub[x]]===-1){ costOf(bSub[x]); inconnues++; } } if(borne) return false; if(!inconnues) return true; }
+  };
+  let trouve=false;
+  try{ trouve=solve(); }finally{ packTruncated=_pt; }                                  /* une famille tronquee par le garde-fou du moteur est ecartee (pieces manquantes), jamais signalee comme saisie aberrante */
+  if(!trouve) return null;
+  const fams=[]; for(let x=full;x>0;x=bPrev[x]) fams.push(bSub[x]);                     /* de la famille de la plus grande laize vers les petites : grosses laizes d'abord */
+  const phases=fams.map(function(S){ return bobsOf[S]||[]; }).filter(function(ph){ return ph.length; });
+  const planGroups=[].concat.apply([],phases.map(function(ph,pi){
+    const gs=groupBobines(ph,blade);
+    if(gs.length&&pi<phases.length-1){                                                  /* fin de famille = solde a CONSERVER (meme marquage que _palRepack) */
+      const lg=gs[gs.length-1], k=Math.max(1,parseInt(lg.count)||1);
+      if(k>1){ gs[gs.length-1]=Object.assign({},lg,{count:k-1}); gs.push(Object.assign({},lg,{count:1,_phaseEnd:true})); }
+      else gs[gs.length-1]=Object.assign({},lg,{_phaseEnd:true});
+    }
+    return gs;
+  }));
+  const order=_palSplitSolde(planGroups), bobines=_palBobines(order);
+  if(!bobines.length||bobines.length>=c.bobines.length) return null;                   /* jamais moins bien que le plan palettes */
+  const cnt={}; items.forEach(function(w){ cnt[w]=(cnt[w]||0)+1; });
+  for(let i=0;i<bobines.length;i++){
+    if(calcStats(bobines[i],blade).total>useful+0.01) return null;                      /* capacite */
+    if(_pgW({pattern:bobines[i]}).length>PALETTES_MAX) return null;                     /* au plus PALETTES_MAX laizes differentes par bobine */
+    bobines[i].forEach(function(p){ cnt[p.width]=(cnt[p.width]||0)-(Number(p.qty)||0); });
+  }
+  for(const w in cnt){ if(cnt[w]!==0) return null; }                                    /* conservation STRICTE du multiset */
+  const peak=_seqPeak(order);
+  if(peak>PALETTES_MAX) return null;                                                    /* mesure officielle, jamais une promesse */
+  const totalBobines=bobines.length, totalMat=totalBobines*useful;
+  const totalUsed=bobines.reduce(function(s,p){ return s+calcStats(p,blade).total; },0);
+  const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
+  return Object.assign({},c,{bobines:bobines,planGroups:order,stats:{totalBobines:totalBobines,totalMat:totalMat,totalUsed:totalUsed,pct:pct},_palPhases:phases.length,_palPeak:peak,_l563Familles:true});
+}
 function _l444Pal(groups){
   const r=packRefGroupsPal(groups);
   let out=r;
@@ -8952,11 +9090,12 @@ function _l444Pal(groups){
           const _o=_palSplitSolde(b.planGroups);
           return Object.assign({},b,{planGroups:_o,bobines:_palBobines(_o),_palPeak:peakNat,_l446Brut:true});
         }
+        { const _f=_l563Familles(c,b); if(_f) return _f; }   /* [L563] brut refuse (pic > tolerance) et plan palettes plus cher : familles de laizes disjointes, laizes voisines d'abord (DP exacte, moteur gele rappele par famille) */
       }
       return c;
     });
   }catch(e){ out=r; }
-  try{ return _l444Regroup(out); }catch(e){ return out; }
+  try{ const _rg=_l444Regroup(out); return _rg.map(function(c,i){ return (out[i]&&out[i]._l563Familles)?out[i]:c; }); }catch(e){ return out; }   /* [L563] un plan en familles de laizes voisines n'est PAS remelange par le regroupement des chutes (L444) : la priorite atelier arrive a l'ecran */
 }
 // ENVELOPPE UNIQUE des sites d'appel : plan moteur → ordre/phases « palettes ».
 function packRefGroupsPal(groups){
