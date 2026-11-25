@@ -5,7 +5,7 @@
 // que le plan palettes d'avant, multiset conserve, capacite, au plus PALETTES_MAX laizes par bobine, pic _seqPeak <= PALETTES_MAX,
 // determinisme, forme de sortie identique a _palRepack, regle L448 inchangee, repli au-dela de la borne, chutes/rouleaux intouches,
 // packTruncated remis meme quand une famille est TRONQUEE, optimum identique a la force brute (n <= 8), temps borne,
-// FAMILLES PRESERVEES sur le plan FINAL de _l444Pal (pas remelangees par _l444Regroup), borne de surete L563_PACK_MAX (un compte
+// plan FINAL de _l444Pal regroupe dans la limite de 6 laizes / 6 palettes (adapte L566 : chutes regroupees en fin de plan), borne de surete L563_PACK_MAX (un compte
 // d appels au moteur, jamais un temps). LCG seed 563563, jamais Math.random. Vu ROUGE sur L561 (fonction absente) avant d'etre vert.
 // Les commandes aleatoires sont calculees UNE fois (plan palettes, brut, plan d'avant, plan nouveau) puis relues par chaque propriete.
 const fs=require('fs');
@@ -16,6 +16,8 @@ global.PALETTES_MAX=4; global.MAX_USEFUL_MM=4000; { const m=src.match(/var L448_
  'assignChutesForDisplay','groupBobinesWithChutes','packRecutRolls','groupRecutRolls','packRefGroups','_pgW','_seqPeak','_seqPeakPartial',
  '_seqMinPalettes','_palRepack','_palBobines','_palSplitSolde','packRefGroupsPal',
  '_l444PalettePeak','_l444Fill','_l444RegroupRef','_l444Regroup','_l444Pal'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); });
+// [L566] _l444Pal regroupe aussi les plans en familles par _l566RegroupeBorne : sans ces fonctions chargees, l'appel echoue DANS le try de _l444Pal et le plan en familles reste tel quel (le test ne verrait rien).
+if(src.indexOf('\nfunction _l566RegroupeBorne(c,regroupe){')>=0&&/^var L566_OPS_MAX=(\d+);/m.test(src)){ global.L566_OPS_MAX=Number(src.match(/^var L566_OPS_MAX=(\d+);/m)[1]); ['_l566Fill','_l566Chute','_l566Bornee','_l566Respecte','_l566RegroupeBorne'].forEach(n=>{ global[n]=eval('('+fnOf(n)+')'); }); }
 let fail=0;
 if(src.indexOf('\nfunction _l563Familles(c,b){')<0||!/^var L563_N_MAX=(\d+);/m.test(src)){
   console.log('❌ L563 : _l563Familles ou L563_N_MAX absent d index.html (lot non pose) — version '+((src.match(/APP_VERSION='([^']*)'/)||[])[1]||'?'));
@@ -106,8 +108,13 @@ prop('F1b cas LEGRAND : la recherche = 3 familles voisines (somme des ecarts 181
   const attendu=['2x200+4x110+12x66+6x63|','18x75+3x61+4x59|','8x56+10x48+10x44+8x28'];
   if(fams.join(' ')!==attendu.join(' ')) return 'familles attendues '+attendu.join(' ')+', obtenu '+fams.join(' ');
   if(_pgW(f.planGroups[0]).indexOf(200)<0) return 'la famille de la plus grande laize doit ouvrir le plan';
-  // le plan FINAL de _l444Pal est exactement ce plan (familles preservees)
-  if(JSON.stringify(_l444Pal(clone(g))[0])!==JSON.stringify(f)) return 'le plan final de _l444Pal differe du plan de la recherche';
+  // le plan FINAL de _l444Pal (L566) : memes 3 bobines et meme perte totale que le plan des familles, chutes regroupees (derniere >= celle des familles), <= 6 laizes par bobine, pic <= 6
+  { const fin=_l444Pal(clone(g))[0]; const ch=c=>c.useful-calcStats(c.bobines[c.bobines.length-1],c.blade).total;
+    if(fin.bobines.length!==f.bobines.length||!msEq(multiset(fin.bobines),multiset(f.bobines))) return 'le plan final de _l444Pal differe du plan de la recherche (bobines ou multiset)';
+    if(ch(fin)<ch(f)) return 'la chute de la derniere bobine a ete diminuee par le plan final';
+    if(!(ch(fin)>=750)) return 'LEGRAND : chute regroupee en fin de plan attendue (derniere bobine >= 750 mm), obtenu '+ch(fin);
+    for(const p of fin.bobines){ if(_pgW({pattern:p}).length>L448_PAL_TOL) return 'plan final : bobine a plus de '+L448_PAL_TOL+' laizes'; }
+    if(_seqPeak(fin.planGroups)>L448_PAL_TOL) return 'plan final : pic > '+L448_PAL_TOL; }
   console.log('   LEGRAND : '+fams.join('  ')+'  (ecarts 137 / 16 / 28, somme 181, perte totale 869)');
   return '';
 });
@@ -234,16 +241,20 @@ prop('F11 optimum identique a la force brute (n = 5..8, cible = nb du plan palet
   const okT=worst<1500; if(!okT) fail++;
   console.log((okT?'✅ ':'❌ ')+'F12 temps (seuil large) : n = 14 laizes, '+N+' recherches forcees, pire '+worst.toFixed(0)+' ms (< 1500 ms exige : seuil large pour un runner CI charge ; la VRAIE borne est le COMPTE d appels pack L563_PACK_MAX, voir F14), moyenne '+(tot/N).toFixed(0)+' ms');
 }
-// ---- F13 : FAMILLES PRESERVEES sur le plan FINAL de _l444Pal (decision du 19/11/2026 : pas remelangees par _l444Regroup) ----
+// ---- F13 : plan FINAL de _l444Pal quand la recherche s applique (L566 : decision du 23/11/2026 — les chutes sont REGROUPEES en fin de plan aussi pour les plans en familles, DANS la limite de 6) ----
 {
   const vus=CASES.filter(k=>k.atteinte&&k.fam&&!k.trunc);
-  prop('F13 plan FINAL de _l444Pal quand la recherche s applique : identique au plan des familles (pas remelange par _l444Regroup), <= PALETTES_MAX laizes par bobine, pic _seqPeak <= PALETTES_MAX ('+vus.length+' cas atteints)',Math.max(1,vus.length),t=>vus[t%Math.max(1,vus.length)],(k)=>{
+  const chuteFin=c=>c.useful-calcStats(c.bobines[c.bobines.length-1],c.blade).total;
+  prop('F13 plan FINAL de _l444Pal quand la recherche s applique : meme nombre de bobines que le plan des familles, multiset conserve, <= L448_PAL_TOL laizes par bobine, pic _seqPeak <= L448_PAL_TOL, chute de la derniere bobine jamais diminuee ('+vus.length+' cas atteints)',Math.max(1,vus.length),t=>vus[t%Math.max(1,vus.length)],(k)=>{
     if(!k) return 'aucun cas atteint dans le banc : propriete vide';
-    const c=k.now[0];
-    if(!c._l563Familles) return 'le plan final n est pas en familles alors que la recherche a trouve un plan';
-    for(const p of c.bobines){ if(_pgW({pattern:p}).length>PALETTES_MAX) return 'plan final : bobine a '+_pgW({pattern:p}).length+' laizes (remelangee) : '+makeLabel(p); }
-    if(_seqPeak(c.planGroups)>PALETTES_MAX) return 'plan final : pic '+_seqPeak(c.planGroups)+' > '+PALETTES_MAX+' (remelange)';
-    if(JSON.stringify(c)!==JSON.stringify(k.fam)) return 'plan final different du plan de la recherche (remelange par _l444Regroup)';
+    const c=k.now[0], f=k.fam;
+    if(!c._l563Familles) return 'le plan final n est pas issu de la recherche en familles alors qu elle a trouve un plan';
+    if(c.bobines.length!==f.bobines.length) return 'nombre de bobines change : '+c.bobines.length+' au lieu de '+f.bobines.length;
+    if(!msEq(multiset(c.bobines),multiset(f.bobines))) return 'multiset different du plan des familles';
+    for(const p of c.bobines){ if(_pgW({pattern:p}).length>L448_PAL_TOL) return 'plan final : bobine a '+_pgW({pattern:p}).length+' laizes (> '+L448_PAL_TOL+') : '+makeLabel(p); if(calcStats(p,c.blade).total>c.useful+0.01) return 'plan final : capacite depassee'; }
+    if(_seqPeak(c.planGroups)>L448_PAL_TOL) return 'plan final : pic '+_seqPeak(c.planGroups)+' > '+L448_PAL_TOL;
+    if(chuteFin(c)<chuteFin(f)-1e-9) return 'chute de la derniere bobine diminuee : '+chuteFin(c)+' < '+chuteFin(f);
+    if(JSON.stringify(c)!==JSON.stringify(f)&&!(chuteFin(c)>chuteFin(f)+0.5)) return 'plan change sans gain de chute en fin de plan';
     return '';
   });
 }
@@ -272,5 +283,5 @@ prop('F11 optimum identique a la force brute (n = 5..8, cible = nb du plan palet
   console.log((r?'❌ ':'✅ ')+'F14 borne de surete L563_PACK_MAX='+PACK_MAX_FICHIER+' : jamais plus d appels pack que la borne sur le banc (max '+Math.max(...CASES.map(k=>k.packs))+'), borne forcee a (appels - 1) => null et packTruncated intact, borne = appels => meme plan, borne 0 => null'+(r?' — '+r:''));
 }
 console.log('   (banc : '+CASES.length+' commandes de 5 a 12 laizes ; familles trouvees par appel direct : '+directes+' ; dont recherche reellement atteinte dans _l444Pal (brut moins cher mais refuse par L448) : '+atteintes+' ; plan final en familles : '+finales+')');
-console.log(fail?('\n💥 '+fail+' propriete(s) VIOLEE(S)'):'\n🏆 FAMILLES L563 VALIDEES : LEGRAND 3 bobines/869/somme 181 · jamais plus de bobines · conservation · capacite · <= 4 laizes/bobine · pic · determinisme · forme _palRepack · L448 · borne n · chutes/rouleaux · packTruncated (troncature forcee) · force brute · temps · familles preservees · borne pack');
+console.log(fail?('\n💥 '+fail+' propriete(s) VIOLEE(S)'):'\n🏆 FAMILLES L563 VALIDEES : LEGRAND 3 bobines/869/somme 181 · jamais plus de bobines · conservation · capacite · <= 4 laizes/bobine · pic · determinisme · forme _palRepack · L448 · borne n · chutes/rouleaux · packTruncated (troncature forcee) · force brute · temps · plan final regroupe (L566) · borne pack');
 process.exit(fail?1:0);

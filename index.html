@@ -3452,7 +3452,7 @@ var auditLoading=false;
 var AUDIT_LOAD_LIMIT=500; // dernières entrées chargées par défaut
 // Version applicative — maîtrise documentaire ISO (affichée dans l'en-tête).
 // À incrémenter à chaque livraison.
-const APP_VERSION='2026.11.23-L564';
+const APP_VERSION='2026.11.23-L566';
 // ============================================================
 // [L89] GEL DE VERSION — plus JAMAIS de mise à jour subie en pleine découpe
 // (incident Prima/Deceuninck 09/07 : un déploiement a rechargé l'app des
@@ -9080,6 +9080,124 @@ function _l563Familles(c,b){
   const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
   return Object.assign({},c,{bobines:bobines,planGroups:order,stats:{totalBobines:totalBobines,totalMat:totalMat,totalUsed:totalUsed,pct:pct},_palPhases:phases.length,_palPeak:peak,_l563Familles:true});
 }
+// ============================================================
+// [L566 · decision de la responsable qualite, 23/11/2026 : « regle n°1 = le moins de chute possible ; pas d'usine a gaz »]
+// CHUTES REGROUPEES EN FIN DE PLAN, MEME POUR LES PLANS EN FAMILLES (_l563Familles). Le lot L563 avait desactive le
+// regroupement _l444Regroup pour ces plans (il remelangeait les familles : pic 5-6, bobines a 5-6 laizes). Ici le
+// regroupement revient, DANS LA LIMITE EXISTANTE DE 6 (L448_PAL_TOL) : jamais plus de 6 laizes differentes dans une
+// bobine ET pic de palettes (_seqPeak, fonction officielle) <= L448_PAL_TOL ; meme nombre de bobines ; multiset conserve ;
+// la chute de la derniere bobine n'est jamais diminuee (adoption seulement si STRICTEMENT plus grande). Sinon : le plan
+// en familles reste tel quel. La perte TOTALE ne change jamais (nb de bobines x utile - laizes posees) : seule sa
+// repartition change. Le moteur gele n'est PAS touche (post-traitement de la couche, comme _l444Regroup).
+// ============================================================
+var L566_OPS_MAX=30000000;   /* borne DETERMINISTE de surete : au plus 30 millions d'etapes de sac-a-dos borne par plan (un COMPTE, jamais un temps) ; depassee -> plan en familles tel quel */
+// Sac-a-dos a au plus kmax LARGEURS DIFFERENTES (modele « slots » de _l444Fill : chaque piece coute width+blade, budget useful+blade)
+// qui maximise l'occupation d'UNE bobine depuis le pool {width:qty} ; a occupation egale, il EPUISE le plus de largeurs (le reste du
+// pool, qui finira sur la derniere bobine, garde le moins de largeurs differentes), puis le motif d'origine (pref) est GARDE s'il fait
+// aussi bien (les laizes voisines restent ensemble quand le regroupement ne gagne rien). null si la borne d'etapes (ops) est depassee.
+function _l566Fill(pool,useful,blade,kmax,ops,pref){
+  const budget=Math.floor(useful+blade+0.001); if(budget<=0) return null;
+  const ts=Object.keys(pool).map(Number).filter(function(w){ return pool[w]>0; }).sort(function(a,b){ return b-a; });
+  const T=ts.length; if(!T) return null;
+  const K=Math.min(kmax,T), W=budget+1, L=(K+1)*W;
+  const cost=function(w){ return Math.max(1,Math.round(w+blade)); };
+  const val=new Int8Array((T+1)*L).fill(-1), nq=new Int16Array((T+1)*L);     /* val[t][k][b] : largeurs epuisees (max), -1 = inatteignable ; nq : quantite posee de la largeur t-1 */
+  val[0]=0;
+  for(let t=0;t<T;t++){
+    const c=cost(ts[t]), q=pool[ts[t]], jmax=Math.min(q,Math.floor(budget/c)), lo=t*L, hi=(t+1)*L;
+    for(let x=0;x<L;x++) val[hi+x]=val[lo+x];
+    for(let k=1;k<=K;k++){
+      for(let b0=0;b0+c<=budget;b0++){
+        const v0=val[lo+(k-1)*W+b0]; if(v0<0) continue;
+        for(let j=1;j<=jmax&&b0+j*c<=budget;j++){
+          if(++ops.n>L566_OPS_MAX) return null;
+          const ix=hi+k*W+b0+j*c, nv=v0+(j===q?1:0);
+          if(nv>val[ix]){ val[ix]=nv; nq[ix]=j; }
+        }
+      }
+    }
+  }
+  let bk=0, bb=0, bv=-1;
+  for(let b=budget;b>0&&!bb;b--){ for(let k=1;k<=K;k++){ const v=val[T*L+k*W+b]; if(v>bv){ bv=v; bk=k; bb=b; } } }
+  if(!bb) return null;
+  if(pref){
+    let pc=0, pn=0, pe=0, fits=true; Object.keys(pref).forEach(function(w){ const q=pref[w]; if(q>0){ pn++; pc+=cost(Number(w))*q; if(!(pool[w]>=q)) fits=false; else if(pool[w]===q) pe++; } });
+    if(fits&&pn<=kmax&&pc===bb&&pe>=bv) return Object.assign({},pref);
+  }
+  const take={}; let k=bk, b=bb;
+  for(let t=T;t>0;t--){ const j=nq[t*L+k*W+b]; if(j>0){ take[ts[t-1]]=j; b-=j*cost(ts[t-1]); k--; } }
+  return take;
+}
+// Chute de la derniere bobine d'un plan {bobines,useful,blade}.
+function _l566Chute(r){ const b=r.bobines; return r.useful-calcStats(b[b.length-1],r.blade).total; }
+// Regroupement BORNE d'un plan en familles : meme principe que _l444RegroupRef (les bobines libres sont remplies a plein l'une
+// apres l'autre, le reste va a la derniere) mais chaque bobine a au plus L448_PAL_TOL largeurs differentes. null si rien a faire.
+function _l566Bornee(c){
+  if(!c||!Array.isArray(c.planGroups)||c.planGroups.length<1) return null;
+  if(c.oversize&&c.oversize.length) return null;
+  const useful=Number(c.useful)||0, blade=Number(c.blade)||0;
+  if(useful<=0) return null;
+  const seq=[];
+  c.planGroups.forEach(function(g){ const cnt=Math.max(1,parseInt(g.count)||1);
+    for(let i=0;i<cnt;i++) seq.push({pattern:(g.pattern||[]).map(function(p){return {width:p.width,qty:p.qty};}),fixed:!!g.chute,chute:g.chute}); });
+  const freeIdx=[]; seq.forEach(function(b,i){ if(!b.fixed) freeIdx.push(i); });
+  if(freeIdx.length<2) return null;
+  const pool={};
+  freeIdx.forEach(function(i){ seq[i].pattern.forEach(function(p){ pool[p.width]=(pool[p.width]||0)+p.qty; }); });
+  const ops={n:0}, newPat={};
+  for(let k=0;k<freeIdx.length-1;k++){
+    const pref={}; seq[freeIdx[k]].pattern.forEach(function(p){ pref[p.width]=(pref[p.width]||0)+p.qty; });
+    const take=_l566Fill(pool,useful,blade,L448_PAL_TOL,ops,pref);
+    if(!take) return null;
+    Object.keys(take).forEach(function(w){ pool[w]-=take[w]; if(pool[w]<=0) delete pool[w]; });
+    newPat[freeIdx[k]]=take;
+  }
+  newPat[freeIdx[freeIdx.length-1]]=Object.assign({},pool);
+  const mk=function(take){ return Object.keys(take).map(Number).sort(function(a,b){return b-a;}).map(function(w){return {width:w,qty:take[w]};}); };
+  const newSeq=seq.map(function(b,i){ return (newPat[i]!==undefined)?mk(newPat[i]):b.pattern; });
+  for(let i=0;i<newSeq.length;i++){ if(!newSeq[i].length) return null; }   /* une bobine vide changerait le nombre de bobines */
+  const out=[]; let run=null;
+  newSeq.forEach(function(pat,i){
+    if(seq[i].fixed){ if(run){out.push(run);run=null;} out.push({pattern:pat,count:1,chute:seq[i].chute}); return; }
+    const lbl=makeLabel(pat);
+    if(run&&run._lbl===lbl) run.count++;
+    else { if(run) out.push(run); run={pattern:pat,count:1,_lbl:lbl}; }
+  });
+  if(run) out.push(run);
+  out.forEach(function(g){ delete g._lbl; });
+  const fin=_palSplitSolde(out), bobs=_palBobines(fin);
+  const totalBobines=bobs.length, totalMat=totalBobines*useful;
+  const totalUsed=bobs.reduce(function(s,p){ return s+calcStats(p,blade).total; },0);
+  const pct=totalMat>0?((totalMat-totalUsed)/totalMat*100):0;
+  return Object.assign({},c,{bobines:bobs,planGroups:fin,stats:Object.assign({},c.stats,{totalBobines:totalBobines,totalMat:totalMat,totalUsed:totalUsed,pct:pct}),_palPeak:_seqPeak(fin),_l566:true});
+}
+// Un plan regroupe r est-il ACCEPTABLE a la place du plan en familles c ? meme nombre de bobines, multiset conserve, capacite,
+// jamais plus de L448_PAL_TOL laizes differentes par bobine, pic _seqPeak <= L448_PAL_TOL, chute de la derniere bobine STRICTEMENT plus grande.
+function _l566Respecte(c,r){
+  if(!c||!r||r===c||!Array.isArray(r.bobines)||!Array.isArray(r.planGroups)||!Array.isArray(c.bobines)||!c.bobines.length) return false;
+  if(r.bobines.length!==c.bobines.length) return false;
+  const blade=Math.max(0,Number(c.blade)||0), useful=Number(c.useful)||0, cnt={};
+  c.bobines.forEach(function(p){ p.forEach(function(x){ cnt[x.width]=(cnt[x.width]||0)+(Number(x.qty)||0); }); });
+  for(let i=0;i<r.bobines.length;i++){
+    const p=r.bobines[i]; if(!p||!p.length) return false;
+    if(_pgW({pattern:p}).length>L448_PAL_TOL) return false;
+    if(calcStats(p,blade).total>useful+0.01) return false;
+    p.forEach(function(x){ cnt[x.width]=(cnt[x.width]||0)-(Number(x.qty)||0); });
+  }
+  for(const w in cnt){ if(cnt[w]!==0) return false; }
+  if(_seqPeak(r.planGroups)>L448_PAL_TOL) return false;
+  return _l566Chute(r)>_l566Chute(c)+0.5;
+}
+// REGLE DE _l444Pal pour un plan en familles : c = le plan en familles, regroupe = ce que _l444Regroup en a fait.
+// 1) _l444Regroup tel quel, s'il respecte deja les limites ; 2) sinon le regroupement borne ci-dessus s'il les respecte ; 3) sinon c.
+function _l566RegroupeBorne(c,regroupe){
+  try{
+    if(_l566Respecte(c,regroupe)) return regroupe;
+    const b=_l566Bornee(c);
+    if(_l566Respecte(c,b)) return b;
+  }catch(e){}
+  return c;
+}
 function _l444Pal(groups){
   const r=packRefGroupsPal(groups);
   let out=r;
@@ -9099,7 +9217,7 @@ function _l444Pal(groups){
       return c;
     });
   }catch(e){ out=r; }
-  try{ const _rg=_l444Regroup(out); return _rg.map(function(c,i){ return (out[i]&&out[i]._l563Familles)?out[i]:c; }); }catch(e){ return out; }   /* [L563] un plan en familles de laizes voisines n'est PAS remelange par le regroupement des chutes (L444) : la priorite atelier arrive a l'ecran */
+  try{ const _rg=_l444Regroup(out); return _rg.map(function(c,i){ return (out[i]&&out[i]._l563Familles)?_l566RegroupeBorne(out[i],c):c; }); }catch(e){ return out; }   /* [L566] un plan en familles est regroupe (chutes en fin de plan) DANS la limite de 6 laizes par bobine et de 6 palettes ; sinon il reste en familles (L563) */
 }
 // ENVELOPPE UNIQUE des sites d'appel : plan moteur → ordre/phases « palettes ».
 function packRefGroupsPal(groups){
