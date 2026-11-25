@@ -3167,5 +3167,21 @@ has(/return _l566Chute\(r\)>_l566Chute\(c\)\+0\.5;/,'L566 : adoption seulement s
 has(/if\(_l566Respecte\(c,regroupe\)\) return regroupe;\n    const b=_l566Bornee\(c\);\n    if\(_l566Respecte\(c,b\)\) return b;\n  \}catch\(e\)\{\}\n  return c;/,'L566 : _l444Regroup tel quel s il respecte les limites, sinon le regroupement borne s il les respecte, sinon le plan en familles');
 absent(/\(out\[i\]&&out\[i\]\._l563Familles\)\?out\[i\]:c/,'L566 : l ancien garde « plan en familles jamais regroupe » n existe plus');
 has(/APP_VERSION='2026\.11\.\d\d-L56[6-9]'/,'L566 : version 2026.11.23-L566 ou suivante (L566 a L569)');
+console.log('── L567 : étiquette solde sur UNE page A4 paysage (mise en page seule, accord de la responsable qualité 23/11/2026, signalement d’un opérateur du 20/11) ──');
+has(/@media print\{ html,body\{height:auto\} \.toolbar\{display:none\} \.sheet\{min-height:auto;padding:0;display:block\} \.etiq\{border-width:5px;max-width:none\} \}/,'L567 : à l’impression la feuille n’impose AUCUNE hauteur minimale (min-height:auto, bloc simple, hauteur auto) : plus de min-height:calc(100vh) qui débordait sur une 2e page');
+absent(/@media print\{[^\n]*min-height:(?!auto)/,'L567 : le bloc @media print ne remet aucun min-height autre que auto');
+has(/\.etiq\{[^}\n]*padding:6mm 10mm;[^}\n]*break-inside:avoid;page-break-inside:avoid\}/,'L567 : l’étiquette ne se coupe pas entre deux pages (break-inside:avoid + page-break-inside:avoid), marges en mm');
+has(/\.solde\{[^}\n]*font-size:140px;margin:6px 0\}/,'L567 : solde en 140 px (et plus 210 px)');
+absent(/\.solde\{[^}\n]*font-size:210px/,'L567 : le solde 210 px qui prenait la page n’existe plus');
+has(/\.grid\{[^}\n]*gap:6px 36px;font-size:26px;[^}\n]*line-height:1\.25\}/,'L567 : grille d’informations en 26 px, interlignes serrés');
+absent(/\.grid\{[^}\n]*font-size:36px/,'L567 : la grille 36 px n’existe plus');
+has(/\.etiq h2\{font-size:30px;/,'L567 : titre en 30 px');
+has(/\.refnum \.vide\{[^}\n]*height:16mm;/,'L567 : case vide « N° de référence » plus basse (16 mm, toujours là pour le feutre)');
+absent(/height:24mm;border:4px solid #000/,'L567 : l’ancienne case de 24 mm n’existe plus');
+has(/<div class="refnum">\n      <b>N° de référence :<\/b>\n      \$\{d\.refNum\?`<span class="val">\$\{esc\(String\(d\.refNum\)\)\}<\/span>`:`<span class="vide"><\/span>`\}/,'L567 : N° de référence : rempli (échappé par esc) ou case vide, comme avant');
+has(/<span><b>Film :<\/b> \$\{esc\(String\(d\.film\)\)\}<\/span>[\s\S]{0,400}<span><b>Type :<\/b> \$\{esc\(String\(d\.veka\)\)\}<\/span>[\s\S]{0,200}<span><b>Longueur :<\/b> \$\{esc\(String\(d\.longueur\)\)\} ml<\/span>[\s\S]{0,200}<span><b>Laize mère :<\/b> \$\{esc\(String\(fmt\(d\.mother\)\)\)\} mm<\/span>/,'L567 : les 4 lignes matière (film, type, longueur, laize mère) sont TOUJOURS imprimées, échappées par esc (aucune information retirée)');
+has(/\$\{esc\(String\(d\.solde\)\)\}<small> mm<\/small>[\s\S]{0,200}<b>Bobine mère n° :<\/b> \$\{esc\(String\(d\.numBob\)\)\}[\s\S]{0,300}<b>Réf :<\/b>[\s\S]{0,300}<b>Machine :<\/b> \$\{esc\(String\(d\.mn\)\)\}<\/span>\s*<span><b>Date :<\/b> \$\{esc\(String\(d\.date\)\)\}/,'L567 : solde, bobine mère, réf, machine et date toujours imprimés (aucune information retirée)');
+{ const _p=require('path').join(__dirname,'etiquette_l567_test.js'); const _t=fs.existsSync(_p)?fs.readFileSync(_p,'utf8'):'', ok=/Page\.printToPDF/.test(_t)&&/EN_CI=!!\(process\.env\.CI\|\|process\.env\.GITHUB_ACTIONS\)/.test(_t)&&/COMPTE DE PAGES NON JOUÉ en CI/.test(_t)&&/Chrome INTROUVABLE[^\n]*hors CI/.test(_t)&&/mm<=198/.test(_t);
+  console.log((ok?'✅ ':'❌ ')+'L567 : tests/etiquette_l567_test.js présent : vrai Chrome (1 page exactement) ; en CI sans Chrome le compte est signalé NON JOUÉ, hors CI l’absence de Chrome est un échec ; hauteur estimée depuis le CSS ≤ 198 mm'); if(!ok) fail++; }
 console.log(fail?('\n💥 '+fail+' correctif(s) MANQUANT(S) — revert silencieux ?'):'\n🏆 '+'INTÉGRITÉ AUDIT OK : tous les marqueurs du gardien présents dans index.html + sw.js (fichier testé : '+(String(src.match(/APP_VERSION='([^']*)'/)&&src.match(/APP_VERSION='([^']*)'/)[1])||'?')+')');
 process.exit(fail?1:0);
