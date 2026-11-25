@@ -79,12 +79,16 @@ node -e "const r=require('./tests/sim200-report.json'); const s=r.summary||r; if
 tail -1 /tmp/_bat_$$.log
 
 step "7. smokes (le capteur doit EXISTER : 0 erreur ne vaut rien si rien ne compte)"
-for s in plan fiche fiche-start fiche-cut fiche-dechet fiche-entretien fiche-reglages fiche-dossier fiche-reste fiche-horscmd fiche-ordre donnees-emballage fiche-garde-oui fiche-garde-vierge fiche-garde-auto fiche-garde-multi brouillons-supersede brouillons-stuck brouillons-archive brouillons-orphan brouillons-liste donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
+for s in plan fiche fiche-start fiche-cut fiche-dechet fiche-entretien fiche-reglages fiche-dossier fiche-reste fiche-horscmd fiche-ordre donnees-emballage fiche-garde-oui fiche-garde-vierge fiche-garde-auto fiche-garde-multi brouillons-supersede brouillons-stuck brouillons-archive brouillons-orphan brouillons-liste donnees-brouillon donnees analyse; do   # [L507] fiche-start : chrono demarre et verifie
   # [L506 · verification adverse] le CODE DE SORTIE juge (le || true le jetait : une smoke rouge passait verte) ; le grep n est qu un 2e filet, sentinelles de shot.mjs comprises (il echoue en francais)
   if ! node tests/shot.mjs --scene "$s" --url "$BAT_URL" --out "/tmp/_bat_${s}_$$.png" --json >"/tmp/_bat_${s}_$$.log" 2>&1; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : shot.mjs sort en erreur"; exit 1; fi
   if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_bat_${s}_$$.log"; then tail -8 "/tmp/_bat_${s}_$$.log"; red "smoke $s : sentinelle d erreur dans la sortie"; exit 1; fi
   printf '%-9s ok\n' "$s"
 done
+# [L568] regle 3 : la MEME scene en portrait (800x1280) : sous 1100 px le bouton oeil doit etre masque (style calcule dans Chrome)
+if ! node tests/shot.mjs --scene donnees-brouillon --url "$BAT_URL" --w 800 --h 1280 --out "/tmp/_bat_donnees-brouillon-portrait_$$.png" --json >"/tmp/_bat_donnees-brouillon-portrait_$$.log" 2>&1; then tail -8 "/tmp/_bat_donnees-brouillon-portrait_$$.log"; red "smoke donnees-brouillon en portrait : shot.mjs sort en erreur"; exit 1; fi
+if grep -qiE "SETUP ERR|pageerror|CAPTEUR ABSENT|❌" "/tmp/_bat_donnees-brouillon-portrait_$$.log"; then tail -8 "/tmp/_bat_donnees-brouillon-portrait_$$.log"; red "smoke donnees-brouillon en portrait : sentinelle d erreur dans la sortie"; exit 1; fi
+printf '%-9s ok\n' "donnees-brouillon-portrait"
 
 step "8. recensement : ecritures Firestore attendues SANS borne (doit etre vide)"
 UNB=$(grep -n "db\.collection([^)]*)\(\.doc([^)]*)\)\?\.\(set\|update\|delete\|add\)(" index.html | grep -v "boundedWrite\|boundedTx\|raceTimeout\|_commitRace\|_bw(\|tx\.\|batch\." | grep "await " || true)
